@@ -1,4 +1,4 @@
-This repository includes codes created for different experiments for the model presented in the .pdf file. The CPPMTO model presented in the document is mainly used to solve the randomly generated instances.
+This repository includes codes created for different experiments for the model presented in the research document .pdf file. The CPPMTO model presented in the document is mainly used to solve the randomly generated instances.
 To recreate the instance generation procedure, random seed 42 can be used. Due to size, the created instances cannot be shared here. Use Instance_generator_v2.py to create the instances. In the notebook CPPMTO_Experiments, first cell after imports calls the instance generator.
 Instance generator creates two folders in the path for .json and .txt files. .txt files can be used to better understand the created instances as it is verbal, for optimization, .json files are used.
 CPPMTO_instance_parser_2.py is necessary for running optimizer codes as it parses the data in the .json files created by Instance_generator_v2.py within the optimizer code.
