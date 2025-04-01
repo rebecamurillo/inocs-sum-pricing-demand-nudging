@@ -149,15 +149,18 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
             
             # Build base polyline coordinates.
             coords = [base_origin]
+            transfer_info = ""
             if transfers == 0:
                 # Direct arc: nothing in between.
                 pass
             elif transfers == 1:
                 t_node = arc_info.get("transfer_node")
+                transfer_info = f"Transfer Node: {t_node}"
                 if t_node is not None and t_node in hub_coords:
                     coords.append(hub_coords[t_node])
             elif transfers == 2:
                 t_nodes = arc_info.get("transfer_nodes")
+                transfer_info = f"Transfer Node: {t_nodes}"
                 if t_nodes and isinstance(t_nodes, list) and len(t_nodes) >= 2:
                     if t_nodes[0] in hub_coords:
                         coords.append(hub_coords[t_nodes[0]])
@@ -182,6 +185,7 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                 f"Arc {arc_id}<br>"
                 f"Type: {inst.get('Type', 'N/A')}<br>"
                 f"Number of Transfers: {inst.get('Transfers', 'N/A')}<br>"
+                f"{transfer_info}<br>"
                 f"Mile Type: {inst.get('Mile Type', 'N/A')}<br>"
                 f"Bike Price: {inst.get('Bike Price', 'N/A')}<br>"
                 f"Flow: {inst.get('Flow (q)', 0)}"
@@ -229,14 +233,17 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                 arc_info = arc_mapping.get(arc_id, {})
                 transfers = arc_info.get("transfers", 0)
                 coords = [base_origin]
+                transfer_info = ""
                 if transfers == 0:
                     pass
                 elif transfers == 1:
                     t_node = arc_info.get("transfer_node")
+                    transfer_info = f"Transfer Node: {t_node}"
                     if t_node is not None and t_node in hub_coords:
                         coords.append(hub_coords[t_node])
                 elif transfers == 2:
                     t_nodes = arc_info.get("transfer_nodes")
+                    transfer_info = f"Transfer Node: {t_node}"
                     if t_nodes and isinstance(t_nodes, list) and len(t_nodes) >= 2:
                         if t_nodes[0] in hub_coords:
                             coords.append(hub_coords[t_nodes[0]])
@@ -257,6 +264,7 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                     f"Arc {arc_id}<br>"
                     f"Type: {inst.get('Type', 'N/A')}<br>"
                     f"Number of Transfers: {inst.get('Transfers', 'N/A')}<br>"
+                    f"{transfer_info}<br>"
                     f"Mile Type: {inst.get('Mile Type', 'N/A')}<br>"
                     f"Bike Price: {inst.get('Bike Price', 'N/A')}<br>"
                     f"Flow: {flow_val}"
