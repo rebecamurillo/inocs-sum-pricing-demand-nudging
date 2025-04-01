@@ -31,7 +31,10 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
         - If an alternative is offered, it is drawn in orange, if it is selected is is highlighted in green.
         - If an alternative is not offered, it is drawn in grey.
         - Blue node is the search origin, pink node is the search destination.
-    """
+    """    
+    #========================================
+    #1. Create the nodes
+    #========================================
     # Convert cluster_df to EPSG:4326 if necessary.
     if cluster_df.crs != "EPSG:4326":
         cluster_df = cluster_df.to_crs("EPSG:4326")
@@ -52,22 +55,6 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
     search_fg = folium.FeatureGroup(name=f"OD Search: {origin_id}->{destination_id}")
     instance_hubs_fg = folium.FeatureGroup(name="Instance Hubs")
     
-    # Plot hub markers.
-    for idx, row in cluster_df.iterrows():
-        lat, lon = row.geometry.y, row.geometry.x
-        popup_html = (
-            f"<b>Hub {row['hub_id']}</b><br>"
-            f"Label: {row['label']}<br>"
-            f"Bike Stations: {row['bike_stations']}<br>"
-            f"PT Stops: {row['pt_stations']}<br>"
-            f"Lines: {row['lines']}"
-        )
-        folium.Marker(
-            location=(lat, lon),
-            icon=folium.Icon(color='red'),
-            popup=folium.Popup(popup_html, max_width=300)
-        ).add_to(hubs_fg)
-    
     # Load network data.
     with open(preprocessing_data_path, "r") as f:
         net_data = json.load(f)
@@ -80,6 +67,35 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
         for arc in arc_list:
             arc_mapping[arc["arc_id"]] = arc
 
+   # Extract bike station information from the network data.
+    bike_stations_info = net_data.get("bike_stations", {})
+    station_capacity = bike_stations_info.get("station_capacity", {})
+    station_inventory = bike_stations_info.get("station_inventory", {})
+
+    # Plot hub markers.
+    for idx, row in cluster_df.iterrows():
+        lat, lon = row.geometry.y, row.geometry.x
+        popup_html = (
+            f"<b>Hub {row['hub_id']}</b><br>"
+            f"Label: {row['label']}<br>"
+            f"Bike Stations: {row['bike_stations']}<br>"
+            f"PT Stops: {row['pt_stations']}<br>"
+            f"Lines: {row['lines']}<br>"
+        )
+        # If the hub label includes "bike", add capacity and inventory info.
+        if "bike" in row['label'].lower():
+            cap = station_capacity.get(str(row['hub_id']), "N/A")
+            inv = station_inventory.get(str(row['hub_id']), "N/A")
+            popup_html += f"Capacity: {cap}<br>Inventory: {inv}"
+        
+        folium.Marker(
+            location=(lat, lon),
+            icon=folium.Icon(color='red'),
+            popup=folium.Popup(popup_html, max_width=300)
+        ).add_to(hubs_fg)
+    #========================================
+    #1.1 Create the nodes for the instance solution
+    #========================================
     instance_hub_ids = net_data.get("nodes", [])
     for hub in cluster_df.itertuples():
         if hub.hub_id in instance_hub_ids:
@@ -89,13 +105,22 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                 f"Label: {hub.label}<br>"
                 f"Bike Stations: {hub.bike_stations}<br>"
                 f"PT Stops: {hub.pt_stations}<br>"
-                f"Lines: {hub.lines}"
+                f"Lines: {hub.lines}<br>"
             )
+            # If the hub label includes "bike", add capacity and inventory info.
+            if "bike" in hub.label.lower():
+                cap = station_capacity.get(str(hub.hub_id), "N/A")
+                inv = station_inventory.get(str(hub.hub_id), "N/A")
+                popup_html += f"Capacity: {cap}<br>Inventory: {inv}"
             folium.Marker(
                 location=(lat, lon),
                 icon=folium.Icon(color='blue', icon='info-sign'),
                 popup=folium.Popup(popup_html, max_width=300)
             ).add_to(instance_hubs_fg)
+
+    #========================================
+    #2. Create the the trips
+    #========================================
 
     # Load solution data and filter out car alternatives.
     with open(solution_json_path, "r") as f:
@@ -160,11 +185,13 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                     coords.append(hub_coords[t_node])
             elif transfers == 2:
                 t_nodes = arc_info.get("transfer_nodes")
-                transfer_info = f"Transfer Node: {t_nodes}"
+                transfer_info = f"Transfer Nodes: {t_nodes[0]}, {t_nodes[1]}"
                 if t_nodes and isinstance(t_nodes, list) and len(t_nodes) >= 2:
-                    if t_nodes[0] in hub_coords:
+                    t0_nodes = t_nodes[0]
+                    t1_nodes = t_nodes[1]
+                    if t0_nodes in hub_coords:
                         coords.append(hub_coords[t_nodes[0]])
-                    if t_nodes[1] in hub_coords:
+                    if t1_nodes in hub_coords:
                         coords.append(hub_coords[t_nodes[1]])
             coords.append(base_dest)
             
@@ -195,8 +222,12 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                 locations=polyline_coords,
                 color=line_color,
                 weight=2,
-                popup=folium.Popup(popup_text, parse_html=True)
+                popup=folium.Popup(popup_text, max_width=400, parse_html=True)
             ).add_to(arcs_fg)
+    
+    #========================================
+    #3. Create a search engine for the selected OD pair
+    #========================================
     
     # Search layer: add a separate layer for the searched OD pair with offset applied.
     if search:
@@ -243,7 +274,7 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                         coords.append(hub_coords[t_node])
                 elif transfers == 2:
                     t_nodes = arc_info.get("transfer_nodes")
-                    transfer_info = f"Transfer Node: {t_node}"
+                    transfer_info = f"Transfer Nodes: {t_nodes[0]}, {t_nodes[1]}"
                     if t_nodes and isinstance(t_nodes, list) and len(t_nodes) >= 2:
                         if t_nodes[0] in hub_coords:
                             coords.append(hub_coords[t_nodes[0]])
@@ -273,7 +304,7 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
                     locations=search_coords,
                     color=line_color,
                     weight=3,
-                    popup=folium.Popup(popup_text)
+                    popup=folium.Popup(popup_text, max_width=400,)
                 ).add_to(search_fg)
     
     # Add layers and layer control.
