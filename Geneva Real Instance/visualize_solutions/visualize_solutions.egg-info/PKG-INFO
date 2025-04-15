@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: visualize-solutions
+Version: 0.1
+Requires-Dist: geopandas
+Requires-Dist: folium
+Requires-Dist: ipywidgets
+Requires-Dist: IPython
+Requires-Dist: shapely
+Requires-Dist: pandas
+Requires-Dist: numpy

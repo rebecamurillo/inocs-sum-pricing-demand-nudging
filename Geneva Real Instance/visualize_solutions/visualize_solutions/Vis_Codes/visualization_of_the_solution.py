@@ -4,7 +4,7 @@ import math
 from shapely.geometry import Point
 import geopandas as gpd
 
-def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_data_path, origin_id, destination_id, search=True):
+def visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path, origin_id, destination_id, search=True):
     """
     Visualize the solution on a folium map.
     
@@ -12,7 +12,7 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
       cluster_df: GeoDataFrame of hubs with at least columns 'hub_id' and 'geometry'.
                   Geometry should be in EPSG:4326. If not, it is converted.
       solution_json_path: Path to the solution JSON file.
-      preprocessing_data_path: Path to the network JSON file (contains detailed arc info).
+      network_data_path: Path to the network JSON file (contains detailed arc info).
       origin_id: Hub ID for search origin.
       destination_id: Hub ID for search destination.
       search: If True, add a separate search layer.
@@ -56,7 +56,7 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
     instance_hubs_fg = folium.FeatureGroup(name="Instance Hubs")
     
     # Load network data.
-    with open(preprocessing_data_path, "r") as f:
+    with open(network_data_path, "r") as f:
         net_data = json.load(f)
     # Build mapping from arc_id to detailed arc info.
     arc_mapping = {}
@@ -310,8 +310,8 @@ def visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_dat
     # Add layers and layer control.
     m.add_child(hubs_fg)
     m.add_child(arcs_fg)
-    m.add_child(search_fg)
     m.add_child(instance_hubs_fg)
+    m.add_child(search_fg)
     folium.LayerControl().add_to(m)
     
     return m

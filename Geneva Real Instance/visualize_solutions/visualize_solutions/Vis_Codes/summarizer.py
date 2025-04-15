@@ -4,23 +4,31 @@ import json
 import pandas as pd
 import numpy as np
 
-def summarize_experiment_solutions(solution_folder, L=7):
+def summarize_experiment_solutions(solution_input, L=7):
     """
     Processes all solution JSON files in the given folder and returns a summary DataFrame.
     
-    The function looks for all JSON files in the folder that have "solution" in their filename,
+    The function looks for all JSON files in the folder that have "solution" in their filename, or a given path to the solution file,
     then for each file, it extracts key metrics such as solution time, objective value, gap,
     number of OD pairs, total demand, flows, average bike price, average transfers, and more.
     It also computes usage ratios for PT Only and Multimodal arcs.
     
     Parameters:
-      solution_folder (str): The folder path where solution JSON files are stored.
-    
+      solution_input (str): Either a folder path containing solution JSON files, or a path to a single solution JSON file.
+      L (int): A label or parameter included in the summary caption.
+
     Returns:
       summary_df (pandas.DataFrame): A DataFrame summarizing key metrics for each solution instance.
     """
-    # Get all JSON files with "solution" in their name.
-    solution_paths = glob.glob(os.path.join(solution_folder, '*solution*.json'))
+# Determine if the input is a folder or a single file
+    if os.path.isdir(solution_input):
+        solution_paths = glob.glob(os.path.join(solution_input, '*solution*.json'))
+        exp_name = os.path.basename(os.path.normpath(solution_input))
+    elif os.path.isfile(solution_input):
+        solution_paths = [solution_input]
+        exp_name = os.path.basename(solution_input)
+    else:
+        raise ValueError("Invalid path provided. Must be a folder or a .json file.")
     
     # Store results from all solution files.
     all_summaries = []
@@ -108,9 +116,8 @@ def summarize_experiment_solutions(solution_folder, L=7):
         var_name="Arc Type",
         value_name="Usage Ratio"
     )
-    exp_name= os.path.basename(os.path.normpath(solution_folder))
     disp_df = display(summary_df.style.set_caption(f"Summary of Solved Instances From Real Network with L={L}, {exp_name} "))
-
+    
     return disp_df
 
 

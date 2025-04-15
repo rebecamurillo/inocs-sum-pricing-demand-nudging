@@ -1,28 +1,28 @@
 import ipywidgets as widgets
 from IPython.display import display
-from Vis_Codes.visualization_of_the_solution import visualize_bilevel_solution
+from .visualization_of_the_solution import visualize_bilevel_solution
 import json
 
-def display_bilevel_solution_with_ui(cluster_df, solution_json_path, preprocessing_data_path):
+def display_bilevel_solution_with_ui(cluster_df, network_data_path, solution_json_path):
     """
     Displays an interactive solution visualization UI.
     
     This function creates input widgets for the origin and destination hub IDs and uses
     the visualize_bilevel_solution() function to display the corresponding folium map.
-    In addition, it reads the demand information from the preprocessing JSON file and
+    In addition, it reads the demand information from the network JSON file and
     prints the demand value for the chosen OD pair.
     
     Parameters:
       cluster_df: GeoDataFrame of hubs (clusters) with columns 'hub_id' and 'geometry' (EPSG:4326).
       solution_json_path: Path to the solution JSON file.
-      preprocessing_data_path: Path to the network (preprocessing) JSON file, which contains OD pair demand.
+      network_data_path: Path to the network (network) JSON file, which contains OD pair demand.
     
     Returns:
       None (displays the interactive UI and map in the notebook).
     """
     def update_map(origin, destination):
-        # Read the OD pair demand from the preprocessing data.
-        with open(preprocessing_data_path, "r") as f:
+        # Read the OD pair demand from the network data.
+        with open(network_data_path, "r") as f:
             preproc_data = json.load(f)
         od_pairs = preproc_data.get("OD_pairs", [])
         demand_value = None
@@ -36,7 +36,7 @@ def display_bilevel_solution_with_ui(cluster_df, solution_json_path, preprocessi
             print(f"No demand info found for OD pair {origin} -> {destination}")
         
         # Call the visualization function.
-        m = visualize_bilevel_solution(cluster_df, solution_json_path, preprocessing_data_path, origin, destination, search=True)
+        m = visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path, origin, destination, search=True)
         display(m)
     
     # Create input widgets for origin and destination.
