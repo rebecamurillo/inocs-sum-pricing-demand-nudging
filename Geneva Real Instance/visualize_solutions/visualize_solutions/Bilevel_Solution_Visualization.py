@@ -7,6 +7,8 @@ from IPython.display import display, clear_output
 import geopandas as gpd
 from visualize_solutions.Vis_Codes.visualize_bilevel_solution_with_ui import display_bilevel_solution_with_ui
 from visualize_solutions.Vis_Codes.summarizer import summarize_experiment_solutions
+from visualize_solutions.Vis_Codes.summarizer_pre_lexi import summarize_pre_lexicographic_experiment_solutions
+from visualize_solutions.Vis_Codes.summarizer_multi_obj import summarise_multiobj_solutions
 
 class Bilevel_Solution_Visualizer:
     def __init__(self,
@@ -111,3 +113,11 @@ class Bilevel_Solution_Visualizer:
     def summarize(self):
         folder = self.solution_folder or os.path.dirname(self.solution_path)
         return summarize_experiment_solutions(folder)
+    
+    def summarize_pre_lexi(self):
+        folder = self.solution_folder or os.path.dirname(self.solution_path)
+        return summarize_pre_lexicographic_experiment_solutions(folder)
+    
+    def summarize_multi_obj(self):
+        folder = self.solution_folder or os.path.dirname(self.solution_path)
+        return summarise_multiobj_solutions(folder)
