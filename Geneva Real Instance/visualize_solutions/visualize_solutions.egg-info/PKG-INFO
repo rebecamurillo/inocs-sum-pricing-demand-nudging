@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Metadata-Version: 2.4
 Name: visualize_solutions
 Version: 0.1
@@ -9,3 +10,16 @@ Requires-Dist: shapely
 Requires-Dist: pandas
 Requires-Dist: numpy
 Dynamic: requires-dist
+=======
+Metadata-Version: 2.4
+Name: visualize_solutions
+Version: 0.1
+Requires-Dist: geopandas
+Requires-Dist: folium
+Requires-Dist: ipywidgets
+Requires-Dist: IPython
+Requires-Dist: shapely
+Requires-Dist: pandas
+Requires-Dist: numpy
+Dynamic: requires-dist
+>>>>>>> 1655082a5d8beda6aae5106606ff18724c579722
