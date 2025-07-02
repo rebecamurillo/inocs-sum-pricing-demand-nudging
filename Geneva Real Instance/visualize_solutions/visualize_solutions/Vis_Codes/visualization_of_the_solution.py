@@ -172,52 +172,77 @@ def visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path
             arc_info = arc_mapping.get(arc_id, {})
             transfers = arc_info.get("transfers", 0)
             
-            # Build base polyline coordinates.
+            # ——— detect super vs normal ———
+            # — detect super vs normal & build line_str, transfer_opts —
+            is_super = "lines_options" in arc_info
+            if is_super:
+                line_opts     = arc_info["lines_options"]
+                transfer_opts = arc_info.get(
+                    "transfer_nodes_options",
+                    [[]] * len(line_opts)
+                )
+                # bracketed popup strings
+                line_str = ", ".join(f"[{', '.join(opt)}]" for opt in line_opts)
+                if transfers > 0:
+                    transfer_str = ", ".join(
+                        f"[{', '.join(map(str, opts))}]" for opts in transfer_opts
+                    )
+                else:
+                    transfer_str = ""
+                # use only the first option’s nodes for geometry
+                transfer_nodes_list = transfer_opts[0] if transfers > 0 else []
+            else:
+                # normal arc
+                lines = arc_info.get("lines", [])
+                line_str = ", ".join(lines)
+                if transfers == 1:
+                    transfer_nodes_list = [arc_info.get("transfer_node")]
+                    transfer_str = str(transfer_nodes_list[0])
+                elif transfers == 2:
+                    transfer_nodes_list = arc_info.get("transfer_nodes", [])
+                    transfer_str = ", ".join(map(str, transfer_nodes_list))
+                else:
+                    transfer_nodes_list = []
+                    transfer_str = ""
+
+            # — build the coords sequence —
             coords = [base_origin]
-            transfer_info = ""
-            if transfers == 0:
-                # Direct arc: nothing in between.
-                pass
-            elif transfers == 1:
-                t_node = arc_info.get("transfer_node")
-                transfer_info = f"Transfer Node: {t_node}"
-                if t_node is not None and t_node in hub_coords:
-                    coords.append(hub_coords[t_node])
-            elif transfers == 2:
-                t_nodes = arc_info.get("transfer_nodes")
-                transfer_info = f"Transfer Nodes: {t_nodes[0]}, {t_nodes[1]}"
-                if t_nodes and isinstance(t_nodes, list) and len(t_nodes) >= 2:
-                    t0_nodes = t_nodes[0]
-                    t1_nodes = t_nodes[1]
-                    if t0_nodes in hub_coords:
-                        coords.append(hub_coords[t_nodes[0]])
-                    if t1_nodes in hub_coords:
-                        coords.append(hub_coords[t_nodes[1]])
+            for node in transfer_nodes_list:
+                if node in hub_coords:
+                    coords.append(hub_coords[node])
             coords.append(base_dest)
-            
-            # Apply offset to each coordinate.
-            polyline_coords = [(lat + overall_offset[0], lon + overall_offset[1]) for lat, lon in coords]
-            
-            # Determine color.
-            nu_val = inst.get("nu", 0)
+
+            # apply offset
+            polyline_coords = [
+                (lat + overall_offset[0], lon + overall_offset[1])
+                for lat, lon in coords
+            ]
+
+            # determine color
+            nu_val   = inst.get("nu", 0)
             flow_val = inst.get("Flow (q)", 0)
-            if  flow_val >= 1:
+            if flow_val >= 1:
                 line_color = "green"
-            elif nu_val == 1 and flow_val < 1:
+            elif nu_val == 1:
                 line_color = "orange"
             else:
                 line_color = "grey"
-            
+
+            # build popup
             popup_text = (
                 f"Arc {arc_id}<br>"
                 f"Type: {inst.get('Type', 'N/A')}<br>"
-                f"Number of Transfers: {inst.get('Transfers', 'N/A')}<br>"
-                f"{transfer_info}<br>"
+                f"Number of Transfers: {transfers}<br>"
+            )
+            popup_text += f"Lines: {line_str}<br>"
+            if transfer_str:
+                popup_text += f"Transfer Node(s): {transfer_str}<br>"
+            popup_text += (
                 f"Mile Type: {inst.get('Mile Type', 'N/A')}<br>"
                 f"Bike Price: {inst.get('Bike Price', 'N/A')}<br>"
-                f"Flow: {inst.get('Flow (q)', 0)}"
+                f"Flow: {flow_val}"
             )
-            
+
             folium.PolyLine(
                 locations=polyline_coords,
                 color=line_color,
@@ -228,9 +253,54 @@ def visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path
     #========================================
     #3. Create a search engine for the selected OD pair
     #========================================
-    
+
     # Search layer: add a separate layer for the searched OD pair with offset applied.
     if search:
+        if origin_id in hub_coords:
+            # Retrieve the row from cluster_df corresponding to the origin.
+            origin_row = cluster_df[cluster_df['hub_id'] == origin_id].iloc[0]
+            popup_html_origin = (
+                f"<b>Hub {origin_row['hub_id']}</b><br>"
+                f"Label: {origin_row['label']}<br>"
+                f"Bike Stations: {origin_row['bike_stations']}<br>"
+                f"PT Stops: {origin_row['pt_stations']}<br>"
+                f"Lines: {origin_row['lines']}<br>"
+            )
+            # If the hub label includes "bike", add capacity and inventory info.
+            if "bike" in origin_row['label'].lower():
+                cap = station_capacity.get(str(origin_row['hub_id']), "N/A")
+                inv = station_inventory.get(str(origin_row['hub_id']), "N/A")
+                popup_html_origin += f"Capacity: {cap}<br>Inventory: {inv}"
+            folium.Marker(
+                location=hub_coords[origin_id],
+                icon=folium.Icon(color='darkblue', icon='flag'),
+                popup=folium.Popup(popup_html_origin, max_width=300)
+            ).add_to(search_fg)
+
+        if destination_id in hub_coords:
+            # Retrieve the row from cluster_df corresponding to the destination.
+            destination_row = cluster_df[cluster_df['hub_id'] == destination_id].iloc[0]
+            popup_html_destination = (
+                f"<b>Hub {destination_row['hub_id']}</b><br>"
+                f"Label: {destination_row['label']}<br>"
+                f"Bike Stations: {destination_row['bike_stations']}<br>"
+                f"PT Stops: {destination_row['pt_stations']}<br>"
+                f"Lines: {destination_row['lines']}<br>"
+            )
+            # Add capacity/inventory info for bike hubs.
+            if "bike" in destination_row['label'].lower():
+                cap = station_capacity.get(str(destination_row['hub_id']), "N/A")
+                inv = station_inventory.get(str(destination_row['hub_id']), "N/A")
+                popup_html_destination += f"Capacity: {cap}<br>Inventory: {inv}"
+            folium.Marker(
+                location=hub_coords[destination_id],
+                icon=folium.Icon(color='pink', icon='flag'),
+                popup=folium.Popup(popup_html_destination, max_width=300)
+            ).add_to(search_fg)
+
+        
+        
+        '''
         # Add special markers for search origin and destination.
         if origin_id in hub_coords:
             folium.Marker(
@@ -244,7 +314,7 @@ def visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path
                 icon=folium.Icon(color='pink', icon='flag'),
                 popup=f"Search Destination: {destination_id}"
             ).add_to(search_fg)
-        
+        '''
         search_key = f"{origin_id}->{destination_id}"
         if search_key in od_groups:
             group = od_groups[search_key]
@@ -263,48 +333,75 @@ def visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path
                 arc_id = inst.get("Arc ID")
                 arc_info = arc_mapping.get(arc_id, {})
                 transfers = arc_info.get("transfers", 0)
+
+                # — detect super vs normal & build strings —
+                is_super = "lines_options" in arc_info
+                if is_super:
+                    line_opts     = arc_info["lines_options"]
+                    transfer_opts = arc_info.get(
+                        "transfer_nodes_options",
+                        [[]] * len(line_opts)
+                    )
+                    line_str = ", ".join(f"[{', '.join(opt)}]" for opt in line_opts)
+                    transfer_str = (
+                        ", ".join(f"[{', '.join(map(str, opts))}]"
+                                  for opts in transfer_opts)
+                        if transfers > 0 else ""
+                    )
+                    transfer_nodes_list = transfer_opts[0] if transfers > 0 else []
+                else:
+                    lines = arc_info.get("lines", [])
+                    line_str = ", ".join(lines)
+                    if transfers == 1:
+                        transfer_nodes_list = [arc_info.get("transfer_node")]
+                        transfer_str = str(transfer_nodes_list[0])
+                    elif transfers == 2:
+                        transfer_nodes_list = arc_info.get("transfer_nodes", [])
+                        transfer_str = ", ".join(map(str, transfer_nodes_list))
+                    else:
+                        transfer_nodes_list = []
+                        transfer_str = ""
+
+                # — build coords with offset —
                 coords = [base_origin]
-                transfer_info = ""
-                if transfers == 0:
-                    pass
-                elif transfers == 1:
-                    t_node = arc_info.get("transfer_node")
-                    transfer_info = f"Transfer Node: {t_node}"
-                    if t_node is not None and t_node in hub_coords:
-                        coords.append(hub_coords[t_node])
-                elif transfers == 2:
-                    t_nodes = arc_info.get("transfer_nodes")
-                    transfer_info = f"Transfer Nodes: {t_nodes[0]}, {t_nodes[1]}"
-                    if t_nodes and isinstance(t_nodes, list) and len(t_nodes) >= 2:
-                        if t_nodes[0] in hub_coords:
-                            coords.append(hub_coords[t_nodes[0]])
-                        if t_nodes[1] in hub_coords:
-                            coords.append(hub_coords[t_nodes[1]])
+                for node in transfer_nodes_list:
+                    if node in hub_coords:
+                        coords.append(hub_coords[node])
                 coords.append(base_dest)
-                search_coords = [(lat + overall_offset[0], lon + overall_offset[1]) for lat, lon in coords]
-                
-                nu_val = inst.get("nu", 0)
+
+                search_coords = [
+                    (lat + overall_offset[0], lon + overall_offset[1])
+                    for lat, lon in coords
+                ]
+
+                # color logic unchanged…
+                nu_val   = inst.get("nu", 0)
                 flow_val = inst.get("Flow (q)", 0)
-                if  flow_val >= 1:
+                if flow_val >= 1:
                     line_color = "green"
-                elif nu_val == 1 and flow_val < 1:
+                elif nu_val == 1:
                     line_color = "orange"
                 else:
                     line_color = "grey"
+
+                # build popup
                 popup_text = (
                     f"Arc {arc_id}<br>"
                     f"Type: {inst.get('Type', 'N/A')}<br>"
-                    f"Number of Transfers: {inst.get('Transfers', 'N/A')}<br>"
-                    f"{transfer_info}<br>"
-                    f"Mile Type: {inst.get('Mile Type', 'N/A')}<br>"
-                    f"Bike Price: {inst.get('Bike Price', 'N/A')}<br>"
-                    f"Flow: {flow_val}"
+                    f"Number of Transfers: {transfers}<br>"
                 )
+                popup_text += f"Lines: {line_str}<br>"
+                if transfer_str:
+                    popup_text += f"Transfer Node(s): {transfer_str}<br>"
+                popup_text += f"Mile Type: {inst.get('Mile Type', 'N/A')}<br>"
+                popup_text += f"Bike Price: {inst.get('Bike Price', 'N/A')}<br>"
+                popup_text += f"Flow: {flow_val}"
+
                 folium.PolyLine(
                     locations=search_coords,
                     color=line_color,
                     weight=3,
-                    popup=folium.Popup(popup_text, max_width=400,)
+                    popup=folium.Popup(popup_text, max_width=400)
                 ).add_to(search_fg)
     
     # Add layers and layer control.

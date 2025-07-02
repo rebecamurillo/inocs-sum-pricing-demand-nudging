@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import numpy as np
 
-def summarize_experiment_solutions(solution_input, L=7):
+def summarize_experiment_solutions(solution_input, L=7, show=True):
     """
     Processes all solution JSON files in the given folder and returns a summary DataFrame.
     
@@ -41,7 +41,6 @@ def summarize_experiment_solutions(solution_input, L=7):
             
             # Extract key values.
             solution_time = round(data.get("Solution Time (s)", 0), 2)
-            Obj_Value = round(data.get("Objective Value", 0), 2)
             Gap = round(data.get("Gap (%)", 0), 2)
             
             # Convert the instances list to a DataFrame.
@@ -73,12 +72,43 @@ def summarize_experiment_solutions(solution_input, L=7):
             price_max = df[df["Type"] == "PT+Bike"]["Bike Price"].max() if "Bike Price" in df.columns else np.nan
             price_min = df[(df["Type"] == "PT+Bike") & (df["Bike Price"] > 0.1)]["Bike Price"].min() if "Bike Price" in df.columns else np.nan
             
+            # Define your assumed bike cost
+            bike_cost = 0.5  # Update as needed
+
+            # Filter for relevant rows
+            pt_bike_rows = df[(df["Type"] == "PT+Bike") & (df["Flow (q)"] > 0)]
+
+            # Calculate profit terms
+            pt_bike_rows = pt_bike_rows.copy()
+            pt_bike_rows["Approximated Profit"] = (
+                pt_bike_rows["z value"] * pt_bike_rows["Bike Time"]
+                - pt_bike_rows["Flow (q)"] * pt_bike_rows["Bike Time"] * bike_cost
+            )
+            pt_bike_rows["Profit"] = (
+                pt_bike_rows["Flow (q)"] * pt_bike_rows["Bike Time"] * (pt_bike_rows["Bike Price"] - bike_cost)
+            )
+
+            # Sum profits for instance-level summary
+            approximated_profit_total = pt_bike_rows["Approximated Profit"].sum()
+            profit_total = pt_bike_rows["Profit"].sum()
+
+
             # Append summary dictionary.
-            all_summaries.append({
-                "Instance Name": instance_name,
-                "Solution Time (s)": solution_time,
-                "Obj Value": Obj_Value,
+
+            base_info = {"Instance Name": instance_name,
+                "Solution Time (s)": solution_time}
+            
+            if data.get("Objective Value") or data.get("Primary Objective Value") is not None:
+                obj_info = { "Obj Value": round(data.get("Objective Value", 0), 2) or round(data.get("Primary Objective Value", 0), 2)}
+            else:
+                objectives = data.get("Objectives", {})
+                obj_info = {key: round(value, 2) for key, value in objectives.items()}
+
+
+            stats_info = {
                 "Gap (%)": Gap,
+                "Approximated Profit": round(approximated_profit_total, 2),
+                "Profit": round(profit_total, 2),
                 "Relaxation Difference max": relax_difs_max,
                 "Relaxation Difference min": relax_difs_min,
                 "z_max": z_values_max,
@@ -98,7 +128,10 @@ def summarize_experiment_solutions(solution_input, L=7):
                 "Used PT Only Arcs (Flow >= 1)": used_pt_only_arcs,
                 "Total Multimodal Arcs": total_pt_bike_arcs,
                 "Used Multimodal Arcs (Flow >= 1)": used_pt_bike_arcs
-            })
+            }
+            summar = {**base_info, **obj_info, **stats_info}    
+            all_summaries.append(summar)
+
     
     # Convert the summary list to a DataFrame.
     summary_df = pd.DataFrame(all_summaries)
@@ -116,8 +149,9 @@ def summarize_experiment_solutions(solution_input, L=7):
         var_name="Arc Type",
         value_name="Usage Ratio"
     )
-    disp_df = display(summary_df.style.set_caption(f"Summary of Solved Instances From Real Network with L={L}, {exp_name} "))
+    if show:
+        display(summary_df.style.set_caption(f"Summary of Solved Instances From Real Network with L={L}, {exp_name} "))
     
-    return disp_df
+    return summary_df
 
 
