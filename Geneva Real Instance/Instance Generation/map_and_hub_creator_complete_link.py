@@ -3,8 +3,56 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import Point
 from sklearn.cluster import DBSCAN
+from shapely.ops import unary_union
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
+from scipy.cluster.hierarchy import linkage, fcluster
+from scipy.spatial.distance   import pdist
+import numpy as np
+from sklearn.cluster import AgglomerativeClustering
+def flow_to_weight(flow, alpha=1.0):
+    """
+    Convert a non‑negative flow value into a DBSCAN weight.
+    Larger flow  →  smaller weight  (≤ 1).
 
-def create_hub_map_and_dataframe(bike_gdf, pt_gdf, threshold=110):
+    w_i = 1 / (1 + flow_i)^alpha
+    """
+    return 1.0 / (1.0 + flow)**alpha
+
+def clusters_to_polygons(combined, eps_buffer=150):
+    """
+    Return a GeoDataFrame with one polygon per DBSCAN cluster.
+    `combined` is the metric‑CRS GeoDataFrame that already has a `cluster` column.
+    """
+    polys = []
+    for label, grp in combined.groupby("cluster"):
+        # union of r‑metre buffers, then take its convex hull to reduce complexity
+        geom = unary_union(grp.geometry.buffer(eps_buffer))
+        polys.append({"cluster": label, "geometry": geom})
+    return gpd.GeoDataFrame(polys, crs=combined.crs)
+
+import random
+import matplotlib.colors as mcolors
+
+def cluster_palette(labels):
+    """
+    Map each cluster label to a distinct HEX colour.
+    Noise (‑1) → grey.
+    Works for an arbitrary number of clusters.
+    """
+    uniq   = sorted(set(labels))
+    n      = len(uniq)
+
+    # Use a continuous colormap and sample n evenly‑spaced colours.
+    cmap   = cm.get_cmap("gist_ncar", n)       # perceptually distinct gamut
+    colors = [mcolors.to_hex(cmap(i)) for i in range(n)]
+
+    palette = dict(zip(uniq, colors))
+    palette[-1] = "#808080"                    # noise
+    return palette
+
+
+def create_hub_map_and_dataframe(bike_gdf, pt_gdf, threshold=300, buffer=100):
     """
     Create hub clusters from bike and PT stations using DBSCAN, aggregate PT line information,
     and generate a folium map.
@@ -37,6 +85,10 @@ def create_hub_map_and_dataframe(bike_gdf, pt_gdf, threshold=110):
     Returns:
       tuple: (folium Map object, hub DataFrame)a
     """
+
+
+
+
     # -------------------------------
     # 1. Prepare and Reproject Data
     # -------------------------------
@@ -64,17 +116,62 @@ def create_hub_map_and_dataframe(bike_gdf, pt_gdf, threshold=110):
     # Assume the PT GeoDataFrame has a "Line" column.
     
     # Combine both datasets. Ensure both have the same set of columns.
-    combined = pd.concat([bike_df[['identifier', 'station_type', 'geometry', 'Line']],
-                          pt_df[['identifier', 'station_type', 'geometry', 'Line']]],
-                         ignore_index=True)
-    
+  
     # -------------------------------------------
     # 2. Cluster with DBSCAN
     # -------------------------------------------
-    coords = combined.geometry.apply(lambda geom: (geom.x, geom.y)).tolist()
-    clustering = DBSCAN(eps=threshold, min_samples=1).fit(coords)
-    combined["cluster"] = clustering.labels_
+
     
+    # ── 2.1  concatenate bike + PT rows  ─────────────────────────────
+    combined = pd.concat(
+        [bike_df[['identifier', 'station_type', 'geometry', 'Line', 'outflow']],
+        pt_df  [['identifier', 'station_type', 'geometry', 'Line', 'outflow']]],
+        ignore_index=True
+    )
+
+# ── 2.2  (n, 2) coordinate array in metres  ─────────────────────
+    coords = np.vstack(combined.geometry.apply(lambda g: (g.x, g.y)).to_numpy())
+
+# ── 2.3  complete‑link agglomerative clustering  ─────────────────
+#     • linkage='complete'  →  distance between clusters = max pairwise distance
+#     • distance_threshold  →  stop merging when that distance > 300 m
+#     • n_clusters=None     →  let the threshold decide the number of clusters
+    clustering = AgglomerativeClustering(
+        n_clusters=None,
+        linkage='complete',
+        distance_threshold=threshold,
+        compute_full_tree=True      # keeps dendrogram info; not strictly required
+    )
+
+    labels = clustering.fit_predict(coords)        # 0 … C‑1
+    combined["cluster"] = labels
+
+    stops_df = (
+        combined[["identifier", "station_type", "geometry", "cluster"]]
+        .rename(columns={"cluster": "hub_id"})
+        .copy())
+    
+    # stays in EPSG:3857 for any buffer work you still want
+    palette = cluster_palette(labels)
+
+    # buffered union per cluster  (metric CRS)
+    cluster_polys = (
+        combined
+        .groupby("cluster", as_index=False)["geometry"]
+        .apply(lambda g: g.buffer(buffer).unary_union)
+        .reset_index()
+    )
+
+    cluster_polys = gpd.GeoDataFrame(cluster_polys, geometry="geometry", crs=combined.crs)
+    cluster_polys_4326 = cluster_polys.to_crs("EPSG:4326")
+    polys = (
+        stops_df.groupby("hub_id", as_index=False)["geometry"]
+                .apply(lambda g: g.buffer(buffer).unary_union)
+                .reset_index()
+    )
+    polys = gpd.GeoDataFrame(polys, geometry="geometry", crs="EPSG:3857")
+    polys_4326 = polys.to_crs("EPSG:4326")
+    stops_4326 = stops_df.to_crs("EPSG:4326")
     # -------------------------------------------
     # 3. Aggregate Cluster Data into Hubs
     # -------------------------------------------
@@ -164,16 +261,28 @@ def create_hub_map_and_dataframe(bike_gdf, pt_gdf, threshold=110):
             icon=folium.Icon(color='red'),
             popup=folium.Popup(popup_html, max_width=300)
         ).add_to(m)
-    
+    # ---------------- CLUSTER PATCHES ----------------
+    for _, row in cluster_polys_4326.iterrows():
+        clust  = row["cluster"]
+        colour = palette[clust]
+
+        folium.GeoJson(
+            row.geometry.__geo_interface__,
+            style_function=lambda _,
+                col=colour: {"fillColor": col, "fillOpacity": 0.15,
+                            "color": col, "weight": 1},
+            tooltip=f"Cluster {clust}"
+        ).add_to(m)
+
     # Add a 50 m reference circle at the map center.
     folium.Circle(
         location=(avg_lat, avg_lon),
-        radius=threshold,
+        radius=threshold/2,
         color='red',
         fill=False,
         popup='Reference'
     ).add_to(m)
     
-    return m, hub_df
+    return m, hub_df, stops_4326,  polys_4326
 
 

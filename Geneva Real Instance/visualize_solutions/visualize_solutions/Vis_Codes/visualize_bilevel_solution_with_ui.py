@@ -3,7 +3,7 @@ from IPython.display import display
 from .visualization_of_the_solution import visualize_bilevel_solution
 import json
 
-def display_bilevel_solution_with_ui(cluster_df, network_data_path, solution_json_path):
+def display_bilevel_solution_with_ui(cluster_df, network_data_path, nodes_geo_path, nodes_poly_path, solution_json_path):
     """
     Displays an interactive solution visualization UI.
     
@@ -35,8 +35,9 @@ def display_bilevel_solution_with_ui(cluster_df, network_data_path, solution_jso
         else:
             print(f"No demand info found for OD pair {origin} -> {destination}")
         
+        
         # Call the visualization function.
-        m = visualize_bilevel_solution(cluster_df, network_data_path, solution_json_path, origin, destination, search=True)
+        m = visualize_bilevel_solution(cluster_df, network_data_path, nodes_geo_path, nodes_poly_path, solution_json_path, origin, destination, search=True)
         display(m)
     
     # Create input widgets for origin and destination.
