@@ -1,0 +1,140 @@
+\documentclass[11pt, a4paper]{article}
+\setlength{\parskip}{6pt}   % Adds 6pt space between paragraphs
+\usepackage{graphicx} 
+\usepackage{titling}
+\usepackage{amsmath}  
+\usepackage[backend=biber,style=apa,doi=false]{biblatex}
+\addbibresource{refso.bib} % Instead of \bibliography{...}
+\usepackage[french,english]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{tabularx}
+\usepackage{titlesec}
+\usepackage{tocloft}
+\usepackage{multicol}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{makecell}  % for wrapping text in cells
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{nomencl}
+\usepackage{lipsum}
+\usepackage[fleqn]{nccmath}
+\usepackage{comment} % This line enables the comment environment
+\usepackage{indentfirst}
+\usepackage{microtype}
+\usepackage{multirow}
+\usepackage{lscape} % Enables the landscape environment
+\usepackage{float}
+\usepackage{siunitx}   % for \num{2.98e5} style scientific notation
+\usepackage{tikz}
+\usepackage{authblk}
+\usepackage{algorithm}
+\usepackage{algpseudocode}  % recommended over raw algorithmicx
+\usepackage{algorithmicx}
+
+\begin{document}
+
+\begin{algorithm}[H]
+\caption{Greedy Add--Drop Matheuristic with Price-Aware Benchmarking}
+\label{alg:greedy}
+\begin{algorithmic}[1]
+\Require Parsed instance $\mathcal{I}$; parameters $L, K_{\mathrm{PT}}, \mathrm{mult}_{\mathrm{A1}}, P_{\min}, P_{\max}, \text{pt\_price}, \text{dep\_cost}, \text{parking\_fee}$; tolerances $\varepsilon_{\text{add}}, \varepsilon_{\text{drop}}$; caps $(\text{max\_trial\_add}, \text{patience\_add}, \text{max\_trial\_drop}, \text{patience\_drop})$.
+\Ensure Incumbent solution $(p,q,z,\gamma)$ and objective value.
+
+\State \textbf{Build} base LP with Car arcs, demand balance, station constraints, and Strong Duality; set \textbf{maximize}.
+\State \textbf{Initial selection} (per OD):
+\State \hspace{1em} Compute best Car disutility; score PT+Bike at $p=P_{\min}$; score PT-only at fare.
+\State \hspace{1em} If any PT+Bike arc beats Car: prioritize A1 (larger cap), shrink A2; else use standard caps.
+\State Obtain $\mathrm{sel}(o,d)$ with lists of A1 and A2 to start.
+
+\State \textbf{Build candidate heap}:
+\ForAll{OD $(o,d)$}
+  \State Compute benchmark $B_{od} \gets \min\{\text{best PT-only}, \text{best Car}\}$.
+  \State Push top-$H_{\mathrm{PT}}$ PT-only by PT score.
+  \State For each A1 arc, compute $\text{gap} = \text{score}_{\mathrm{A1}}(p=P_{\min}) - B_{od}$; push top-$H_{\mathrm{A1}}$ by (gap, score).
+\EndFor
+
+\State \textbf{Build restricted LP}: add all selected A2 and A1; \textbf{optimize} to get base objective $Z$.
+
+\State \textbf{Forward add phase}:
+\State $t \gets 0$, $s \gets 0$ \Comment{$t$: trials, $s$: non-improvement streak}
+\While{heap nonempty and $t < \text{max\_trial\_add}$ and $s < \text{patience\_add}$}
+  \State Pop best candidate $(o,d,a,\text{kind})$.
+  \State \textbf{Trial add} on a model copy: add test vars/rows for candidate; optimize to get $Z'$.
+  \If{$Z' > Z \cdot (1+\varepsilon_{\text{add}})$}
+     \State \textbf{Accept}: add candidate to main LP; optimize; $Z \gets$ new objective; $s \gets 0$.
+  \Else
+     \State $s \gets s+1$.
+  \EndIf
+  \State $t \gets t+1$.
+\EndWhile
+
+\State \textbf{Backward prune phase}:
+\State Build list $\mathcal{C}$ of present A1 with tuples $(q,\text{contrib},(o,d,a))$; sort by increasing $(q,\text{contrib})$.
+\State $t \gets 0$, $s \gets 0$
+\For{each $(q,\text{contrib},(o,d,a))$ in order}
+  \If{$t \ge \text{max\_trial\_drop}$ or $s \ge \text{patience\_drop}$} \textbf{break} \EndIf
+  \State \textbf{Trial drop} on a model copy: fix $q,p,z=0$, relax $\gamma$-row; optimize to get $Z'$.
+  \If{$Z' \ge Z + \varepsilon_{\text{drop}}\cdot|Z|$ \textbf{or} $(q \le q_{\text{tol}}$ and $Z' \ge Z - \varepsilon_{\text{drop}}\cdot|Z|)$}
+     \State \textbf{Deactivate} arc in main LP; optimize; $Z \gets$ new objective; $s \gets 0$.
+  \Else
+     \State $s \gets s+1$.
+  \EndIf
+  \State $t \gets t+1$.
+\EndFor
+
+\State \Return incumbent objective $Z$ and solution.
+\end{algorithmic}
+\end{algorithm}
+
+\newpage
+
+\begin{algorithm}[H]
+\caption{Hybrid Greedy + Tabu Pipeline (uses \texttt{IncrementalBilevelLP})}
+\label{alg:hybrid-greedy-tabu}
+\begin{algorithmic}[1]
+\Require Parsed instance $\mathcal{I}$, LP params, greedy params, tabu params
+\State Build master LP $\mathcal{M} \leftarrow \textsc{IncrementalBilevelLP}(\mathcal{I})$
+\State Set \textbf{Method} $=-1$ (free) for the initial solve; set \textbf{Method} $=1$ (Dual) for all incremental solves
+\vspace{0.3em}
+\State \textbf{Phase 1: Greedy Seed}
+\State $\text{sel} \leftarrow \textsc{MakeInitialSelectionEnhanced}(\mathcal{I}, L, K_{\mathrm{PT}}, \text{mult}_{\mathrm{A1}})$
+\State Add all arcs in \text{sel} to $\mathcal{M}$ and solve; let $S \leftarrow \text{sel}$, $f \leftarrow \text{obj}(\mathcal{M})$
+\State Build min-heap $\mathcal{H} \leftarrow \textsc{BuildCandidateHeap}(\mathcal{I}, S)$
+\While{$\mathcal{H}\neq\emptyset$ and \texttt{trials} $< \texttt{max\_trial\_add}$ and \texttt{noImprove}$<\texttt{patience\_add}$}
+  \State $(o,d,a,\text{kind}) \leftarrow \textsc{PopBest}(\mathcal{H})$
+  \State $f^{\mathrm{trial}} \leftarrow \textsc{TrialAddOnCopy}(\mathcal{M}, (o,d,a,\text{kind}))$
+  \If{$f^{\mathrm{trial}} > f \cdot (1+\texttt{rel\_impr\_tol\_add})$}
+    \State \textsc{AddArcOnMaster}$(\mathcal{M}, (o,d,a,\text{kind}))$; solve $\mathcal{M}$ (Dual)
+    \State $S \leftarrow S \cup \{(o,d,a,\text{kind})\}$, \quad $f \leftarrow \text{obj}(\mathcal{M})$, \quad \texttt{noImprove}$\leftarrow 0$
+  \Else
+    \State \texttt{noImprove}$\leftarrow \texttt{noImprove}+1$
+  \EndIf
+\EndWhile
+\State Optionally: $S \leftarrow \textsc{PruneLowFlow}(\mathcal{M}, S)$; solve $\mathcal{M}$
+
+\vspace{0.3em}
+\State \textbf{Phase 2: Tabu Search}
+\State $S^\star \leftarrow S$, $f^\star \leftarrow f$, \quad $\mathcal{T}\leftarrow \emptyset$ \Comment{tabu list}
+\For{$t=1,2,\dots,\texttt{max\_iters}$ or time budget}
+  \State $\mathcal{N} \leftarrow \textsc{GenNeighborhood}(S)$ \Comment{adds, drops, swaps; small size}
+  \State $(\hat{m}, \hat{f}) \leftarrow (\text{None}, -\infty)$
+  \ForAll{$m \in \mathcal{N}$}
+    \If{$m$ is tabu w.r.t. $\mathcal{T}$ \textbf{and} $\hat{f} \le f^\star$} \textbf{continue} \EndIf \Comment{aspiration: allow if better than $f^\star$}
+    \State $\tilde{f} \leftarrow \textsc{TrialMoveOnCopy}(\mathcal{M}, m)$ \Comment{apply add/drop/swap on a copy; solve (Dual)}
+    \If{$\tilde{f} > \hat{f}$} $(\hat{m}, \hat{f}) \leftarrow (m, \tilde{f})$ \EndIf
+  \EndFor
+  \If{$\hat{m} = \text{None}$} \textbf{break} \EndIf
+  \State \textsc{ApplyMoveOnMaster}$(\mathcal{M}, \hat{m})$; solve $\mathcal{M}$ (Dual); $f \leftarrow \text{obj}(\mathcal{M})$
+  \State $S \leftarrow \textsc{UpdateSet}(S,\hat{m})$; \ $\mathcal{T} \leftarrow \textsc{PushTabu}(\mathcal{T}, \textsc{Reverse}(\hat{m}), \tau)$
+  \If{$f > f^\star$} $(S^\star, f^\star) \leftarrow (S, f)$ \EndIf
+  \If{stalling} \textsc{Diversify}$(\mathcal{H}, S, \mathcal{T})$ \EndIf
+\EndFor
+\State \Return $(S^\star, f^\star)$
+\end{algorithmic}
+\end{algorithm}
+
+
+
+\end{document}
