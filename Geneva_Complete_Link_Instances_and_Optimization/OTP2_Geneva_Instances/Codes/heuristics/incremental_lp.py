@@ -47,7 +47,17 @@ class IncrementalBilevelLP:
             parsed_data, *,
             P_bar=0.5, P_up=4.0, theta = 0.5, pt_price=2.0,
             cost_bike=0.6, parking_fee=2.8, dep_cost=0.0,
-            tolerance=1e-3,  
+            tolerance=1e-3, 
+            ASC_PT=-0.756, ASC_BIKE=0.0, ASC_CAR=-0.669, 
+            BETA_Cost_BIKE = 0.689,
+            BETA_Time_BIKE = 0.108,
+            BETA_TR_BIKE   = 0.199,
+            BETA_Cost_PT   = 0.779,
+            BETA_Time_PT   = 0.101,
+            BETA_TR_PT     = 0.208,
+            BETA_Cost_Car  = 0.474,
+            BETA_Cost_park = 0.532,
+            BETA_Time_Car  = 0.116,
             quiet=True, nodefile_dir=None, threads=4, time_limit=None
                 ):     
             
@@ -85,21 +95,23 @@ class IncrementalBilevelLP:
 
         #Choice Model
 
-        self.ASC_PT   = -0.756
-        self.ASC_BIKE = 0.0
-        self.ASC_CAR  = -0.669
+        self.ASC_PT   = ASC_PT
+        self.ASC_BIKE = ASC_BIKE
+        self.ASC_CAR  = ASC_CAR
         
-        self.BETA_Cost_BIKE = 0.689
-        self.BETA_Time_BIKE = 0.108
-        self.BETA_TR_BIKE   = 0.199
+        self.BETA_Cost_BIKE = BETA_Cost_BIKE
+        self.BETA_Time_BIKE = BETA_Time_BIKE
+        self.BETA_TR_BIKE   = BETA_TR_BIKE
         
-        self.BETA_Cost_PT   = 0.779
-        self.BETA_Time_PT   = 0.101
-        self.BETA_TR_PT     = 0.208
+        self.BETA_Cost_PT   = BETA_Cost_PT
+        self.BETA_Time_PT   = BETA_Time_PT
+        self.BETA_TR_PT     = BETA_TR_PT
 
-        self.BETA_Cost_Car  = 0.474
-        self.BETA_Cost_park = 0.532
-        self.BETA_Time_Car  = 0.116
+        self.BETA_Cost_Car  = BETA_Cost_Car
+        self.BETA_Cost_park = BETA_Cost_park
+        self.BETA_Time_Car  = BETA_Time_Car
+
+
 
         #Single Level Model
 
@@ -517,6 +529,8 @@ class IncrementalBilevelLP:
     def _debug_station_slacks(self):
         """Compute used slack per station from flows (sum q * delta)."""
         used = {str(i): 0.0 for i in self.stations_list}
+        inflow = {str(i): 0.0 for i in self.stations_list}    # bikes added to station
+        outflow = {str(i): 0.0 for i in self.stations_list}   # bikes taken from station
         for (o, d) in self.W:
             od = f"{o}_{d}"
             for arc in self.arcs_pt_bike.get(od, []):
@@ -528,13 +542,19 @@ class IncrementalBilevelLP:
                     continue
                 for i_str, delta in self.delta_ia.get(a, {}).items():
                     if delta:
-                        used[i_str] += qv * delta
+                        flow_contribution = qv * delta
+                        used[i_str] += flow_contribution
+                        
+                        if flow_contribution > 0:
+                            inflow[i_str] += flow_contribution
+                        else:
+                            outflow[i_str] += abs(flow_contribution)
         report = []
         for i_str in used:
             cap_i = self.station_capacity[i_str]
             inv_i = self.station_inventory[i_str]
             slack_up = cap_i - inv_i
-            report.append((i_str, used[i_str], slack_up))
+            report.append((i_str, used[i_str], slack_up, inflow[i_str], outflow[i_str]))
         return sorted(report, key=lambda t: t[0])
 
     # ---------- DEBUG: check SD equality numerically ----------
@@ -624,12 +644,30 @@ class IncrementalBilevelLP:
         print(f"[{label}] present A1={nA1}  A2={nA2}  | totals  A1={tot_a1:.3f}  A2={tot_a2:.3f}  Car={tot_car:.3f}")
         # station usage
         station_report = self._debug_station_slacks()
-        used_nonzero = [(i, u, s) for (i, u, s) in station_report if abs(u) > 1e-9]
-        print(f"[{label}] stations with nonzero bike load: {len(used_nonzero)} / {len(station_report)}")
-        for i, u, s in used_nonzero[:5]:
-            print(f"   station {i}: used={u:.3f}  avail_slack={s}")
+        active_stations = [(i, u, s, inf, outf) for (i, u, s, inf, outf) in station_report if inf > 1e-9 or outf > 1e-9]
+        total_inflow = sum(inf for _, _, _, inf, _ in active_stations)
+        total_outflow = sum(outf for _, _, _, _, outf in active_stations)
+        
+        print(f"[{label}] stations with bike activity: {len(active_stations)} / {len(station_report)}")
+        print(f"[{label}] total inflow: {total_inflow:.3f}, total outflow: {total_outflow:.3f}")
 
 
+
+
+    def get_station_lambdas(lp) -> dict[str, float]:
+        """
+        lp is your IncrementalBilevelLP instance.
+        Returns lambda_eff[i] = cap_dual(i) - nonneg_dual(i), handling signs.
+        """
+        m = lp.m
+        lam = {}
+        for i in lp.stations_list:
+            i_str = str(i)
+            pi_up  = lp.cap_constr[i_str].Pi               # ≥ 0 for a ≤ row in a max model
+            pi_loG = lp.cap_nonneg[i_str].Pi               # ≤ 0 for a ≥ row in a max model
+            rho    = -pi_loG                                # make it ≥ 0
+            lam[i_str] = pi_up - rho
+        return lam
 
 
 
