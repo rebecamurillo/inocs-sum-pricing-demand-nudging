@@ -16,7 +16,7 @@ def _parse_instance_id(id_str: str):
     #if len(parts) < 9:
     #    raise ValueError(f"Bad instance id (needs ≥9 parts): {id_str}")
     n = int(parts[1])
-    tag = "S" if n < 2_000 else ("M" if n < 7_000 else "L")
+    tag = "S" if n < 2_000 else ("M" if n < 7_000 else ("L" if n < 20_000 else "EL"))
     return tag, n
 
 
@@ -37,7 +37,7 @@ def _canonicalise_index(df: pd.DataFrame) -> pd.DataFrame:
     df["__num"] = nums
 
     # stable sort S -> M -> L, then ascending numeric size
-    size_order = {"S": 0, "M": 1, "L": 2}
+    size_order = {"S": 0, "M": 1, "L": 2, "EL": 3}
     df["__tag_ord"] = [size_order[t] for t in df["__tag"]]
     df.sort_values(["__tag_ord", "__num"], inplace=True)
 
@@ -131,7 +131,7 @@ def plot_market_share_multi(
         part = idx.split("_")[1]  # e.g., S12
         tag = part[0]
         rank = int(part[1:])
-        return {"S": 0, "M": 1, "L": 2}[tag], rank
+        return {"S": 0, "M": 1, "L": 2, "EL":3}[tag], rank
 
     common = sorted(common, key=_sort_key)
 
@@ -233,7 +233,7 @@ def plot_market_share_multi_separate(
     def _sort_key(idx):
         part = idx.split("_")[1]  # e.g., S12
         tag, rank = part[0], int(part[1:])
-        return {"S": 0, "M": 1, "L": 2}[tag], rank
+        return {"S": 0, "M": 1, "L": 2, "EL": 3}[tag], rank
 
     common = sorted(common, key=_sort_key)
     for label in shares:
@@ -363,6 +363,162 @@ def plot_market_share_multi_separate(
 
     return canonicalised, shares
 
+
+# NEW FUNCTION: Plot Profit comparison
+def plot_profit_multi(
+    runs: dict,
+    *,
+    title: str = "Profit comparison across scenarios",
+    font_family: str = "Times New Roman",
+):
+    """
+    Bar plot of profits for each scenario and instance.
+    """
+    canonicalised = {label: _canonicalise_index(df) for label, df in runs.items()}
+    # keep only instances common to all
+    all_sets = [set(df.index) for df in canonicalised.values()]
+    all_instances = set.union(*all_sets) if all_sets else set()
+    if not all_instances:
+        raise ValueError("No common instances across the supplied DataFrames.")
+    
+    # sort as in your main plot with EL support
+    def _sort_key(idx):
+        part = idx.split("_")[1]
+        tag_match = re.match(r'^([SMLEL]+)(\d+)$', part)
+        if tag_match:
+            tag = tag_match.group(1)
+            rank = int(tag_match.group(2))
+        else:
+            tag = part[0] if part else "S"
+            rank = int(part[1:]) if len(part) > 1 else 0
+        return {"S": 0, "M": 1, "L": 2, "EL": 3}[tag], rank
+    
+    all_instances = sorted(all_instances, key=_sort_key)
+    for label in canonicalised:
+        canonicalised[label] = canonicalised[label].reindex(all_instances)
+
+    n_inst = len(all_instances)
+    n_runs = len(runs)
+    bar_w = 0.7 / n_runs
+    x = range(n_inst)
+    
+    with plt.rc_context({"font.family": font_family}):
+        fig, ax = plt.subplots(figsize=(n_inst * 1.6, 6))
+        color_pairs = _paired_colors(n_runs)
+        
+        for k, (label, df) in enumerate(canonicalised.items()):
+            bar_c, _ = color_pairs[k]
+            offset = (k - (n_runs - 1) / 2) * bar_w
+            values = df["Profit"].fillna(0)  # Replace NaN with 0 for plotting
+            mask = df["Profit"].notna()  # Track which values are actually present
+            ax.bar(
+                [p + offset for p in x],
+                values,
+                width=bar_w,
+                label=f"Profit ({label})",
+                color=bar_c,
+                edgecolor="none",
+                alpha = 0.8
+            )
+            # CHANGE 9: Add value labels only for non-missing data
+            for i, (v, is_present) in enumerate(zip(values, mask)):
+                if is_present and v > 0:  # Only label if data exists and is positive
+                    ax.text(i + offset, v, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+                elif is_present:  # Handle case where value is 0 but data exists
+                    ax.text(i + offset, 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+        
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(all_instances, rotation=45, ha="right", fontfamily=font_family)
+        ax.set_ylabel("Profit", fontfamily=font_family)
+        ax.set_title(title, pad=20, fontsize=14, fontweight="bold", fontfamily=font_family)
+        ax.legend(frameon=False, ncol=2, prop={"family": font_family})
+        plt.tight_layout()
+        plt.show()
+    
+    return canonicalised
+
+# NEW FUNCTION: Plot Profit comparison
+def plot_time_multi(
+    runs: dict,
+    *,
+    title: str = "Solution time (s) comparison across scenarios",
+    font_family: str = "Times New Roman",
+):
+    """
+    Bar plot of profits for each scenario and instance.
+    Plots all available instances from all dataframes, even if some dataframes
+    don't have data for certain instances.
+    """
+    canonicalised = {label: _canonicalise_index(df) for label, df in runs.items()}
+    
+    # Get ALL instances from all dataframes (union instead of intersection)
+    all_sets = [set(df.index) for df in canonicalised.values()]
+    all_instances = set.union(*all_sets) if all_sets else set()
+    
+    if not all_instances:
+        raise ValueError("No instances found in any of the supplied DataFrames.")
+   
+    # sort as in your main plot with EL support
+    def _sort_key(idx):
+        part = idx.split("_")[1]
+        tag_match = re.match(r'^([SMLEL]+)(\d+)$', part)
+        if tag_match:
+            tag = tag_match.group(1)
+            rank = int(tag_match.group(2))
+        else:
+            tag = part[0] if part else "S"
+            rank = int(part[1:]) if len(part) > 1 else 0
+        return {"S": 0, "M": 1, "L": 2, "EL": 3}[tag], rank
+   
+    all_instances = sorted(all_instances, key=_sort_key)
+    
+    # Reindex all dataframes to include all instances, filling missing values with NaN
+    for label in canonicalised:
+        canonicalised[label] = canonicalised[label].reindex(all_instances)
+    
+    n_inst = len(all_instances)
+    n_runs = len(runs)
+    bar_w = 0.7 / n_runs
+    x = range(n_inst)
+   
+    with plt.rc_context({"font.family": font_family}):
+        fig, ax = plt.subplots(figsize=(n_inst * 1.6, 6))
+        color_pairs = _paired_colors(n_runs)
+       
+        for k, (label, df) in enumerate(canonicalised.items()):
+            bar_c, *_ = color_pairs[k]
+            offset = (k - (n_runs - 1) / 2) * bar_w
+            
+            # Get values, handling NaN values
+            values = df["Solution Time (s)"].fillna(0)  # Replace NaN with 0 for plotting
+            mask = df["Solution Time (s)"].notna()  # Track which values are actually present
+            
+            bars = ax.bar(
+                [p + offset for p in x],
+                values,
+                width=bar_w,
+                label=f"Solution Time (s) ({label})",
+                color=bar_c,
+                edgecolor="none",
+                alpha=0.8  # Slightly transparent to distinguish missing data
+            )
+            
+            # Add value labels only for non-missing data
+            for i, (v, is_present) in enumerate(zip(values, mask)):
+                if is_present and v > 0:  # Only label if data exists and is positive
+                    ax.text(i + offset, v, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+                elif is_present:  # Handle case where value is 0 but data exists
+                    ax.text(i + offset, 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+       
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(all_instances, rotation=45, ha="right", fontfamily=font_family)
+        ax.set_ylabel("Solution Time (s)", fontfamily=font_family)
+        ax.set_title(title, pad=20, fontsize=14, fontweight="bold", fontfamily=font_family)
+        ax.legend(frameon=False, ncol=2, prop={"family": font_family})
+        plt.tight_layout()
+        plt.show()
+   
+    return canonicalised
 
 import matplotlib.pyplot as plt
 

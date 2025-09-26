@@ -1,8 +1,0 @@
-\ Model Bilevel_Model_copy
-\ LP format - for model browsing. Use MPS format to capture full model detail.
-Maximize
- 
-Subject To
- MaxDisp_0_284: = 1
-Bounds
-End

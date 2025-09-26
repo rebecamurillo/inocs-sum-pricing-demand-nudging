@@ -81,7 +81,7 @@ class IncrementalBilevelLP:
         self.parking_time     = parsed_data["parking_time_min"]
         self.total_cost_car   = parsed_data["total_cost_car"]
         self.travel_time      = parsed_data["travel_time_min"]
-
+        self.k_bike_legs      = parsed_data["k_bike_legs"]
         # Parameters / coefficients
 
         self.P_bar = P_bar
@@ -296,7 +296,7 @@ class IncrementalBilevelLP:
 
         rhs = ( self.ASC_BIKE + self.ASC_PT
               + self.BETA_Cost_PT   * self.pt_price
-              + self.BETA_Cost_BIKE * p
+              + self.BETA_Cost_BIKE * self.k_bike_legs[(o,d,a)] * p
               + self.BETA_Time_PT   * self.pt_time[(o, d, a)]
               + self.BETA_Time_BIKE * self.bike_time.get((o, d, a), 0.0)
               + self.BETA_TR_BIKE   * self.transfers[(o, d, a)] )
@@ -318,13 +318,13 @@ class IncrementalBilevelLP:
                      + self.BETA_Time_BIKE * self.bike_time.get((o, d, a), 0.0)
                      + self.BETA_TR_BIKE   * self.transfers[(o, d, a)])
         self.m.chgCoeff(self.sd_constr, q, coeff_sd_q)
-        self.m.chgCoeff(self.sd_constr, z, self.BETA_Cost_BIKE)
+        self.m.chgCoeff(self.sd_constr, z, self.BETA_Cost_BIKE * self.k_bike_legs[(o,d,a)])
 
         #add pt+bike stuff to objective
         ridership_coeff = 2 * self.P_up
         resource_coeff  = self._resource_coeff.get((o, d, a), 0.0)
 
-        z.setAttr(GRB.Attr.Obj, 1.0)
+        z.setAttr(GRB.Attr.Obj, float(self.k_bike_legs[(o,d,a)]))
         q.setAttr(GRB.Attr.Obj, ridership_coeff - self.cost_bike + self.theta * resource_coeff)
 
         self.m.update()

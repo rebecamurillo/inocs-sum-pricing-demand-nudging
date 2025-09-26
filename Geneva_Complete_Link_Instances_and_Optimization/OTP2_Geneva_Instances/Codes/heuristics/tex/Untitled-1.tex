@@ -9,6 +9,7 @@
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{comment}
+\usepackage{mathtools}
 % Page setup
 \geometry{margin=2.5cm}
 \linespread{1.2}
@@ -43,281 +44,232 @@
 
 
 
+% ---------- Notation ----------
+\paragraph{Notation (common to all algorithms).}
+Let $\mathcal{W}$ denote the set of OD pairs, with demand $Q_{od}$ for $(o,d)\in\mathcal{W}$.
+For each $(o,d)$, let $\mathcal{C}_{od}$ be the set of car alternatives,
+$\mathcal{A}^{(2)}_{od}$ PT-only alternatives, and $\mathcal{A}^{(1)}_{od}$ PT+Bike alternatives.
+Let $\mathcal{I}$ be the set of bike stations, and for each PT+Bike arc $a\in\mathcal{A}^{(1)}_{od}$,
+$\delta_{ia}\in\{-1,0,+1\}$ is the arc--station incidence (-1 for departure, +1 for arrival).
+Deterministic disutilities at bike price $p$ are:
+\[
+V^{(1)}_{od}(a;p)\quad\text{(PT+Bike)},\qquad
+V^{(2)}_{od}(a)\quad\text{(PT-only)},\qquad
+V^{(c)}_{od}(b)\quad\text{(car)}.
+\]
+From the current restricted LP solution, we read:
+$\gamma_{od}$ (dual on OD balance),
+$\lambda_i$ (effective station shadow price: upper minus lower),
+$U_i\ge 0$ (residual \emph{arrival} capacity / dock slack),
+$L_i\ge 0$ (residual \emph{departure} capacity / inventory slack).
+Per-OD caps: $L$ (PT+Bike), $K_{\mathrm{PT}}$ (PT-only), multiplier $\mathrm{mult}_{A1}\ge 0$.
+Global batch size $M$.
+Station dual weight $\mu_{\mathrm{st}}\in[0,1]$.
 
-\section{Algorithm Description}
+Define the \emph{dual-aware gap} for a PT+Bike arc $a\in\mathcal{A}^{(1)}_{od}$ at $p=P_{\mathrm{bar}}$:
+\[
+\mathrm{gap}_{od}(a)\;=\;\Big(V^{(1)}_{od}(a;P_{\mathrm{bar}})
+\;+\;\mu_{\mathrm{st}}\sum_{i\in\mathcal{I}}\lambda_i\,\delta_{ia}\Big) \;-\; \gamma_{od},
+\qquad
+w_{od}(a)\;:=\; -\,\mathrm{gap}_{od}(a),
+\]
+where $w_{od}(a)$ is a value proxy (larger is better).
+A conservative per-arc flow proxy is
+\[
+\widehat q_{od}(a)\;=\;
+\max\Bigl(0,\,\min\bigl\{Q_{od},\ \min_{\delta_{ia}>0} U_i,\ \min_{\delta_{ia}<0} L_i\bigr\}\Bigr).
+\]
 
-The proposed matheuristic consists of five distinct phases: (1) competitive initial selection, (2) candidate heap construction, (3) restricted master problem initialization, (4) forward greedy addition, and (5) backward elimination. Each phase is designed to efficiently explore the solution space while respecting the bilevel structure.
-\begin{comment}
-
-\begin{algorithm}[htbp]
-\caption{Greedy Fix-and-Optimize Matheuristic for Bilevel Bike-Sharing Network Design}
-\label{alg:greedy_fix_optimize}
-\begin{algorithmic}[1]
-\Require Parsed network data, demand matrix $Q$, parameters $L$, $K_{PT}$, $mult_{A1}$
-\Ensure Optimal arc selection and pricing solution
-
-\State \textbf{Phase I: Initial Selection Construction}
-\State $\mathcal{S} \leftarrow$ \Call{InitialSelection}{$L$, $K_{PT}$, $mult_{A1}$}
-\Comment{Enhanced competitive selection}
-\For{each OD pair $(o,d)$}
-    \State Compute best car utility $u^{car}_{od}$ and best PT utility $u^{PT}_{od}$
-    \State $\tau_{od} \leftarrow \min(u^{car}_{od}, u^{PT}_{od})$ \Comment{Competitive threshold}
-    \State Score PT+bike arcs at lower bound $\bar{P}$: $u^{A1}_{oda} = \mathcal{U}_{A1}(o,d,a,\bar{P})$
-    \State $\mathcal{C}_{od} \leftarrow \{a : u^{A1}_{oda} < \tau_{od}\}$ \Comment{Competitive PT+bike arcs}
-    \If{$|\mathcal{C}_{od}| > 0$}
-        \State Select $\min(\max(L, mult_{A1} \cdot L), |\mathcal{C}_{od}|)$ best PT+bike arcs
-        \State Select $\max(1, K_{PT} - 1)$ best PT-only arcs \Comment{Prioritize PT+bike}
-    \Else
-        \State Standard selection: $\max(L, mult_{A1} \cdot L)$ PT+bike, $K_{PT}$ PT-only
-    \EndIf
-\EndFor
-
-\State \textbf{Phase II: Candidate Heap Construction}
-\State $\mathcal{H} \leftarrow \emptyset$ \Comment{Global priority queue}
-\For{each OD pair $(o,d)$ in parallel}
-    \State Compute benchmark $\beta_{od} \leftarrow \min(u^{car}_{od}, u^{PT}_{od})$
-    \For{each PT-only arc $a \notin \mathcal{S}_{od}^{A2}$}
-        \State $s \leftarrow \mathcal{U}_{A2}(o,d,a)$ \Comment{Standard PT disutility}
-        \State \Call{HeapPush}{$\mathcal{H}$, $(s, (o,d,a), \text{``A2''})$}
-    \EndFor
-    \For{each PT+bike arc $a \notin \mathcal{S}_{od}^{A1}$}
-        \State $s \leftarrow \mathcal{U}_{A1}(o,d,a,\bar{P}) - \beta_{od}$ \Comment{Gap-based scoring}
-        \State \Call{HeapPush}{$\mathcal{H}$, $(s, (o,d,a), \text{``A1''})$}
-    \EndFor
-\EndFor
-
-\State \textbf{Phase III: Restricted Master Problem Initialization}
-\State \Call{BuildLP}{$\mathcal{S}$} \Comment{Construct bilevel LP with initial selection}
-\State $\theta^* \leftarrow$ \Call{Optimize}{} \Comment{Solve base problem}
-\State $trials \leftarrow 0$, $patience \leftarrow 0$, $added \leftarrow 0$
-
-\State \textbf{Phase IV: Forward Greedy Addition}
-\While{$\mathcal{H} \neq \emptyset$ \textbf{and} $added < max_{add}$ \textbf{and} $trials < max_{trials}$ \textbf{and} $patience < max_{patience}$}
-    \State $(score, (o,d,a), type) \leftarrow$ \Call{HeapPop}{$\mathcal{H}$}
-    \State $\theta_{trial} \leftarrow$ \Call{TrialAddValue}{$o,d,a,type$} \Comment{Model copy evaluation}
-    \State $trials \leftarrow trials + 1$
-    \If{$\theta_{trial}$ is \textbf{None}}
-        \State $patience \leftarrow patience + 1$
-        \State \textbf{continue}
-    \EndIf
-    \State $\Delta \leftarrow \frac{\theta_{trial} - \theta^*}{|\theta^*|}$ \Comment{Relative improvement}
-    \If{$\Delta > \epsilon_{add}$} \Comment{Accept if sufficient improvement}
-        \If{$type = \text{``A2''}$}
-            \State \Call{AddPTOnly}{$o,d,a$}
-        \Else
-            \State \Call{AddPTBike}{$o,d,a$}
-        \EndIf
-        \State $\theta^* \leftarrow$ \Call{Optimize}{}
-        \State $added \leftarrow added + 1$, $patience \leftarrow 0$
-    \Else
-        \State $patience \leftarrow patience + 1$
-    \EndIf
-\EndWhile
-
-\State \textbf{Phase V: Backward Elimination}
-\State $\mathcal{R} \leftarrow$ \Call{RankA1ByContribution}{} \Comment{Sort by flow and contribution}
-\State $drops \leftarrow 0$, $trials \leftarrow 0$, $patience \leftarrow 0$
-\For{each $(q_{val}, contrib, (o,d,a)) \in \mathcal{R}$}
-    \If{$drops \geq max_{drops}$ \textbf{or} $trials \geq max_{trials}$ \textbf{or} $patience \geq max_{patience}$}
-        \State \textbf{break}
-    \EndIf
-    \State $\theta_{trial} \leftarrow$ \Call{TrialDropValue}{$o,d,a$} \Comment{Evaluate removal}
-    \State $trials \leftarrow trials + 1$
-    \If{$\theta_{trial}$ is \textbf{None}}
-        \State $patience \leftarrow patience + 1$
-        \State \textbf{continue}
-    \EndIf
-    \State $\Delta \leftarrow \theta_{trial} - \theta^*$
-    \If{$\Delta \geq |\theta^*| \cdot \epsilon_{drop}$ \textbf{or} $(q_{val} \leq \epsilon_q \textbf{ and } \Delta > -|\theta^*| \cdot \epsilon_{drop})$}
-        \State \Call{DeactivatePTBike}{$o,d,a$} \Comment{Remove weak arc}
-        \State $\theta^* \leftarrow$ \Call{Optimize}{}
-        \State $drops \leftarrow drops + 1$, $patience \leftarrow 0$
-    \Else
-        \State $patience \leftarrow patience + 1$
-    \EndIf
-\EndFor
-
-\State \textbf{return} $\theta^*$, solution vectors
-\end{algorithmic}
-\end{algorithm}
-
-\begin{algorithm}[htbp]
-\caption{Supporting Procedures}
-\label{alg:supporting_procedures}
-\begin{algorithmic}[1]
-
-\Procedure{TrialAddValue}{$o, d, a, type$}
-    \State $\mathcal{M}_{copy} \leftarrow$ \Call{CopyModel}{}
-    \State Add variables and constraints for arc $(o,d,a)$ of given $type$
-    \If{$type = \text{``A2''}$}
-        \State Add: $q_{oda} \in [0, Q_{od}]$, dual feasibility, demand, strong duality constraints
-    \Else \Comment{PT+bike arc}
-        \State Add: $p_{oda} \in [\bar{P}, \bar{P}^+]$, $q_{oda} \in [0, Q_{od}]$, $z_{oda}$ (McCormick)
-        \State Add: capacity, dual feasibility, demand, strong duality constraints
-    \EndIf
-    \State \textbf{return} \Call{Optimize}{$\mathcal{M}_{copy}$}
-\EndProcedure
-
-\Procedure{TrialDropValue}{$o, d, a$}
-    \State $\mathcal{M}_{copy} \leftarrow$ \Call{CopyModel}{}
-    \State Fix $q_{oda} = p_{oda} = z_{oda} = 0$ \Comment{Deactivate arc}
-    \State Relax dual constraint: $\gamma_{od} \leq M$ (large $M$)
-    \State \textbf{return} \Call{Optimize}{$\mathcal{M}_{copy}$}
-\EndProcedure
-
-\end{algorithmic}
-\end{algorithm}
-
-\end{comment}
+\paragraph{Notation.}
+\begin{description}
+\item[$\mathcal W$] Set of OD pairs; elements $(o,d)$.
+\item[$\mathcal A_1^{(o,d)}$] PT+Bike (A1) alternatives for $(o,d)$.
+\item[$\mathcal A_2^{(o,d)}$] PT-only (A2) alternatives for $(o,d)$.
+\item[$I$] Set of bike stations; indices $i$.
+\item[$Q_{od}$] Demand of OD pair $(o,d)$.
+\item[$C_i$] Capacity (docks) at station $i$; $s_i$ is current inventory (bikes).
+\item[$\delta_{ia}$] Station-incidence of A1 arc $a$: $+1$ if $a$ arrives at $i$, $-1$ if $a$ departs, $0$ otherwise.
+\item[$k_a$] Number of bike \emph{legs} in A1 arc $a$ (0, 1 or 2). % new
+\item[$p_a$] Bike price decision (continuous) on A1 arc $a$, bounded in $[P_{\min},P_{\max}]$.
+\item[$q_a^{(o,d)}$] Chosen flow on arc $a\in\mathcal A_1^{(o,d)} \cup \mathcal A_2^{(o,d)} \cup \mathcal A_{\mathrm{car}}^{(o,d)}$.
+\item[$z_a$] McCormick auxiliary representing $p_a \cdot q_a^{(o,d)}$ for $a\in\mathcal A_1^{(o,d)}$.
+\item[$V_a^{(o,d)}(p)$] System disutility of alternative $a$ for $(o,d)$; for A1 it includes $k_a \beta^{\mathrm{bike}}_{\mathrm{price}}\,p$.
+\item[$\gamma_{od}$] Dual variable of the OD demand-conservation row for $(o,d)$ in the single-level LP (the “choice” potential).
+\item[$\pi^{\mathrm{up}}_i\!\ge 0$] Dual of the station \emph{upper} row $\sum\delta_{ia} q_a^{(o,d)} \le C_i - s_i$.
+\item[$\pi^{\mathrm{lo}}_i\!\le 0$] Dual of the station \emph{lower} row $\sum\delta_{ia} q_a^{(o,d)} + s_i \ge 0$.
+\item[$\lambda_i$] Effective station shadow price $\lambda_i := \pi^{\mathrm{up}}_i + \pi^{\mathrm{lo}}_i$.
+\item[$U_i, L_i$] Current slacks of the upper and lower station rows, respectively.
+\item[$\overline V_a^{(o,d)}$] Disutility evaluated at a ranking proxy price $\bar P$ (for A1: includes $k_a \beta^{\mathrm{bike}}_{\mathrm{price}}\bar P$).
+\item[$\textsf{score}(a)$] Surrogate reduced-cost score used in D1:
+$\textsf{score}(a)=(\overline V_a^{(o,d)}-\gamma_{od}) + \mu_{\mathrm{st}}\sum_i \lambda_i \delta_{ia}$.
+\item[$\widehat q_a$] Conservative flow proxy for arc $a$:
+$\widehat q_a = \min\bigl(Q_{od},\,\min_{\delta_{ia}>0} U_i,\,\min_{\delta_{ia}<0} L_i\bigr)$.
+\end{description}
 
 
+% ---------- Algorithm 1 ----------
+\paragraph{Algorithm 1 — Dual-Aware Batched Forward Selection (DABFS).}
+\emph{Inputs:} $\mathcal{W}$, arcs, utilities, $P_{\mathrm{bar}},P_{\mathrm{up}}$, $L,K_{\mathrm{PT}},\mathrm{mult}_{A1}$, $M,\mu_{\mathrm{st}}$.
+\emph{Output:} accepted PT+Bike/PT-only arcs and the incumbent LP solution.
+\begin{enumerate}
+\item \textbf{Initial selection (per OD).}
+  \begin{enumerate}
+  \item Compute $V^{(c),\star}_{od}:=\min_{b\in\mathcal{C}_{od}} V^{(c)}_{od}(b)$.
+  \item Score all PT+Bike arcs at $P_{\mathrm{bar}}$ and split
+  \[
+    \mathrm{Comp}_{od}:=\{a: V^{(1)}_{od}(a;P_{\mathrm{bar}}) < V^{(c),\star}_{od}\},\quad
+    \mathrm{NonComp}_{od}:=\mathcal{A}^{(1)}_{od}\setminus\mathrm{Comp}_{od}.
+  \]
+  \item Base cap $C^{(1)}_{od}:=\lceil \mathrm{mult}_{A1}\cdot L\rceil$. If $|\mathrm{Comp}_{od}|>C^{(1)}_{od}$,
+  surge to $C^{(1)}_{od}\leftarrow \min\{L,\,|\mathrm{Comp}_{od}|\}$.
+  Select the $C^{(1)}_{od}$ best PT+Bike by $V^{(1)}$.
+  \item Select $C^{(2)}_{od}:=\min\{K_{\mathrm{PT}},\,|\mathcal{A}^{(2)}_{od}|\}$ best PT-only by $V^{(2)}$.
+  \end{enumerate}
+\item \textbf{Build and solve the restricted LP.} Solve to optimality; store $\gamma,\lambda,U,L$.
+\item \textbf{Main forward loop} (up to max batches):
+  \begin{enumerate}
+  \item \textbf{Candidate scoring.} For all not-present PT+Bike arcs, compute $\mathrm{gap}_{od}(a),w_{od}(a),\widehat q_{od}(a)$.
+  \item \textbf{Batching.} Use one of D1–D5 to produce a batch $\mathcal{B}\subseteq\{(o,d,a)\}$ with $|\mathcal{B}|\le M$.
+  \item \textbf{Per-OD cap enforcement.} Greedily discard items so that for each $(o,d)$,
+  \[
+  \#\mathrm{present}^{(1)}_{od} + \#\bigl(\mathcal{B}\cap\{od\}\bigr) \le L.
+  \]
+  If $\mathcal{B}=\emptyset$, terminate.
+  \item \textbf{Trial solve with $\varepsilon$ tie-break.}
+  On a model copy, add $\mathcal{B}$; set objective coefficients as in the live model and add a tiny $\varepsilon>0$
+  \emph{only} to the new $q$-coefficients. Solve; record $z^{\mathrm{trial}}$ and 
+  $q^{\mathrm{new}}:=\sum_{(o,d,a)\in\mathcal{B}} q_{od}(a)$.
+  \item \textbf{Acceptance (neutral-or-better).} With incumbent $z^{\mathrm{base}}$, tolerance
+  $\tau=\max\{\varepsilon_{\mathrm{abs}},\,\varepsilon_{\mathrm{rel}}\cdot\max(1,|z^{\mathrm{base}}|)\}$,
+  accept if
+  \[
+  z^{\mathrm{trial}} \ge z^{\mathrm{base}}+\tau
+  \quad\text{or}\quad
+  \bigl(|z^{\mathrm{trial}}-z^{\mathrm{base}}|\le \tau\ \wedge\ q^{\mathrm{new}}>0\bigr).
+  \]
+  \item \textbf{Apply \& reoptimize (if accepted).} Add $\mathcal{B}$ to the live LP and re-solve; update $\gamma,\lambda,U,L$.
+  If rejected, terminate.
+  \end{enumerate}
+\end{enumerate}
 
+\noindent\emph{Properties.} The live objective is non-decreasing across accepted batches;
+feasibility is preserved; selection is dual- and station-budget-aware.
 
+% ---------- D1 ----------
+\paragraph{D1 — Token-Budget Greedy with Complementary Pairing.}
+\emph{Inputs:} candidates $\mathcal{E}$ with $(w_e,\widehat q_e,\delta_{ie})$, budgets $U,L$, lookahead $H$, safety $s\ge 1$, batch size $M$.
+\emph{Output:} $\mathcal{B}$ with $|\mathcal{B}|\le M$.
+\begin{enumerate}
+\item Sort $\mathcal{E}$ by $v_e:=w_e\cdot \max(\widehat q_e,1)$ (desc).
+Partition $\mathcal{E}=\mathcal{E}^+\cup\mathcal{E}^0$ with $\widehat q_e>0$ vs.\ $=0$.
+\item Initialize residual budgets $U'_i\gets U_i$, $L'_i\gets L_i$, and $\mathcal{B}\gets\emptyset$.
+\item Scan $\mathcal{E}^+$ in order. For each $e$:
+\begin{itemize}
+\item \emph{Solo fit:} if $s\,\widehat q_e\,\delta_{ie}\in[-L'_i,U'_i]$ for all $i$, add $e$ to $\mathcal{B}$ and update
+$U'_i\leftarrow U'_i-\max(0,s\,\widehat q_e\,\delta_{ie})$, $L'_i\leftarrow L'_i-\max(0,-s\,\widehat q_e\,\delta_{ie})$.
+\item \emph{Else, pairing:} search among the next $H$ items (from $\mathcal{E}^+$ and $\mathcal{E}^0$) for $f\ne e$
+such that $s(\widehat q_e\delta_{ie}+\widehat q_f\delta_{if})\in[-L'_i,U'_i]$ for all $i$.
+If found, add both (respecting $M$) and update budgets with the \emph{joint} load.
+\end{itemize}
+\item If tokens remain, greedily fill with the best fitting items.
+\item Return $\mathcal{B}$ (truncate to $M$ if needed).
+\end{enumerate}
 
+% ---------- D2 ----------
+\paragraph{D2 — Two-Sided Budgeted Knapsack (LP).}
+\emph{Inputs:} $\mathcal{E}$ with $(w_e,\widehat q_e,\delta_{ie})$, budgets $U,L$, softness $\alpha\in(0,1]$, batch size $M$.
+\emph{Output:} $\mathcal{B}$ with $|\mathcal{B}|\le M$.
+\[
+\begin{aligned}
+\max_{0\le x_e\le 1}\quad & \sum_{e\in\mathcal{E}} w_e\,x_e \\
+\text{s.t.}\quad
+& -\alpha\,L_i \;\le\; \sum_{e\in\mathcal{E}} \delta_{ie}\,\widetilde q_e\,x_e \;\le\; \alpha\,U_i
+\quad \forall i\in\mathcal{I},\\
+& \sum_{e\in\mathcal{E}} x_e \;\le\; M,
+\end{aligned}
+\qquad\text{where}\quad
+\widetilde q_e:=\max(\widehat q_e,1).
+\]
+Pick the $M$ largest $x_e$.
 
-% --- In your document body ---
+% ---------- D3 ----------
+\paragraph{D3 — Reversing-Pair Cycle Greedy.}
+\emph{Inputs:} edges $u\to v$ per arc with weight $w_e$, batch size $M$.
+\emph{Output:} $\mathcal{B}$ with $|\mathcal{B}|\le M$.
+\begin{enumerate}
+\item Sort edges by $w_e$ (desc).
+\item Greedily take reversing pairs: for unused $u\to v$, if an unused $v\to u$ exists, add both.
+\item Fill any remaining slots with best unused edges; truncate to $M$.
+\end{enumerate}
 
-% ================== MAIN GREEDY PIPELINE (BREAKABLE) ==================
-\begin{breakablealgorithm}[Greedy Fix--and--Optimize Matheuristic]
-\label{alg:greedy_fix_optimize}
-\begin{algorithmic}[1]
-\Require Parsed instance $(\mathcal{W}, \mathcal{A}^{PT}, \mathcal{A}^{A1})$, demands $Q$, parameters $L$, $K_{\!PT}$, $mult_{A1}$, pricing bounds $[\bar P, \bar P^{+}]$
-\Ensure Selected alternatives and prices; objective value $\theta^\star$
+% ---------- D4 ----------
+\paragraph{D4 — Exact Station-Balance Pool (LP).}
+\emph{Inputs:} pool $\mathcal{E}$ (optionally top-$N$ by $w_e$), batch size $M$.
+\emph{Output:} $\mathcal{B}$ with $|\mathcal{B}|\le M$.
+\[
+\begin{aligned}
+\max_{0\le x_e\le 1}\quad & \sum_{e\in\mathcal{E}} w_e\,x_e \\
+\text{s.t.}\quad
+& \sum_{e\in\mathcal{E}} \delta_{ie}\,x_e \;=\;0 \quad \forall i\ \text{with some }\delta_{ie}\ne 0,\\
+& \sum_{e\in\mathcal{E}} x_e \;\le\; M.
+\end{aligned}
+\]
+Pick the $M$ largest $x_e$.
 
-\State \textbf{Phase I (Competitive Initial Selection)}
-\For{each $(o,d)\in\mathcal{W}$}
-  \State Compute best car utility $u^{car}_{od}$ and best PT utility $u^{PT}_{od}$
-  \State $\tau_{od}\gets \min(u^{car}_{od},u^{PT}_{od})$
-  \State Score PT+bike at $\bar P$: $u^{A1}_{oda}$
-  \State $\mathcal{C}_{od}\gets\{a\in\mathcal{A}^{A1}_{od}: u^{A1}_{oda}<\tau_{od}\}$
-  \If{$|\mathcal{C}_{od}|>0$} \Comment{PT+bike competitive}
-    \State Select $\min\{\max(L,\,mult_{A1}\!\cdot\!L),\,|\mathcal{C}_{od}|\}$ best $A1$
-    \State Select $\max(1, K_{\!PT}-1)$ best PT-only
-  \Else
-    \State Select $\max(L,\,mult_{A1}\!\cdot\!L)$ best $A1$ and $K_{\!PT}$ best PT-only
-  \EndIf
-\EndFor
-\State Let $\mathcal{S}$ be the union of selected $A1$/$A2$ per OD
+% ---------- D5 ----------
+\paragraph{D5 — $k$-Cycle Hunt on the Station Graph.}
+\emph{Inputs:} directed station graph induced by $\mathcal{E}$, DFS depth $D$, batch size $M$.
+\emph{Output:} $\mathcal{B}$ with $|\mathcal{B}|\le M$.
+\begin{enumerate}
+\item Enumerate simple directed cycles up to length $D$ from promising starts.
+\item Score cycle $C$ by $\sum_{e\in C} w_e$; sort by score.
+\item Greedily pack disjoint arcs from top cycles into $\mathcal{B}$ until $|\mathcal{B}|=M$.
+\end{enumerate}
 
-\Statex
-\State \textbf{Phase II (Global Candidate Heap)}
-\For{each $(o,d)\in\mathcal{W}$ \textbf{in parallel}}
-  \State $\beta_{od}\gets \min(u^{car}_{od},u^{PT}_{od})$
-  \For{each $a\in\mathcal{A}^{PT}_{od}\setminus\mathcal{S}$}
-    \State $s\gets\mathcal{U}_{A2}(o,d,a)$; push $(s,(o,d,a),A2)$ to heap
-  \EndFor
-  \For{each $a\in\mathcal{A}^{A1}_{od}\setminus\mathcal{S}$}
-    \State $s\gets \mathcal{U}_{A1}(o,d,a,\bar P)-\beta_{od}$; push $(s,(o,d,a),A1)$ to heap
-  \EndFor
-\EndFor
-
-\Statex
-\State \textbf{Phase III (Restricted Master Initialization)}
-\State Build the incremental LP with all items in $\mathcal{S}$
-\State Solve to obtain $\theta^\star$ (free method), then set reopt method to Dual Simplex
-
-\Statex
-\State \textbf{Phase IV (Forward Greedy Addition)}
-\State $added\gets 0$, $trials\gets 0$, $patience\gets 0$
-\While{heap not empty \textbf{and} $added<max_{\!add}$ \textbf{and} $trials<max_{\!trials}$ \textbf{and} $patience<max_{\!patience}$}
-  \State Pop $(score,(o,d,a),type)$ from heap
-  \State $\theta^{trial}\gets$ \Call{TrialAddValue}{$o,d,a,type$}
-  \State $trials\gets trials+1$
-  \If{$\theta^{trial}$ is undefined}
-     \State $patience\gets patience+1$; \textbf{continue}
-  \EndIf
-  \State $\Delta \gets \dfrac{\theta^{trial}-\theta^\star}{|\theta^\star|}$
-  \If{$\Delta>\varepsilon_{\!add}$}
-     \State Add $(o,d,a)$ of $type$ to the live LP; reoptimize to update $\theta^\star$
-     \State $added\gets added+1$; $patience\gets 0$
-  \Else
-     \State $patience\gets patience+1$
-  \EndIf
-\EndWhile
-
-\Statex
-\State \textbf{Phase V (Backward Elimination)}
-\State Rank live $A1$ by increasing $(q\text{-flow},\,\text{contribution})$
-\State $drops\gets 0$, $trials\gets 0$, $patience\gets 0$
-\For{each $(o,d,a)$ in ranked order}
-  \If{$drops\geq max_{\!drops}$ \textbf{or} $trials\geq max_{\!trials}$ \textbf{or} $patience\geq max_{\!patience}$}
-    \State \textbf{break}
-  \EndIf
-  \State $\theta^{trial}\gets$ \Call{TrialDropValue}{$o,d,a$}
-  \State $trials\gets trials+1$
-  \If{$\theta^{trial}$ is undefined}
-     \State $patience\gets patience+1$; \textbf{continue}
-  \EndIf
-  \State $\Delta\gets \theta^{trial}-\theta^\star$
-  \If{$\Delta \ge |\theta^\star|\varepsilon_{\!drop}$ \textbf{or} $(q_{oda}\le \varepsilon_q \ \textbf{and}\  \Delta > -|\theta^\star|\varepsilon_{\!drop})$}
-     \State Deactivate $(o,d,a)$ in the live LP; reoptimize to update $\theta^\star$
-     \State $drops\gets drops+1$; $patience\gets 0$
-  \Else
-     \State $patience\gets 1+patience$
-  \EndIf
-\EndFor
-
-\State \Return $\theta^\star$ and the final solution
-\end{algorithmic}
-\end{breakablealgorithm}
-
-
-% ================== SUPPORTING PROCEDURES (BREAKABLE) ==================
-\begin{breakablealgorithm}[Supporting Procedures]
-\begin{algorithmic}[1]
-\Procedure{TrialAddValue}{$o,d,a,type$}
-  \State Create a copy of the current LP
-  \If{$type$ is PT-only}
-     \State Add $q_{oda}\in[0,Q_{od}]$; add dual-feasibility, demand, strong-duality rows
-     \State Set $q$-variable objective coefficient as in the master model
-  \Else \Comment{PT+bike}
-     \State Add $p_{oda}\in[\bar P,\bar P^+]$, $q_{oda}\in[0,Q_{od}]$, and $z_{oda}$ with McCormick envelopes
-     \State Add capacity links, dual-feasibility, demand, strong-duality rows
-     \State Set objective coefficients for $q$ and $z$ as in the master model
-  \EndIf
-  \State \Return optimal objective of the copied model (Dual Simplex)
-\EndProcedure
-
-\Procedure{TrialDropValue}{$o,d,a$}
-  \State Create a copy of the current LP
-  \State Fix $q_{oda}=0$, and if present $p_{oda}=z_{oda}=0$; relax the corresponding dual row with big-$M$
-  \State \Return optimal objective of the copied model (Dual Simplex)
-\EndProcedure
-\end{algorithmic}
-\end{breakablealgorithm}
+% ---------- Trial ε tie-break & live objective ----------
+\paragraph{Trial $\boldsymbol{\varepsilon}$ tie-break and live objective consistency.}
+In the trial LP (model copy), add $\varepsilon>0$ \emph{only} to the objective coefficients of newly added $q$-variables,
+so the perturbed objective is
+\[
+z^{\mathrm{trial}}_{\varepsilon}
+\;=\;
+z^{\mathrm{true}} \;+\; \varepsilon\sum_{(o,d,a)\in\mathcal{B}} q_{od}(a),
+\]
+which breaks degeneracy in favor of positive new flow.
+For acceptance based on the \emph{true} objective, subtract the $\varepsilon$-term:
+\[
+z^{\mathrm{trial}}_{\mathrm{true}}
+\;=\;
+z^{\mathrm{trial}}_{\varepsilon}
+\;-\;
+\varepsilon\,\sum_{(o,d,a)\in\mathcal{B}} q_{od}(a),
+\]
+and apply the neutral-or-better rule with $q^{\mathrm{new}}=\sum_{(o,d,a)\in\mathcal{B}} q_{od}(a)$.
+In the live model we do \emph{not} include $\varepsilon$; the objective may tie, but the accepted columns
+expand the feasible set and can unlock subsequent improvements.
+% -------------------------------------------------------
 
 
 
 
 
 
-\section{Computational Complexity and Performance}
 
-The algorithm's complexity is dominated by the number of bilevel LP solves performed during the forward and backward phases. Each trial evaluation requires solving a copy of the master problem, leading to a complexity of $O(T \cdot C_{LP})$ where $T$ is the total number of trials and $C_{LP}$ is the complexity of solving the bilevel LP.
 
-The use of model copying for trial evaluations provides numerical stability and avoids basis-related issues that can occur with direct model modifications. The patience mechanism prevents excessive exploration in unpromising regions of the solution space.
 
-\section{Parameter Settings}
 
-\begin{table}[htbp]
-\centering
-\caption{Algorithm Parameters and Typical Values}
-\label{tab:parameters}
-\begin{tabular}{@{}lll@{}}
-\toprule
-Parameter & Description & Typical Value \\
-\midrule
-$L$ & Base selection limit & 3-5 \\
-$K_{PT}$ & PT-only arcs per OD & 2 \\
-$mult_{A1}$ & PT+bike multiplier & 3-4 \\
-$\epsilon_{add}$ & Addition improvement threshold & $10^{-4}$ \\
-$\epsilon_{drop}$ & Dropping improvement threshold & $10^{-4}$ \\
-$\epsilon_q$ & Flow pruning threshold & $10^{-8}$ \\
-$max_{trials}$ & Maximum trials per phase & 100 \\
-$max_{patience}$ & Patience limit & 10 \\
-\bottomrule
-\end{tabular}
-\end{table}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 \end{document}
