@@ -231,6 +231,23 @@ def plot_market_share_multi_separate(
         raise ValueError("No common instances across the supplied DataFrames.")
 
     def _sort_key(idx):
+        part = idx.split("_")[1]  # e.g., S12, M5, L3, EL1
+        
+        # Handle multi-character tags like "EL"
+        if part.startswith("EL"):
+            tag = "EL"
+            rank = int(part[2:])  # Skip first 2 chars
+        elif part[0] in ["S", "M", "L"]:
+            tag = part[0]
+            rank = int(part[1:])  # Skip first char
+        else:
+            # Fallback for unexpected format
+            tag = part[0]
+            rank = 0
+        
+        return {"S": 0, "M": 1, "L": 2, "EL": 3}[tag], rank
+    
+    def _sort_key1(idx):
         part = idx.split("_")[1]  # e.g., S12
         tag, rank = part[0], int(part[1:])
         return {"S": 0, "M": 1, "L": 2, "EL": 3}[tag], rank
@@ -430,6 +447,79 @@ def plot_profit_multi(
         ax.set_xticks(list(x))
         ax.set_xticklabels(all_instances, rotation=45, ha="right", fontfamily=font_family)
         ax.set_ylabel("Profit", fontfamily=font_family)
+        ax.set_title(title, pad=20, fontsize=14, fontweight="bold", fontfamily=font_family)
+        ax.legend(frameon=False, ncol=2, prop={"family": font_family})
+        plt.tight_layout()
+        plt.show()
+    
+    return canonicalised
+
+# NEW FUNCTION: Plot Profit comparison
+def plot_objval_multi(
+    runs: dict,
+    *,
+    title: str = "Profit comparison across scenarios",
+    font_family: str = "Times New Roman",
+):
+    """
+    Bar plot of profits for each scenario and instance.
+    """
+    canonicalised = {label: _canonicalise_index(df) for label, df in runs.items()}
+    # keep only instances common to all
+    all_sets = [set(df.index) for df in canonicalised.values()]
+    all_instances = set.union(*all_sets) if all_sets else set()
+    if not all_instances:
+        raise ValueError("No common instances across the supplied DataFrames.")
+    
+    # sort as in your main plot with EL support
+    def _sort_key(idx):
+        part = idx.split("_")[1]
+        tag_match = re.match(r'^([SMLEL]+)(\d+)$', part)
+        if tag_match:
+            tag = tag_match.group(1)
+            rank = int(tag_match.group(2))
+        else:
+            tag = part[0] if part else "S"
+            rank = int(part[1:]) if len(part) > 1 else 0
+        return {"S": 0, "M": 1, "L": 2, "EL": 3}[tag], rank
+    
+    all_instances = sorted(all_instances, key=_sort_key)
+    for label in canonicalised:
+        canonicalised[label] = canonicalised[label].reindex(all_instances)
+
+    n_inst = len(all_instances)
+    n_runs = len(runs)
+    bar_w = 0.7 / n_runs
+    x = range(n_inst)
+    
+    with plt.rc_context({"font.family": font_family}):
+        fig, ax = plt.subplots(figsize=(n_inst * 1.6, 6))
+        color_pairs = _paired_colors(n_runs)
+        
+        for k, (label, df) in enumerate(canonicalised.items()):
+            bar_c, _ = color_pairs[k]
+            offset = (k - (n_runs - 1) / 2) * bar_w
+            values = df["Obj Value"].fillna(0)  # Replace NaN with 0 for plotting
+            mask = df["Obj Value"].notna()  # Track which values are actually present
+            ax.bar(
+                [p + offset for p in x],
+                values,
+                width=bar_w,
+                label=f"Obj Value ({label})",
+                color=bar_c,
+                edgecolor="none",
+                alpha = 0.8
+            )
+            # CHANGE 9: Add value labels only for non-missing data
+            for i, (v, is_present) in enumerate(zip(values, mask)):
+                if is_present and v > 0:  # Only label if data exists and is positive
+                    ax.text(i + offset, v, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+                elif is_present:  # Handle case where value is 0 but data exists
+                    ax.text(i + offset, 0.01, f"{v:.2f}", ha="center", va="bottom", fontsize=8)
+        
+        ax.set_xticks(list(x))
+        ax.set_xticklabels(all_instances, rotation=45, ha="right", fontfamily=font_family)
+        ax.set_ylabel("Obj Value", fontfamily=font_family)
         ax.set_title(title, pad=20, fontsize=14, fontweight="bold", fontfamily=font_family)
         ax.legend(frameon=False, ncol=2, prop={"family": font_family})
         plt.tight_layout()

@@ -39,7 +39,11 @@ class IncrementalBilevelLP:
     - Add PT-only / PT+Bike alternatives as needed.
     - Optionally deactivate (drop) previously added alternatives.
     """
-
+    def set_per_arc_price_caps(self, p_off_map: dict, global_p_off: float | None = None):
+        """Install per-arc P_up exactly as provided; keep a global fallback."""
+        # keys are already (o,d,a); values are floats from your p_off function
+        self.P_up_arc = {(int(o), int(d), str(a)): float(v) for (o, d, a), v in p_off_map.items()}
+        self.P_up = float(global_p_off) if global_p_off is not None else self.P_up_default
     # -------- construction --------
 
     def __init__(
@@ -58,8 +62,11 @@ class IncrementalBilevelLP:
             BETA_Cost_Car  = 0.474,
             BETA_Cost_park = 0.532,
             BETA_Time_Car  = 0.116,
-            quiet=True, nodefile_dir=None, threads=4, time_limit=None
-                ):     
+            quiet=True, nodefile_dir=None, threads=4, time_limit=None,
+            p_off_map = None,
+            disable_arcs = None,
+            global_p_off = None
+            ):     
             
         self.data = parsed_data
 
@@ -83,9 +90,18 @@ class IncrementalBilevelLP:
         self.travel_time      = parsed_data["travel_time_min"]
         self.k_bike_legs      = parsed_data["k_bike_legs"]
         # Parameters / coefficients
+        
+
 
         self.P_bar = P_bar
-        self.P_up  = P_up
+        self.P_up_default  = P_up
+        self.P_up_arc = {}
+        self.disable_arcs = set(disable_arcs or [])
+        if p_off_map:
+            self.set_per_arc_price_caps(p_off_map, global_p_off)
+
+
+
         self.pt_price = pt_price
         self.cost_bike = cost_bike
         self.parking_fee = parking_fee
@@ -279,8 +295,9 @@ class IncrementalBilevelLP:
         self._present_A1.add((o,d,a))
 
         Qod = self.demands[(o,d)]
+        Pup = self.P_up_arc.get((o,d,a), self.P_up)
 
-        p = self.m.addVar(lb=self.P_bar, ub=self.P_up, vtype=GRB.CONTINUOUS, name=f"p_{o}_{d}_{a}")
+        p = self.m.addVar(lb=self.P_bar, ub=Pup, vtype=GRB.CONTINUOUS, name=f"p_{o}_{d}_{a}")
         q = self.m.addVar(lb = 0, ub = Qod, vtype=GRB.CONTINUOUS, name = f"q_{o}_{d}_{a}")
         z = self.m.addVar(lb = -GRB.INFINITY, ub = GRB.INFINITY, vtype=GRB.CONTINUOUS, name=f"z_{o}_{d}_{a}")
 
@@ -288,8 +305,8 @@ class IncrementalBilevelLP:
 
         #McCormick Envelopes for z = p*q with bounds known, (ν=1 implicitly for included arcs, no need for it in the constraints)
         self.m.addConstr(z >= self.P_bar * q,                        name=f"z_min1_{o}_{d}_{a}")
-        self.m.addConstr(z <= self.P_up  * q,                        name=f"z_max1_{o}_{d}_{a}")
-        self.m.addConstr(z >= self.P_up*q + p*Qod - self.P_up*Qod,   name=f"z_min2_{o}_{d}_{a}")
+        self.m.addConstr(z <= Pup  * q,                        name=f"z_max1_{o}_{d}_{a}")
+        self.m.addConstr(z >= Pup*q + p*Qod - Pup*Qod,   name=f"z_min2_{o}_{d}_{a}")
         self.m.addConstr(z <= p*Qod + self.P_bar*q - self.P_bar*Qod, name=f"z_max2_{o}_{d}_{a}")
 
         # Dual feasibility for pt+bike arcs
@@ -325,7 +342,7 @@ class IncrementalBilevelLP:
         resource_coeff  = self._resource_coeff.get((o, d, a), 0.0)
 
         z.setAttr(GRB.Attr.Obj, float(self.k_bike_legs[(o,d,a)]))
-        q.setAttr(GRB.Attr.Obj, ridership_coeff - self.cost_bike + self.theta * resource_coeff)
+        q.setAttr(GRB.Attr.Obj, ridership_coeff - self.cost_bike*float(self.k_bike_legs[(o,d,a)]) + self.theta * resource_coeff)
 
         self.m.update()
 

@@ -3,16 +3,25 @@ from gurobipy import GRB
 import os
 import json
 import time
-from collections import defaultdict
-import random as rand
 import numbers
 from collections.abc import Mapping
 import random as rand
-import heapq
 from Codes.save_solution_files_safely import save_solution_files_safely
+import math
 
 
-def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file_path, save_folder, max_displayed_alternatives = 7, capacity=None, inventory_level=None, dep_cost =0, slack_ub = 2, cost_bike = 0.6, parking_fee = 2.8, P_bar=0.5, P_up=4, pt_price=2, theta = 0.5, verbose=True, verbose2=True):
+
+
+def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
+    parsed_data: dict, *,
+    json_file_path, save_folder,
+    max_displayed_alternatives=10, mult_A1=1,
+    capacity=None, inventory_level=None,
+    dep_cost=0, cost_bike=0.6, parking_fee=2.8,
+    P_bar=0.5, pt_price=2, theta=0.5,
+    verbose=True, verbose2=True,
+    p_off_map=None, disable_set=None, global_p_off=None
+):
     
 
 
@@ -31,6 +40,7 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
     arcs_pt_bike     = parsed_data["arcs_pt_bike"]       # dict["o_d"] -> [arc dicts]
     arcs_pt_only     = parsed_data["arcs_pt_only"]
     car_paths        = parsed_data["car_paths"]
+    k_bike_legs      = parsed_data["k_bike_legs"]
 
     # Station info: bike stations from GBFS, assigned inventory and capacity
     stations_list     = parsed_data["stations_list"]
@@ -57,7 +67,6 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
 
 
 
-
     # Flows → station deltas
     delta_ia         = parsed_data["delta_ia"]
 
@@ -71,27 +80,9 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
     travel_time      = parsed_data["travel_time_min"] # car travel
 
  
-    arcs_all = {}
-
-    for (o, d) in W:
-        od_key = f"{o}_{d}"
-        bike_arcs = arcs_pt_bike.get(od_key, [])
-        pt_arcs   = arcs_pt_only.get(od_key, [])
-        arcs_all[(o, d)] = bike_arcs + pt_arcs
+   # --- Heuristic-style competitiveness scan to precompute OD caps ---
 
 
-    '''
-    bad = [a for a,d in delta_ia.items()
-        if all(v==0 for v in d.values())]
-    print("These arcs never consume capacity:", bad)
-
-    # Calculate weights for the UL obj
-    
-    TAU_MAX   = max(bike_time.values()) if bike_time else 0
-    TAU_MIN   = min(bike_time.values()) if bike_time else 0
-    ridership_weight   = P_up * TAU_MAX
-    penalty_weight = theta * TAU_MIN
-    '''
     # Coefficients retained from Rojas et al. (2022) – magnitudes only
     ASC_PT   = -0.756          # PT alternative-specific constant (relative to BSS)
     ASC_BIKE = 0.0            # BSS ASC is the reference
@@ -140,7 +131,6 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
             beta_transfer_time_bike[(o, d, a_id)]  = BETA_TR_BIKE
             beta_cost_bike[(o, d, a_id)]      = BETA_Cost_BIKE         # p_a  (bike €)
             beta_cost_pt[(o, d, a_id)]        = BETA_Cost_PT           # d_val (PT €)
-
         
         for arc in arcs_pt_only.get(f"{o}_{d}", []):
             arc_id = arc["arc_id"]
@@ -159,56 +149,198 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
             beta_car_time[(o,d, arc_id)] = BETA_Time_Car
             beta_cost_car[(o,d, arc_id)] = BETA_Cost_Car
             beta_cost_park[(o,d, arc_id)] = BETA_Cost_park
+    
+
+
+
+    def best_car_utility(o, d):
+        od_key = f"{o}_{d}"
+        best = float("inf")
+        for arc in car_paths.get(od_key, []):
+            a = arc["arc_id"]
+            F  = total_cost_car[(o, d, a)]
+            Tt = travel_time[(o, d, a)]
+            u  = (ASC_CAR
+                + BETA_Cost_Car  * (F - dep_cost)
+                + BETA_Cost_park * parking_fee
+                + BETA_Time_Car  * Tt)
+            if u < best:
+                best = u
+        return best
+
+    def pt_bike_utility_at_Pbar(o, d, a):
+        # include k_a (0,1,2) in the bike-price term
+        k = int(k_bike_legs.get((o, d, a), 1))
+        return (ASC_PT + ASC_BIKE
+                + BETA_Cost_PT   * pt_price
+                + BETA_Cost_BIKE * k * P_bar
+                + BETA_Time_PT   * pt_time[(o, d, a)]
+                + BETA_Time_BIKE * bike_time.get((o, d, a), 0.0)
+                + BETA_TR_BIKE   * transfers[(o, d, a)])
+
+
+
+
+
+    L_base = int(max_displayed_alternatives)
+    A1_base_per_od = {}
+    L_total_cap_od = {}   # final OD cap to enforce
+    total_extra = 0
+    num_ods = 0
+
+    for (o, d) in W:
+        od_key = f"{o}_{d}"
+        # base A1 share from multiplier (heuristic)
+        A1_base = max(0, math.ceil(float(mult_A1) * L_base))
+        A1_base_per_od[(o, d)] = A1_base
+
+        # competitiveness vs car at P_bar
+        car_best = best_car_utility(o, d)
+        comp_count = 0
+        for arc in arcs_pt_bike.get(od_key, []):
+            a = arc["arc_id"]
+            u = pt_bike_utility_at_Pbar(o, d, a)
+            if u < car_best:
+                comp_count += 1
+
+        # heuristic A1 cap with surge
+        A1_cap = max(A1_base, min(L_base, comp_count))
+        extra  = max(0, A1_cap - A1_base)          # extra slots reserved for A1
+        L_total_cap_od[(o, d)] = L_base + extra    # total OD cap (A1+A2)
+        total_extra += extra
+        num_ods += 1
+
+    avg_extra_per_od = (total_extra / num_ods) if num_ods else 0.0
+    print(f"Average extra additions per OD: {avg_extra_per_od:.3f} (over {num_ods} ODs)")
     '''
-    def prune_pt_only(arcs_pt_only, asc_pt,
-                    beta_cost_pt, beta_pttime, beta_transfer_time_pt,
-                    pt_price, pt_time, transfers,
-                    keep_n=7):
-        """
-        For each (o,d) in global W keep at most `keep_n` PT-only arcs that
-        have the *lowest* deterministic disutility V.  All look-ups fall back
-        to 0.0, so the function cannot raise KeyError.
-        """
-        pruned = {}
+    # --- PRUNE PT-only arcs dominated by car (keep only if strictly better than car) ---
 
-        for (o, d) in W:                          # ← keep your (o,d) loop
-            od_key = f"{o}_{d}"
+    dom_tol = 1e-6  # safety tolerance; increase slightly (e.g., 1e-4) if you want more aggressive pruning
 
-            scored = []
-            for arc in arcs_pt_only.get(od_key, []):   # correct container
-                aid = arc["arc_id"]
+    removed_ptonly = 0
+    kept_ptonly    = 0
+    pruned_arcs_pt_only = {}
 
-                V = (asc_pt.get((o, d, aid), 0.0)
-                    + beta_cost_pt.get((o, d, aid), 0.0) * pt_price
-                    + beta_pttime.get((o, d, aid), 0.0) *
-                    pt_time.get((o, d, aid), 0.0)
-                    + beta_transfer_time_pt.get((o, d, aid), 0.0) *
-                    transfers.get((o, d, aid), 0.0))
+    for (o, d) in W:
+        od_key = f"{o}_{d}"
 
-                scored.append((V, arc))
+        # Best car utility for this OD (min is "best" because V is disutility)
+        best_car_u = float("inf")
+        for arc in car_paths.get(od_key, []):
+            a  = arc["arc_id"]
+            F  = total_cost_car[(o, d, a)]
+            Tt = travel_time[(o, d, a)]
+            u_car = (ASC_CAR
+                    + BETA_Cost_Car  * (F - dep_cost)
+                    + BETA_Cost_park * parking_fee
+                    + BETA_Time_Car  * Tt)
+            if u_car < best_car_u:
+                best_car_u = u_car
 
-            # keep the `keep_n` smallest-V arcs
-            best_k = heapq.nsmallest(keep_n*2, scored, key=lambda t: t[0])
-            pruned[od_key] = [arc for _, arc in best_k]
+        # If no car path, keep all PT-only arcs for this OD
+        ptonly_list = arcs_pt_only.get(od_key, [])
+        if best_car_u == float("inf"):
+            pruned_arcs_pt_only[od_key] = ptonly_list[:]  # no pruning possible
+            kept_ptonly += len(ptonly_list)
+            continue
 
-        return pruned
+        # Filter PT-only arcs: drop if never better than car
+        kept_list = []
+        for arc in ptonly_list:
+            a = arc["arc_id"]
+            V_pt = (ASC_PT
+                    + BETA_Cost_PT * pt_price
+                    + BETA_Time_PT * pt_time[(o, d, a)]
+                    + BETA_TR_PT   * transfers[(o, d, a)])
+            # If PT-only disutility >= best car (within tol), it's dominated → remove
+            if V_pt >= best_car_u - dom_tol:
+                removed_ptonly += 1
+                continue
+            kept_list.append(arc)
+            kept_ptonly += 1
+
+        pruned_arcs_pt_only[od_key] = kept_list
+
+    # Replace arcs_pt_only with pruned version before building any coef dicts or variables
+    arcs_pt_only = pruned_arcs_pt_only
+
+    total_before = sum(len(v) for v in parsed_data["arcs_pt_only"].values())
+    total_after  = sum(len(v) for v in arcs_pt_only.values())
+    print(f"[Pruner] PT-only arcs: before={total_before}, after={total_after}, removed={removed_ptonly}, kept={kept_ptonly}")
+
+    # --- PRUNE PT+Bike arcs dominated at best price p = P_bar ---
+
+    dom_tol = 1e-6  # strict dominance margin; increase to prune more aggressively
+
+    removed_a1 = 0
+    kept_a1    = 0
+    pruned_arcs_pt_bike = {}
+
+    for (o, d) in W:
+        od_key = f"{o}_{d}"
+
+        # Best car disutility (lower is better)
+        best_car = float("inf")
+        for arc in car_paths.get(od_key, []):
+            a  = arc["arc_id"]
+            F  = total_cost_car[(o, d, a)]
+            Tt = travel_time[(o, d, a)]
+            u_car = (ASC_CAR
+                    + BETA_Cost_Car  * (F - dep_cost)
+                    + BETA_Cost_park * parking_fee
+                    + BETA_Time_Car  * Tt)
+            if u_car < best_car:
+                best_car = u_car
+
+        # Best PT-only disutility (ticket is fixed)
+        best_ptonly = float("inf")
+        for arc in arcs_pt_only.get(od_key, []):
+            a = arc["arc_id"]
+            u_pt = (ASC_PT
+                    + BETA_Cost_PT * pt_price
+                    + BETA_Time_PT * pt_time[(o, d, a)]
+                    + BETA_TR_PT   * transfers[(o, d, a)])
+            if u_pt < best_ptonly:
+                best_ptonly = u_pt
+
+        # Best incumbent competitor for this OD
+        best_comp = min(best_car, best_ptonly) if best_ptonly < float("inf") else best_car
+
+        kept_list = []
+        for arc in arcs_pt_bike.get(od_key, []):
+            a = arc["arc_id"]
+            k = int(k_bike_legs.get((o, d, a), 1))  # # of bike legs (0/1/2)
+
+            # A1 disutility at BEST allowed bike price (P_bar)
+            u_a1_minprice = (
+                ASC_PT + ASC_BIKE
+                + BETA_Cost_PT   * pt_price
+                + BETA_Cost_BIKE * k * P_bar
+                + BETA_Time_PT   * pt_time[(o, d, a)]
+                + BETA_Time_BIKE * bike_time.get((o, d, a), 0.0)
+                + BETA_TR_BIKE   * transfers[(o, d, a)]
+            )
+
+            # Strict dominance test (remember: lower is better)
+            if best_comp < float("inf") and u_a1_minprice > best_comp + dom_tol:
+                removed_a1 += 1
+                continue
+            kept_list.append(arc)
+            kept_a1 += 1
+
+        pruned_arcs_pt_bike[od_key] = kept_list
+
+    # Replace with the pruned A1 set BEFORE building coefficient dicts/vars
+    arcs_pt_bike = pruned_arcs_pt_bike
 
     
-    # --- before building the Gurobi model ---
-    arcs_pt_only = prune_pt_only(arcs_pt_only,
-                                asc_pt,
-                                beta_cost_pt,
-                                beta_pttime,
-                                beta_transfer_time_pt,
-                                pt_price,
-                                pt_time,
-                                transfers,
-                                keep_n=max_displayed_alternatives)
-    '''
+    total_before = sum(len(v) for v in parsed_data["arcs_pt_bike"].values())
+    total_after  = sum(len(v) for v in arcs_pt_bike.values())
+    print(f"[Pruner] PT+Bike arcs: before={total_before}, after={total_after}, "
+        f"removed={removed_a1}, kept={kept_a1}, tol={dom_tol}, P_bar={P_bar}")
 
-   
-
-               #main time
+'''
+    #main time
     ############### Let's start optimizing ############### 
 
 
@@ -222,18 +354,18 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
     p  = {}
     q_ = {}
     z_ = {}
+    #pi = {}   # continuous >=0, one per A-arc
+    #ksi  = {}   # product t = pi * nu (for strong duality term)
     #walkers = {}
     gamma_ = {}
     d_val = {}
     bike_cost = {}
     Pbar = {}  #lower bound for bike price
     M = {}
-    slack={}
-    slack_bike={}
+    w = {}
     for (o,d) in W:
         # gamma^(o,d), if used
-        gamma_[(o,d)] = model.addVar(lb=-float('inf'), ub=float('inf'), vtype=GRB.CONTINUOUS, name=f"gamma_{o}_{d}")
-        slack[(o,d)] = model.addVar(lb=0, vtype=GRB.INTEGER, name=f"slack_{o}_{d}")
+        gamma_[(o,d)] = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, vtype=GRB.CONTINUOUS, name=f"gamma_{o}_{d}")
 
         # A1 = arcs in PT+Bike, A2 = arcs in PT-only
         od_key = f"{o}_{d}"
@@ -244,12 +376,15 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
         for arc in A1_arcs:
             arc_id = arc["arc_id"]
             p[(o,d,arc_id)]  = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"p_{o}_{d}_{arc_id}")
-            z_[(o,d,arc_id)] = model.addVar(lb=-float('inf'), ub=float('inf'), vtype=GRB.CONTINUOUS, name=f"z_{o}_{d}_{arc_id}")
+            z_[(o,d,arc_id)] = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, vtype=GRB.CONTINUOUS, name=f"z_{o}_{d}_{arc_id}")
             bike_cost[(o,d,arc_id)] = cost_bike
             Pbar[(o,d,arc_id)] = P_bar
-            M[(o,d,arc_id)] = P_up
-            slack_bike[(o,d, arc_id)] = model.addVar(vtype=GRB.BINARY, name=f"slack_{o}_{d}_{arc_id}")
-
+            if p_off_map and (o,d,arc_id) in p_off_map:
+                M[(o,d,arc_id)] = float(p_off_map[(o,d,arc_id)])
+            else:
+                M[(o,d,arc_id)] = float(global_p_off if global_p_off is not None else 4.0)
+            
+            w[(o, d, arc_id)] = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f"w_{o}_{d}_{arc_id}")
         # For arcs in A1 or A2 => we have nu, p, q, z
         for arc in A1_arcs + A2_arcs:
             arc_id = arc["arc_id"]
@@ -257,64 +392,68 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
 
             q_[(o,d,arc_id)] = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f"q_{o}_{d}_{arc_id}")
             d_val[(o,d,arc_id)] = pt_price
+            #pi[(o,d,arc_id)] = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f"pi_{o}_{d}_{arc_id}")
+            #ksi[(o,d,arc_id)]  = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f"t_{o}_{d}_{arc_id}")  # = pi*nu
+
         # For arcs in B => only q_ (assuming no bike usage => no nu, p, z)
         for arc in B_arcs:
             arc_id = arc["arc_id"]
             q_[(o,d,arc_id)] = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f"q_{o}_{d}_{arc_id}")
             #walkers[(o,d,arc_id)] = model.addVar(lb=0.0, vtype=GRB.CONTINUOUS, name=f"q_{o}_{d}_walk_{arc_id}")
 
+    OFF_PRICE = 10.0  # or a per-arc value if you computed P_off[(o,d,a)]
 
     model.update()
     # Constraints
-
-    # 1) sum_{a in A^(o,d)} nu_a^(o,d) <= L
+    
+    # 1) sum_{a in A^(o,d)} nu_a^(o,d) <= L + surge_slack(o,d)
+    #  sum_{a in A2^(o,d)} nu_a^(o,d) <= L
+    # --- OD caps mirroring the heuristic logic ---
     
     for (o, d) in W:
-        od_key   = f"{o}_{d}"
-        A1_arcs  = arcs_pt_bike.get(od_key, [])       # PT+Bike
-        A2_arcs  = arcs_pt_only.get(od_key, [])       # PT-only
-
-        # left-hand side: all displayed alternatives (bike + PT-only)
+        od_key  = f"{o}_{d}"
+        A1_arcs = arcs_pt_bike.get(od_key, [])
+        A2_arcs = arcs_pt_only.get(od_key, [])
+        '''
         lhs = gp.quicksum(nu[(o, d, arc["arc_id"])] for arc in A1_arcs + A2_arcs)
-
-        # right-hand side: base limit L + slack ONLY from bike arcs
-        rhs = max_displayed_alternatives + gp.quicksum(
-                slack_bike[(o, d, arc["arc_id"])]
-                for arc in A1_arcs
+        model.addConstr(lhs <= max_displayed_alternatives, name=f"MaxDisp_{o}_{d}")
+        '''
+        # (i) PT-only cannot use the surge share: A2 ≤ L_base
+        if A2_arcs:
+            model.addConstr(
+                gp.quicksum(nu[(o, d, arc["arc_id"])] for arc in A2_arcs) <= L_base,
+                name=f"Cap_A2_base_{o}_{d}"
             )
 
-        model.addConstr(lhs <= rhs, name=f"MaxDisp_{o}_{d}")
-
-    '''
-    for (o,d) in W:
-        od_key = f"{o}_{d}"
-        A1_arcs = arcs_pt_bike.get(od_key, [])
-        A2_arcs = arcs_pt_only.get(od_key, [])
-        model.addConstr(
-            gp.quicksum(nu[(o,d, arc["arc_id"])] for arc in A1_arcs + A2_arcs) <= max_displayed_alternatives + slack[(o,d)],
-            name=f"MaxDisp_{o}_{d}"
-        )
+        # (ii) Total (A1 + A2) ≤ L_total_cap_od[(o,d)]
+        if A1_arcs or A2_arcs:
+            model.addConstr(
+                gp.quicksum(nu[(o, d, arc["arc_id"])] for arc in A1_arcs + A2_arcs) 
+                <= L_total_cap_od[(o, d)],
+                name=f"Cap_Total_{o}_{d}"
+            )
+    
         
-        if A1_arcs:
-            expr = gp.quicksum(nu[(o,d,arc["arc_id"])] for arc in A1_arcs)
-            model.addConstr(expr >= 1, name=f"PTonly_lb_{o}_{d}")
-
-                '''
+    
     # 2) p_a^(o,d) >= Pbar * nu_a^(o,d) for a in A1
-    #    p_a^(o,d) <= M * nu_a^(o,d)    for a in A1
-    #    p_a^(o,d) = 0                  for a in A2
-    #    z_a^(o,d) = 0                  for a in A2
+    # p_a^(o,d) <= M * nu_a^(o,d)    for a in A1
+    # -----------------------------------
+    # 1) On/off price bounds (linear in ν)
+    # -----------------------------------
     for (o,d) in W:
         od_key = f"{o}_{d}"
-        A1_arcs = arcs_pt_bike.get(od_key, [])
-        A2_arcs = arcs_pt_only.get(od_key, [])
-        
-        for arc in A1_arcs:
-            arc_id = arc["arc_id"]
-            model.addConstr(p[(o,d,arc_id)] >= Pbar[(o,d,arc_id)]*nu[(o,d, arc_id)],
-                            name=f"p_min_{o}_{d}_{arc_id}")
-            model.addConstr(p[(o,d,arc_id)] <= M[(o,d,arc_id)]*nu[(o,d, arc_id)],
-                            name=f"p_max_{o}_{d}_{arc_id}")
+        for arc in arcs_pt_bike.get(od_key, []):
+            a = arc["arc_id"]
+            # p >= Pbar*nu + OFF_PRICE*(1-nu)
+            model.addConstr(
+                p[(o,d,a)] >= Pbar[(o,d,a)]*nu[(o,d,a)] + M[(o,d,a)]*(1 - nu[(o,d,a)]),
+                name=f"p_onoff_lb_{o}_{d}_{a}"
+            )
+            # p <= M*nu + OFF_PRICE*(1-nu)
+            model.addConstr(
+                p[(o,d,a)] <= M[(o,d,a)],
+                name=f"p_onoff_ub_{o}_{d}_{a}"
+            )
 
     # 3) q_a^(o,d) <= Q_{(o,d)} * nu_a^(o,d), for a in A^(o,d)
     for (o,d) in W:
@@ -342,11 +481,9 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                 arc_id = arc["arc_id"]
                 delta_val = delta_ia.get(arc_id, {}).get(i_str, 0.0)
                 lhs_expr.add(q_[(o,d,arc_id)], delta_val)
-        model.addConstr(
-            lhs_expr <= capacity_i - inventory_i,
-            name=f"StationCap_{i}")
-        model.addConstr(lhs_expr + inventory_i >= 0,
-                        name=f"StationCap_nonneg_{i}")
+        model.addConstr(lhs_expr <= capacity_i - inventory_i, name=f"StationCap_{i}")
+        
+        model.addConstr(lhs_expr + inventory_i >= 0, name=f"StationCap_nonneg_{i}")
         
     # 5) sum_{a in A^(o,d)} q_a^(o,d) + sum_{b in B^(o,d)} q_b^(o,d) = Q_{(o,d)}
     for (o,d) in W:
@@ -354,7 +491,6 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
         A1_arcs = arcs_pt_bike.get(od_key, [])
         A2_arcs = arcs_pt_only.get(od_key, [])
         arcs_all = A1_arcs + A2_arcs
-        #lhs_expr = gp.quicksum(q_[(o,d, arc["arc_id"])] for arc in arcs_all) + gp.quicksum(q_[(o,d, arc["arc_id"])] + walkers[(o,d, arc["arc_id"])] for arc in car_paths.get(od_key, []))
         lhs_expr = gp.quicksum(q_[(o,d, arc["arc_id"])] for arc in arcs_all) + gp.quicksum(q_[(o,d, arc["arc_id"])] for arc in car_paths.get(od_key, []))
 
         model.addConstr(lhs_expr == demands[(o,d)], name=f"demand_{o}_{d}")
@@ -376,11 +512,12 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
             rhs = (asc_bike[(o,d,a)]
                 + asc_pt[(o,d,a)]
                 + beta_cost_pt[(o,d,a)] * d_val[(o,d,a)]                       # << make sure d_val is defined!
-                + beta_cost_bike[(o,d,a)] * p[(o,d,a)]
+                + beta_cost_bike[(o,d,a)] * k_bike_legs[(o,d,a)] * p[(o,d,a)]
                 + beta_pttime[(o,d,a)] * pt_time[(o,d,a)]
                 + beta_biketime[(o,d,a)] * bike_time.get((o,d,a))
                 + beta_transfer_time_bike[(o,d,a)] * transfers[(o,d,a)])
-            model.addConstr(gamma_[(o,d)] <= rhs,
+            
+            model.addConstr(gamma_[(o,d)] <= rhs ,
                             name=f"gammaA_{o}_{d}_{a}")
 
         # ---------- PT‑only arcs -------------------------------------------------
@@ -395,7 +532,7 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                 # no bicycle leg → tau = 0
                 + beta_transfer_time_pt[(o,d,a)] * transfers[(o,d,a)]
             )
-            model.addConstr(gamma_[(o,d)] <= rhs,
+            model.addConstr(gamma_[(o,d)] <= rhs, 
                             name=f"gammaA_{o}_{d}_{a}")
         
         for arc in car_paths.get(od_key, []):
@@ -416,16 +553,20 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
     # 8) Strong Duality constraint 
     lhs_expr = gp.LinExpr()
 
+    # The RIGHT-hand side: sum_{(o,d)} Q_{(o,d)} * gamma_(o,d)
+    rhs_expr = gp.quicksum(demands[(o,d)] * gamma_[(o,d)] for (o,d) in W)
+
     for (o,d) in W:
-        #lhs_expr = gp.LinExpr()
 
         # beta values for OD pair
         # Arc sets
         od_key = f"{o}_{d}"
+
         B_arcs = car_paths.get(od_key, [])
 
         # ---------- PT + Bike arcs ------------------------------------
         for arc in arcs_pt_bike.get(od_key, []):
+
             a       = arc["arc_id"]
             q_var   = q_[(o,d,a)]
             z_var   = z_[(o,d,a)]
@@ -436,7 +577,7 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
             asc_val = asc_bike[(o,d,a)] + asc_pt[(o,d,a)]
 
             lhs_expr.add(q_var, beta_cost_pt[(o,d,a)] * d_pt)
-            lhs_expr.add(z_var, beta_cost_bike[(o,d,a)])                      # τ·z already linearised
+            lhs_expr.add(z_var, beta_cost_bike[(o,d,a)]*k_bike_legs[(o,d,a)])                      
             lhs_expr.add(q_var, beta_pttime[(o,d,a)] * Tt_val)
             lhs_expr.add(q_var, beta_biketime[(o,d,a)] * tau_val)
             lhs_expr.add(q_var, beta_transfer_time_bike[(o,d,a)] * Tr_val)
@@ -444,12 +585,13 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
         
         # ---------- PT‑only arcs --------------------------------------
         for arc in arcs_pt_only.get(od_key, []):
+
             a       = arc["arc_id"]
             q_var   = q_[(o,d,a)]
             d_pt   = d_val[(o,d,a)]   
             Tt_val  = pt_time [(o,d,a)]
             Tr_val  = transfers[(o,d,a)]
-            asc_val = asc_pt[(o,d,a)]                    # no bike ASC
+            asc_val = asc_pt[(o,d,a)]                    
 
             lhs_expr.add(q_var, beta_cost_pt[(o,d,a)] * d_pt)
             lhs_expr.add(q_var, beta_pttime[(o,d,a)] * Tt_val)
@@ -458,56 +600,94 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
 
         # (2) Summation over arcs in B^(o,d) (car arcs)
         for barc in B_arcs:
+
             a = barc["arc_id"]
             F_val  = total_cost_car[(o,d, a)]     # F_b
             Ttb_val= travel_time[(o,d, a)]   # Tt_b
-            Tr_val = transfers[(o,d,a)] #car pickup on foot transfers
+            #Tr_val = transfers[(o,d,a)] #car pickup on foot transfers
             q_var  = q_[(o,d, a)]
-            asc_val = asc_car[(o,d,a)]                    # no bike ASC
-            #walk_q = walkers[(o,d,a)] 
-            # Add q_b * [beta1 * F_b + beta2 * Tt_b]
+            asc_val = asc_car[(o,d,a)]                    
+
             lhs_expr.add(q_var, beta_cost_car[(o,d,a)] * (F_val -dep_cost))
             lhs_expr.add(q_var, parking_fee*beta_cost_park[(o,d,a)])
             lhs_expr.add(q_var, beta_car_time[(o,d,a)] * Ttb_val)
             lhs_expr.add(q_var,asc_val)
-            #lhs_expr.add(walk_q,asc_walk[(o,d, a)])
-           # lhs_expr.add(walk_q,0.046 * walk_time[(o,d, a)]*xi_TD[(o,d)])
 
-
-        # Now the RIGHT-hand side: sum_{(o,d)} Q_{(o,d)} * gamma_(o,d)
-    rhs_expr =gp.quicksum(demands[(o,d)] * gamma_[(o,d)] for (o,d) in W)
-        #rhs_expr =demands[(o,d)] * gamma_[(o,d)]
-
+    
     # Add the equality constraint
-        #model.addConstr(lhs_expr == rhs_expr, name=f"StrongDuality_{o}_{d}")
     model.addConstr(lhs_expr == rhs_expr, name=f"StrongDuality")
-
+    
+    # -----------------------------------------------------
+    # 2) Linearization of w = nu * q  (Big-M with M = Q_od)
+    # -----------------------------------------------------
+    for (o,d) in W:
+        Qod = demands[(o,d)]
+        od_key = f"{o}_{d}"
+        for arc in arcs_pt_bike.get(od_key, []):
+            a = arc["arc_id"]
+            # 0 <= w <= q
+            model.addConstr(w[(o,d,a)] <= q_[(o,d,a)], name=f"w_le_q_{o}_{d}_{a}")
+            # w <= Q * nu
+            model.addConstr(w[(o,d,a)] <= Qod * nu[(o,d,a)], name=f"w_le_Qnu_{o}_{d}_{a}")
+            # w >= q - Q * (1 - nu)   <-- NOTE the MINUS here
+            model.addConstr(w[(o,d,a)] >= q_[(o,d,a)] - Qod * (1 - nu[(o,d,a)]),
+                            name=f"w_ge_q_minus_Q1mnu_{o}_{d}_{a}")
+            # (w >= 0 by variable LB)
+    
     # 9) z_{a}^{(o,d)} constraints for a in A1^(o,d)
     #    z_a >= Pbar*q_a
     #    z_a >= M*q_a + p_a*Q_od - M*Q_od*nu_a
     #    z_a <= M*q_a
     #    z_a <= p_a*Q_od + Pbar*q_a - Pbar*Q_od*nu_a
+    # -------------------------------------------------------
+    # 3) Switched McCormick planes for z = p * q (via w, ν)
+    # -------------------------------------------------------
     for (o,d) in W:
-        od_dem = demands[(o,d)]
+        Qod = demands[(o,d)]
         od_key = f"{o}_{d}"
-        #z values for A_2 is handled in constraint set 2
         for arc in arcs_pt_bike.get(od_key, []):
-            arc_id = arc["arc_id"]
-            model.addConstr(z_[(o,d,arc_id)] >= Pbar[(o,d,arc_id)] * q_[(o,d,arc_id)],
-                            name=f"z_min_1_{o}_{d}_{arc_id}")
+            a = arc["arc_id"]
+
+            # pL(ν) q  = Pbar*w + M*(q - w)
+            model.addConstr(
+                z_[(o,d,a)] >= Pbar[(o,d,a)]*w[(o,d,a)] + M[(o,d,a)]*(q_[(o,d,a)] - w[(o,d,a)]),
+                name=f"z_ge_pLq_{o}_{d}_{a}"
+            )
             
-            model.addConstr(z_[(o,d,arc_id)] >= M[(o,d,arc_id)] * q_[(o,d,arc_id)]
-                                                + p[(o,d,arc_id)] * od_dem
-                                                - M[(o,d,arc_id)] * od_dem*nu[(o,d,arc_id)],
-                            name=f"z_min_2_{o}_{d}_{arc_id}")
-            
-            model.addConstr(z_[(o,d,arc_id)] <= M[(o,d,arc_id)] * q_[(o,d,arc_id)],
-                            name=f"z_max_1_{o}_{d}_{arc_id}")
-            
-            model.addConstr(z_[(o,d,arc_id)] <= p[(o,d,arc_id)] * od_dem
-                                                + Pbar[(o,d,arc_id)]*q_[(o,d,arc_id)]
-                                                - Pbar[(o,d,arc_id)] * od_dem*nu[(o,d,arc_id)] ,
-                            name=f"z_max_2_{o}_{d}_{arc_id}")
+            # pU(ν) q  = M*q
+            model.addConstr(
+                z_[(o,d,a)] <= M[(o,d,a)]*q_[(o,d,a)],
+                name=f"z_le_pUq_{o}_{d}_{a}"
+            )
+            # z >= pU(ν) q + Q p - pU(ν) Q
+            model.addConstr(
+                z_[(o,d,a)] >= M[(o,d,a)]*q_[(o,d,a)]
+                + Qod * p[(o,d,a)]
+                - (M[(o,d,a)]*Qod),
+                name=f"z_ge_pUq_plus_Qp_minus_pUQ_{o}_{d}_{a}"
+            )
+            # z <= pL(ν) q + Q p - pL(ν) Q
+            model.addConstr(
+                z_[(o,d,a)] <=
+                (Pbar[(o,d,a)]*w[(o,d,a)] + M[(o,d,a)]*(q_[(o,d,a)] - w[(o,d,a)]))
+                + Qod * p[(o,d,a)]
+                - (Pbar[(o,d,a)]*Qod*nu[(o,d,a)] + M[(o,d,a)]*Qod*(1 - nu[(o,d,a)])),
+                name=f"z_le_pLq_plus_Qp_minus_pLQ_{o}_{d}_{a}"
+            )
+    '''
+    # 10) ksi_{a}^{(o,d)} constraints for a in A^(o,d)
+    # McCormick for t = pi * nu  (nu ∈ {0,1}, 0 ≤ pi ≤ Pi_bar)
+    for (o,d) in W:
+        od_key = f"{o}_{d}"
+        PiMax = 1000
+        for arc in arcs_pt_bike.get(od_key, []) + arcs_pt_only.get(od_key, []):
+            a = arc["arc_id"]
+            model.addConstr(ksi[(o,d,a)] <= pi[(o,d,a)],                       name=f"t_le_pi_{o}_{d}_{a}")
+            model.addConstr(ksi[(o,d,a)] <= PiMax * nu[(o,d,a)],               name=f"t_le_Pi_nu_{o}_{d}_{a}")
+            model.addConstr(ksi[(o,d,a)] >= pi[(o,d,a)] + PiMax*(nu[(o,d,a)]-1),name=f"pi_minus_t_le_Pi_1mnu_{o}_{d}_{a}")
+            model.addConstr(ksi[(o,d,a)] >= 0.0,                               name=f"t_ge_0_{o}_{d}_{a}")
+    '''
+
 
     # Objective
     #   max φ ( sum_{(o,d)} sum_{a in A1} q_a )
@@ -516,21 +696,19 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
     tolerance = 1e-3
 
     #DELETED TIME COMPONENT FROM WEIGHTS
-    ridership =  gp.quicksum(2*P_up*q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
+    ridership =  gp.quicksum(2*4*q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
 
-    pt_ridership = gp.quicksum(q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_only.get(f"{o}_{d}", []))
-
-    revenue = gp.quicksum(z_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
+    revenue = gp.quicksum(z_[(o,d,arc["arc_id"])]*float(k_bike_legs[(o,d,arc["arc_id"])]) for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
     
-    cost = gp.quicksum(bike_cost[(o,d,arc["arc_id"])] * q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
+    cost = gp.quicksum(bike_cost[(o,d,arc["arc_id"])]*float(k_bike_legs[(o,d,arc["arc_id"])]) * q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
     
-    resource_man = gp.quicksum((q_[(o,d,arc["arc_id"])]) * tolerance * gp.quicksum(delta_ia.get(arc["arc_id"], {}).get(str(i), 0) * (1 - station_inventory[str(i)] / station_capacity[str(i)]) 
+    resource_man = gp.quicksum((q_[(o,d,arc["arc_id"])]) * theta * gp.quicksum(delta_ia.get(arc["arc_id"], {}).get(str(i), 0) * (1 - station_inventory[str(i)] / station_capacity[str(i)]) 
                                                                              for i in stations_list if delta_ia.get(arc["arc_id"], {}).get(str(i), 0)) 
                                                                              for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []) )
-    #slack_penalty = gp.quicksum(slack[(o,d)]*tolerance  for (o,d) in W)
-    slack_penalty = gp.quicksum(slack_bike[(o,d, arc["arc_id"])]*tolerance  for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
 
-    obj_expr = ridership + revenue - cost + resource_man - slack_penalty
+
+
+    obj_expr = ridership + revenue - cost + resource_man 
 
     model.setObjective(obj_expr, GRB.MAXIMIZE)
     
@@ -550,11 +728,13 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
     gurobi_output_path = os.path.join(save_folder, "gurobi_outputs")
     if not os.path.exists(gurobi_output_path):
         os.makedirs(gurobi_output_path)
-    log_file = os.path.join(gurobi_output_path, f"gurobi_output_{gurobi_output_name}_{P_bar}_{capacity}_{low}_{high}.txt")
+    inv_tag = f"{low}_{high}" if inventory_level is not None else "invDefault"
+
+    log_file   = os.path.join(gurobi_output_path, f"gurobi_output_{gurobi_output_name}_{P_bar}_{capacity}_{inv_tag}.txt")
+    model_file = os.path.join(gurobi_output_path, f"model_{gurobi_output_name}_{P_bar}_{capacity}_{inv_tag}.lp")
     model.Params.LogFile = log_file
-    model_file = os.path.join(gurobi_output_path, f"model_{gurobi_output_name}_{P_bar}_{capacity}_{low}_{high}.lp")
     model.write(model_file)
-    model.Params.NodefileStart= 2
+    model.Params.NodefileStart= 8
     model.Params.NodefileDir= r"C:\b_b_gurobi"
     model.Params.Threads =4
 
@@ -591,35 +771,33 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
             print(f"Total feasible solutions found: {model.SolCount}")
 
             # 1) Compute total extra slots used
-            n_slack_used = sum(
-                slack_var.X
-                for (o, d) in W
-                for arc in arcs_pt_bike.get(f"{o}_{d}", [])
-                if (slack_var := slack_bike.get((o, d, arc["arc_id"])))
-            )
-
-            # 2) Identify which ODs actually used slack
-            used_od_pairs = [
-                (o, d)
-                for (o, d) in W
-                if any(
-                    (slack_var := slack_bike.get((o, d, arc["arc_id"]))) and slack_var.X > 0.5
-                    for arc in arcs_pt_bike.get(f"{o}_{d}", [])
-                )
-            ]
-
-            used_count = len(used_od_pairs)
-
-            # 3) Compute average only over those that used slack
-            avg_extra_used = n_slack_used / used_count if used_count else 0.0
-
-
-            print(f"OD pairs that used slack: {used_count} / {len(W)}")
-            print(f"Average extra slots (among those): {avg_extra_used:.3f}")
+            # For each OD:
+            # used_total = number of displayed (A1+A2)
+            # used_extra = max(0, used_total - L_base)   # these must be A1, by construction
             
             solution = {}
             solution_df=[]
             
+            used_extra_total = 0
+            for (o, d) in W:
+                od_key  = f"{o}_{d}"
+                A1_arcs = arcs_pt_bike.get(od_key, [])
+                A2_arcs = arcs_pt_only.get(od_key, [])
+
+                used_total = sum(1 for arc in A1_arcs + A2_arcs if nu[(o, d, arc["arc_id"])].X > 0.5)
+                used_extra = max(0, used_total - L_base)
+                used_extra_total += used_extra
+
+                solution_df.append({
+                    "OD": f"{o}->{d}",
+                    "Displayed total": used_total,
+                    "Base cap (L_base)": L_base,
+                    "Heuristic total cap": L_total_cap_od[(o, d)],
+                    "Extra used (surge)": used_extra
+                })
+            print(f"Total surge slots used: {used_extra_total}")
+
+
             # Save the solution to a file
             
 
@@ -638,22 +816,19 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                 ]
 
 
-                n_slack_used = sum(slack[(o,d)].X for (o,d) in W)
 
                 # record γ once per OD
                 solution_df.append({
                     "Instance OD": f"{o}->{d}",
                     "OD":       f"{o}->{d}",
                     "gamma":    gamma_[(o, d)].X,
-                    "Extra displays used": n_slack_used,
-                    "Avg number of slacks for OD's used an extra": avg_extra_used
                 })
 
                 # (2) PT+Bike
                 for aid in sol_nu_arcs:
                     if (o, d, aid) not in bike_time:
                         continue
-                    arc_id = arc["arc_id"]
+                    arc_id = aid
                     p_val = p[(o, d, aid)].X
                     q_val = q_[(o, d, aid)].X
                     #total_price = p_val * bike_time[(o, d, aid)] + pt_price
@@ -673,7 +848,6 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                         "Total Price":  total_price,
                         "PT Time":      ptm,
                         "Bike Time":    bt,
-                        "PT Time":      pt_time[(o, d, aid)],
                         "Transfers":    tr_min,
                         "z value":      z_val,
                         "Relaxation Difference": z_val - p_val * q_val                })
@@ -720,28 +894,7 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                         "Parking Time (min)": park,
                         "Total Travel Time (min)": dur
                     })
-                '''
-                for arc in B_arcs:
-                    aid     = arc["arc_id"]
-                    q_val   = q_[(o, d, aid)].X
-                    dur     = travel_time[(o, d, aid)]
-                    park    = parking_time[(o, d, aid)]
-                    tr_min  = transfers[(o, d, aid)]
-                    cost_car= total_cost_car[(o, d, aid)]
-                    walk_q = walkers[(o, d, aid)].X
-                    solution_df.append({
-                        "OD":           f"{o}->{d}",
-                        "Arc ID": aid,
-                        "Type":         "Walk",
-                        "nu":           0,
-                        "Flow (q)":    walk_q,
-                        "Bike Price":   0.0,
-                        "Total Price":  0,
-                        "PT Time":     0.0,
-                        "Bike Time":   0.0,
-                        "Total Travel Time (min)": dur
-                    })
-                    '''
+
             solution_dict = {
                 "Solution Time (s)": solution_time,
                 "Objective Value":  model.ObjVal,
@@ -749,7 +902,7 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                 "instances":        solution_df,
             }
             os.makedirs(save_folder, exist_ok=True)
-            sol_name = os.path.basename(json_file_path).replace(".json", f"_{P_bar}_{capacity}_{low}_{high}_solution.json")
+            sol_name = os.path.basename(json_file_path).replace(".json", f"_{P_bar}_{capacity}_{inv_tag}_solution.json")
             sol_path = os.path.join(save_folder, sol_name)
             with open(sol_path, 'w', encoding='utf-8') as f:
                 json.dump(solution_dict, f, indent=4, ensure_ascii=False)
@@ -818,7 +971,7 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
                     "Recovery_Note": "Extracted key metrics despite memory constraints"
                 }
                 
-                sol_name = os.path.basename(json_file_path).replace(".json", f"_{P_bar}_{capacity}_{low}_{high}_RECOVERED.json")
+                sol_name = os.path.basename(json_file_path).replace(".json", f"_{P_bar}_{capacity}_{inv_tag}_RECOVERED.json")
                 sol_path = os.path.join(save_folder, sol_name)
                 
                 with open(sol_path, 'w', encoding='utf-8') as f:
@@ -838,9 +991,9 @@ def solve_bilevel_model_resman_margarita_pertrip( parsed_data: dict, *,json_file
 
     else:
         # Compute IIS and write to a file for inspection.
-        model.computeIIS()
-        model.write("model_infeasible.ilp")
-        print("IIS computed and written to model_infeasible.ilp")
+        #model.computeIIS()
+        #model.write("model_infeasible.ilp")
+        #print("IIS computed and written to model_infeasible.ilp")
         
         # Compute conflict analysis and write results.
         #model.computeConflicts()
