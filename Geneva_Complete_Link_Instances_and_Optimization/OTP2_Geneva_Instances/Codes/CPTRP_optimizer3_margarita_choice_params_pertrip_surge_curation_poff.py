@@ -6,7 +6,7 @@ import time
 import numbers
 from collections.abc import Mapping
 import random as rand
-from Codes.save_solution_files_safely import save_solution_files_safely
+from save_solution_files_safely import save_solution_files_safely
 import math
 
 
@@ -204,8 +204,8 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
                 comp_count += 1
 
         # heuristic A1 cap with surge
-        A1_cap = max(A1_base, min(L_base, comp_count))
-        extra  = max(0, A1_cap - A1_base)          # extra slots reserved for A1
+
+        extra  = min(L_base, comp_count)          # extra slots reserved for A1
         L_total_cap_od[(o, d)] = L_base + extra    # total OD cap (A1+A2)
         total_extra += extra
         num_ods += 1

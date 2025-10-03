@@ -346,69 +346,7 @@ class IncrementalBilevelLP:
 
         self.m.update()
 
-    # -------- deactivate operations --------
-
-    def deactivate_pt_bike(self, o, d, a, bigM_gamma:float = 1e9):
-        """
-        Deactivate PT+Bike arc (o,d,a) without deleting:
-        - fix q,p,z to zero
-        - relax its γ-row so it cannot bind
-        - remove its SD coefficients
-        - used for flipping an additional alternative next in line to evaluate participation to obj. 
-        - This func is used for removing effect of the arc.
-        """
-
-        if (o, d, a) not in self._present_A1:
-            return
-        m = self.m
-        q = self.q[(o, d, a)]; p = self.p[(o, d, a)]; z = self.z[(o, d, a)]
-        # fix vars
-        q.LB = 0.0; q.UB = 0.0
-        p.LB = 0.0; p.UB = 0.0
-        z.LB = 0.0; z.UB = 0.0
-        # relax γ-row
-        crow = self.gamma_rows.get((o, d, a))
-        if crow is not None:
-            try:
-                m.chgCoeff(crow, q, 0.0)
-                m.chgCoeff(crow, p, 0.0)
-                m.chgCoeff(crow, z, 0.0)
-                crow.RHS = bigM_gamma
-            except gp.GurobiError:
-                m.addConstr(self.gamma[(o, d)] <= bigM_gamma, name=f"gammaLoose_{o}_{d}_{a}")
-        # remove SD coefficients
-        try:
-            m.chgCoeff(self.sd_constr, q, 0.0)
-            m.chgCoeff(self.sd_constr, z, 0.0)
-        except gp.GurobiError:
-            pass
-        m.update()
-
-    def deactivate_pt_only(self, o, d, a, bigM_gamma: float = 1e9):
-        """
-        Deactivate PT-only arc (o,d,a):
-        - fix q to zero
-        - relax its γ-row so it cannot bind
-        - remove its SD coefficients
-        """
-        if (o, d, a) not in self._present_A2:
-            return
-        m = self.m
-        q = self.q[(o, d, a)]
-        q.LB = 0.0; q.UB = 0.0
-        crow = self.gamma_rows.get((o, d, a))
-        if crow is not None:
-            try:
-                m.chgCoeff(crow, q, 0.0)
-                crow.RHS = bigM_gamma
-            except gp.GurobiError:
-                m.addConstr(self.gamma[(o, d)] <= bigM_gamma, name=f"gammaLoosePT_{o}_{d}_{a}")
-        try:
-            m.chgCoeff(self.sd_constr, q, 0.0)
-        except gp.GurobiError:
-            pass
-        m.update()
-
+   
     # -------- solve & reporting --------
 
     def optimize(self):
@@ -670,7 +608,7 @@ class IncrementalBilevelLP:
 
 
 
-
+    # get duals for station cap constraints
     def get_station_lambdas(lp) -> dict[str, float]:
         """
         lp is your IncrementalBilevelLP instance.
