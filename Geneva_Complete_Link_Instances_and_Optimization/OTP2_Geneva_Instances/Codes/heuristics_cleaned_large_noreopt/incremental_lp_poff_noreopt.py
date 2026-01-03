@@ -141,7 +141,7 @@ class IncrementalBilevelLP:
 
         if nodefile_dir:
             self.m.Params.NodefileDir = nodefile_dir
-            self.m.Params.NodefileStart = 2
+            self.m.Params.NodefileStart = 4
         if threads:
             self.m.Params.Threads = int(threads)
         if time_limit is not None:
@@ -212,13 +212,15 @@ class IncrementalBilevelLP:
         #station capacities constraints (setup)
         for i in self.stations_list:
             i_str=str(i)
-            cap_i = self.station_capacity[i_str]
-            inv_i = self.station_inventory[i_str]
-            self.cap_constr[i_str] = self.m.addConstr(0 <= cap_i - inv_i, name=f"StationCap_{i_str}")
-            self.cap_nonneg[i_str]   = self.m.addConstr(inv_i >= 0.0,        name=f"StationCap_nonneg_{i_str}")
+            cap_i = float(self.station_capacity[i_str])
+            inv_i = float(self.station_inventory[i_str])
+            expr = gp.LinExpr()
+            
+            self.cap_constr[i_str] = self.m.addConstr(expr <= cap_i - inv_i, name=f"StationCap_{i_str}")
+            self.cap_nonneg[i_str]   = self.m.addConstr(expr >= -inv_i,        name=f"StationCap_nonneg_{i_str}")
 
         #strong duality constraints (setup) for pt only and pt bike
-        self.sd_constr = self.m.addConstr(0.0 == 0.0, name="StrongDuality")
+        self.sd_constr = self.m.addConstr(gp.LinExpr() == 0.0, name="StrongDuality")
         for (o, d) in self.W:
             self.m.chgCoeff(self.sd_constr, self.gamma[(o, d)], -float(self.demands[(o, d)]))
 
@@ -248,7 +250,10 @@ class IncrementalBilevelLP:
                 self.m.chgCoeff(self.sd_constr,qv,coeff_sd)
         
         self.m.update()
-
+        print(type(self.cap_constr[str(self.stations_list[0])]))
+        print(type(self.sd_constr))
+        print("NumConstrs:", self.m.NumConstrs)
+        
     def add_pt_only(self, o,d,a):
 
         """Add PT-only arc (o,d,a) and its constraints to the model"""
@@ -346,7 +351,69 @@ class IncrementalBilevelLP:
 
         self.m.update()
 
-   
+    # -------- deactivate operations --------
+
+    def deactivate_pt_bike(self, o, d, a, bigM_gamma:float = 1e9):
+        """
+        Deactivate PT+Bike arc (o,d,a) without deleting:
+        - fix q,p,z to zero
+        - relax its γ-row so it cannot bind
+        - remove its SD coefficients
+        - used for flipping an additional alternative next in line to evaluate participation to obj. 
+        - This func is used for removing effect of the arc.
+        """
+
+        if (o, d, a) not in self._present_A1:
+            return
+        m = self.m
+        q = self.q[(o, d, a)]; p = self.p[(o, d, a)]; z = self.z[(o, d, a)]
+        # fix vars
+        q.LB = 0.0; q.UB = 0.0
+        p.LB = 0.0; p.UB = 0.0
+        z.LB = 0.0; z.UB = 0.0
+        # relax γ-row
+        crow = self.gamma_rows.get((o, d, a))
+        if crow is not None:
+            try:
+                m.chgCoeff(crow, q, 0.0)
+                m.chgCoeff(crow, p, 0.0)
+                m.chgCoeff(crow, z, 0.0)
+                crow.RHS = bigM_gamma
+            except gp.GurobiError:
+                m.addConstr(self.gamma[(o, d)] <= bigM_gamma, name=f"gammaLoose_{o}_{d}_{a}")
+        # remove SD coefficients
+        try:
+            m.chgCoeff(self.sd_constr, q, 0.0)
+            m.chgCoeff(self.sd_constr, z, 0.0)
+        except gp.GurobiError:
+            pass
+        m.update()
+
+    def deactivate_pt_only(self, o, d, a, bigM_gamma: float = 1e9):
+        """
+        Deactivate PT-only arc (o,d,a):
+        - fix q to zero
+        - relax its γ-row so it cannot bind
+        - remove its SD coefficients
+        """
+        if (o, d, a) not in self._present_A2:
+            return
+        m = self.m
+        q = self.q[(o, d, a)]
+        q.LB = 0.0; q.UB = 0.0
+        crow = self.gamma_rows.get((o, d, a))
+        if crow is not None:
+            try:
+                m.chgCoeff(crow, q, 0.0)
+                crow.RHS = bigM_gamma
+            except gp.GurobiError:
+                m.addConstr(self.gamma[(o, d)] <= bigM_gamma, name=f"gammaLoosePT_{o}_{d}_{a}")
+        try:
+            m.chgCoeff(self.sd_constr, q, 0.0)
+        except gp.GurobiError:
+            pass
+        m.update()
+
     # -------- solve & reporting --------
 
     def optimize(self):
@@ -608,7 +675,7 @@ class IncrementalBilevelLP:
 
 
 
-    # get duals for station cap constraints
+
     def get_station_lambdas(lp) -> dict[str, float]:
         """
         lp is your IncrementalBilevelLP instance.
@@ -625,4 +692,124 @@ class IncrementalBilevelLP:
         return lam
 
 
+    def rebind_handles_from_model(self):
+        """
+        Reconstruct variable/constraint handles after replacing self.m
+        (e.g. after self.m = some_model.copy()).
+        Uses the consistent variable/constraint naming scheme.
+        """
+        m = self.m
 
+        # gamma per OD
+        self.gamma = {}
+        for (o, d) in self.W:
+            self.gamma[(o, d)] = m.getVarByName(f"gamma_{o}_{d}")
+
+        # demand rows
+        self.dem_eq = {}
+        for (o, d) in self.W:
+            self.dem_eq[(o, d)] = m.getConstrByName(f"demand_{o}_{d}")
+
+        # station constraints
+        self.cap_constr = {}
+        self.cap_nonneg = {}
+        for i in self.stations_list:
+            i_str = str(i)
+            self.cap_constr[i_str] = m.getConstrByName(f"StationCap_{i_str}")
+            self.cap_nonneg[i_str] = m.getConstrByName(f"StationCap_nonneg_{i_str}")
+
+        # strong duality
+        self.sd_constr = m.getConstrByName("StrongDuality")
+
+        # reset var maps
+        self.q = {}
+        self.p = {}
+        self.z = {}
+        self.gamma_rows = {}
+        self._present_A1 = set()
+        self._present_A2 = set()
+
+        # car arcs (always present)
+        for (o, d) in self.W:
+            od = f"{o}_{d}"
+            for arc in self.car_paths.get(od, []):
+                a = arc["arc_id"]
+                v = m.getVarByName(f"q_{o}_{d}_{a}")
+                if v is not None:
+                    self.q[(o, d, a)] = v
+
+        # PT+Bike arcs that are already in this base model
+        for (o, d) in self.W:
+            od = f"{o}_{d}"
+            for arc in self.arcs_pt_bike.get(od, []):
+                a = arc["arc_id"]
+                qv = m.getVarByName(f"q_{o}_{d}_{a}")
+                pv = m.getVarByName(f"p_{o}_{d}_{a}")
+                zv = m.getVarByName(f"z_{o}_{d}_{a}")
+                if qv is not None and pv is not None and zv is not None:
+                    self.q[(o, d, a)] = qv
+                    self.p[(o, d, a)] = pv
+                    self.z[(o, d, a)] = zv
+                    self._present_A1.add((o, d, a))
+                    crow = m.getConstrByName(f"gammaA_{o}_{d}_{a}")
+                    if crow is not None:
+                        self.gamma_rows[(o, d, a)] = crow
+
+        # PT-only arcs
+        for (o, d) in self.W:
+            od = f"{o}_{d}"
+            for arc in self.arcs_pt_only.get(od, []):
+                a = arc["arc_id"]
+                qv = m.getVarByName(f"q_{o}_{d}_{a}")
+                if qv is not None:
+                    self.q[(o, d, a)] = qv
+                    self._present_A2.add((o, d, a))
+                    crow = m.getConstrByName(f"gammaPT_{o}_{d}_{a}")
+                    if crow is not None:
+                        self.gamma_rows[(o, d, a)] = crow
+
+    def rebuild_handles_from_model(self): #for epsilonless greedy trials
+        """Recreate q, p, z, gamma dicts from the current model using names."""
+        m = self.m
+
+        self.q = {}
+        self.p = {}
+        self.z = {}
+        self.gamma = {}
+
+        # gamma_(o,d)
+        for (o, d) in self.W:
+            gvar = m.getVarByName(f"gamma_{o}_{d}")
+            if gvar is not None:
+                self.gamma[(o, d)] = gvar
+
+        # A1, A2, car arcs
+        for (o, d) in self.W:
+            od = f"{o}_{d}"
+
+            # PT+Bike arcs: q,p,z
+            for arc in self.arcs_pt_bike.get(od, []):
+                a = arc["arc_id"]
+                qv = m.getVarByName(f"q_{o}_{d}_{a}")
+                if qv is not None:
+                    self.q[(o, d, a)] = qv
+                pv = m.getVarByName(f"p_{o}_{d}_{a}")
+                if pv is not None:
+                    self.p[(o, d, a)] = pv
+                zv = m.getVarByName(f"z_{o}_{d}_{a}")
+                if zv is not None:
+                    self.z[(o, d, a)] = zv
+
+            # PT-only arcs: q only
+            for arc in self.arcs_pt_only.get(od, []):
+                a = arc["arc_id"]
+                qv = m.getVarByName(f"q_{o}_{d}_{a}")
+                if qv is not None:
+                    self.q[(o, d, a)] = qv
+
+            # Car arcs: q only
+            for arc in self.car_paths.get(od, []):
+                a = arc["arc_id"]
+                qv = m.getVarByName(f"q_{o}_{d}_{a}")
+                if qv is not None:
+                    self.q[(o, d, a)] = qv

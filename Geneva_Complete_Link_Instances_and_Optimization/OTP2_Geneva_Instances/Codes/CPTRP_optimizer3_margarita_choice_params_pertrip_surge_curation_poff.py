@@ -18,7 +18,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
     max_displayed_alternatives=10, mult_A1=1,
     capacity=None, inventory_level=None,
     dep_cost=0, cost_bike=0.6, parking_fee=2.8,
-    P_bar=0.5, pt_price=2, theta=0.5,
+    P_bar=0.5, pt_price=2, theta=0.5,ridership_weight=2*4, sol_method=-1,
     verbose=True, verbose2=True,
     p_off_map=None, disable_set=None, global_p_off=None
 ):
@@ -151,8 +151,8 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
             beta_cost_park[(o,d, arc_id)] = BETA_Cost_park
     
 
-
-
+    #activate here for surge capacities
+    '''
     def best_car_utility(o, d):
         od_key = f"{o}_{d}"
         best = float("inf")
@@ -213,133 +213,6 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
     avg_extra_per_od = (total_extra / num_ods) if num_ods else 0.0
     print(f"Average extra additions per OD: {avg_extra_per_od:.3f} (over {num_ods} ODs)")
     '''
-    # --- PRUNE PT-only arcs dominated by car (keep only if strictly better than car) ---
-
-    dom_tol = 1e-6  # safety tolerance; increase slightly (e.g., 1e-4) if you want more aggressive pruning
-
-    removed_ptonly = 0
-    kept_ptonly    = 0
-    pruned_arcs_pt_only = {}
-
-    for (o, d) in W:
-        od_key = f"{o}_{d}"
-
-        # Best car utility for this OD (min is "best" because V is disutility)
-        best_car_u = float("inf")
-        for arc in car_paths.get(od_key, []):
-            a  = arc["arc_id"]
-            F  = total_cost_car[(o, d, a)]
-            Tt = travel_time[(o, d, a)]
-            u_car = (ASC_CAR
-                    + BETA_Cost_Car  * (F - dep_cost)
-                    + BETA_Cost_park * parking_fee
-                    + BETA_Time_Car  * Tt)
-            if u_car < best_car_u:
-                best_car_u = u_car
-
-        # If no car path, keep all PT-only arcs for this OD
-        ptonly_list = arcs_pt_only.get(od_key, [])
-        if best_car_u == float("inf"):
-            pruned_arcs_pt_only[od_key] = ptonly_list[:]  # no pruning possible
-            kept_ptonly += len(ptonly_list)
-            continue
-
-        # Filter PT-only arcs: drop if never better than car
-        kept_list = []
-        for arc in ptonly_list:
-            a = arc["arc_id"]
-            V_pt = (ASC_PT
-                    + BETA_Cost_PT * pt_price
-                    + BETA_Time_PT * pt_time[(o, d, a)]
-                    + BETA_TR_PT   * transfers[(o, d, a)])
-            # If PT-only disutility >= best car (within tol), it's dominated → remove
-            if V_pt >= best_car_u - dom_tol:
-                removed_ptonly += 1
-                continue
-            kept_list.append(arc)
-            kept_ptonly += 1
-
-        pruned_arcs_pt_only[od_key] = kept_list
-
-    # Replace arcs_pt_only with pruned version before building any coef dicts or variables
-    arcs_pt_only = pruned_arcs_pt_only
-
-    total_before = sum(len(v) for v in parsed_data["arcs_pt_only"].values())
-    total_after  = sum(len(v) for v in arcs_pt_only.values())
-    print(f"[Pruner] PT-only arcs: before={total_before}, after={total_after}, removed={removed_ptonly}, kept={kept_ptonly}")
-
-    # --- PRUNE PT+Bike arcs dominated at best price p = P_bar ---
-
-    dom_tol = 1e-6  # strict dominance margin; increase to prune more aggressively
-
-    removed_a1 = 0
-    kept_a1    = 0
-    pruned_arcs_pt_bike = {}
-
-    for (o, d) in W:
-        od_key = f"{o}_{d}"
-
-        # Best car disutility (lower is better)
-        best_car = float("inf")
-        for arc in car_paths.get(od_key, []):
-            a  = arc["arc_id"]
-            F  = total_cost_car[(o, d, a)]
-            Tt = travel_time[(o, d, a)]
-            u_car = (ASC_CAR
-                    + BETA_Cost_Car  * (F - dep_cost)
-                    + BETA_Cost_park * parking_fee
-                    + BETA_Time_Car  * Tt)
-            if u_car < best_car:
-                best_car = u_car
-
-        # Best PT-only disutility (ticket is fixed)
-        best_ptonly = float("inf")
-        for arc in arcs_pt_only.get(od_key, []):
-            a = arc["arc_id"]
-            u_pt = (ASC_PT
-                    + BETA_Cost_PT * pt_price
-                    + BETA_Time_PT * pt_time[(o, d, a)]
-                    + BETA_TR_PT   * transfers[(o, d, a)])
-            if u_pt < best_ptonly:
-                best_ptonly = u_pt
-
-        # Best incumbent competitor for this OD
-        best_comp = min(best_car, best_ptonly) if best_ptonly < float("inf") else best_car
-
-        kept_list = []
-        for arc in arcs_pt_bike.get(od_key, []):
-            a = arc["arc_id"]
-            k = int(k_bike_legs.get((o, d, a), 1))  # # of bike legs (0/1/2)
-
-            # A1 disutility at BEST allowed bike price (P_bar)
-            u_a1_minprice = (
-                ASC_PT + ASC_BIKE
-                + BETA_Cost_PT   * pt_price
-                + BETA_Cost_BIKE * k * P_bar
-                + BETA_Time_PT   * pt_time[(o, d, a)]
-                + BETA_Time_BIKE * bike_time.get((o, d, a), 0.0)
-                + BETA_TR_BIKE   * transfers[(o, d, a)]
-            )
-
-            # Strict dominance test (remember: lower is better)
-            if best_comp < float("inf") and u_a1_minprice > best_comp + dom_tol:
-                removed_a1 += 1
-                continue
-            kept_list.append(arc)
-            kept_a1 += 1
-
-        pruned_arcs_pt_bike[od_key] = kept_list
-
-    # Replace with the pruned A1 set BEFORE building coefficient dicts/vars
-    arcs_pt_bike = pruned_arcs_pt_bike
-
-    
-    total_before = sum(len(v) for v in parsed_data["arcs_pt_bike"].values())
-    total_after  = sum(len(v) for v in arcs_pt_bike.values())
-    print(f"[Pruner] PT+Bike arcs: before={total_before}, after={total_after}, "
-        f"removed={removed_a1}, kept={kept_a1}, tol={dom_tol}, P_bar={P_bar}")
-
-'''
     #main time
     ############### Let's start optimizing ############### 
 
@@ -408,15 +281,20 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
     
     # 1) sum_{a in A^(o,d)} nu_a^(o,d) <= L + surge_slack(o,d)
     #  sum_{a in A2^(o,d)} nu_a^(o,d) <= L
+    # or sum_{a in A^(o,d)} nu_a^(o,d) <= L
     # --- OD caps mirroring the heuristic logic ---
     
     for (o, d) in W:
         od_key  = f"{o}_{d}"
         A1_arcs = arcs_pt_bike.get(od_key, [])
         A2_arcs = arcs_pt_only.get(od_key, [])
-        '''
+        
         lhs = gp.quicksum(nu[(o, d, arc["arc_id"])] for arc in A1_arcs + A2_arcs)
         model.addConstr(lhs <= max_displayed_alternatives, name=f"MaxDisp_{o}_{d}")
+        
+        if A1_arcs + A2_arcs:
+            model.addConstr(lhs >= 1, name=f"MaxDisp_{o}_{d}_base")
+        
         '''
         # (i) PT-only cannot use the surge share: A2 ≤ L_base
         if A2_arcs:
@@ -432,7 +310,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
                 <= L_total_cap_od[(o, d)],
                 name=f"Cap_Total_{o}_{d}"
             )
-    
+        '''
         
     
     # 2) p_a^(o,d) >= Pbar * nu_a^(o,d) for a in A1
@@ -696,7 +574,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
     tolerance = 1e-3
 
     #DELETED TIME COMPONENT FROM WEIGHTS
-    ridership =  gp.quicksum(2*4*q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
+    ridership =  gp.quicksum(ridership_weight*q_[(o,d,arc["arc_id"])] for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
 
     revenue = gp.quicksum(z_[(o,d,arc["arc_id"])]*float(k_bike_legs[(o,d,arc["arc_id"])]) for (o,d) in W for arc in arcs_pt_bike.get(f"{o}_{d}", []))
     
@@ -734,15 +612,16 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
     model_file = os.path.join(gurobi_output_path, f"model_{gurobi_output_name}_{P_bar}_{capacity}_{inv_tag}.lp")
     model.Params.LogFile = log_file
     model.write(model_file)
-    model.Params.NodefileStart= 8
+    model.Params.NodefileStart= 4
     model.Params.NodefileDir= r"C:\b_b_gurobi"
     model.Params.Threads =4
-
+    model.Params.Method = sol_method  # dual simplex
 
     # Optimize
     #model.feasRelaxS(0, False, False, True)
     model.setParam("TimeLimit", 7200) # 2 hour time limit
     try:
+        print(f"Starting optimization with solution method (Gurobi Method): {sol_method}")        
         model.optimize()
         save_solution_files_safely(model, gurobi_output_path, gurobi_output_name)
     except gp.GurobiError as e:
@@ -777,7 +656,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
             
             solution = {}
             solution_df=[]
-            
+            '''
             used_extra_total = 0
             for (o, d) in W:
                 od_key  = f"{o}_{d}"
@@ -796,7 +675,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
                     "Extra used (surge)": used_extra
                 })
             print(f"Total surge slots used: {used_extra_total}")
-
+            '''
 
             # Save the solution to a file
             
@@ -899,6 +778,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
                 "Solution Time (s)": solution_time,
                 "Objective Value":  model.ObjVal,
                 "Gap (%)":          model.MIPGap * 100,
+                "Solution Method":  sol_method,
                 "instances":        solution_df,
             }
             os.makedirs(save_folder, exist_ok=True)

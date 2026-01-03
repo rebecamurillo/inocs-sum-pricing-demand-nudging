@@ -9,8 +9,8 @@ def parse_json_instance(json_file_path):
     OD_raw = inst['OD_pairs']
     W = [(od['origin'], od['destination']) for od in OD_raw]
     demands = {(od['origin'], od['destination']): od['demand'] for od in OD_raw}
-    euclid_m ={(od['origin'], od['destination']): od['euclid_dist'] for od in OD_raw}
-    euclid_km = {od: m / 1000.0 for od, m in euclid_m.items()}
+    #euclid_m ={(od['origin'], od['destination']): od['euclid_dist'] for od in OD_raw}
+    #euclid_km = {od: m / 1000.0 for od, m in euclid_m.items()}
 
     arcs_pt_bike = inst['arcs_pt_bike']
     arcs_pt_only = inst['arcs_pt_only']
@@ -18,11 +18,11 @@ def parse_json_instance(json_file_path):
     delta_ia     = inst['delta_ia']
 
     # --- distance-elasticity factors (kept as-is) ---
-    ref_dist = 39
-    lam_td = -0.115
-    lam_cd =  0.221
-    xi_TD = {od: (dkm / ref_dist) ** lam_td for od, dkm in euclid_km.items()}
-    xi_CD = {od: (dkm / ref_dist) ** lam_cd for od, dkm in euclid_km.items()}
+    #ref_dist = 39
+    #lam_td = -0.115
+    #lam_cd =  0.221
+    #xi_TD = {od: (dkm / ref_dist) ** lam_td for od, dkm in euclid_km.items()}
+    #xi_CD = {od: (dkm / ref_dist) ** lam_cd for od, dkm in euclid_km.items()}
 
     # --- station data (drop unused stations) ---
     raw_station_list     = inst['bike_stations']['station_list']
@@ -140,7 +140,7 @@ def parse_json_instance(json_file_path):
         'parking_time_min':    parking_time_min,
         'total_cost_car':      total_cost_car,
         'total_time_car_min':  travel_parking_time_min,
-        'xi_TD':               xi_TD,      # {(o,d): ξ_TD}
-        'xi_CD':               xi_CD,      # {(o,d): ξ_CD}
+        #'xi_TD':               xi_TD,      # {(o,d): ξ_TD}
+        #'xi_CD':               xi_CD,      # {(o,d): ξ_CD}
         'k_bike_legs':         k_bike_legs # NEW
     }
