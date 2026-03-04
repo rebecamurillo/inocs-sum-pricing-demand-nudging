@@ -15,3 +15,13 @@ DEFAULT_OTP_PARAMS = {
         {"mode": "WALK"},
     ],
 }
+
+DEFAULT_CAR_OTP_PARAMS = {
+    "bikeSpeed": 5.0,
+    "walkSpeed": 1.4,
+    "arriveBy": True,
+    "numItineraries": 1,
+    "transportModes": [
+        {"mode": "CAR"},
+    ],
+}

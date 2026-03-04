@@ -79,7 +79,7 @@ def _build_arc_entry(arc_id: str, legs: list[dict], include_bike_flags: bool) ->
 def _classify_patterns(patterns: list[dict], arc_counter) -> tuple[list[dict], list[dict], list[dict]]:
     arc_pt_bike = []
     arc_pt_only = []
-    arc_car = []
+    arc_bike_only = []
 
     for pattern in patterns:
         arc_id = str(next(arc_counter))
@@ -93,9 +93,20 @@ def _classify_patterns(patterns: list[dict], arc_counter) -> tuple[list[dict], l
         elif pt:
             arc_pt_only.append(_build_arc_entry(arc_id, legs, include_bike_flags=False))
         else:
-            arc_car.append(_build_arc_entry(arc_id, legs, include_bike_flags=False))
+            arc_bike_only.append(_build_arc_entry(arc_id, legs, include_bike_flags=False))
 
-    return arc_pt_bike, arc_pt_only, arc_car
+    return arc_pt_bike, arc_pt_only, arc_bike_only
+
+
+def _extract_car_arcs(patterns: list[dict], arc_counter) -> list[dict]:
+    car_arcs = []
+    for pattern in patterns:
+        legs = pattern.get("legs", [])
+        modes = {leg.get("mode", "").upper() for leg in legs}
+        if "CAR" in modes:
+            arc_id = str(next(arc_counter))
+            car_arcs.append(_build_arc_entry(arc_id, legs, include_bike_flags=False))
+    return car_arcs
 
 
 def _query_one_pair(client: OTPClient, origin: dict, destination: dict, date_time: str, otp_params: dict, arc_counter, cache: dict) -> dict | None:
@@ -130,23 +141,23 @@ def _query_one_pair(client: OTPClient, origin: dict, destination: dict, date_tim
         logger.debug("No patterns returned for pair %s", key)
         return None
 
-    pt_bike, pt_only, car = _classify_patterns(patterns, arc_counter)
+    pt_bike, pt_only, bike_only = _classify_patterns(patterns, arc_counter)
     logger.debug(
-        "OTP classification [%s -> %s]: pt_bike=%d, pt_only=%d, car=%d",
+        "OTP classification [%s -> %s]: pt_bike=%d, pt_only=%d, bike_only=%d",
         key.split("|")[0],
         key.split("|")[1],
         len(pt_bike),
         len(pt_only),
-        len(car),
+        len(bike_only),
     )
-    if not pt_bike and not pt_only and not car:
+    if not pt_bike and not pt_only and not bike_only:
         logger.warning("All %d pattern(s) for pair %s were unclassified (no PT/bike/car modes found)", len(patterns), key)
     result = {
         "from_id": origin["hub_id"],
         "to_id": destination["hub_id"],
         "arc_pt_bike": pt_bike,
         "arc_pt_only": pt_only,
-        "arc_car": car,
+        "arc_car": [],
     }
     cache[key] = result
     return result
@@ -167,7 +178,7 @@ def build_od_routes(config: PipelineConfig, hubs_geojson_path: Path) -> Path:
     results = []
     arc_counter = count()
 
-    from ..utils.constants import DEFAULT_OTP_PARAMS
+    from ..utils.constants import DEFAULT_CAR_OTP_PARAMS, DEFAULT_OTP_PARAMS
 
     fixed_timestamp = datetime.utcnow().isoformat() + "Z"
 
@@ -189,6 +200,43 @@ def build_od_routes(config: PipelineConfig, hubs_geojson_path: Path) -> Path:
             response = future.result()
             if response:
                 results.append(response)
+
+    hubs_by_id = {str(hub["hub_id"]): hub for hub in hubs}
+    results_by_key = {f"{od['from_id']}|{od['to_id']}": od for od in results}
+
+    def query_car_for_pair(origin: dict, destination: dict) -> tuple[str, list[dict]]:
+        key = f"{origin['hub_id']}|{destination['hub_id']}"
+        try:
+            patterns = client.query_car_trip(origin, destination, fixed_timestamp, DEFAULT_CAR_OTP_PARAMS)
+        except Exception as exc:
+            logger.warning("OTP CAR query failed for pair %s: %s", key, exc)
+            return key, []
+
+        car_arcs = _extract_car_arcs(patterns, arc_counter)
+        logger.debug(
+            "OTP CAR classification [%s -> %s]: car=%d",
+            origin["hub_id"],
+            destination["hub_id"],
+            len(car_arcs),
+        )
+        return key, car_arcs
+
+    car_pairs = []
+    for key in results_by_key:
+        origin_id, destination_id = key.split("|")
+        origin = hubs_by_id.get(origin_id)
+        destination = hubs_by_id.get(destination_id)
+        if origin and destination:
+            car_pairs.append((origin, destination))
+
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        futures = [executor.submit(query_car_for_pair, origin, destination) for origin, destination in car_pairs]
+        for future in as_completed(futures):
+            key, car_arcs = future.result()
+            if key in results_by_key:
+                results_by_key[key]["arc_car"] = car_arcs
+            if key in cache:
+                cache[key]["arc_car"] = car_arcs
 
     logger.info(
         "Route building complete: %d/%d OD pairs returned results. Output: %s",

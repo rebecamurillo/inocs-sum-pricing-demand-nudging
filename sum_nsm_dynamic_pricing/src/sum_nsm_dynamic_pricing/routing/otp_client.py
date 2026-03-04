@@ -106,29 +106,7 @@ class OTPClient:
             "transportModes": self._build_transport_modes(otp_params),
         }
 
-    def query_trip(self, origin: dict[str, float], destination: dict[str, float], date_time: str, otp_params: dict[str, Any]) -> list[dict[str, Any]]:
-        variables = self._build_variables(origin, destination, date_time, otp_params)
-        logger.debug("OTP query variables: %s", variables)
-        response = self.session.post(
-            self.url,
-            json={"query": GRAPHQL_QUERY, "variables": variables},
-            timeout=60,
-        )
-        logger.debug("OTP HTTP status: %s", response.status_code)
-        response.raise_for_status()
-        payload = response.json()
-        if errors := payload.get("errors"):
-            logger.warning("OTP GraphQL errors: %s", errors)
-        data = payload.get("data")
-        if data is None:
-            logger.warning("OTP response has no 'data' field. Full payload: %s", payload)
-            return []
-        plan = data.get("plan")
-        if plan is None:
-            logger.warning("OTP response 'data.plan' is null. Full payload: %s", payload)
-            return []
-
-        itineraries = plan.get("itineraries", [])
+    def _normalize_itineraries(self, itineraries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         patterns = []
         for itinerary in itineraries:
             mapped_legs = []
@@ -158,7 +136,67 @@ class OTPClient:
                     }
                 )
             patterns.append({"legs": mapped_legs})
+        return patterns
+
+    def query_trip(self, origin: dict[str, float], destination: dict[str, float], date_time: str, otp_params: dict[str, Any]) -> list[dict[str, Any]]:
+        variables = self._build_variables(origin, destination, date_time, otp_params)
+        logger.debug("OTP query variables: %s", variables)
+        response = self.session.post(
+            self.url,
+            json={"query": GRAPHQL_QUERY, "variables": variables},
+            timeout=60,
+        )
+        logger.debug("OTP HTTP status: %s", response.status_code)
+        response.raise_for_status()
+        payload = response.json()
+        if errors := payload.get("errors"):
+            logger.warning("OTP GraphQL errors: %s", errors)
+        data = payload.get("data")
+        if data is None:
+            logger.warning("OTP response has no 'data' field. Full payload: %s", payload)
+            return []
+        plan = data.get("plan")
+        if plan is None:
+            logger.warning("OTP response 'data.plan' is null. Full payload: %s", payload)
+            return []
+
+        itineraries = plan.get("itineraries", [])
+        patterns = self._normalize_itineraries(itineraries)
 
         logger.debug("OTP raw itineraries count: %d", len(itineraries))
         logger.debug("OTP normalized tripPatterns count: %d", len(patterns))
+        return patterns
+
+    def query_car_trip(self, origin: dict[str, float], destination: dict[str, float], date_time: str, otp_params: dict[str, Any]) -> list[dict[str, Any]]:
+        car_params = dict(otp_params)
+        car_params["transportModes"] = [{"mode": "CAR"}]
+        variables = self._build_variables(origin, destination, date_time, car_params)
+        logger.debug("OTP CAR query variables: %s", variables)
+
+        response = self.session.post(
+            self.url,
+            json={"query": GRAPHQL_QUERY, "variables": variables},
+            timeout=60,
+        )
+        logger.debug("OTP CAR HTTP status: %s", response.status_code)
+        response.raise_for_status()
+
+        payload = response.json()
+        if errors := payload.get("errors"):
+            logger.warning("OTP CAR GraphQL errors: %s", errors)
+        data = payload.get("data")
+        if data is None:
+            logger.warning("OTP CAR response has no 'data' field. Full payload: %s", payload)
+            return []
+
+        plan = data.get("plan")
+        if plan is None:
+            logger.warning("OTP CAR response 'data.plan' is null. Full payload: %s", payload)
+            return []
+
+        itineraries = plan.get("itineraries", [])
+        patterns = self._normalize_itineraries(itineraries)
+
+        logger.debug("OTP CAR raw itineraries count: %d", len(itineraries))
+        logger.debug("OTP CAR normalized tripPatterns count: %d", len(patterns))
         return patterns
