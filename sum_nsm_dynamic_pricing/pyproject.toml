@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sum_nsm_dynamic_pricing"
+version = "0.1.0"
+description = "GTFS/GBFS to instance-generation pipeline for SUM NSM dynamic pricing"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "INRIA INOCS Team - SUM project" }]
+dependencies = [
+  "pandas",
+  "numpy",
+  "geopandas",
+  "shapely",
+  "scikit-learn",
+  "folium",
+  "requests"
+]
+
+[project.optional-dependencies]
+optimizer = ["gurobipy"]
+dev = ["pytest", "build", "ipykernel"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
