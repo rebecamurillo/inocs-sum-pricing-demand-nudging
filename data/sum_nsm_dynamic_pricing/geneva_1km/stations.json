@@ -1,0 +1,2383 @@
+{
+  "generated_at": "2026-03-04T07:45:30.705140Z",
+  "center": {
+    "lat": 46.2059149,
+    "lon": 6.1438511
+  },
+  "radius_m": 1000,
+  "stations": [
+    {
+      "station_id": "pts_8511617:0:M",
+      "type": "pt",
+      "name": "Genève, Chausse-Coq",
+      "lat": 46.19958036,
+      "lon": 6.14835727
+    },
+    {
+      "station_id": "pts_8511618:0:H",
+      "type": "pt",
+      "name": "Genève, Saint-Léger",
+      "lat": 46.19842386,
+      "lon": 6.14749488
+    },
+    {
+      "station_id": "pts_8511621",
+      "type": "pt",
+      "name": "Genève, Bains des Pâquis",
+      "lat": 46.2113243,
+      "lon": 6.1525524
+    },
+    {
+      "station_id": "pts_8511621:0:A",
+      "type": "pt",
+      "name": "Genève, Bains des Pâquis",
+      "lat": 46.21197079,
+      "lon": 6.15275003
+    },
+    {
+      "station_id": "pts_8511621:0:B",
+      "type": "pt",
+      "name": "Genève, Bains des Pâquis",
+      "lat": 46.21075861,
+      "lon": 6.15184273
+    },
+    {
+      "station_id": "pts_8587057",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20973289,
+      "lon": 6.14243737
+    },
+    {
+      "station_id": "pts_8587057:0:A",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20965207,
+      "lon": 6.14232957
+    },
+    {
+      "station_id": "pts_8587057:0:B",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.21009966,
+      "lon": 6.14283263
+    },
+    {
+      "station_id": "pts_8587057:0:C",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.21046022,
+      "lon": 6.14324585
+    },
+    {
+      "station_id": "pts_8587057:0:D",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20989452,
+      "lon": 6.14294941
+    },
+    {
+      "station_id": "pts_8587057:0:E",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.21039805,
+      "lon": 6.14363213
+    },
+    {
+      "station_id": "pts_8587057:0:F",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20939719,
+      "lon": 6.14230262
+    },
+    {
+      "station_id": "pts_8587057:0:G",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.2093599,
+      "lon": 6.14223974
+    },
+    {
+      "station_id": "pts_8587057:0:H",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20991938,
+      "lon": 6.1414582
+    },
+    {
+      "station_id": "pts_8587057:0:I",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20957747,
+      "lon": 6.14184448
+    },
+    {
+      "station_id": "pts_8587057:0:J",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.21051616,
+      "lon": 6.14153905
+    },
+    {
+      "station_id": "pts_8587057:0:K",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20888743,
+      "lon": 6.14020955
+    },
+    {
+      "station_id": "pts_8587057:0:L",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.2089123,
+      "lon": 6.13979632
+    },
+    {
+      "station_id": "pts_8587061",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.2018622,
+      "lon": 6.15281291
+    },
+    {
+      "station_id": "pts_8587061:0:A",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.2016819,
+      "lon": 6.15272308
+    },
+    {
+      "station_id": "pts_8587061:0:B",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.2017192,
+      "lon": 6.15286681
+    },
+    {
+      "station_id": "pts_8587061:0:C",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20190572,
+      "lon": 6.15225595
+    },
+    {
+      "station_id": "pts_8587061:0:D",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20191816,
+      "lon": 6.1524446
+    },
+    {
+      "station_id": "pts_8587061:0:E",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20165703,
+      "lon": 6.15206731
+    },
+    {
+      "station_id": "pts_8587061:0:F",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20163216,
+      "lon": 6.15185171
+    },
+    {
+      "station_id": "pts_8587061:0:G",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20143942,
+      "lon": 6.15349563
+    },
+    {
+      "station_id": "pts_8587061:0:H",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20150159,
+      "lon": 6.1535136
+    },
+    {
+      "station_id": "pts_8587061:0:I",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.2020052,
+      "lon": 6.15350461
+    },
+    {
+      "station_id": "pts_8587061:0:J",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20263937,
+      "lon": 6.1539358
+    },
+    {
+      "station_id": "pts_8587061:0:K",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.20282589,
+      "lon": 6.15355851
+    },
+    {
+      "station_id": "pts_8587387",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20472836,
+      "lon": 6.14304822
+    },
+    {
+      "station_id": "pts_8587387:0:A",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20487135,
+      "lon": 6.14346145
+    },
+    {
+      "station_id": "pts_8587387:0:B",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20452941,
+      "lon": 6.14345246
+    },
+    {
+      "station_id": "pts_8587387:0:C",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20506408,
+      "lon": 6.14297636
+    },
+    {
+      "station_id": "pts_8587387:0:D",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.2042372,
+      "lon": 6.14206008
+    },
+    {
+      "station_id": "pts_8587387:0:E",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20391391,
+      "lon": 6.14383874
+    },
+    {
+      "station_id": "pts_8587387:0:F",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20365901,
+      "lon": 6.14464722
+    },
+    {
+      "station_id": "pts_8587387:0:G",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20332949,
+      "lon": 6.14251822
+    },
+    {
+      "station_id": "pts_8587387:0:Z",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20392635,
+      "lon": 6.14373992
+    },
+    {
+      "station_id": "pts_8587907",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19803836,
+      "lon": 6.14281466
+    },
+    {
+      "station_id": "pts_8587907:0:A",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19828085,
+      "lon": 6.14194329
+    },
+    {
+      "station_id": "pts_8587907:0:B",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19864149,
+      "lon": 6.14204211
+    },
+    {
+      "station_id": "pts_8587907:0:C",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19808188,
+      "lon": 6.14285958
+    },
+    {
+      "station_id": "pts_8587907:0:D",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19764663,
+      "lon": 6.14296737
+    },
+    {
+      "station_id": "pts_8587907:0:E",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.1980881,
+      "lon": 6.14304822
+    },
+    {
+      "station_id": "pts_8587907:0:F",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19768394,
+      "lon": 6.14356026
+    },
+    {
+      "station_id": "pts_8587907:0:T",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.1980881,
+      "lon": 6.14306619
+    },
+    {
+      "station_id": "pts_8587907:0:Y",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19718651,
+      "lon": 6.14302127
+    },
+    {
+      "station_id": "pts_8592777",
+      "type": "pt",
+      "name": "Genève, Alpes",
+      "lat": 46.2090242,
+      "lon": 6.14718946
+    },
+    {
+      "station_id": "pts_8592777:0:O",
+      "type": "pt",
+      "name": "Genève, Alpes",
+      "lat": 46.20903663,
+      "lon": 6.14715352
+    },
+    {
+      "station_id": "pts_8592779",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.1981565,
+      "lon": 6.1489232
+    },
+    {
+      "station_id": "pts_8592779:0:I",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.19818137,
+      "lon": 6.14869863
+    },
+    {
+      "station_id": "pts_8592779:0:J",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.19837412,
+      "lon": 6.14860879
+    },
+    {
+      "station_id": "pts_8592779:0:K",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.1982622,
+      "lon": 6.14909388
+    },
+    {
+      "station_id": "pts_8592779:0:L",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.19836168,
+      "lon": 6.14956999
+    },
+    {
+      "station_id": "pts_8592779:0:O",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.19846117,
+      "lon": 6.14878846
+    },
+    {
+      "station_id": "pts_8592782",
+      "type": "pt",
+      "name": "Genève, Bains",
+      "lat": 46.19974824,
+      "lon": 6.13754155
+    },
+    {
+      "station_id": "pts_8592782:0:X",
+      "type": "pt",
+      "name": "Genève, Bains",
+      "lat": 46.19983529,
+      "lon": 6.1376224
+    },
+    {
+      "station_id": "pts_8592792:0:Q",
+      "type": "pt",
+      "name": "Genève, Bourg-de-Four",
+      "lat": 46.20013995,
+      "lon": 6.14852795
+    },
+    {
+      "station_id": "pts_8592794",
+      "type": "pt",
+      "name": "Genève, Bovy-Lysberg",
+      "lat": 46.20238446,
+      "lon": 6.14294042
+    },
+    {
+      "station_id": "pts_8592794:0:U",
+      "type": "pt",
+      "name": "Genève, Bovy-Lysberg",
+      "lat": 46.20238446,
+      "lon": 6.14294042
+    },
+    {
+      "station_id": "pts_8592799:0:V",
+      "type": "pt",
+      "name": "Genève, Cathédrale",
+      "lat": 46.20146429,
+      "lon": 6.14781828
+    },
+    {
+      "station_id": "pts_8592801",
+      "type": "pt",
+      "name": "Genève, Chantepoulet",
+      "lat": 46.20815387,
+      "lon": 6.14355128
+    },
+    {
+      "station_id": "pts_8592801:0:Q",
+      "type": "pt",
+      "name": "Genève, Chantepoulet",
+      "lat": 46.20815387,
+      "lon": 6.14363213
+    },
+    {
+      "station_id": "pts_8592804",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20108502,
+      "lon": 6.14032633
+    },
+    {
+      "station_id": "pts_8592804:0:P",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20080523,
+      "lon": 6.1406048
+    },
+    {
+      "station_id": "pts_8592804:0:Q",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20035135,
+      "lon": 6.14083837
+    },
+    {
+      "station_id": "pts_8592804:0:R",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20075549,
+      "lon": 6.139967
+    },
+    {
+      "station_id": "pts_8592804:0:S",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20129641,
+      "lon": 6.139967
+    },
+    {
+      "station_id": "pts_8592804:0:T",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20145185,
+      "lon": 6.13948191
+    },
+    {
+      "station_id": "pts_8592812",
+      "type": "pt",
+      "name": "Genève, Coutance",
+      "lat": 46.20744516,
+      "lon": 6.14219482
+    },
+    {
+      "station_id": "pts_8592812:0:W",
+      "type": "pt",
+      "name": "Genève, Coutance",
+      "lat": 46.20725244,
+      "lon": 6.14192533
+    },
+    {
+      "station_id": "pts_8592812:0:X",
+      "type": "pt",
+      "name": "Genève, Coutance",
+      "lat": 46.20760058,
+      "lon": 6.1423655
+    },
+    {
+      "station_id": "pts_8592812:0:Y",
+      "type": "pt",
+      "name": "Genève, Coutance",
+      "lat": 46.20725244,
+      "lon": 6.14200618
+    },
+    {
+      "station_id": "pts_8592812:0:Z",
+      "type": "pt",
+      "name": "Genève, Coutance",
+      "lat": 46.20761301,
+      "lon": 6.14229364
+    },
+    {
+      "station_id": "pts_8592816",
+      "type": "pt",
+      "name": "Genève, Délices",
+      "lat": 46.20542467,
+      "lon": 6.13222352
+    },
+    {
+      "station_id": "pts_8592816:0:G",
+      "type": "pt",
+      "name": "Genève, Délices",
+      "lat": 46.20538115,
+      "lon": 6.13199894
+    },
+    {
+      "station_id": "pts_8592816:0:H",
+      "type": "pt",
+      "name": "Genève, Délices",
+      "lat": 46.20532519,
+      "lon": 6.13230437
+    },
+    {
+      "station_id": "pts_8592816:0:I",
+      "type": "pt",
+      "name": "Genève, Délices",
+      "lat": 46.20597176,
+      "lon": 6.13195403
+    },
+    {
+      "station_id": "pts_8592816:0:J",
+      "type": "pt",
+      "name": "Genève, Délices",
+      "lat": 46.2052195,
+      "lon": 6.13190013
+    },
+    {
+      "station_id": "pts_8592818:0:S",
+      "type": "pt",
+      "name": "Genève, Dôle",
+      "lat": 46.2086885,
+      "lon": 6.13161267
+    },
+    {
+      "station_id": "pts_8592819",
+      "type": "pt",
+      "name": "Genève, Ecole-de-Médecine",
+      "lat": 46.19760932,
+      "lon": 6.13930225
+    },
+    {
+      "station_id": "pts_8592819:0:L",
+      "type": "pt",
+      "name": "Genève, Ecole-de-Médecine",
+      "lat": 46.19759067,
+      "lon": 6.13930225
+    },
+    {
+      "station_id": "pts_8592830",
+      "type": "pt",
+      "name": "Genève, Gautier",
+      "lat": 46.21351862,
+      "lon": 6.15049526
+    },
+    {
+      "station_id": "pts_8592830:0:Q",
+      "type": "pt",
+      "name": "Genève, Gautier",
+      "lat": 46.21358078,
+      "lon": 6.15059407
+    },
+    {
+      "station_id": "pts_8592830:0:R",
+      "type": "pt",
+      "name": "Genève, Gautier",
+      "lat": 46.21344403,
+      "lon": 6.15039644
+    },
+    {
+      "station_id": "pts_8592831",
+      "type": "pt",
+      "name": "Genève, Goulart",
+      "lat": 46.20753841,
+      "lon": 6.14144922
+    },
+    {
+      "station_id": "pts_8592831:0:S",
+      "type": "pt",
+      "name": "Genève, Goulart",
+      "lat": 46.20761301,
+      "lon": 6.14153007
+    },
+    {
+      "station_id": "pts_8592834",
+      "type": "pt",
+      "name": "Genève, Grottes",
+      "lat": 46.21256755,
+      "lon": 6.13787393
+    },
+    {
+      "station_id": "pts_8592834:0:V",
+      "type": "pt",
+      "name": "Genève, Grottes",
+      "lat": 46.2123189,
+      "lon": 6.13799969
+    },
+    {
+      "station_id": "pts_8592834:0:W",
+      "type": "pt",
+      "name": "Genève, Grottes",
+      "lat": 46.21295917,
+      "lon": 6.13749663
+    },
+    {
+      "station_id": "pts_8592838:0:O",
+      "type": "pt",
+      "name": "Genève, Hôtel-de-Ville",
+      "lat": 46.20105393,
+      "lon": 6.14656063
+    },
+    {
+      "station_id": "pts_8592841",
+      "type": "pt",
+      "name": "Genève, Mercier",
+      "lat": 46.20686699,
+      "lon": 6.13953581
+    },
+    {
+      "station_id": "pts_8592841:0:A",
+      "type": "pt",
+      "name": "Genève, Mercier",
+      "lat": 46.20725244,
+      "lon": 6.13958971
+    },
+    {
+      "station_id": "pts_8592841:0:T",
+      "type": "pt",
+      "name": "Genève, Mercier",
+      "lat": 46.20680483,
+      "lon": 6.13904174
+    },
+    {
+      "station_id": "pts_8592841:0:U",
+      "type": "pt",
+      "name": "Genève, Mercier",
+      "lat": 46.20650642,
+      "lon": 6.13998497
+    },
+    {
+      "station_id": "pts_8592841:0:V",
+      "type": "pt",
+      "name": "Genève, Mercier",
+      "lat": 46.20717162,
+      "lon": 6.13949089
+    },
+    {
+      "station_id": "pts_8592850",
+      "type": "pt",
+      "name": "Genève, Lyon",
+      "lat": 46.20980749,
+      "lon": 6.13830512
+    },
+    {
+      "station_id": "pts_8592850:0:M",
+      "type": "pt",
+      "name": "Genève, Lyon",
+      "lat": 46.20966451,
+      "lon": 6.1385297
+    },
+    {
+      "station_id": "pts_8592850:0:N",
+      "type": "pt",
+      "name": "Genève, Lyon",
+      "lat": 46.21003128,
+      "lon": 6.13784698
+    },
+    {
+      "station_id": "pts_8592851",
+      "type": "pt",
+      "name": "Genève, Musée art et histoire",
+      "lat": 46.1996301,
+      "lon": 6.15114204
+    },
+    {
+      "station_id": "pts_8592851:0:N",
+      "type": "pt",
+      "name": "Genève, Musée art et histoire",
+      "lat": 46.19986016,
+      "lon": 6.15165408
+    },
+    {
+      "station_id": "pts_8592851:0:O",
+      "type": "pt",
+      "name": "Genève, Musée art et histoire",
+      "lat": 46.19940005,
+      "lon": 6.15069289
+    },
+    {
+      "station_id": "pts_8592856",
+      "type": "pt",
+      "name": "Genève, Métropole",
+      "lat": 46.20339788,
+      "lon": 6.15151934
+    },
+    {
+      "station_id": "pts_8592856:0:M",
+      "type": "pt",
+      "name": "Genève, Métropole",
+      "lat": 46.20337301,
+      "lon": 6.15151035
+    },
+    {
+      "station_id": "pts_8592856:0:N",
+      "type": "pt",
+      "name": "Genève, Métropole",
+      "lat": 46.20337301,
+      "lon": 6.15094441
+    },
+    {
+      "station_id": "pts_8592862",
+      "type": "pt",
+      "name": "Genève, Molard",
+      "lat": 46.20311189,
+      "lon": 6.14718047
+    },
+    {
+      "station_id": "pts_8592862:0:W",
+      "type": "pt",
+      "name": "Genève, Molard",
+      "lat": 46.20398852,
+      "lon": 6.14850998
+    },
+    {
+      "station_id": "pts_8592862:0:X",
+      "type": "pt",
+      "name": "Genève, Molard",
+      "lat": 46.20409421,
+      "lon": 6.1483932
+    },
+    {
+      "station_id": "pts_8592862:0:Y",
+      "type": "pt",
+      "name": "Genève, Molard",
+      "lat": 46.20301863,
+      "lon": 6.14740505
+    },
+    {
+      "station_id": "pts_8592862:0:Z",
+      "type": "pt",
+      "name": "Genève, Molard",
+      "lat": 46.20320515,
+      "lon": 6.14692894
+    },
+    {
+      "station_id": "pts_8592863",
+      "type": "pt",
+      "name": "Genève, Môle",
+      "lat": 46.21315187,
+      "lon": 6.14549164
+    },
+    {
+      "station_id": "pts_8592863:0:S",
+      "type": "pt",
+      "name": "Genève, Môle",
+      "lat": 46.2133943,
+      "lon": 6.14557249
+    },
+    {
+      "station_id": "pts_8592863:0:Z",
+      "type": "pt",
+      "name": "Genève, Môle",
+      "lat": 46.21312079,
+      "lon": 6.14530299
+    },
+    {
+      "station_id": "pts_8592864",
+      "type": "pt",
+      "name": "Genève, Mont-Blanc",
+      "lat": 46.20734569,
+      "lon": 6.14699183
+    },
+    {
+      "station_id": "pts_8592864:0:G",
+      "type": "pt",
+      "name": "Genève, Mont-Blanc",
+      "lat": 46.20703485,
+      "lon": 6.14735115
+    },
+    {
+      "station_id": "pts_8592864:0:H",
+      "type": "pt",
+      "name": "Genève, Mont-Blanc",
+      "lat": 46.20760679,
+      "lon": 6.14665047
+    },
+    {
+      "station_id": "pts_8592866",
+      "type": "pt",
+      "name": "Genève, Monthoux",
+      "lat": 46.21047887,
+      "lon": 6.148501
+    },
+    {
+      "station_id": "pts_8592866:0:U",
+      "type": "pt",
+      "name": "Genève, Monthoux",
+      "lat": 46.21053481,
+      "lon": 6.14837523
+    },
+    {
+      "station_id": "pts_8592866:0:V",
+      "type": "pt",
+      "name": "Genève, Monthoux",
+      "lat": 46.21019291,
+      "lon": 6.14830337
+    },
+    {
+      "station_id": "pts_8592869",
+      "type": "pt",
+      "name": "Genève, Musée Voltaire",
+      "lat": 46.20717784,
+      "lon": 6.13390337
+    },
+    {
+      "station_id": "pts_8592869:0:E",
+      "type": "pt",
+      "name": "Genève, Musée Voltaire",
+      "lat": 46.20696646,
+      "lon": 6.13358896
+    },
+    {
+      "station_id": "pts_8592869:0:F",
+      "type": "pt",
+      "name": "Genève, Musée Voltaire",
+      "lat": 46.20735812,
+      "lon": 6.13418185
+    },
+    {
+      "station_id": "pts_8592871",
+      "type": "pt",
+      "name": "Genève, Navigation",
+      "lat": 46.21188998,
+      "lon": 6.14964186
+    },
+    {
+      "station_id": "pts_8592871:0:M",
+      "type": "pt",
+      "name": "Genève, Navigation",
+      "lat": 46.21195214,
+      "lon": 6.14965084
+    },
+    {
+      "station_id": "pts_8592871:0:N",
+      "type": "pt",
+      "name": "Genève, Navigation",
+      "lat": 46.21182782,
+      "lon": 6.14947118
+    },
+    {
+      "station_id": "pts_8592873",
+      "type": "pt",
+      "name": "Genève, Ormeaux",
+      "lat": 46.2060215,
+      "lon": 6.13652645
+    },
+    {
+      "station_id": "pts_8592873:0:C",
+      "type": "pt",
+      "name": "Genève, Ormeaux",
+      "lat": 46.20612097,
+      "lon": 6.13652645
+    },
+    {
+      "station_id": "pts_8592873:0:D",
+      "type": "pt",
+      "name": "Genève, Ormeaux",
+      "lat": 46.20597176,
+      "lon": 6.13639171
+    },
+    {
+      "station_id": "pts_8592874",
+      "type": "pt",
+      "name": "Genève, Palladium",
+      "lat": 46.20301863,
+      "lon": 6.13356201
+    },
+    {
+      "station_id": "pts_8592874:0:R",
+      "type": "pt",
+      "name": "Genève, Palladium",
+      "lat": 46.20295646,
+      "lon": 6.13313082
+    },
+    {
+      "station_id": "pts_8592874:0:S",
+      "type": "pt",
+      "name": "Genève, Palladium",
+      "lat": 46.20303106,
+      "lon": 6.13391236
+    },
+    {
+      "station_id": "pts_8592883:0:O",
+      "type": "pt",
+      "name": "Genève, Place des Eaux-Vives",
+      "lat": 46.20255855,
+      "lon": 6.15541802
+    },
+    {
+      "station_id": "pts_8592883:0:P",
+      "type": "pt",
+      "name": "Genève, Place des Eaux-Vives",
+      "lat": 46.20235959,
+      "lon": 6.15578633
+    },
+    {
+      "station_id": "pts_8592883:0:Z",
+      "type": "pt",
+      "name": "Genève, Place des Eaux-Vives",
+      "lat": 46.20250259,
+      "lon": 6.15555277
+    },
+    {
+      "station_id": "pts_8592885",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.20119693,
+      "lon": 6.1441801
+    },
+    {
+      "station_id": "pts_8592885:0:I",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.20099176,
+      "lon": 6.14385671
+    },
+    {
+      "station_id": "pts_8592885:0:J",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.2006871,
+      "lon": 6.14329975
+    },
+    {
+      "station_id": "pts_8592885:0:L",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.20096689,
+      "lon": 6.14464722
+    },
+    {
+      "station_id": "pts_8592885:0:M",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.20126533,
+      "lon": 6.14424298
+    },
+    {
+      "station_id": "pts_8592885:0:N",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.20152646,
+      "lon": 6.14399145
+    },
+    {
+      "station_id": "pts_8592888",
+      "type": "pt",
+      "name": "Genève, poste",
+      "lat": 46.21293431,
+      "lon": 6.14123363
+    },
+    {
+      "station_id": "pts_8592888:0:T",
+      "type": "pt",
+      "name": "Genève, poste",
+      "lat": 46.21338808,
+      "lon": 6.14135939
+    },
+    {
+      "station_id": "pts_8592888:0:U",
+      "type": "pt",
+      "name": "Genève, poste",
+      "lat": 46.21266079,
+      "lon": 6.14111684
+    },
+    {
+      "station_id": "pts_8592889:0:X",
+      "type": "pt",
+      "name": "Genève, Poterie",
+      "lat": 46.21161025,
+      "lon": 6.13393931
+    },
+    {
+      "station_id": "pts_8592890",
+      "type": "pt",
+      "name": "Genève, Prairie",
+      "lat": 46.20849579,
+      "lon": 6.13574492
+    },
+    {
+      "station_id": "pts_8592890:0:O",
+      "type": "pt",
+      "name": "Genève, Prairie",
+      "lat": 46.20851444,
+      "lon": 6.13551136
+    },
+    {
+      "station_id": "pts_8592890:0:P",
+      "type": "pt",
+      "name": "Genève, Prairie",
+      "lat": 46.20851444,
+      "lon": 6.13599645
+    },
+    {
+      "station_id": "pts_8592904",
+      "type": "pt",
+      "name": "Genève, Seujet",
+      "lat": 46.20395121,
+      "lon": 6.1323403
+    },
+    {
+      "station_id": "pts_8592904:0:P",
+      "type": "pt",
+      "name": "Genève, Seujet",
+      "lat": 46.20391391,
+      "lon": 6.13213369
+    },
+    {
+      "station_id": "pts_8592904:0:Q",
+      "type": "pt",
+      "name": "Genève, Seujet",
+      "lat": 46.20396987,
+      "lon": 6.13251098
+    },
+    {
+      "station_id": "pts_8592906",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20369009,
+      "lon": 6.13988615
+    },
+    {
+      "station_id": "pts_8592906:0:H",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20364035,
+      "lon": 6.13985022
+    },
+    {
+      "station_id": "pts_8592906:0:I",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20397608,
+      "lon": 6.13994903
+    },
+    {
+      "station_id": "pts_8592906:0:J",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20359683,
+      "lon": 6.14105396
+    },
+    {
+      "station_id": "pts_8592906:0:K",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20410664,
+      "lon": 6.14022751
+    },
+    {
+      "station_id": "pts_8592906:0:L",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20417503,
+      "lon": 6.14033531
+    },
+    {
+      "station_id": "pts_8592906:0:W",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20369009,
+      "lon": 6.13988615
+    },
+    {
+      "station_id": "pts_8592906:0:Y",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20416882,
+      "lon": 6.14028141
+    },
+    {
+      "station_id": "pts_8592907:0:M",
+      "type": "pt",
+      "name": "Genève, Saint-Antoine",
+      "lat": 46.19992855,
+      "lon": 6.15094441
+    },
+    {
+      "station_id": "pts_8592909:0:P",
+      "type": "pt",
+      "name": "Genève, Taconnerie",
+      "lat": 46.20083632,
+      "lon": 6.14819557
+    },
+    {
+      "station_id": "pts_8592923",
+      "type": "pt",
+      "name": "Genève, Village-Suisse",
+      "lat": 46.20133372,
+      "lon": 6.13588865
+    },
+    {
+      "station_id": "pts_8592923:0:V",
+      "type": "pt",
+      "name": "Genève, Village-Suisse",
+      "lat": 46.2012902,
+      "lon": 6.13570899
+    },
+    {
+      "station_id": "pts_8592923:0:W",
+      "type": "pt",
+      "name": "Genève, Village-Suisse",
+      "lat": 46.20140211,
+      "lon": 6.13598746
+    },
+    {
+      "station_id": "pts_8595021",
+      "type": "pt",
+      "name": "Genève, Palais Eynard",
+      "lat": 46.19988503,
+      "lon": 6.14712657
+    },
+    {
+      "station_id": "pts_8595021:0:R",
+      "type": "pt",
+      "name": "Genève, Palais Eynard",
+      "lat": 46.19989746,
+      "lon": 6.14688403
+    },
+    {
+      "station_id": "pts_8595021:0:S",
+      "type": "pt",
+      "name": "Genève, Palais Eynard",
+      "lat": 46.20009021,
+      "lon": 6.1466864
+    },
+    {
+      "station_id": "pts_8595022",
+      "type": "pt",
+      "name": "Genève, Théâtre",
+      "lat": 46.20217307,
+      "lon": 6.14185346
+    },
+    {
+      "station_id": "pts_8595022:0:N",
+      "type": "pt",
+      "name": "Genève, Théâtre",
+      "lat": 46.20207359,
+      "lon": 6.14181753
+    },
+    {
+      "station_id": "pts_8595022:0:O",
+      "type": "pt",
+      "name": "Genève, Théâtre",
+      "lat": 46.20234716,
+      "lon": 6.14187143
+    },
+    {
+      "station_id": "pts_8595022:0:Y",
+      "type": "pt",
+      "name": "Genève, Théâtre",
+      "lat": 46.20188085,
+      "lon": 6.14166482
+    },
+    {
+      "station_id": "pts_Parent8511617",
+      "type": "pt",
+      "name": "Genève, Chausse-Coq",
+      "lat": 46.19958036,
+      "lon": 6.14835727
+    },
+    {
+      "station_id": "pts_Parent8511618",
+      "type": "pt",
+      "name": "Genève, Saint-Léger",
+      "lat": 46.19842386,
+      "lon": 6.14749488
+    },
+    {
+      "station_id": "pts_Parent8511621",
+      "type": "pt",
+      "name": "Genève, Bains des Pâquis",
+      "lat": 46.2113243,
+      "lon": 6.1525524
+    },
+    {
+      "station_id": "pts_Parent8587057",
+      "type": "pt",
+      "name": "Genève, gare Cornavin",
+      "lat": 46.20973289,
+      "lon": 6.14243737
+    },
+    {
+      "station_id": "pts_Parent8587061",
+      "type": "pt",
+      "name": "Genève, Rive",
+      "lat": 46.2018622,
+      "lon": 6.15281291
+    },
+    {
+      "station_id": "pts_Parent8587387",
+      "type": "pt",
+      "name": "Genève, Bel-Air",
+      "lat": 46.20472836,
+      "lon": 6.14304822
+    },
+    {
+      "station_id": "pts_Parent8587907",
+      "type": "pt",
+      "name": "Genève, Plainpalais",
+      "lat": 46.19803836,
+      "lon": 6.14281466
+    },
+    {
+      "station_id": "pts_Parent8592777",
+      "type": "pt",
+      "name": "Genève, Alpes",
+      "lat": 46.2090242,
+      "lon": 6.14718946
+    },
+    {
+      "station_id": "pts_Parent8592779",
+      "type": "pt",
+      "name": "Genève, Athénée",
+      "lat": 46.1981565,
+      "lon": 6.1489232
+    },
+    {
+      "station_id": "pts_Parent8592782",
+      "type": "pt",
+      "name": "Genève, Bains",
+      "lat": 46.19974824,
+      "lon": 6.13754155
+    },
+    {
+      "station_id": "pts_Parent8592792",
+      "type": "pt",
+      "name": "Genève, Bourg-de-Four",
+      "lat": 46.20015239,
+      "lon": 6.14860879
+    },
+    {
+      "station_id": "pts_Parent8592794",
+      "type": "pt",
+      "name": "Genève, Bovy-Lysberg",
+      "lat": 46.20238446,
+      "lon": 6.14294042
+    },
+    {
+      "station_id": "pts_Parent8592799",
+      "type": "pt",
+      "name": "Genève, Cathédrale",
+      "lat": 46.20146429,
+      "lon": 6.14781828
+    },
+    {
+      "station_id": "pts_Parent8592801",
+      "type": "pt",
+      "name": "Genève, Chantepoulet",
+      "lat": 46.20815387,
+      "lon": 6.14355128
+    },
+    {
+      "station_id": "pts_Parent8592804",
+      "type": "pt",
+      "name": "Genève, Cirque",
+      "lat": 46.20108502,
+      "lon": 6.14032633
+    },
+    {
+      "station_id": "pts_Parent8592812",
+      "type": "pt",
+      "name": "Genève, Coutance",
+      "lat": 46.20744516,
+      "lon": 6.14219482
+    },
+    {
+      "station_id": "pts_Parent8592816",
+      "type": "pt",
+      "name": "Genève, Délices",
+      "lat": 46.20542467,
+      "lon": 6.13222352
+    },
+    {
+      "station_id": "pts_Parent8592819",
+      "type": "pt",
+      "name": "Genève, Ecole-de-Médecine",
+      "lat": 46.19760932,
+      "lon": 6.13930225
+    },
+    {
+      "station_id": "pts_Parent8592830",
+      "type": "pt",
+      "name": "Genève, Gautier",
+      "lat": 46.21351862,
+      "lon": 6.15049526
+    },
+    {
+      "station_id": "pts_Parent8592831",
+      "type": "pt",
+      "name": "Genève, Goulart",
+      "lat": 46.20753841,
+      "lon": 6.14144922
+    },
+    {
+      "station_id": "pts_Parent8592834",
+      "type": "pt",
+      "name": "Genève, Grottes",
+      "lat": 46.21256755,
+      "lon": 6.13787393
+    },
+    {
+      "station_id": "pts_Parent8592838",
+      "type": "pt",
+      "name": "Genève, Hôtel-de-Ville",
+      "lat": 46.20109124,
+      "lon": 6.14662352
+    },
+    {
+      "station_id": "pts_Parent8592841",
+      "type": "pt",
+      "name": "Genève, Mercier",
+      "lat": 46.20686699,
+      "lon": 6.13953581
+    },
+    {
+      "station_id": "pts_Parent8592850",
+      "type": "pt",
+      "name": "Genève, Lyon",
+      "lat": 46.20980749,
+      "lon": 6.13830512
+    },
+    {
+      "station_id": "pts_Parent8592851",
+      "type": "pt",
+      "name": "Genève, Musée art et histoire",
+      "lat": 46.1996301,
+      "lon": 6.15114204
+    },
+    {
+      "station_id": "pts_Parent8592856",
+      "type": "pt",
+      "name": "Genève, Métropole",
+      "lat": 46.20339788,
+      "lon": 6.15151934
+    },
+    {
+      "station_id": "pts_Parent8592862",
+      "type": "pt",
+      "name": "Genève, Molard",
+      "lat": 46.20311189,
+      "lon": 6.14718047
+    },
+    {
+      "station_id": "pts_Parent8592863",
+      "type": "pt",
+      "name": "Genève, Môle",
+      "lat": 46.21315187,
+      "lon": 6.14549164
+    },
+    {
+      "station_id": "pts_Parent8592864",
+      "type": "pt",
+      "name": "Genève, Mont-Blanc",
+      "lat": 46.20734569,
+      "lon": 6.14699183
+    },
+    {
+      "station_id": "pts_Parent8592866",
+      "type": "pt",
+      "name": "Genève, Monthoux",
+      "lat": 46.21047887,
+      "lon": 6.148501
+    },
+    {
+      "station_id": "pts_Parent8592869",
+      "type": "pt",
+      "name": "Genève, Musée Voltaire",
+      "lat": 46.20717784,
+      "lon": 6.13390337
+    },
+    {
+      "station_id": "pts_Parent8592871",
+      "type": "pt",
+      "name": "Genève, Navigation",
+      "lat": 46.21188998,
+      "lon": 6.14964186
+    },
+    {
+      "station_id": "pts_Parent8592873",
+      "type": "pt",
+      "name": "Genève, Ormeaux",
+      "lat": 46.2060215,
+      "lon": 6.13652645
+    },
+    {
+      "station_id": "pts_Parent8592874",
+      "type": "pt",
+      "name": "Genève, Palladium",
+      "lat": 46.20301863,
+      "lon": 6.13356201
+    },
+    {
+      "station_id": "pts_Parent8592885",
+      "type": "pt",
+      "name": "Genève, Place de Neuve",
+      "lat": 46.20119693,
+      "lon": 6.1441801
+    },
+    {
+      "station_id": "pts_Parent8592888",
+      "type": "pt",
+      "name": "Genève, poste",
+      "lat": 46.21293431,
+      "lon": 6.14123363
+    },
+    {
+      "station_id": "pts_Parent8592890",
+      "type": "pt",
+      "name": "Genève, Prairie",
+      "lat": 46.20849579,
+      "lon": 6.13574492
+    },
+    {
+      "station_id": "pts_Parent8592904",
+      "type": "pt",
+      "name": "Genève, Seujet",
+      "lat": 46.20395121,
+      "lon": 6.1323403
+    },
+    {
+      "station_id": "pts_Parent8592906",
+      "type": "pt",
+      "name": "Genève, Stand",
+      "lat": 46.20369009,
+      "lon": 6.13988615
+    },
+    {
+      "station_id": "pts_Parent8592907",
+      "type": "pt",
+      "name": "Genève, Saint-Antoine",
+      "lat": 46.1999099,
+      "lon": 6.15098035
+    },
+    {
+      "station_id": "pts_Parent8592909",
+      "type": "pt",
+      "name": "Genève, Taconnerie",
+      "lat": 46.2004757,
+      "lon": 6.14784523
+    },
+    {
+      "station_id": "pts_Parent8592923",
+      "type": "pt",
+      "name": "Genève, Village-Suisse",
+      "lat": 46.20133372,
+      "lon": 6.13588865
+    },
+    {
+      "station_id": "pts_Parent8595021",
+      "type": "pt",
+      "name": "Genève, Palais Eynard",
+      "lat": 46.19988503,
+      "lon": 6.14712657
+    },
+    {
+      "station_id": "pts_Parent8595022",
+      "type": "pt",
+      "name": "Genève, Théâtre",
+      "lat": 46.20217307,
+      "lon": 6.14185346
+    },
+    {
+      "station_id": "bs_18835",
+      "type": "bs",
+      "name": "Saint-Georges 60",
+      "lat": 46.2013132,
+      "lon": 6.1372219
+    },
+    {
+      "station_id": "bs_21475",
+      "type": "bs",
+      "name": "Uni Bastions",
+      "lat": 46.1987529,
+      "lon": 6.1441602
+    },
+    {
+      "station_id": "bs_21969",
+      "type": "bs",
+      "name": "Jardin des Alpes",
+      "lat": 46.2080078,
+      "lon": 6.1488421
+    },
+    {
+      "station_id": "bs_20626",
+      "type": "bs",
+      "name": "Rue des Savoises 17",
+      "lat": 46.2010616,
+      "lon": 6.1385006
+    },
+    {
+      "station_id": "bs_18552",
+      "type": "bs",
+      "name": "Pont Mont Blanc S",
+      "lat": 46.2041793,
+      "lon": 6.149528
+    },
+    {
+      "station_id": "bs_18471",
+      "type": "bs",
+      "name": "Basilique Notre Dame",
+      "lat": 46.2085539,
+      "lon": 6.1424073
+    },
+    {
+      "station_id": "bs_21869",
+      "type": "bs",
+      "name": "Saint-Jean 67",
+      "lat": 46.2064096,
+      "lon": 6.1380201
+    },
+    {
+      "station_id": "bs_18612",
+      "type": "bs",
+      "name": "Pont du Mont-Blanc",
+      "lat": 46.2069193,
+      "lon": 6.1473036
+    },
+    {
+      "station_id": "bs_22214",
+      "type": "bs",
+      "name": "Place Camoletti",
+      "lat": 46.2031314,
+      "lon": 6.1555808
+    },
+    {
+      "station_id": "bs_21966",
+      "type": "bs",
+      "name": "Rue Sismondi",
+      "lat": 46.2100823,
+      "lon": 6.1472328
+    },
+    {
+      "station_id": "bs_21963",
+      "type": "bs",
+      "name": "Plantamour 22",
+      "lat": 46.2104074,
+      "lon": 6.1498047
+    },
+    {
+      "station_id": "bs_22227",
+      "type": "bs",
+      "name": "Coulouvrenière",
+      "lat": 46.2038939,
+      "lon": 6.1380224
+    },
+    {
+      "station_id": "bs_22025",
+      "type": "bs",
+      "name": "Michel-Simon",
+      "lat": 46.2011213,
+      "lon": 6.1335254
+    },
+    {
+      "station_id": "bs_18611",
+      "type": "bs",
+      "name": "Plainpalais",
+      "lat": 46.1995996,
+      "lon": 6.141155
+    },
+    {
+      "station_id": "bs_18770",
+      "type": "bs",
+      "name": "Boulevard du Théâtre",
+      "lat": 46.2023851,
+      "lon": 6.1417309
+    },
+    {
+      "station_id": "bs_22186",
+      "type": "bs",
+      "name": "Rue des Pâquis 36",
+      "lat": 46.2133671,
+      "lon": 6.1504783
+    },
+    {
+      "station_id": "bs_18837",
+      "type": "bs",
+      "name": "Tir 1",
+      "lat": 46.2034058,
+      "lon": 6.1364113
+    },
+    {
+      "station_id": "bs_18511",
+      "type": "bs",
+      "name": "HEAD",
+      "lat": 46.2087165,
+      "lon": 6.1412041
+    },
+    {
+      "station_id": "bs_20712",
+      "type": "bs",
+      "name": "Turrettini 1",
+      "lat": 46.2054865,
+      "lon": 6.141601
+    },
+    {
+      "station_id": "bs_18497",
+      "type": "bs",
+      "name": "Gare Cornavin gallerie",
+      "lat": 46.209146,
+      "lon": 6.1404056
+    },
+    {
+      "station_id": "bs_21935",
+      "type": "bs",
+      "name": "Rue des Alpes",
+      "lat": 46.209689,
+      "lon": 6.1457237
+    },
+    {
+      "station_id": "bs_22367",
+      "type": "bs",
+      "name": "Rue de la Sibérie 2",
+      "lat": 46.2105352,
+      "lon": 6.1396381
+    },
+    {
+      "station_id": "bs_21997",
+      "type": "bs",
+      "name": "Rue du Jura",
+      "lat": 46.2102359,
+      "lon": 6.1352973
+    },
+    {
+      "station_id": "bs_22363",
+      "type": "bs",
+      "name": "La Turbine",
+      "lat": 46.2039152,
+      "lon": 6.1369485
+    },
+    {
+      "station_id": "bs_27876",
+      "type": "bs",
+      "name": "Rue du Prieuré 32",
+      "lat": 46.2147902,
+      "lon": 6.145709
+    },
+    {
+      "station_id": "bs_21994",
+      "type": "bs",
+      "name": "Rue Necker",
+      "lat": 46.2076433,
+      "lon": 6.1409662
+    },
+    {
+      "station_id": "bs_22361",
+      "type": "bs",
+      "name": "Quai des Forces-Motrices",
+      "lat": 46.2041899,
+      "lon": 6.139265
+    },
+    {
+      "station_id": "bs_22369",
+      "type": "bs",
+      "name": "Rue Fendt",
+      "lat": 46.2111408,
+      "lon": 6.1409182
+    },
+    {
+      "station_id": "bs_22237",
+      "type": "bs",
+      "name": "Rue de Lausanne 17",
+      "lat": 46.2113707,
+      "lon": 6.1442478
+    },
+    {
+      "station_id": "bs_22023",
+      "type": "bs",
+      "name": "Rue des Savoises 3",
+      "lat": 46.2007559,
+      "lon": 6.1396609
+    },
+    {
+      "station_id": "bs_18496",
+      "type": "bs",
+      "name": "Gare Cornavin Montbrillant",
+      "lat": 46.2099986,
+      "lon": 6.1406665
+    },
+    {
+      "station_id": "bs_18520",
+      "type": "bs",
+      "name": "Tronchin",
+      "lat": 46.2096986,
+      "lon": 6.1337542
+    },
+    {
+      "station_id": "bs_18551",
+      "type": "bs",
+      "name": "Pont de la Machine",
+      "lat": 46.2064075,
+      "lon": 6.1447417
+    },
+    {
+      "station_id": "bs_18589",
+      "type": "bs",
+      "name": "Sablons",
+      "lat": 46.2008162,
+      "lon": 6.1376221
+    },
+    {
+      "station_id": "bs_20624",
+      "type": "bs",
+      "name": "Dufour 14",
+      "lat": 46.201206,
+      "lon": 6.1417383
+    },
+    {
+      "station_id": "bs_22185",
+      "type": "bs",
+      "name": "Rue des Buis 2",
+      "lat": 46.2134901,
+      "lon": 6.1488294
+    },
+    {
+      "station_id": "bs_20628",
+      "type": "bs",
+      "name": "Rue des Bains 31",
+      "lat": 46.198606,
+      "lon": 6.1371926
+    },
+    {
+      "station_id": "bs_18841",
+      "type": "bs",
+      "name": "Délices 2",
+      "lat": 46.2061679,
+      "lon": 6.1328757
+    },
+    {
+      "station_id": "bs_18540",
+      "type": "bs",
+      "name": "Place de la Fusterie",
+      "lat": 46.2041587,
+      "lon": 6.1460944
+    },
+    {
+      "station_id": "bs_18838",
+      "type": "bs",
+      "name": "Rousseau 5",
+      "lat": 46.2068767,
+      "lon": 6.1441195
+    },
+    {
+      "station_id": "bs_22236",
+      "type": "bs",
+      "name": "Rue du Môle 1",
+      "lat": 46.2121962,
+      "lon": 6.1496226
+    },
+    {
+      "station_id": "bs_22188",
+      "type": "bs",
+      "name": "Rue de Berne 36",
+      "lat": 46.2111603,
+      "lon": 6.1466122
+    },
+    {
+      "station_id": "bs_18833",
+      "type": "bs",
+      "name": "Rue du Prince",
+      "lat": 46.2031806,
+      "lon": 6.1514251
+    },
+    {
+      "station_id": "bs_18583",
+      "type": "bs",
+      "name": "Rue Gourgas",
+      "lat": 46.1996679,
+      "lon": 6.1370686
+    },
+    {
+      "station_id": "bs_20627",
+      "type": "bs",
+      "name": "Rue Gourgas 5",
+      "lat": 46.1994505,
+      "lon": 6.1380161
+    },
+    {
+      "station_id": "bs_21996",
+      "type": "bs",
+      "name": "Jean-Dassier",
+      "lat": 46.2084192,
+      "lon": 6.138704
+    },
+    {
+      "station_id": "bs_22017",
+      "type": "bs",
+      "name": "Verdaine 6",
+      "lat": 46.2016987,
+      "lon": 6.1506667
+    },
+    {
+      "station_id": "bs_18473",
+      "type": "bs",
+      "name": "Beth-Yaacov",
+      "lat": 46.2028401,
+      "lon": 6.1414002
+    },
+    {
+      "station_id": "bs_21867",
+      "type": "bs",
+      "name": "Seujet",
+      "lat": 46.2041192,
+      "lon": 6.1338794
+    },
+    {
+      "station_id": "bs_21477",
+      "type": "bs",
+      "name": "Place de Neuve",
+      "lat": 46.2017625,
+      "lon": 6.1438301
+    },
+    {
+      "station_id": "bs_21967",
+      "type": "bs",
+      "name": "Place des Alpes",
+      "lat": 46.208764,
+      "lon": 6.1481129
+    },
+    {
+      "station_id": "bs_22189",
+      "type": "bs",
+      "name": "L'Aigle Noir",
+      "lat": 46.210525,
+      "lon": 6.1470947
+    },
+    {
+      "station_id": "bs_18570",
+      "type": "bs",
+      "name": "Place de la Navigation",
+      "lat": 46.2115266,
+      "lon": 6.1495787
+    },
+    {
+      "station_id": "bs_21479",
+      "type": "bs",
+      "name": "Bourg de Four",
+      "lat": 46.2000917,
+      "lon": 6.1484456
+    },
+    {
+      "station_id": "bs_21949",
+      "type": "bs",
+      "name": "François-Bartholoni",
+      "lat": 46.200731,
+      "lon": 6.1429667
+    },
+    {
+      "station_id": "bs_21476",
+      "type": "bs",
+      "name": "Uni Dufour",
+      "lat": 46.1996601,
+      "lon": 6.1429661
+    },
+    {
+      "station_id": "bs_22213",
+      "type": "bs",
+      "name": "Muzy 7",
+      "lat": 46.2039075,
+      "lon": 6.15607
+    },
+    {
+      "station_id": "bs_18574",
+      "type": "bs",
+      "name": "Rue des Rois",
+      "lat": 46.2031888,
+      "lon": 6.1377357
+    },
+    {
+      "station_id": "bs_20714",
+      "type": "bs",
+      "name": "Robert-Céard 10",
+      "lat": 46.2032448,
+      "lon": 6.1488988
+    },
+    {
+      "station_id": "bs_21485",
+      "type": "bs",
+      "name": "Rond-Point de Rive",
+      "lat": 46.2017247,
+      "lon": 6.1539138
+    },
+    {
+      "station_id": "bs_18613",
+      "type": "bs",
+      "name": "Pont des Bergues",
+      "lat": 46.2067751,
+      "lon": 6.1464734
+    },
+    {
+      "station_id": "bs_18406",
+      "type": "bs",
+      "name": "Rive",
+      "lat": 46.2014375,
+      "lon": 6.1530625
+    },
+    {
+      "station_id": "bs_22234",
+      "type": "bs",
+      "name": "Place du Cirque",
+      "lat": 46.2011859,
+      "lon": 6.1398463
+    },
+    {
+      "station_id": "bs_21938",
+      "type": "bs",
+      "name": "Rue de Berne 65",
+      "lat": 46.2135399,
+      "lon": 6.1483013
+    },
+    {
+      "station_id": "bs_18500",
+      "type": "bs",
+      "name": "Genève Cornavin",
+      "lat": 46.2093526,
+      "lon": 6.1425051
+    },
+    {
+      "station_id": "bs_18422",
+      "type": "bs",
+      "name": "Place St-Gervais",
+      "lat": 46.2057147,
+      "lon": 6.1427931
+    },
+    {
+      "station_id": "bs_18413",
+      "type": "bs",
+      "name": "Palladium",
+      "lat": 46.2030625,
+      "lon": 6.1340625
+    },
+    {
+      "station_id": "bs_18475",
+      "type": "bs",
+      "name": "Boulevard Saint Georges",
+      "lat": 46.2013743,
+      "lon": 6.1344404
+    },
+    {
+      "station_id": "bs_18394",
+      "type": "bs",
+      "name": "Bains des Pâquis",
+      "lat": 46.2112069,
+      "lon": 6.1526709
+    },
+    {
+      "station_id": "bs_18567",
+      "type": "bs",
+      "name": "Rue de la Confédération 2",
+      "lat": 46.2038067,
+      "lon": 6.1433116
+    },
+    {
+      "station_id": "bs_21909",
+      "type": "bs",
+      "name": "Cours des Bastions 10",
+      "lat": 46.1977578,
+      "lon": 6.1482805
+    },
+    {
+      "station_id": "bs_18559",
+      "type": "bs",
+      "name": "Rhône Quai général Guisan",
+      "lat": 46.2046392,
+      "lon": 6.1473441
+    },
+    {
+      "station_id": "bs_22024",
+      "type": "bs",
+      "name": "Sainte-Clotilde",
+      "lat": 46.2012334,
+      "lon": 6.1352668
+    },
+    {
+      "station_id": "bs_18565",
+      "type": "bs",
+      "name": "Rue Marguerite-Dellenbach",
+      "lat": 46.1978853,
+      "lon": 6.1380616
+    },
+    {
+      "station_id": "bs_22102",
+      "type": "bs",
+      "name": "Ecole des Cropettes",
+      "lat": 46.2131908,
+      "lon": 6.1391882
+    },
+    {
+      "station_id": "bs_21934",
+      "type": "bs",
+      "name": "Chaponnière 16",
+      "lat": 46.209787,
+      "lon": 6.1451953
+    },
+    {
+      "station_id": "bs_21910",
+      "type": "bs",
+      "name": "Franz-Liszt",
+      "lat": 46.1988497,
+      "lon": 6.1494832
+    },
+    {
+      "station_id": "bs_18844",
+      "type": "bs",
+      "name": "Tronchin 2",
+      "lat": 46.2088562,
+      "lon": 6.1331161
+    },
+    {
+      "station_id": "bs_21965",
+      "type": "bs",
+      "name": "Rue Léon-Nicole",
+      "lat": 46.2117783,
+      "lon": 6.1483385
+    },
+    {
+      "station_id": "bs_21993",
+      "type": "bs",
+      "name": "Terreaux-du-Temple",
+      "lat": 46.2072477,
+      "lon": 6.1412344
+    },
+    {
+      "station_id": "bs_18593",
+      "type": "bs",
+      "name": "Temple des Pâquis",
+      "lat": 46.2116452,
+      "lon": 6.1472369
+    },
+    {
+      "station_id": "bs_22360",
+      "type": "bs",
+      "name": "Le Lyrique",
+      "lat": 46.201362,
+      "lon": 6.1424538
+    },
+    {
+      "station_id": "bs_21940",
+      "type": "bs",
+      "name": "Rue de Bâle 26",
+      "lat": 46.2131834,
+      "lon": 6.1491878
+    },
+    {
+      "station_id": "bs_21906",
+      "type": "bs",
+      "name": "Jean-Sénebier",
+      "lat": 46.1979739,
+      "lon": 6.1471238
+    },
+    {
+      "station_id": "bs_32255",
+      "type": "bs",
+      "name": "Av. des Tilleuls",
+      "lat": 46.205669,
+      "lon": 6.1309256
+    },
+    {
+      "station_id": "bs_22414",
+      "type": "bs",
+      "name": "Rue des Gares 29",
+      "lat": 46.2126713,
+      "lon": 6.1418191
+    },
+    {
+      "station_id": "bs_24674",
+      "type": "bs",
+      "name": "Gavroche",
+      "lat": 46.2060901,
+      "lon": 6.1396961
+    },
+    {
+      "station_id": "bs_22022",
+      "type": "bs",
+      "name": "Carosello",
+      "lat": 46.2006217,
+      "lon": 6.141049
+    },
+    {
+      "station_id": "bs_21962",
+      "type": "bs",
+      "name": "Rue Barton",
+      "lat": 46.2107688,
+      "lon": 6.1510593
+    },
+    {
+      "station_id": "bs_21936",
+      "type": "bs",
+      "name": "Rue de Zurich 17",
+      "lat": 46.2114083,
+      "lon": 6.1477451
+    },
+    {
+      "station_id": "bs_18843",
+      "type": "bs",
+      "name": "Encyclopédie 1",
+      "lat": 46.2081224,
+      "lon": 6.1360497
+    },
+    {
+      "station_id": "bs_18603",
+      "type": "bs",
+      "name": "Pécolat 8",
+      "lat": 46.208767,
+      "lon": 6.14606
+    },
+    {
+      "station_id": "bs_20720",
+      "type": "bs",
+      "name": "Bartholoni 2",
+      "lat": 46.2002036,
+      "lon": 6.1414694
+    },
+    {
+      "station_id": "bs_22366",
+      "type": "bs",
+      "name": "Rue de la Sibérie 1",
+      "lat": 46.2108941,
+      "lon": 6.1391218
+    },
+    {
+      "station_id": "bs_21510",
+      "type": "bs",
+      "name": "Dôle",
+      "lat": 46.2073026,
+      "lon": 6.1311852
+    },
+    {
+      "station_id": "bs_21902",
+      "type": "bs",
+      "name": "Rue des Jardins",
+      "lat": 46.2014061,
+      "lon": 6.1327143
+    },
+    {
+      "station_id": "bs_21995",
+      "type": "bs",
+      "name": "Malatrex",
+      "lat": 46.2082382,
+      "lon": 6.1393971
+    },
+    {
+      "station_id": "bs_22349",
+      "type": "bs",
+      "name": "Pierre-Fatio",
+      "lat": 46.2029882,
+      "lon": 6.1541791
+    },
+    {
+      "station_id": "bs_18840",
+      "type": "bs",
+      "name": "Servette 18",
+      "lat": 46.2102756,
+      "lon": 6.1374097
+    },
+    {
+      "station_id": "bs_22368",
+      "type": "bs",
+      "name": "CBD Shop",
+      "lat": 46.2106327,
+      "lon": 6.1392143
+    },
+    {
+      "station_id": "bs_18807",
+      "type": "bs",
+      "name": "Louis-Favre 19",
+      "lat": 46.2113011,
+      "lon": 6.1374893
+    },
+    {
+      "station_id": "bs_21480",
+      "type": "bs",
+      "name": "Chaudronniers",
+      "lat": 46.200212,
+      "lon": 6.1501578
+    },
+    {
+      "station_id": "bs_22365",
+      "type": "bs",
+      "name": "Rue des Grottes 17",
+      "lat": 46.2112438,
+      "lon": 6.1385629
+    },
+    {
+      "station_id": "bs_18579",
+      "type": "bs",
+      "name": "Rue du Temple",
+      "lat": 46.2061256,
+      "lon": 6.1411253
+    },
+    {
+      "station_id": "bs_18503",
+      "type": "bs",
+      "name": "Gare Routière",
+      "lat": 46.2084035,
+      "lon": 6.1463984
+    },
+    {
+      "station_id": "bs_18569",
+      "type": "bs",
+      "name": "Rue de la Madeleine",
+      "lat": 46.2023685,
+      "lon": 6.1473478
+    },
+    {
+      "station_id": "bs_18842",
+      "type": "bs",
+      "name": "Voltaire 20",
+      "lat": 46.2080365,
+      "lon": 6.1368786
+    },
+    {
+      "station_id": "bs_21964",
+      "type": "bs",
+      "name": "Rue de Zurich 5",
+      "lat": 46.2112231,
+      "lon": 6.148367
+    },
+    {
+      "station_id": "bs_18571",
+      "type": "bs",
+      "name": "Rue de la Poterie 35",
+      "lat": 46.2109921,
+      "lon": 6.1345433
+    },
+    {
+      "station_id": "bs_22364",
+      "type": "bs",
+      "name": "Rue du Midi",
+      "lat": 46.2109299,
+      "lon": 6.1375131
+    },
+    {
+      "station_id": "bs_21968",
+      "type": "bs",
+      "name": "Bonivard",
+      "lat": 46.2077679,
+      "lon": 6.1465002
+    },
+    {
+      "station_id": "bs_18598",
+      "type": "bs",
+      "name": "Rue Necker 1",
+      "lat": 46.2068494,
+      "lon": 6.1401026
+    },
+    {
+      "station_id": "bs_20636",
+      "type": "bs",
+      "name": "Saint-Léger 14",
+      "lat": 46.1986323,
+      "lon": 6.147423
+    },
+    {
+      "station_id": "bs_22362",
+      "type": "bs",
+      "name": "Rue de l'Arquebuse",
+      "lat": 46.2016516,
+      "lon": 6.139445
+    },
+    {
+      "station_id": "bs_18839",
+      "type": "bs",
+      "name": "Berne 2",
+      "lat": 46.2087736,
+      "lon": 6.1447897
+    },
+    {
+      "station_id": "bs_18555",
+      "type": "bs",
+      "name": "Promenade du Pin",
+      "lat": 46.198398,
+      "lon": 6.1502622
+    },
+    {
+      "station_id": "bs_21905",
+      "type": "bs",
+      "name": "Rue Galloix",
+      "lat": 46.1974452,
+      "lon": 6.1462508
+    },
+    {
+      "station_id": "bs_22187",
+      "type": "bs",
+      "name": "L'Ancien-Port",
+      "lat": 46.2123003,
+      "lon": 6.15037
+    },
+    {
+      "station_id": "bs_30704",
+      "type": "bs",
+      "name": "Place des Trois-Perdrix",
+      "lat": 46.2030061,
+      "lon": 6.1453593
+    },
+    {
+      "station_id": "bs_18509",
+      "type": "bs",
+      "name": "Grand théâtre",
+      "lat": 46.2016606,
+      "lon": 6.1433392
+    },
+    {
+      "station_id": "bs_18538",
+      "type": "bs",
+      "name": "Place de Grenus",
+      "lat": 46.2069752,
+      "lon": 6.1428894
+    },
+    {
+      "station_id": "bs_22508",
+      "type": "bs",
+      "name": "Délices-Voltaire",
+      "lat": 46.2082396,
+      "lon": 6.1351156
+    },
+    {
+      "station_id": "bs_27875",
+      "type": "bs",
+      "name": "Rue du Môle 31",
+      "lat": 46.2134789,
+      "lon": 6.1458686
+    },
+    {
+      "station_id": "bs_21960",
+      "type": "bs",
+      "name": "Jean-Jaquet 8",
+      "lat": 46.2126718,
+      "lon": 6.150956
+    }
+  ]
+}
