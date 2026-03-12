@@ -1,4 +1,4 @@
-from .config import InstanceParams, PipelineConfig
+from .config import InstanceParams, OptimizerParams, PipelineConfig
 from .pipeline import InstancePipeline
 from .routing.otp_client import OTPUnavailableError
 from .stations.providers import DonkeyRepublicProvider, GBFSProvider
@@ -11,6 +11,7 @@ def run_pipeline(config: PipelineConfig, params: InstanceParams, gbfs_provider: 
 __all__ = [
 	"PipelineConfig",
 	"InstanceParams",
+	"OptimizerParams",
 	"InstancePipeline",
 	"GBFSProvider",
 	"DonkeyRepublicProvider",

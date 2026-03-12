@@ -105,7 +105,7 @@ def _extract_car_arcs(patterns: list[dict], arc_counter) -> list[dict]:
         modes = {leg.get("mode", "").upper() for leg in legs}
         if "CAR" in modes:
             arc_id = str(next(arc_counter))
-            car_arcs.append(_build_arc_entry(arc_id, legs, include_bike_flags=False))
+            car_arcs.append(_build_arc_entry(f"car_{arc_id}", legs, include_bike_flags=False))
     return car_arcs
 
 

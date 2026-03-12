@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "INRIA INOCS Team - SUM project" }]
 dependencies = [
+  "gurobipy",
   "pandas",
   "numpy",
   "geopandas",
@@ -20,7 +21,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-optimizer = ["gurobipy"]
 dev = ["pytest", "build", "ipykernel"]
 
 [tool.setuptools]

@@ -1,7 +1,12 @@
 from pathlib import Path
 
-from sum_nsm_dynamic_pricing import InstancePipeline, InstanceParams, PipelineConfig
-from sum_nsm_dynamic_pricing.stations.providers import DonkeyRepublicProvider
+from sum_nsm_dynamic_pricing import (
+    DonkeyRepublicProvider,
+    InstanceParams,
+    InstancePipeline,
+    OptimizerParams,
+    PipelineConfig,
+)
 
 
 def main() -> None:
@@ -16,8 +21,15 @@ def main() -> None:
     )
 
     pipeline = InstancePipeline(config=config, gbfs_provider=DonkeyRepublicProvider())
-    instance_path = pipeline.run_all(InstanceParams())
+    params = InstanceParams()
+    instance_path = pipeline.run_all(params)
     print(f"Instance generated at: {instance_path}")
+
+    solution_path = pipeline.optimize(OptimizerParams(), instance_path=instance_path)
+    print(f"Optimization results saved at: {solution_path}")
+
+    metrics_path = pipeline.summarize_optimization(solution_path, params)
+    print(f"Optimization metrics saved at: {metrics_path}")
 
 
 if __name__ == "__main__":
