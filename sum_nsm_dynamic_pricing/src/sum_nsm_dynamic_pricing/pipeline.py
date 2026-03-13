@@ -105,7 +105,14 @@ class InstancePipeline:
         records = summary_df.to_dict(orient="records")
         optimization_metrics = records[0] if len(records) == 1 else {"records": records}
         optimization_parameters = asdict(params or OptimizerParams())
+        instance_config = asdict(self.config)
+        # Paths are not JSON-serialisable; convert to strings.
+        instance_config = {
+            k: str(v) if isinstance(v, Path) else v
+            for k, v in instance_config.items()
+        }
         payload = {
+            "instance_config": instance_config,
             "optimization_parameters": optimization_parameters,
             "optimization_metrics": optimization_metrics,
         }

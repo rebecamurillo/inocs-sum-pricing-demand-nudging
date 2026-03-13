@@ -16,6 +16,13 @@ class PipelineConfig:
     clustering_buffer_m: float = 100.0
     min_od_distance_m: float = 500.0
     seed: Optional[int] = None
+    # OTP query tuning: lower workers and a small inter-request delay protect
+    # a locally-running OTP instance from being overwhelmed at high pair counts.
+    otp_workers: int = 4
+    otp_request_delay_s: float = 0.05
+    # Fixed timestamp used for all OTP route queries (ISO-8601 UTC).
+    # Keeping this constant across runs ensures reproducible route results.
+    otp_timestamp: str = "2026-03-08T08:30:00.000000Z"
 
 
 @dataclass
