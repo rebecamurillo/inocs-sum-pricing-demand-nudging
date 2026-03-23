@@ -5,10 +5,11 @@ from dataclasses import asdict
 
 from .clustering.hub_builder import build_hubs
 from .config import InstanceParams, OptimizerParams, PipelineConfig
+from .export.web_demo import export_web_demo
 from .instance.generator import generate_instance
 from .optimizer import solve as solve_optimization
 from .optimizer import summarize as summarize_optimization
-from .quality import validate_instance, validate_od_routes, clean_incomplete_od_pairs
+from .quality import validate_instance, validate_od_routes, clean_incomplete_od_pairs, fix_unbalanced_arcs
 from .routing.route_builder import build_od_routes
 from .stations.builder import build_stations
 from .stations.providers.base import GBFSProvider
@@ -57,8 +58,12 @@ class InstancePipeline:
             seed=self.config.seed,
         )
         if not validate_instance(instance_path):
-            logger.warning(
-                "Instance quality validation reported issues. See error logs for details.")
+            logger.warning("Instance has unbalanced arcs. Attempting fix...")
+            fix_unbalanced_arcs(instance_path)
+            if not validate_instance(instance_path):
+                raise ValueError(
+                    "Second instance validation failed, there are still unbalanced arcs despite previous fix"
+                )
         return instance_path
 
     def run_all(self, params: InstanceParams) -> Path:
@@ -119,3 +124,7 @@ class InstancePipeline:
         with metrics_path.open("w", encoding="utf-8") as file_obj:
             json.dump(payload, file_obj, ensure_ascii=False, indent=2)
         return metrics_path
+
+    def export_web_demo(self) -> Path:
+        output_dir = Path(self.config.output_dir)
+        return export_web_demo(output_dir)

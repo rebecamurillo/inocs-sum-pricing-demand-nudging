@@ -143,3 +143,51 @@ def validate_instance(instance_path: Path) -> bool:
     else:
         logger.info("Instance quality validation passed for %s", instance_path)
     return not has_errors
+
+
+def fix_unbalanced_arcs(instance_path: Path) -> int:
+    payload = read_json(Path(instance_path))
+    arcs_pt_bike = payload.get("arcs_pt_bike", {})
+    delta_ia = payload.get("delta_ia", {})
+
+    unbalanced_ids: set[str] = set()
+    for arc_id, station_deltas in delta_ia.items():
+        total = sum(v for v in station_deltas.values() if isinstance(v, (int, float)))
+        if abs(total) > 1e-9:
+            unbalanced_ids.add(arc_id)
+
+    if not unbalanced_ids:
+        logger.info("fix_unbalanced_arcs: no unbalanced arcs found in %s", instance_path)
+        return 0
+
+    # Log table header
+    logger.info("Removing unbalanced PT+Bike arcs:")
+    logger.info("  %-30s  %-10s  %s", "arc_id", "arc_type", "delta_ia")
+    for arc_id in sorted(unbalanced_ids):
+        logger.info("  %-30s  %-10s  %s", arc_id, "pt_bike", delta_ia[arc_id])
+
+    # Remove unbalanced arcs from arcs_pt_bike
+    removed_pt_bike = 0
+    for od_key in arcs_pt_bike:
+        before = len(arcs_pt_bike[od_key])
+        arcs_pt_bike[od_key] = [
+            arc for arc in arcs_pt_bike[od_key]
+            if arc.get("arc_id") not in unbalanced_ids
+        ]
+        removed_pt_bike += before - len(arcs_pt_bike[od_key])
+
+    # Remove unbalanced entries from delta_ia
+    for arc_id in unbalanced_ids:
+        delta_ia.pop(arc_id, None)
+
+    payload["arcs_pt_bike"] = arcs_pt_bike
+    payload["delta_ia"] = delta_ia
+    write_json(Path(instance_path), payload)
+
+    logger.info(
+        "fix_unbalanced_arcs: removed %d arc(s) [pt_bike: %d] from %s",
+        removed_pt_bike,
+        removed_pt_bike,
+        instance_path,
+    )
+    return removed_pt_bike
