@@ -45,6 +45,7 @@ GRAPHQL_QUERY = """query trip(
                 from { name lat lon }
                 to { name lat lon }
                 rentedBike
+                legGeometry { points }
             }
         }
   }
@@ -133,6 +134,7 @@ class OTPClient:
                             "lon": to_place.get("lon"),
                         },
                         "rentedBike": leg.get("rentedBike", False),
+                        "legGeometry": (leg.get("legGeometry") or {}).get("points"),
                     }
                 )
             patterns.append({"legs": mapped_legs})
