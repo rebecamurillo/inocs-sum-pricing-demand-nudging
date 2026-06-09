@@ -1,18 +1,10 @@
 # sum_nsm_dynamic_pricing
 
-A Python library to generate optimization-ready mobility instances from GTFS and GBFS data, run OTP-based routing, solve the dynamic pricing optimization model, and export summary metrics.
+A Python library to generate optimization-ready mobility instances from GTFS and GBFS data, run
+OTP-based routing, solve the bilevel dynamic-pricing optimization model, and export summary metrics.
 
-## What the library does
-
-Main process:
-1. Build station inputs from GTFS and GBFS (`stations.json`).
-2. Build multimodal hubs with clustering (`hubs.geojson`).
-3. Query OpenTripPlanner (OTP) for OD routes (`od_routes.json`).
-4. Build optimization instance file (`Instance_*.json`).
-5. Run bilevel optimization (`optimization_instance_results.json`).
-6. Compute summary metrics (`optimization_metrics.json`).
-
-If OTP is unavailable, route generation and downstream steps are blocked.
+> For the full demo — sample data, the demo notebook, and the model document — see the
+> [repository root README](../README.md).
 
 ## Requirements
 
@@ -20,54 +12,56 @@ If OTP is unavailable, route generation and downstream steps are blocked.
 - Gurobi with an active license (`gurobipy` is a required dependency)
 - OpenTripPlanner running and reachable from your machine
 
-## Install locally
-
-From repository root:
+## Install
 
 ```bash
-cd sum_nsm_dynamic_pricing
-python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
 This installs the package in editable mode for local development.
 
-## Quick local run
+## Usage
 
-Use the example script in [sum_nsm_dynamic_pricing/examples/geneva_pipeline.py](sum_nsm_dynamic_pricing/examples/geneva_pipeline.py):
+```python
+from pathlib import Path
 
-```bash
-python sum_nsm_dynamic_pricing/examples/geneva_pipeline.py
+from sum_nsm_dynamic_pricing import (
+    DonkeyRepublicProvider,
+    InstanceParams,
+    InstancePipeline,
+    OptimizerParams,
+    PipelineConfig,
+)
+
+config = PipelineConfig(
+    center_lat=46.2044,
+    center_lon=6.1432,
+    radius_m=2000,
+    output_dir=Path("./output_geneva"),
+    gtfs_path=Path("./tpg_gtfs.zip"),
+    gbfs_path=None,
+    seed=42,
+)
+
+pipeline = InstancePipeline(config=config, gbfs_provider=DonkeyRepublicProvider())
+params = InstanceParams()
+
+instance_path = pipeline.run_all(params)
+solution_path = pipeline.optimize(OptimizerParams(), instance_path=instance_path)
+metrics_path = pipeline.summarize_optimization(solution_path, params)
 ```
 
-The script runs instance generation, optimization, and metrics export.
-
-## Build the package
-
-From repository root:
+A runnable version of this is in [examples/geneva_pipeline.py](examples/geneva_pipeline.py):
 
 ```bash
-cd sum_nsm_dynamic_pricing
+python examples/geneva_pipeline.py
+```
+
+## Build
+
+```bash
 python -m pip install --upgrade build
 python -m build
 ```
 
-Build artifacts are generated in:
-- `sum_nsm_dynamic_pricing/dist/`
-
-Install the wheel locally:
-
-```bash
-python -m pip install dist/*.whl
-```
-
-## Core outputs
-
-By default, outputs are written to the configured `output_dir`:
-- `stations.json`
-- `hubs.geojson`
-- `od_routes.json`
-- `Instance_*.json`
-- `optimization_instance_results.json`
-- `optimization_metrics.json`
-- `gurobi/` (solver logs and model artifacts)
+Artifacts are written to `dist/`. Install the wheel with `python -m pip install dist/*.whl`.

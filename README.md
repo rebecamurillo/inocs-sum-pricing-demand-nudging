@@ -1,13 +1,125 @@
-This repository includes codes created for different experiments for the model presented in the research document .pdf file. The CPPMTO model presented in the document is mainly used to solve the randomly generated instances.
-To recreate the instance generation procedure, random seed 42 can be used. Due to size, the created instances cannot be shared here. Use Instance_generator_v2.py to create the instances. In the notebook CPPMTO_Experiments, first cell after imports calls the instance generator.
-Instance generator creates two folders in the path for .json and .txt files. .txt files can be used to better understand the created instances as it is verbal, for optimization, .json files are used.
-CPPMTO_instance_parser_2.py is necessary for running optimizer codes as it parses the data in the .json files created by Instance_generator_v2.py within the optimizer code.
-CPPMTO_optimizer1.py is the code faithful to the model in the document. All other optimizer codes are a variation of this code. For optimization, GUROBI is utilized as a solver.
-CPPMTO_optimizer1_bilinear.py trusts GUROBI to deal with the bilinear terms (p*q) in the model. The process for solving the bilinear problem is similar to CPPMTO_optimizer1.py, while it is known that GUROBI utilizes additional methods other than McCormick Envelopes.
-CPPMTO_optimizer1_price_selector.py changes the variable price. Instead it utilizes discrete price levels determined apriori and employs a binary variable to select a price level, therefore making the output of McCormick Envelopes equal to the bilinear term. This problem is a Mixed Integer Linear Program, therefore GUROBI is not enough to solve the problem (See gap % and solution time in the output dataframe).
-CPPMTO_Experiments_tighter_flow_bound_iter_OD.ipynb is the latest experiment run as of now. A new bound on the traveler flows have been proposed (undocumented) and it is combined with iteratively tightening price bounds. This approach is taken to reduce the relaxation gap occuring from the auxiliary variable z and binary term p * q. The validity have not been carried out yet.
-CPPMTO_optimizer1_tighter_flow_bound_iter_OD.py is used in CPPMTO_Experiments_tighter_flow_bound_iter_OD.ipynb and it is the revised version of CPPMTO_optimizer1.py in order to accept arguments given by iterative function.
-All optimizer codes return three outputs. Note that 'solution' is unused now. The dictionary 'solution_dict' returns a dictionary comprise of solution values and 'solution_path' returns the path of the solution .json file. 
-To print the detailed outputs for each O-D pair, set verbose=True.
-All optimizers requires a data file path, a save location and parameter values. If save location does not exist, the code creates it.
-For iterative codes, the solution paths printed are the best solutions received from the iterations. These are determined by minimum relaxation gap, and best objective value to break ties.
+# SUM NSM Dynamic Pricing for Demand Nudging — Demo
+
+A demo of the dynamic-pricing model developed for the SUM project. The model and methodology are
+described in [CSI_Report_D1_Mesut_Can_Koseoglu.pdf](CSI_Report_D1_Mesut_Can_Koseoglu.pdf).
+
+The core deliverable is the [`sum_nsm_dynamic_pricing`](sum_nsm_dynamic_pricing) Python package: it
+generates optimization-ready mobility instances from GTFS and GBFS data, runs OpenTripPlanner-based
+routing, solves the bilevel dynamic-pricing optimization model, and exports summary metrics.
+
+## What it does
+
+1. Build station inputs from GTFS and GBFS (`stations.json`).
+2. Build multimodal hubs with clustering (`hubs.geojson`).
+3. Query OpenTripPlanner (OTP) for OD routes (`od_routes.json`).
+4. Build the optimization instance file (`Instance_*.json`).
+5. Run the bilevel optimization (`optimization_instance_results.json`).
+6. Compute summary metrics (`optimization_metrics.json`).
+
+If OTP is unavailable, route generation and the downstream steps are blocked.
+
+## Repository layout
+
+| Path | Description |
+| --- | --- |
+| [`sum_nsm_dynamic_pricing/`](sum_nsm_dynamic_pricing) | The Python package — the core deliverable. |
+| [`demo_sum_nsm_dynamic_pricing.ipynb`](demo_sum_nsm_dynamic_pricing.ipynb) | Demo notebook: optimization and metrics on a generated instance. |
+| [`data/sum_nsm_dynamic_pricing/geneva_1km_mon08h/`](data/sum_nsm_dynamic_pricing/geneva_1km_mon08h) | Sample Geneva inputs and outputs (stations, hubs, instance, results, metrics, `web_demo/`). |
+| [`CSI_Report_D1_Mesut_Can_Koseoglu.pdf`](CSI_Report_D1_Mesut_Can_Koseoglu.pdf) | Model document. |
+
+## Requirements
+
+- Python 3.10+
+- Gurobi with an active license (`gurobipy` is a required dependency)
+- OpenTripPlanner running and reachable from your machine
+
+## Install
+
+From the repository root:
+
+```bash
+cd sum_nsm_dynamic_pricing
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+This installs the package in editable mode for local development.
+
+## Quick run
+
+Run the example pipeline script
+([sum_nsm_dynamic_pricing/examples/geneva_pipeline.py](sum_nsm_dynamic_pricing/examples/geneva_pipeline.py)):
+
+```bash
+python sum_nsm_dynamic_pricing/examples/geneva_pipeline.py
+```
+
+The script runs instance generation, optimization, and metrics export. It expects a GTFS zip at
+`./tpg_gtfs.zip` and writes outputs to `./output_geneva`.
+
+For an interactive walkthrough of the optimization and metrics step, open
+[demo_sum_nsm_dynamic_pricing.ipynb](demo_sum_nsm_dynamic_pricing.ipynb).
+
+## Minimal API example
+
+```python
+from pathlib import Path
+
+from sum_nsm_dynamic_pricing import (
+    DonkeyRepublicProvider,
+    InstanceParams,
+    InstancePipeline,
+    OptimizerParams,
+    PipelineConfig,
+)
+
+config = PipelineConfig(
+    center_lat=46.2044,
+    center_lon=6.1432,
+    radius_m=2000,
+    output_dir=Path("./output_geneva"),
+    gtfs_path=Path("./tpg_gtfs.zip"),
+    gbfs_path=None,
+    seed=42,
+)
+
+pipeline = InstancePipeline(config=config, gbfs_provider=DonkeyRepublicProvider())
+params = InstanceParams()
+
+instance_path = pipeline.run_all(params)
+solution_path = pipeline.optimize(OptimizerParams(), instance_path=instance_path)
+metrics_path = pipeline.summarize_optimization(solution_path, params)
+```
+
+A one-call `run_pipeline(config, params)` helper is also exported for the instance-generation step.
+
+## Core outputs
+
+By default, outputs are written to the configured `output_dir`:
+
+- `stations.json`
+- `hubs.geojson`
+- `od_routes.json`
+- `Instance_*.json`
+- `optimization_instance_results.json`
+- `optimization_metrics.json`
+- `gurobi/` (solver logs and model artifacts)
+
+A complete example output set is included under
+[data/sum_nsm_dynamic_pricing/geneva_1km_mon08h/](data/sum_nsm_dynamic_pricing/geneva_1km_mon08h).
+
+## Build the package
+
+From the repository root:
+
+```bash
+cd sum_nsm_dynamic_pricing
+python -m pip install --upgrade build
+python -m build
+```
+
+Build artifacts are generated in `sum_nsm_dynamic_pricing/dist/`. Install the wheel locally with:
+
+```bash
+python -m pip install dist/*.whl
+```
