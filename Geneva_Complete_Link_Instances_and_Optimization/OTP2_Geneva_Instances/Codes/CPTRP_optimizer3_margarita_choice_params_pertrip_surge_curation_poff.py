@@ -249,7 +249,7 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
         for arc in A1_arcs:
             arc_id = arc["arc_id"]
             p[(o,d,arc_id)]  = model.addVar(lb=0, vtype=GRB.CONTINUOUS, name=f"p_{o}_{d}_{arc_id}")
-            z_[(o,d,arc_id)] = model.addVar(lb=-GRB.INFINITY, ub=GRB.INFINITY, vtype=GRB.CONTINUOUS, name=f"z_{o}_{d}_{arc_id}")
+            z_[(o,d,arc_id)] = model.addVar(lb=0, ub=GRB.INFINITY, vtype=GRB.CONTINUOUS, name=f"z_{o}_{d}_{arc_id}")
             bike_cost[(o,d,arc_id)] = cost_bike
             Pbar[(o,d,arc_id)] = P_bar
             if p_off_map and (o,d,arc_id) in p_off_map:
@@ -610,11 +610,14 @@ def solve_bilevel_model__margarita_choice_params_pertrip_surge_curation_poff(
 
     log_file   = os.path.join(gurobi_output_path, f"gurobi_output_{gurobi_output_name}_{P_bar}_{capacity}_{inv_tag}.txt")
     model_file = os.path.join(gurobi_output_path, f"model_{gurobi_output_name}_{P_bar}_{capacity}_{inv_tag}.lp")
-    model.Params.LogFile = log_file
-    model.write(model_file)
-    model.Params.NodefileStart= 4
+    #model.Params.LogFile = log_file
+    #model.write(model_file)
+    model.Params.NodefileStart= 2
     model.Params.NodefileDir= r"C:\b_b_gurobi"
     model.Params.Threads =4
+    #model.Params.ConcurrentMIP=1
+    #model.Params.NodeMethod=1
+    #model.Params.Crossover=0
     model.Params.Method = sol_method  # dual simplex
 
     # Optimize
