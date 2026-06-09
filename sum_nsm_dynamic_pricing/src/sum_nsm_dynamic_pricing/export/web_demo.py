@@ -147,6 +147,11 @@ def export_web_demo(output_dir: Path) -> Path:
     write_json(web_demo_dir / "stations_hub.geojson", _build_stations_hub_geojson(output_dir))
     write_json(web_demo_dir / "hubs.geojson", read_json(hubs_path))
 
+    for optional_file in ["optimization_metrics.json", "hub_polygons.geojson"]:
+        src = output_dir / optional_file
+        if src.exists():
+            write_json(web_demo_dir / optional_file, read_json(src))
+
     od_routes_payload = read_json(routes_path)
     od_results = od_routes_payload.get("od_results", [])
 
@@ -225,11 +230,11 @@ def export_web_demo(output_dir: Path) -> Path:
                 }
                 arc_detail_files.append((arc_id, detail_payload))
 
-        # Sort: routes with optimization Flow (q) > 0 first, then by total travel time ascending.
+        # Sort: total travel time highest to lowest; routes with Flow (q) > 0 always first.
         def _route_sort_key(r: dict) -> tuple[int, float]:
             opt = r.get("optimization") or {}
             has_flow = int((opt.get("Flow (q)") or 0) <= 0)
-            return (has_flow, r.get("total_travel_time_s") or 0.0)
+            return (has_flow, -(r.get("total_travel_time_s") or 0.0))
 
         routes_summary.sort(key=_route_sort_key)
 
