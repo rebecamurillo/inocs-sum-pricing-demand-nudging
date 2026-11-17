@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-5 Lab · Simulated day — dynamic pricing mockup</title>
+<style>
+/* Tokens: knowledge/visual-identity.md (XD-1), light mode only. Mode colours: UX-SPEC § Mode colours. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#dfebe5;--tint-2:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;--line-2:#e0eae3;
+  --blue:#004494;--blue-d:#00336e;--blue-tint:#e3ebf5;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;
+  --red:#ff3514;--red-ink:#be280b;--red-tint:#ffe9e4;
+  --map-ground:#e4e5e2;--map-street:#fafaf9;--map-water:#d4dbdc;--map-ref:#949c93;--map-ring:#b7bcb5;
+  --m-car:#eb6834;--m-pt:#2a78d6;--m-ptb:#1baf7a;--m-bike:#008300;--m-walk:#5a6459;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;--fs:15px;
+}
+html.proj{--fs:18px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--bg);color:var(--ink);font:400 var(--fs)/1.5 'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;grid-template-rows:56px auto 1fr auto}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;line-height:1.15;margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.hdr{background:var(--blue);color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.02em}
+.logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+.hdr h1{font-size:1.15em;font-weight:600}
+.chip{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:4px 12px;font-size:.85em;color:#fff}
+.aa{border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:2px 10px;color:#fff;font-weight:700}
+.tracker{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.steps{display:flex;flex:1;list-style:none;margin:0;padding:0;position:relative}
+.steps::before{content:"";position:absolute;left:24px;right:24px;top:15px;height:3px;background:var(--line-2)}
+.steps li{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-2)}
+.steps .no{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:2px solid var(--line);font-weight:700;z-index:1}
+.steps .done .no{background:var(--green);border-color:var(--green);color:#fff}
+.steps .current .no{background:var(--blue);border-color:var(--blue);color:#fff}
+.steps .current{color:var(--ink);font-weight:600}
+.hdr a.home{color:#fff;font-size:.85em;opacity:.9}
+.hdr h1 span{font-weight:400;opacity:.8}
+.tabs{display:flex;align-items:flex-end;gap:4px;padding:8px 20px 0;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.tabs a{padding:8px 14px;color:var(--ink-2);text-decoration:none;font-weight:600;font-size:.92em;border-bottom:3px solid transparent}
+.tabs a[aria-current=page]{color:var(--blue);border-bottom-color:var(--blue)}
+.tabs .runs{margin-left:auto;font-size:.82em;color:var(--ink-2);padding-bottom:9px}
+.cmp{border-collapse:collapse;width:100%;font-size:.85em;margin-top:12px}
+.cmp th,.cmp td{padding:6px;border-bottom:1px solid var(--line-2);text-align:right;font-variant-numeric:tabular-nums}
+.cmp th:first-child,.cmp td:first-child{text-align:left}
+.cmp th{color:var(--ink-2);font-weight:600}
+main{display:grid;grid-template-columns:clamp(380px,32vw,480px) 1fr;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--bg);padding:14px 0 14px 16px;position:relative}
+.card{flex:1;overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.brief{display:flex;flex-direction:column;gap:2px;margin:0 0 12px}
+.rhythm{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--green-ink);font-weight:700}
+.bar{display:flex;align-items:center;gap:12px;padding:12px 0 0}
+.cta{background:var(--blue);color:#fff;border-radius:10px;padding:10px 18px;font-weight:600}
+.cta2{border:1px solid var(--line);border-radius:10px;padding:9px 14px;color:var(--blue);font-weight:600}
+.note{font-size:.82em;color:var(--ink-2)}
+.mapcol{position:relative;margin:14px 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);background:var(--map-ground)}
+.mapcol svg{width:100%;height:100%;display:block}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border-radius:10px;padding:8px 12px;font-size:.78em;display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)}
+.legend span{display:flex;align-items:center;gap:6px}
+.mapcol .legend svg{width:22px;height:8px;flex:none}
+.sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;background:#fff;border-radius:8px;box-shadow:var(--shadow)}
+.zoom button{width:32px;height:32px;font-weight:700}
+.sample{position:absolute;top:10px;left:12px;font-size:.72em;border:1px dashed var(--map-ref);border-radius:6px;padding:2px 8px;background:rgba(255,255,255,.8);color:var(--ink-2)}
+.ftr{display:flex;align-items:center;gap:12px;padding:5px 20px;min-height:30px;font-size:.75em;color:var(--ink-2);background:var(--surface);border-top:1px solid var(--line-2)}
+.eu{display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--map-ref);padding:1px 6px;border-radius:4px}
+.eu b{display:inline-block;width:22px;height:15px;background:#004494;position:relative}
+.eu b::after{content:"★";color:#ffcc00;font-size:9px;position:absolute;inset:0;display:grid;place-items:center}
+.ftr .right{margin-left:auto}
+.mock{position:fixed;right:28px;top:154px;background:#fff;border:2px dashed var(--map-ref);border-radius:99px;padding:4px 6px;display:flex;gap:4px;font-size:12px;z-index:50;box-shadow:var(--shadow)}
+.mock b{padding:4px 8px;color:var(--ink-2)}
+.mock button{padding:4px 10px;border-radius:99px}
+.mock button[aria-pressed=true]{background:var(--ink);color:#fff}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px}
+.tag.model{background:var(--blue-tint);color:var(--blue)}
+.tag.sim{background:var(--tint);color:var(--ink-2)}
+.pending{background:#fff8d6;border-bottom:1px dashed #b38f00;padding:0 2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* step: simulated day */
+.f{display:grid;grid-template-columns:1fr 140px;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--line-2);align-items:center}
+.f label{font-weight:600;font-size:.88em}
+.f input,.f select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 8px;width:100%}
+.f small{grid-column:1/-1;color:var(--ink-2);font-size:.78em}
+.clock{font-size:2.6em;font-weight:600;font-variant-numeric:tabular-nums;font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif}
+.timeline{display:flex;align-items:center;gap:10px;margin:6px 0 12px}
+.timeline input{flex:1;accent-color:var(--blue)}
+.ctl{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+.ctl .play{width:40px;height:40px;border-radius:50%;background:var(--blue);color:#fff;font-size:1.1em}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:.82em}
+.seg button{padding:4px 10px}.seg button[aria-pressed=true]{background:var(--blue);color:#fff}
+.live{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.live div{background:var(--tint-2);border-radius:10px;padding:8px}
+.live b{display:block;font-size:1.4em;font-variant-numeric:tabular-nums}
+.live span{font-size:.76em;color:var(--ink-2)}
+.live .warn b{color:var(--red-ink)}
+.insight{font-size:1.35em;margin:8px 0 10px}
+.split{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;align-items:center;font-size:.82em}
+.stack{display:flex;height:26px;gap:2px}
+.stack i{display:grid;place-items:center;color:#fff;font-style:normal;font-weight:600;font-size:.85em;border-radius:3px;overflow:hidden}
+.c-car{background:var(--m-car)}.c-pt{background:var(--m-pt)}.c-ptb{background:var(--m-ptb)}.c-bike{background:var(--m-bike)}
+.keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78em;margin:8px 0}
+.keys span{display:flex;align-items:center;gap:5px}
+.why{background:var(--tint-2);border-radius:10px;padding:10px 12px;font-size:.9em;margin-top:10px}
+.big{display:flex;gap:10px;align-items:baseline;margin-top:12px}
+.big b{font-size:1.6em;color:var(--red-ink);font-variant-numeric:tabular-nums}
+.link{color:var(--blue);text-decoration:underline;font-size:.88em}
+.sheet{position:absolute;inset:14px 0 14px 16px;background:#fff;border-radius:var(--r);box-shadow:0 10px 40px rgba(0,51,110,.25);padding:18px 20px;overflow:auto;z-index:5;border-left:4px solid var(--ink-2)}
+.sheet h3{display:flex;justify-content:space-between;font-size:1.1em;margin-bottom:10px}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <span class="logo"><i></i>SUM</span>
+  <h1>Dynamic pricing <span>· Lab</span></h1>
+  <a class="home" href="S-1-home.html">← Home</a>
+  <button class="chip">Set-up: Geneva · 3 km · default ▾</button>
+  <button class="aa" aria-label="Larger text for a projector" onclick="document.documentElement.classList.toggle('proj')">Aa</button>
+</header>
+
+<nav class="tabs" aria-label="Lab">
+  <a href="S-2-lab-setup.html">Set-up</a>
+  <a href="S-3-lab-versions.html">Versions</a>
+  <a href="S-4-lab-compare.html">Compare</a>
+  <a href="S-5-lab-day.html" aria-current="page">Simulated day</a>
+  <a href="S-6-lab-trip.html">Trip pricing</a>
+  <span class="runs">No run in progress</span>
+</nav>
+
+<main>
+  <section class="col">
+    <article class="card" id="card"></article>
+    <div class="bar" id="bar"></div>
+    <aside class="sheet" id="sheet" hidden aria-label="How do travellers choose?">
+      <h3>How do travellers choose? <button aria-label="Close" onclick="closeSheet()">✕</button></h3>
+      <span class="tag sim">SIMULATION RULE</span>
+      <p><span class="pending">Rule pending validation by the model's author. [Q-6b]</span></p>
+      <p class="note">What this sheet will hold once validated: what a simulated traveller compares (price, time, transfers of the options from their station), how the choice is made from that comparison, and what happens when the start station has no bike left (the bike options are not offered).</p>
+    </aside>
+  </section>
+  <section class="mapcol" aria-label="Map of the simulated day">
+    <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Simulated travellers moving between stations"></svg>
+    <span class="sample">sample geometry and values</span>
+    <div class="legend" id="legend"></div>
+    <div class="zoom"><button aria-label="Zoom in">+</button><button aria-label="Zoom out">−</button></div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <span class="eu"><b></b>Co-funded by the European Union</span>
+  <span>Funded by the European Union under Horizon Europe, project SUM. <span class="pending">[exact statement from the team folder]</span></span>
+  <span class="right">Pricing model: {model author}, Inria INOCS. Run unmodified.</span>
+</footer>
+
+<div class="mock" role="group" aria-label="Mockup state (not part of the design)"><b>mockup state · sample data</b>
+  <button data-s="ready">ready</button><button data-s="playing">playing</button><button data-s="end">end</button><button data-s="compare">compare two days</button><button data-s="rule">how travellers choose</button>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+function rng(s){return()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,((s^s>>>7)>>>0)%10000)/10000)}
+const C={x:500,y:430,r:300};
+const R=rng(11);const HUBS=[];
+while(HUBS.length<34){const a=R()*6.283,d=Math.sqrt(R())*C.r*.93;const x=C.x+Math.cos(a)*d,y=C.y+Math.sin(a)*d;if(y<170&&x>560)continue;HUBS.push({id:'H'+(HUBS.length+1),x,y})}
+const STOPS=[],STATIONS=[];HUBS.forEach(h=>{const n=2+Math.floor(R()*4);for(let i=0;i<n;i++)STOPS.push({x:h.x+(R()-.5)*44,y:h.y+(R()-.5)*44});if(R()<.8)STATIONS.push({x:h.x+(R()-.5)*30,y:h.y+(R()-.5)*30,hub:h.id,bikes:Math.floor(R()*20)})});
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+const svg=document.getElementById('map');
+function base(){
+  svg.innerHTML='';
+  el('rect',{x:0,y:0,width:1000,height:800,fill:'var(--map-ground)'});
+  el('path',{d:'M600 0 L1000 0 L1000 230 C880 210 760 190 640 120 C610 90 600 40 600 0Z',fill:'var(--map-water)'});
+  el('path',{d:'M640 120 C560 150 520 200 470 260 C420 320 300 330 0 360',stroke:'var(--map-water)','stroke-width':22,fill:'none'});
+  const r=rng(3);for(let i=0;i<46;i++){const x=r()*1000,y=r()*800;el('path',{d:`M${x} ${y} l${(r()-.5)*420} ${(r()-.5)*420}`,stroke:'var(--map-street)','stroke-width':2+r()*5,fill:'none','stroke-linecap':'round'})}
+}
+function circle(){el('circle',{cx:C.x,cy:C.y,r:C.r,fill:'none',stroke:'var(--map-ring)','stroke-width':2.5,'stroke-dasharray':'8 6'})}
+/* stations sized by bikes left; empty ones ringed red with a label */
+function stationsByStock(emptyIdx){STATIONS.forEach((s,i)=>{const empty=emptyIdx.includes(i);
+  el('circle',{cx:s.x,cy:s.y,r:empty?8:4+s.bikes/4,fill:empty?'#fff':'var(--green)',stroke:empty?'var(--red-ink)':'var(--green-ink)','stroke-width':empty?3:1.5});
+  if(empty){const t=el('text',{x:s.x+11,y:s.y+5,'font-size':15,'font-weight':700,fill:'var(--red-ink)'});t.textContent='empty'}})}
+const MODES=[['car','Car','🚗','var(--m-car)',''],['pt','Public transport','🚋','var(--m-pt)',''],['ptb','Public transport + shared bike','🚋+🚲','var(--m-ptb)','8 4'],['bike','Shared bike','🚲','var(--m-bike)','6 3']];
+let raf=0;
+function trips(animate){const r=rng(9);const T=[];for(let i=0;i<70;i++){const a=STATIONS[Math.floor(r()*STATIONS.length)],b=STATIONS[Math.floor(r()*STATIONS.length)];const m=MODES[[0,0,0,1,1,1,1,2,2,3][Math.floor(r()*10)]];T.push({a,b,m,p:r()})}
+  const g=el('g',{});
+  if(!animate||matchMedia('(prefers-reduced-motion: reduce)').matches){T.forEach(t=>el('line',{x1:t.a.x,y1:t.a.y,x2:t.b.x,y2:t.b.y,stroke:t.m[3],'stroke-width':2,'stroke-dasharray':t.m[4],opacity:.7},g));return}
+  const dots=T.map(t=>el('circle',{r:5,fill:t.m[3],stroke:'#fff','stroke-width':1.5},g));
+  const step=()=>{T.forEach((t,i)=>{t.p=(t.p+.004)%1;dots[i].setAttribute('cx',t.a.x+(t.b.x-t.a.x)*t.p);dots[i].setAttribute('cy',t.a.y+(t.b.y-t.a.y)*t.p)});raf=requestAnimationFrame(step)};step()}
+function modeLegend(extra){document.getElementById('legend').innerHTML='<b>Simulated travellers</b>'+MODES.map(m=>`<span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="${m[3]}" stroke-width="3" stroke-dasharray="${m[4]}"/></svg>${m[2]} ${m[1]}</span>`).join('')+`<span><i class="sw" style="background:var(--green)"></i>Station, size = bikes left</span><span><i class="sw" style="background:#fff;border:2px solid var(--red-ink)"></i>Station empty</span>`}
+
+const SIM={car:41,pt:38,ptb:16,bike:5},MOD={car:38,pt:41,ptb:17,bike:4};
+const stack=v=>`<div class="stack" role="img" aria-label="${MODES.map(m=>m[1]+' '+v[m[0]]+' %').join(', ')}">${MODES.map(m=>`<i class="c-${m[0]}" style="flex:${v[m[0]]}">${v[m[0]]>=6?v[m[0]]+' %':''}</i>`).join('')}</div>`;
+const brief=`<p class="brief"><span class="rhythm">Pipeline step 7</span><span>A simulation of individual travellers under one version's prices. It is not the pricing model's result.</span></p><span class="tag sim">SIMULATION</span>`;
+const howLink=`<p style="margin-top:12px"><a class="link" href="#" onclick="openSheet();return false">How do travellers choose?</a></p>`;
+let state='ready';
+function openSheet(){document.getElementById('sheet').hidden=false}
+function closeSheet(){document.getElementById('sheet').hidden=true;if(state==='rule')render('end')}
+function render(s){state=s;cancelAnimationFrame(raf);
+  document.querySelectorAll('.mock [data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));
+  document.getElementById('sheet').hidden=s!=='rule';
+  const card=document.getElementById('card'),bar=document.getElementById('bar');
+  base();circle();
+  if(s==='ready'){stationsByStock([]);
+    card.innerHTML=brief+`<div style="margin-top:10px"><div class="f"><label>Pricing version</label><select aria-label="Pricing version"><option>Version B</option><option>Version A</option></select><small>The simulated travellers see this version's prices.</small></div>
+    <div class="f"><label>Random seed</label><input value="7" aria-label="Random seed"><small>The same seed replays the same day.</small></div>
+    <div class="f"><label>Bikes at the start</label><input value="60 % of docks" disabled aria-label="Bikes at the start"><small>From the set-up (step 4, Demand and fleet). Change it in the Set-up tab.</small></div></div>
+    <p class="note" style="margin-top:10px">Departure times over the day: <span class="pending">[Q-8]</span></p>`+howLink;
+    bar.innerHTML=`<button class="cta" onclick="render('playing')">Run the simulated day</button>`;
+    document.getElementById('legend').innerHTML=`<span><i class="sw" style="background:var(--green)"></i>Station, size = bikes at the start</span>`;return}
+  if(s==='playing'){stationsByStock([3,11,19]);trips(true);
+    card.innerHTML=brief+`<div class="clock" aria-live="off">09:42</div>
+    <div class="timeline"><span class="note">00:00</span><input type="range" min="0" max="1440" value="582" aria-label="Time of day"><span class="note">24:00</span></div>
+    <div class="ctl"><button class="play" aria-label="Pause">⏸</button><span class="note">Speed</span><span class="seg" role="group" aria-label="Playback speed"><button>1×</button><button aria-pressed="true">10×</button><button>60×</button></span><span class="note">minutes of day per second</span></div>
+    <div class="live"><div><b>1 204</b><span>Travellers so far</span></div><div class="warn"><b>3</b><span>Empty stations now</span></div><div class="warn"><b>57</b><span>Trips with no bike available</span></div></div>`+howLink;
+    bar.innerHTML=`<button class="cta">Pause</button>`;modeLegend();return}
+  if(s==='compare'){stationsByStock([3,11,19,25]);const SIMA={car:44,pt:37,ptb:15,bike:4};
+    card.innerHTML=brief+`<h2 class="insight">Version B's day: 3 pts fewer car trips than Version A's, 64 more trips with no bike</h2>
+    <div class="split"><span>Day · Version A<br><small class="note">seed 7</small></span>${stack(SIMA)}<span>Day · Version B<br><small class="note">seed 7</small></span>${stack(SIM)}</div>
+    <div class="keys">${MODES.map(m=>`<span><i class="sw c-${m[0]}"></i>${m[2]} ${m[1]} ${SIMA[m[0]]} % · ${SIM[m[0]]} %</span>`).join('')}</div>
+    <table class="cmp"><thead><tr><th>Simulated day</th><th>Version A</th><th>Version B</th><th>B − A</th></tr></thead><tbody>
+    <tr><td>Travellers</td><td>4 812</td><td>4 812</td><td>0</td></tr>
+    <tr><td>Trips with no bike available</td><td>148</td><td>212</td><td>▲ 64</td></tr>
+    <tr><td>Stations empty at some time</td><td>5</td><td>9</td><td>▲ 4</td></tr>
+    <tr><td>First station empty at</td><td>16:10</td><td>14:35</td><td>1 h 35 earlier</td></tr></tbody></table>
+    <p class="why">Same seed, same travellers and departure times: only the prices differ. The pricing model's results for these versions are in the Compare tab.</p>`+howLink;
+    bar.innerHTML=`<button class="cta2" onclick="render('end')">← Version B's day</button><a class="link" href="S-4-lab-compare.html">Model results in Compare</a>`;
+    document.getElementById('legend').innerHTML=`<b>Stations at the end of Version B's day</b><span><i class="sw" style="background:var(--green)"></i>Station, size = bikes left</span><span><i class="sw" style="background:#fff;border:2px solid var(--red-ink)"></i>Station empty</span>`;return}
+  /* end + rule */
+  stationsByStock([3,11,19,25]);trips(false);
+  card.innerHTML=brief+`<h2 class="insight">The simulated day: 4 812 travellers</h2>
+  <div class="split"><span>Simulated day<br><small class="note">4 812 travellers</small></span>${stack(SIM)}<span>Pricing model's result<br><small class="note">Version B</small></span>${stack(MOD)}</div>
+  <div class="keys">${MODES.map(m=>`<span><i class="sw c-${m[0]}"></i>${m[2]} ${m[1]} ${SIM[m[0]]} % · ${MOD[m[0]]} %</span>`).join('')}</div>
+  <div class="big"><b>212</b><span>trips with no bike available</span></div>
+  <p class="why">They differ because the model prices hub-to-hub trips for the whole day at once, while the simulation follows each traveller from station to station through the day, and bikes run out.</p>`+howLink;
+  bar.innerHTML=`<button class="cta" onclick="render('compare')">Compare with Version A's day</button><button class="cta2" onclick="render('playing')">Replay</button>`;
+  modeLegend();
+}
+document.querySelectorAll('.mock [data-s]').forEach(b=>b.onclick=()=>render(b.dataset.s));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+render(location.hash.slice(1)||'ready');
+</script>
+</body>
+</html>

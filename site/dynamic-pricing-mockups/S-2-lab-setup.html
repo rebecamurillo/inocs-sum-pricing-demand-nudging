@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-2 Lab · Set-up — dynamic pricing mockup</title>
+<style>
+/* Tokens: knowledge/visual-identity.md (XD-1), light mode only. Mode colours: UX-SPEC § Mode colours. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#dfebe5;--tint-2:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;--line-2:#e0eae3;
+  --blue:#004494;--blue-d:#00336e;--blue-tint:#e3ebf5;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;
+  --red:#ff3514;--red-ink:#be280b;--red-tint:#ffe9e4;
+  --map-ground:#e4e5e2;--map-street:#fafaf9;--map-water:#d4dbdc;--map-ref:#949c93;--map-ring:#b7bcb5;
+  --m-car:#eb6834;--m-pt:#2a78d6;--m-ptb:#1baf7a;--m-bike:#008300;--m-walk:#5a6459;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;--fs:15px;
+}
+html.proj{--fs:18px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--bg);color:var(--ink);font:400 var(--fs)/1.5 'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;grid-template-rows:56px auto 1fr auto}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;line-height:1.15;margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.hdr{background:var(--blue);color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.02em}
+.logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+.hdr h1{font-size:1.15em;font-weight:600}
+.chip{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:4px 12px;font-size:.85em;color:#fff}
+.aa{border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:2px 10px;color:#fff;font-weight:700}
+.tracker{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.steps{display:flex;flex:1;list-style:none;margin:0;padding:0;position:relative}
+.steps::before{content:"";position:absolute;left:24px;right:24px;top:15px;height:3px;background:var(--line-2)}
+.steps li{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-2)}
+.steps .no{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:2px solid var(--line);font-weight:700;z-index:1}
+.steps .done .no{background:var(--green);border-color:var(--green);color:#fff}
+.steps .current .no{background:var(--blue);border-color:var(--blue);color:#fff}
+.steps .current{color:var(--ink);font-weight:600}
+.steps .locked{opacity:.55}
+.steps .running .no{border-color:var(--blue);border-style:dashed;animation:spin 2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.hdr a.home{color:#fff;font-size:.85em;opacity:.9}
+.hdr h1 span{font-weight:400;opacity:.8}
+.tabs{display:flex;align-items:flex-end;gap:4px;padding:8px 20px 0;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.tabs a{padding:8px 14px;color:var(--ink-2);text-decoration:none;font-weight:600;font-size:.92em;border-bottom:3px solid transparent}
+.tabs a[aria-current=page]{color:var(--blue);border-bottom-color:var(--blue)}
+.tabs .runs{margin-left:auto;font-size:.82em;color:var(--ink-2);padding-bottom:9px}
+.tabs .runs.on{color:var(--blue);font-weight:600}
+main{display:grid;grid-template-columns:clamp(380px,32vw,480px) 1fr;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--bg);padding:14px 0 14px 16px;position:relative}
+.card{flex:1;overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.brief{display:flex;flex-direction:column;gap:2px;margin:0 0 14px}
+.rhythm{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--green-ink);font-weight:700}
+.bar{display:flex;align-items:center;gap:12px;padding:12px 0 0}
+.cta{background:var(--blue);color:#fff;border-radius:10px;padding:10px 18px;font-weight:600}
+.cta:disabled{background:var(--line);color:var(--ink-2);cursor:not-allowed}
+.cta2{border:1px solid var(--line);border-radius:10px;padding:9px 14px;color:var(--blue);font-weight:600}
+.note{font-size:.82em;color:var(--ink-2)}
+.mapcol{position:relative;margin:14px 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);background:var(--map-ground)}
+.mapcol svg{width:100%;height:100%;display:block}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border-radius:10px;padding:8px 12px;font-size:.78em;display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)}
+.legend span{display:flex;align-items:center;gap:6px}
+.mapcol .legend svg{width:22px;height:8px;flex:none}
+.sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;background:#fff;border-radius:8px;box-shadow:var(--shadow)}
+.zoom button{width:32px;height:32px;font-weight:700}
+.sample{position:absolute;top:10px;left:12px;font-size:.72em;border:1px dashed var(--map-ref);border-radius:6px;padding:2px 8px;background:rgba(255,255,255,.8);color:var(--ink-2)}
+.ftr{display:flex;align-items:center;gap:12px;padding:5px 20px;min-height:30px;font-size:.75em;color:var(--ink-2);background:var(--surface);border-top:1px solid var(--line-2)}
+.eu{display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--map-ref);padding:1px 6px;border-radius:4px}
+.eu b{display:inline-block;width:22px;height:15px;background:#004494;position:relative}
+.eu b::after{content:"★";color:#ffcc00;font-size:9px;position:absolute;inset:0;display:grid;place-items:center}
+.ftr .right{margin-left:auto}
+.mock{position:fixed;right:28px;top:154px;background:#fff;border:2px dashed var(--map-ref);border-radius:99px;padding:4px 6px;display:flex;gap:4px;font-size:12px;z-index:50;box-shadow:var(--shadow)}
+.mock b{padding:4px 8px;color:var(--ink-2)}
+.mock button{padding:4px 10px;border-radius:99px}
+.mock button[aria-pressed=true]{background:var(--ink);color:#fff}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px}
+.tag.model{background:var(--blue-tint);color:var(--blue)}
+.tag.sim{background:var(--tint);color:var(--ink-2)}
+.pending{background:#fff8d6;border-bottom:1px dashed #b38f00;padding:0 2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* step: city */
+.setup{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:.9em}
+.setup select{font:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 8px;background:#fff}
+.pipe{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.grp{border:1px solid var(--line-2);border-radius:12px}
+.grp summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:10px 12px;font-weight:600}
+.grp summary::-webkit-details-marker{display:none}
+.grp .k{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.8em;background:var(--tint);color:var(--ink-2);flex:none}
+.grp.changed summary::after{content:"changed";margin-left:auto;font-size:.72em;color:var(--blue);background:var(--blue-tint);border-radius:99px;padding:1px 8px}
+.grp .fields{padding:0 12px 12px 46px;display:flex;flex-direction:column;gap:10px}
+.f label{display:flex;justify-content:space-between;font-size:.88em;font-weight:600}
+.f input[type=text],.f input[type=number]{width:100%;font:inherit;border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+.f input[type=range]{width:100%;accent-color:var(--blue)}
+.f small{display:block;color:var(--ink-2);font-size:.8em}
+.f .was{text-decoration:line-through;color:var(--ink-2);font-weight:400;margin-right:6px}
+.zonenote{font-size:.82em;background:var(--tint-2);border-radius:8px;padding:6px 10px}
+.link{color:var(--blue);text-decoration:underline;font-size:.85em}
+.recompute{margin-top:12px;border-left:4px solid var(--blue);background:var(--blue-tint);padding:8px 12px;border-radius:0 8px 8px 0;font-size:.88em}
+.prog li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line-2)}
+.prog .k{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.8em;flex:none;background:var(--tint);color:var(--ink-2)}
+.prog .ok .k{background:var(--green);color:#fff}
+.prog .run .k{border:2px dashed var(--blue);background:#fff;color:var(--blue);animation:spin 2s linear infinite}
+.prog .fail .k{background:var(--red-ink);color:#fff}
+.prog .fail{color:var(--red-ink)}
+.prog small{display:block;color:var(--ink-2)}
+.pbar{height:6px;background:var(--line-2);border-radius:3px;margin-top:4px;width:220px}
+.pbar i{display:block;height:100%;width:60%;background:var(--blue);border-radius:3px}
+.counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 8px}
+.counts div{background:var(--tint-2);border-radius:10px;padding:8px}
+.counts b{display:block;font-size:1.5em;font-variant-numeric:tabular-nums}
+.counts span{font-size:.78em;color:var(--ink-2)}
+.concl{font-weight:600}
+.banner{background:var(--red-tint);border-radius:8px;padding:8px 12px;font-size:.88em;margin-top:10px;color:var(--red-ink)}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <span class="logo"><i></i>SUM</span>
+  <h1>Dynamic pricing <span>· Lab</span></h1>
+  <a class="home" href="S-1-home.html">← Home</a>
+  <button class="chip">Set-up: Geneva · 3 km · default ▾</button>
+  <button class="aa" aria-label="Larger text for a projector" onclick="document.documentElement.classList.toggle('proj')">Aa</button>
+</header>
+
+<nav class="tabs" aria-label="Lab">
+  <a href="S-2-lab-setup.html" aria-current="page">Set-up</a>
+  <a href="S-3-lab-versions.html">Versions</a>
+  <a href="S-4-lab-compare.html">Compare</a>
+  <a href="S-5-lab-day.html">Simulated day</a>
+  <a href="S-6-lab-trip.html">Trip pricing</a>
+  <span class="runs" id="runs">No run in progress</span>
+</nav>
+
+<main>
+  <section class="col">
+    <article class="card" id="card"></article>
+    <div class="bar" id="bar"></div>
+  </section>
+  <section class="mapcol" aria-label="Map of the study zone">
+    <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Study zone with stops, stations and hubs"></svg>
+    <span class="sample">sample geometry — not Geneva's real network</span>
+    <div class="legend" id="legend"></div>
+    <div class="zoom"><button aria-label="Zoom in">+</button><button aria-label="Zoom out">−</button></div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <span class="eu"><b></b>Co-funded by the European Union</span>
+  <span>Funded by the European Union under Horizon Europe, project SUM. <span class="pending">[exact statement from the team folder]</span></span>
+  <span class="right">Pricing model: {model author}, Inria INOCS. Run unmodified.</span>
+</footer>
+
+<div class="mock" role="group" aria-label="Mockup state (not part of the design)"><b>mockup state · sample data</b>
+  <button data-s="set">set</button><button data-s="changed">changed</button><button data-s="running">running</button><button data-s="done">done</button><button data-s="failed">failed</button>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+function rng(s){return()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,((s^s>>>7)>>>0)%10000)/10000)}
+const C={x:500,y:430,r:300};
+const R=rng(11);const HUBS=[];
+while(HUBS.length<34){const a=R()*6.283,d=Math.sqrt(R())*C.r*.93;const x=C.x+Math.cos(a)*d,y=C.y+Math.sin(a)*d;if(y<170&&x>560)continue;HUBS.push({id:'H'+(HUBS.length+1),x,y})}
+const STOPS=[],STATIONS=[];HUBS.forEach(h=>{const n=2+Math.floor(R()*4);for(let i=0;i<n;i++)STOPS.push({x:h.x+(R()-.5)*44,y:h.y+(R()-.5)*44});if(R()<.8)STATIONS.push({x:h.x+(R()-.5)*30,y:h.y+(R()-.5)*30,hub:h.id,bikes:Math.floor(R()*20)})});
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+const svg=document.getElementById('map');
+function base(){
+  svg.innerHTML='';
+  el('rect',{x:0,y:0,width:1000,height:800,fill:'var(--map-ground)'});
+  el('path',{d:'M600 0 L1000 0 L1000 230 C880 210 760 190 640 120 C610 90 600 40 600 0Z',fill:'var(--map-water)'});
+  el('path',{d:'M640 120 C560 150 520 200 470 260 C420 320 300 330 0 360',stroke:'var(--map-water)','stroke-width':22,fill:'none'});
+  const r=rng(3);for(let i=0;i<46;i++){const x=r()*1000,y=r()*800;el('path',{d:`M${x} ${y} l${(r()-.5)*420} ${(r()-.5)*420}`,stroke:'var(--map-street)','stroke-width':2+r()*5,fill:'none','stroke-linecap':'round'})}
+}
+function circle(handles){el('circle',{cx:C.x,cy:C.y,r:C.r,fill:'none',stroke:'var(--map-ring)','stroke-width':2.5,'stroke-dasharray':'8 6'});
+  if(handles){el('circle',{cx:C.x,cy:C.y,r:9,fill:'#fff',stroke:'var(--blue)','stroke-width':3});el('circle',{cx:C.x+C.r,cy:C.y,r:8,fill:'#fff',stroke:'var(--blue)','stroke-width':3});
+  const t=el('text',{x:C.x+C.r+14,y:C.y+5,'font-size':16,fill:'var(--ink-2)'});t.textContent='3.0 km'}}
+function hubs(){HUBS.forEach(h=>el('circle',{cx:h.x,cy:h.y,r:30,fill:'rgba(148,156,147,.08)',stroke:'var(--map-ref)','stroke-width':1.5,'stroke-dasharray':'4 4'}))}
+function stops(){STOPS.forEach(s=>el('circle',{cx:s.x,cy:s.y,r:3,fill:'var(--blue)'}))}
+function stations(){STATIONS.forEach(s=>el('circle',{cx:s.x,cy:s.y,r:5,fill:'var(--green)',stroke:'var(--green-ink)','stroke-width':1.5}))}
+function pairs(share){const r=rng(5);let n=0;for(let i=0;i<HUBS.length;i++)for(let j=i+1;j<HUBS.length;j++){if(r()>.16)continue;n++;if(r()>share)continue;el('line',{x1:HUBS[i].x,y1:HUBS[i].y,x2:HUBS[j].x,y2:HUBS[j].y,stroke:'var(--map-ref)','stroke-width':1,opacity:.45})}}
+function legend(items){document.getElementById('legend').innerHTML=items.map(([c,l,dash])=>`<span>${dash?`<svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="${c}" stroke-width="3" stroke-dasharray="${dash}"/></svg>`:`<i class="sw" style="background:${c}"></i>`}${l}</span>`).join('')}
+
+/* ---- step: city ---- */
+const field=(l,v,s,was)=>`<div class="f"><label>${l}<span>${was?`<span class="was">${was}</span>`:''}${v}</span></label><small>${s}</small></div>`;
+function groups(changed){return `
+<div class="setup">Set-up <select aria-label="Set-up"><option>Geneva · 3 km · default — 2 versions</option><option>Geneva · 2 km · seed 7 — 1 version</option></select></div>
+<ol class="pipe">
+<li><details class="grp" open><summary><span class="k">1</span>City</summary><div class="fields">
+ ${field('Centre','46.2057, 6.1489','Drag the centre on the map or type it.')}
+ <div class="f"><label>Radius<span class="num">3.0 km</span></label><input type="range" min="1" max="5" step=".5" value="3" aria-label="Radius in km"><small>From 1 to 5 km.</small></div>
+ <p class="zonenote">A larger zone has more hubs: processing time grows with the size of the zone.</p>
+ <a class="link" href="#">Restore Geneva defaults</a></div></details></li>
+<li><details class="grp${changed?' changed':''}" ${changed?'open':''}><summary><span class="k">2</span>Hubs</summary><div class="fields">
+ ${field('Grouping distance',changed?'400 m':'500 m','Stops and stations closer than this form one hub.',changed?'500 m':'')}
+ ${field('Hub outline margin','100 m',"Space drawn around a hub's stops and stations.")}</div></details></li>
+<li><details class="grp"><summary><span class="k">3</span>Routes</summary><div class="fields">
+ ${field('Minimum trip distance','500 m','Hub pairs closer than this are not priced.')}
+ ${field('Day and time of the trips','Monday 08:00','Trip planner timetable used for every route.')}</div></details></li>
+<li><details class="grp"><summary><span class="k">4</span>Demand and fleet</summary><div class="fields">
+ ${field('Travellers per hub pair','random, 10 to 70','How many people want each hub-to-hub trip in the day.')}
+ ${field('Random seed','42','The same seed draws the same demand.')}
+ ${field('Docks per station','20','Places for bikes at each station.')}
+ ${field('Bikes at the start','60 % of docks','Share of docks holding a bike when the day starts.')}</div></details></li>
+</ol>
+<p class="note" style="margin-top:8px"><span class="pending">[Q-17]</span> plain names and sentences to be validated by the model's author.</p>
+${changed?`<div class="recompute"><strong>Will recompute: 2 Hubs, 3 Routes, 4 Demand and fleet.</strong><br>This starts a new set-up; the 2 pricing versions of “Geneva · 3 km · default” stay in its list.</div>`:''}`}
+function prog(state){
+  const routes=state==='failed'?`<li class="fail"><span class="k">✕</span><div><strong>3 Routes failed: the trip planner is not reachable.</strong><small>Steps before it are kept.</small></div></li>`
+   :state==='running'?`<li class="run"><span class="k">●</span><div><strong>3 Routes</strong><small class="num">1 210 of 2 016 hub pairs</small><div class="pbar"><i></i></div></div></li>`
+   :`<li class="ok"><span class="k">✓</span><div><strong>3 Routes</strong><small class="num">1 806 hub pairs with routes</small></div></li>`;
+  const dem=state==='done'?`<li class="ok"><span class="k">✓</span><div><strong>4 Demand and fleet</strong><small class="num">72 240 travellers in the day · 118 stations × 20 docks</small></div></li>`:`<li><span class="k">4</span><div><strong>4 Demand and fleet</strong><small>waiting</small></div></li>`;
+  return `<ol class="pipe prog">
+  <li class="ok"><span class="k">✓</span><div><strong>1 City</strong><small class="num">1 412 stops · 118 stations</small></div></li>
+  <li class="ok"><span class="k">✓</span><div><strong>2 Hubs</strong><small class="num">64 hubs</small></div></li>${routes}${dem}</ol>`}
+const brief=`<p class="brief"><span class="rhythm">Pipeline steps 1 to 4</span><span>A set-up is the zone, its hubs, the routes between hubs, and the demand and fleet. Pricing versions are compared within one set-up.</span></p>`;
+function render(s){
+  document.querySelectorAll('.mock [data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));
+  const card=document.getElementById('card'),bar=document.getElementById('bar');
+  const runs=document.getElementById('runs');runs.className='runs'+(s==='running'?' on':'');
+  runs.textContent=s==='running'?'● Set-up running: 3 Routes · 4 min 12 s':'No run in progress';
+  base();circle(s==='set'||s==='changed');
+  if(s==='set'||s==='changed'){card.innerHTML=brief+groups(s==='changed');bar.innerHTML=`<button class="cta">${s==='changed'?'Run from 2 Hubs':'Run the set-up'}</button><span class="note">${s==='changed'?'Step 1 is kept.':'About ten minutes for 3 km.'} <span class="pending">[Q-10]</span></span>`;
+    legend([['var(--map-ring)','Study zone — drag the centre or the edge','8 6']]);return}
+  stops();stations();hubs();
+  if(s==='running'){pairs(.6);card.innerHTML=brief+`<p class="note" style="margin:0 0 6px">Set-up “Geneva · 3 km · default”</p>`+prog('running')+`<p class="note" style="margin-top:10px">Running for <span class="num">4 min 12 s</span>. A set-up takes about ten minutes; you can open other tabs meanwhile. <span class="pending">[Q-10]</span></p>`;bar.innerHTML=`<button class="cta" disabled>Running…</button>`}
+  if(s==='failed'){pairs(.6);card.innerHTML=brief+prog('failed')+`<div class="banner">New runs are off: the trip planner is not reachable. Stored results stay available.</div>`;bar.innerHTML=`<button class="cta" disabled>Run again from 3 Routes</button><span class="note">Start the trip planner, then run again.</span>`}
+  if(s==='done'){pairs(1);card.innerHTML=brief+`<div class="counts"><div><b>1 412</b><span>Stops</span></div><div><b>118</b><span>Stations</span></div><div><b>64</b><span>Hubs</span></div><div><b>1 806</b><span>Hub pairs with routes</span></div></div><p class="concl">64 hubs and 1 806 priced hub pairs in a 3 km zone.</p>`+prog('done')+`<p class="note" style="margin-top:10px"><a class="link" href="#">Change the parameters</a> — starts a new set-up.</p>`;bar.innerHTML=`<a class="cta" style="text-decoration:none" href="S-3-lab-versions.html">Create a pricing version →</a>`}
+  legend([['var(--blue)','Public transport stops'],['var(--green)','Shared-bike stations'],['var(--map-ref)','Hubs','4 4'],['var(--map-ref)','Hub pairs with routes']]);
+}
+document.querySelectorAll('.mock [data-s]').forEach(b=>b.onclick=()=>render(b.dataset.s));
+render(document.querySelector('.mock [data-s="'+location.hash.slice(1)+'"]')?location.hash.slice(1):'set');
+</script>
+</body>
+</html>

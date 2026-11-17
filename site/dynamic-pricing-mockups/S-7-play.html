@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-7 Play — dynamic pricing mockup</title>
+<style>
+/* Tokens: knowledge/visual-identity.md (XD-1), light mode only. Mode colours: UX-SPEC § Mode colours. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#dfebe5;--tint-2:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;--line-2:#e0eae3;
+  --blue:#004494;--blue-d:#00336e;--blue-tint:#e3ebf5;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;
+  --red:#ff3514;--red-ink:#be280b;--red-tint:#ffe9e4;
+  --map-ground:#e4e5e2;--map-street:#fafaf9;--map-water:#d4dbdc;--map-ref:#949c93;--map-ring:#b7bcb5;
+  --m-car:#eb6834;--m-pt:#2a78d6;--m-ptb:#1baf7a;--m-bike:#008300;--m-walk:#5a6459;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;--fs:15px;
+}
+html.proj{--fs:18px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--bg);color:var(--ink);font:400 var(--fs)/1.5 'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;grid-template-rows:56px auto 1fr auto}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;line-height:1.15;margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.hdr{background:var(--blue);color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.02em}
+.logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+.hdr h1{font-size:1.15em;font-weight:600}
+.hdr h1 span{font-weight:400;opacity:.8}
+.hdr a.home{color:#fff;font-size:.85em;opacity:.9}
+.tries{margin-left:auto;font-size:.85em;display:flex;align-items:center;gap:6px}
+.tries i{width:12px;height:12px;border-radius:50%;border:2px solid #fff;display:inline-block}
+.tries i.used{background:#fff}
+.aa{border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:2px 10px;color:#fff;font-weight:700}
+.tracker{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.steps{display:flex;flex:1;list-style:none;margin:0;padding:0;position:relative}
+.steps::before{content:"";position:absolute;left:24px;right:24px;top:15px;height:3px;background:var(--line-2)}
+.steps li{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-2)}
+.steps .no{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:2px solid var(--line);font-weight:700;z-index:1}
+.steps .done .no{background:var(--green);border-color:var(--green);color:#fff}
+.steps .current .no{background:var(--blue);border-color:var(--blue);color:#fff}
+.steps .current{color:var(--ink);font-weight:600}
+.back{border:1px solid var(--line);border-radius:8px;padding:4px 12px;color:var(--ink-2);font-size:.85em}
+main{display:grid;grid-template-columns:clamp(400px,36vw,540px) 1fr;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--bg);padding:14px 0 14px 16px;position:relative}
+.card{flex:1;overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.rhythm{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--green-ink);font-weight:700}
+.bar{display:flex;align-items:center;gap:12px;padding:12px 0 0}
+.cta{background:var(--blue);color:#fff;border-radius:10px;padding:10px 18px;font-weight:600;text-decoration:none}
+.cta2{border:1px solid var(--line);border-radius:10px;padding:9px 14px;color:var(--blue);font-weight:600;text-decoration:none}
+.note{font-size:.82em;color:var(--ink-2)}
+.mapcol{position:relative;margin:14px 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);background:var(--map-ground)}
+.mapcol svg{width:100%;height:100%;display:block}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border-radius:10px;padding:8px 12px;font-size:.78em;display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)}
+.legend span{display:flex;align-items:center;gap:6px}
+.mapcol .legend svg{width:22px;height:8px;flex:none}
+.sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+.sample{position:absolute;top:10px;left:12px;font-size:.72em;border:1px dashed var(--map-ref);border-radius:6px;padding:2px 8px;background:rgba(255,255,255,.8);color:var(--ink-2)}
+.ftr{display:flex;align-items:center;gap:12px;padding:5px 20px;min-height:30px;font-size:.75em;color:var(--ink-2);background:var(--surface);border-top:1px solid var(--line-2)}
+.eu{display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--map-ref);padding:1px 6px;border-radius:4px}
+.eu b{display:inline-block;width:22px;height:15px;background:#004494;position:relative}
+.eu b::after{content:"★";color:#ffcc00;font-size:9px;position:absolute;inset:0;display:grid;place-items:center}
+.ftr .right{margin-left:auto}
+.mock{position:fixed;right:28px;top:154px;background:#fff;border:2px dashed var(--map-ref);border-radius:14px;padding:4px 6px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;font-size:12px;z-index:50;box-shadow:var(--shadow);max-width:560px}
+.mock b{padding:4px 8px;color:var(--ink-2)}
+.mock button{padding:4px 10px;border-radius:99px}
+.mock button[aria-pressed=true]{background:var(--ink);color:#fff}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px}
+.tag.model{background:var(--blue-tint);color:var(--blue)}
+.tag.sim{background:var(--tint);color:var(--ink-2)}
+.pending{background:#fff8d6;border-bottom:1px dashed #b38f00;padding:0 2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* play */
+h2.t{font-size:1.5em;margin:6px 0 10px}
+p{margin:0 0 10px}
+.mission{border:2px solid var(--blue);border-radius:12px;padding:12px 14px;margin:12px 0}
+.mission b{color:var(--blue)}
+.goal{background:var(--tint-2);border-radius:12px;padding:10px 12px 6px;margin:0 0 14px}
+.goal .lbl{display:flex;justify-content:space-between;font-size:.8em;color:var(--ink-2)}
+.goal svg{width:100%;height:58px;display:block}
+.choice{display:grid;gap:8px;margin:8px 0 12px}
+.choice.c3{grid-template-columns:repeat(3,1fr)}
+.opt{border:2px solid var(--line);border-radius:12px;padding:10px;text-align:left;display:flex;flex-direction:column;gap:2px}
+.opt strong{font-size:.95em}
+.opt small{color:var(--ink-2);font-size:.8em}
+.opt[aria-pressed=true]{border-color:var(--blue);background:var(--blue-tint)}
+.ctl{margin:0 0 12px}
+.ctl>label{font-weight:600;font-size:.9em;display:block;margin-bottom:4px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:.88em}
+.seg button{padding:6px 12px;border-right:1px solid var(--line-2)}.seg button:last-child{border:0}
+.seg button[aria-pressed=true]{background:var(--blue);color:#fff}
+.ctl small{display:block;color:var(--ink-2);font-size:.8em;margin-top:3px}
+.predict{border:2px dashed var(--blue);border-radius:12px;padding:10px 12px;margin:0 0 4px}
+.stack{display:flex;height:26px;gap:2px;margin:2px 0 8px}
+.stack i{display:grid;place-items:center;color:#fff;font-style:normal;font-weight:600;font-size:.82em;border-radius:3px;min-width:0;overflow:hidden}
+.c-car{background:var(--m-car)}.c-pt{background:var(--m-pt)}.c-ptb{background:var(--m-ptb)}.c-bike{background:var(--m-bike)}
+.rowl{font-size:.8em;color:var(--ink-2)}
+.keys{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:.78em;margin:0 0 10px}
+.keys span{display:flex;align-items:center;gap:5px}
+.verdict{border-radius:12px;padding:10px 12px;margin:0 0 10px;font-weight:600}
+.verdict.ok{background:var(--green-tint);color:var(--green-ink)}
+.verdict.no{background:var(--red-tint);color:var(--red-ink)}
+.checks{list-style:none;margin:0 0 10px;padding:0;font-size:.9em}
+.checks li{padding:3px 0}
+table{border-collapse:collapse;width:100%;font-size:.82em}
+th,td{padding:5px 6px;border-bottom:1px solid var(--line-2);text-align:right;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-2);font-weight:600}
+.clock{font-size:2.4em;font-weight:600;font-variant-numeric:tabular-nums;font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif}
+.live{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.live div{background:var(--tint-2);border-radius:10px;padding:8px}
+.live b{display:block;font-size:1.4em;font-variant-numeric:tabular-nums}
+.live span{font-size:.76em;color:var(--ink-2)}
+.trip{border:1px solid var(--line-2);border-left:6px solid var(--c);border-radius:12px;padding:8px 12px;margin-bottom:6px;display:grid;grid-template-columns:1fr auto auto;gap:2px 14px;align-items:baseline;width:100%;text-align:left}
+.trip[aria-pressed=true]{box-shadow:var(--shadow);border-color:var(--c)}
+.trip small{color:var(--ink-2);font-size:.8em;grid-column:1}
+.trip .p{font-weight:600;font-variant-numeric:tabular-nums}
+.trip .was{color:var(--ink-2);font-variant-numeric:tabular-nums;font-size:.85em}
+.score{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.score div{border:1px solid var(--line-2);border-radius:12px;padding:10px}
+.score b{display:block;font-size:1.7em;font-variant-numeric:tabular-nums}
+.score span{font-size:.78em;color:var(--ink-2)}
+.take{margin:0 0 10px;padding-left:18px;font-size:.92em}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <span class="logo"><i></i>SUM</span>
+  <h1>Dynamic pricing <span>· Play</span></h1>
+  <a class="home" href="S-1-home.html">← Home</a>
+  <span class="tries" id="tries" aria-label="Tries used"></span>
+  <button class="aa" aria-label="Larger text for a projector" onclick="document.documentElement.classList.toggle('proj')">Aa</button>
+</header>
+
+<nav class="tracker" aria-label="Game steps">
+  <ol class="steps" id="steps"></ol>
+  <button class="back" onclick="back()">← Back</button>
+</nav>
+
+<main>
+  <section class="col">
+    <article class="card" id="card"></article>
+    <div class="bar" id="bar"></div>
+  </section>
+  <section class="mapcol" aria-label="Map of the game's zone">
+    <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Part of Geneva with hubs, prices and trips"></svg>
+    <span class="sample">sample geometry and values</span>
+    <div class="legend" id="legend"></div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <span class="eu"><b></b>Co-funded by the European Union</span>
+  <span>Funded by the European Union under Horizon Europe, project SUM. <span class="pending">[exact statement from the team folder]</span></span>
+  <span class="right">Pricing model: {model author}, Inria INOCS. Results computed beforehand, model unmodified.</span>
+</footer>
+
+<div class="mock" role="group" aria-label="Mockup state (not part of the design)"><b>mockup state · sample data · designed, not built in the PoC</b>
+  <button data-s="mission">1 mission</button><button data-s="flat">2 flat price</button><button data-s="set">3 set + guess</button><button data-s="miss">3 try 1: missed</button><button data-s="hit">3 try 2: reached</button><button data-s="day">4 the day</button><button data-s="trip">5 your trip</button><button data-s="debrief">6 debrief</button>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+function rng(s){return()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,((s^s>>>7)>>>0)%10000)/10000)}
+const C={x:500,y:430,r:300};
+const R=rng(11);const HUBS=[];
+while(HUBS.length<34){const a=R()*6.283,d=Math.sqrt(R())*C.r*.93;const x=C.x+Math.cos(a)*d,y=C.y+Math.sin(a)*d;if(y<170&&x>560)continue;HUBS.push({id:'H'+(HUBS.length+1),x,y})}
+const STATIONS=[];HUBS.forEach(h=>{const n=2+Math.floor(R()*4);for(let i=0;i<n;i++){R();R()}if(R()<.8)STATIONS.push({x:h.x+(R()-.5)*30,y:h.y+(R()-.5)*30,bikes:Math.floor(R()*20)})});
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+const svg=document.getElementById('map');
+function base(){
+  svg.innerHTML='';
+  el('rect',{x:0,y:0,width:1000,height:800,fill:'var(--map-ground)'});
+  el('path',{d:'M600 0 L1000 0 L1000 230 C880 210 760 190 640 120 C610 90 600 40 600 0Z',fill:'var(--map-water)'});
+  el('path',{d:'M640 120 C560 150 520 200 470 260 C420 320 300 330 0 360',stroke:'var(--map-water)','stroke-width':22,fill:'none'});
+  const r=rng(3);for(let i=0;i<46;i++){const x=r()*1000,y=r()*800;el('path',{d:`M${x} ${y} l${(r()-.5)*420} ${(r()-.5)*420}`,stroke:'var(--map-street)','stroke-width':2+r()*5,fill:'none','stroke-linecap':'round'})}
+  el('circle',{cx:C.x,cy:C.y,r:C.r,fill:'none',stroke:'var(--map-ring)','stroke-width':2.5,'stroke-dasharray':'8 6'});
+}
+function hubs(){HUBS.forEach(h=>el('circle',{cx:h.x,cy:h.y,r:30,fill:'rgba(148,156,147,.08)',stroke:'var(--map-ref)','stroke-width':1.5,'stroke-dasharray':'4 4'}))}
+function stations(empty){STATIONS.forEach((s,i)=>{const e=(empty||[]).includes(i);el('circle',{cx:s.x,cy:s.y,r:e?8:5,fill:e?'#fff':'var(--green)',stroke:e?'var(--red-ink)':'var(--green-ink)','stroke-width':e?3:1.5});
+  if(e){const t=el('text',{x:s.x+11,y:s.y+5,'font-size':15,'font-weight':700,fill:'var(--red-ink)'});t.textContent='empty'}})}
+/* price ramp #e3ebf5 → #00336e ; flat = one mid tone */
+function ramp(t){const a=[0xe3,0xeb,0xf5],b=[0x00,0x33,0x6e];return 'rgb('+a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')+')'}
+function pairs(flat,spread){const r=rng(5);for(let i=0;i<HUBS.length;i++)for(let j=i+1;j<HUBS.length;j++){if(r()>.16)continue;const p=r(),f=r();
+  el('line',{x1:HUBS[i].x,y1:HUBS[i].y,x2:HUBS[j].x,y2:HUBS[j].y,stroke:flat?ramp(.45):ramp(.5+(p-.5)*spread),'stroke-width':flat?2.5:1+f*6,'stroke-linecap':'round',opacity:.85})}}
+const MODES=[['car','Car','🚗','var(--m-car)',''],['pt','Public transport','🚋','var(--m-pt)',''],['ptb','Public transport + shared bike','🚋+🚲','var(--m-ptb)','8 4'],['bike','Shared bike','🚲','var(--m-bike)','6 3']];
+let raf=0;
+function trips(){const r=rng(9);const T=[];for(let i=0;i<60;i++){const a=STATIONS[Math.floor(r()*STATIONS.length)],b=STATIONS[Math.floor(r()*STATIONS.length)];const m=MODES[[0,0,0,1,1,1,1,2,2,3][Math.floor(r()*10)]];T.push({a,b,m,p:r()})}
+  const g=el('g',{});
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){T.forEach(t=>el('line',{x1:t.a.x,y1:t.a.y,x2:t.b.x,y2:t.b.y,stroke:t.m[3],'stroke-width':2,'stroke-dasharray':t.m[4],opacity:.7},g));return}
+  const dots=T.map(t=>el('circle',{r:5,fill:t.m[3],stroke:'#fff','stroke-width':1.5},g));
+  const step=()=>{T.forEach((t,i)=>{t.p=(t.p+.004)%1;dots[i].setAttribute('cx',t.a.x+(t.b.x-t.a.x)*t.p);dots[i].setAttribute('cy',t.a.y+(t.b.y-t.a.y)*t.p)});raf=requestAnimationFrame(step)};step()}
+function route(){const A={x:395,y:470},B={x:690,y:330},s1={x:420,y:455},s2={x:560,y:395},s3={x:665,y:345};
+  [[A,s1,'var(--m-walk)','2 6',4],[s1,s2,'var(--m-pt)','',6],[s2,s3,'var(--m-bike)','10 5',6],[s3,B,'var(--m-walk)','2 6',4]].forEach(([a,b,c,d,w])=>el('path',{d:`M${a.x} ${a.y} L${b.x} ${b.y}`,stroke:c,'stroke-width':w,'stroke-dasharray':d,'stroke-linecap':'round',fill:'none'}));
+  [[A,'A','var(--ink)'],[B,'B','var(--blue)']].forEach(([p,l,c])=>{el('circle',{cx:p.x,cy:p.y,r:13,fill:c,stroke:'#fff','stroke-width':3});const t=el('text',{x:p.x,y:p.y+5,'text-anchor':'middle','font-size':14,'font-weight':700,fill:'#fff'});t.textContent=l})}
+const hubKey=`<span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--map-ref)" stroke-width="2" stroke-dasharray="4 4"/></svg>Hubs: groups of stops and bike stations</span>`;
+const priceKey=t=>`<b>${t}</b><span>low <i style="display:block;width:90px;height:8px;border-radius:4px;background:linear-gradient(90deg,#e3ebf5,#00336e)"></i> high bike price</span>`;
+
+/* ---- sample data ---- */
+const FLAT={car:44,pt:39,ptb:14,bike:3},T1={car:42,pt:40,ptb:14,bike:4},T2={car:38,pt:41,ptb:17,bike:4};
+const stack=v=>`<div class="stack" role="img" aria-label="${MODES.map(m=>m[1]+' '+v[m[0]]+' of 100').join(', ')}">${MODES.map(m=>`<i class="c-${m[0]}" style="flex:${v[m[0]]}">${v[m[0]]>=6?v[m[0]]:''}</i>`).join('')}</div>`;
+const keys=`<div class="keys">${MODES.map(m=>`<span><i class="sw c-${m[0]}"></i>${m[2]} ${m[1]}</span>`).join('')}</div>`;
+/* goal line: number line 30–50 travellers by car, target zone ≤ 38 shaded */
+function goal(dots){const X=v=>20+(v-30)*18;return `<div class="goal"><div class="lbl"><span>Travellers who drive, of 100</span><span>Target: 38 or fewer</span></div>
+<svg viewBox="0 0 400 58" role="img" aria-label="${dots.map(d=>d[1]+' '+d[0]).join(', ')}; target 38 or fewer">
+<rect x="${X(30)}" y="20" width="${X(38)-X(30)}" height="12" rx="6" fill="#edf6da"/><rect x="${X(38)}" y="20" width="${X(50)-X(38)}" height="12" rx="6" fill="#e0eae3"/>
+<line x1="${X(38)}" y1="12" x2="${X(38)}" y2="40" stroke="#54740f" stroke-width="2"/>
+${[30,35,40,45,50].map(v=>`<text x="${X(v)}" y="54" font-size="10" text-anchor="middle" fill="#5a6459">${v}</text>`).join('')}
+${dots.map(d=>`<circle cx="${X(d[0])}" cy="26" r="8" fill="${d[2]?'#004494':'#fff'}" stroke="#004494" stroke-width="2.5"/><text x="${X(d[0])}" y="12" font-size="10" text-anchor="middle" fill="#2e2d29" font-weight="700">${d[1]} ${d[0]}</text>`).join('')}
+</svg></div>`}
+const STEPS=['Mission','Flat price','Your pricing','The day','Your trip','Debrief'];
+const AT={mission:0,flat:1,set:2,miss:2,hit:2,day:3,trip:4,debrief:5},ORDER=['mission','flat','set','miss','hit','day','trip','debrief'];
+let cur='mission';
+function back(){const i=ORDER.indexOf(cur);if(i>0)render(ORDER[i-1])}
+const seg=(l,opts,on,help)=>`<div class="ctl"><label>${l}</label><span class="seg" role="group" aria-label="${l}">${opts.map((o,i)=>`<button aria-pressed="${i===on}">${o}</button>`).join('')}</span><small>${help}</small></div>`;
+const triesTbl=n=>`<table><thead><tr><th>Try</th><th>Price range</th><th>Walk to a bike</th><th>Drive, of 100</th><th>Revenue vs flat</th></tr></thead><tbody>
+<tr><td>1</td><td>0.08–0.15</td><td>400 m</td><td>42 ✕</td><td>+3 % ✓</td></tr>${n>1?`<tr><td>2</td><td>0.05–0.30</td><td>400 m</td><td>38 ✓</td><td>+12 % ✓</td></tr>`:''}</tbody></table>`;
+function render(s){cur=s;cancelAnimationFrame(raf);
+  document.querySelectorAll('.mock [data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));
+  document.getElementById('steps').innerHTML=STEPS.map((n,i)=>`<li class="${i<AT[s]?'done':i===AT[s]?'current':''}"><span class="no"${i===AT[s]?' aria-current="step"':''}>${i<AT[s]?'✓':i+1}</span>${n}</li>`).join('');
+  const used={mission:0,flat:0,set:0,miss:1}[s]??2;
+  document.getElementById('tries').innerHTML='Tries '+[0,1,2].map(i=>`<i class="${i<used?'used':''}"></i>`).join('')+` ${used} of 3`;
+  const card=document.getElementById('card'),bar=document.getElementById('bar'),lg=document.getElementById('legend');
+  base();
+  if(s==='mission'){hubs();stations();
+    card.innerHTML=`<span class="rhythm">Read → Accept</span><h2 class="t">Today you run the city's shared bikes</h2>
+    <p>This is a part of Geneva on a weekday. People compare their options for each trip: how long, how much, how many changes.</p>
+    ${stack(FLAT)}${keys}<p>Today, <b>44 of 100</b> travellers take the car. <span class="tag model">PRICING MODEL'S RESULT</span></p>
+    <div class="mission"><b>Your mission:</b> bring that number down to <b>38 or fewer</b>, without earning less than today. You set the bike prices. You have <b>3 tries</b>.</div>
+    <p class="note">Target and tries: <span class="pending">[Q-26]</span></p>`;
+    bar.innerHTML=`<button class="cta" onclick="render('flat')">Accept the mission →</button><span class="note">About five minutes.</span>`;
+    lg.innerHTML=`<span><i class="sw" style="background:var(--green)"></i>Shared-bike stations</span>`+hubKey;return}
+  if(s==='flat'){hubs();pairs(true);
+    card.innerHTML=`<span class="rhythm">Choose → See</span><h2 class="t">First, the usual way: one price for everyone</h2>
+    <p>Most bike-share services charge a flat price. Pick the one this city uses today.</p>
+    <div class="choice c3" role="group" aria-label="Flat price strategy"><button class="opt" aria-pressed="true"><strong>Per minute</strong><small>0.10 CHF per minute</small></button><button class="opt"><strong>Per km</strong><small>0.50 CHF per km <span class="pending">[Q-27]</span></small></button><button class="opt"><strong>Per 30 min</strong><small>2.00 CHF per half hour <span class="pending">[Q-27]</span></small></button></div>
+    <span class="rowl">With 0.10 CHF per minute, of 100 travellers:</span>${stack(FLAT)}${keys}
+    ${goal([[44,'Flat price',false]])}
+    <p>A flat price treats every trip the same: the trip where the bike could beat the car costs the same per minute as any other.</p>`;
+    bar.innerHTML=`<button class="cta" onclick="render('set')">Now set your own pricing →</button>`;
+    lg.innerHTML=priceKey('Flat price: the same on every trip')+hubKey;return}
+  if(s==='set'){hubs();pairs(true);
+    card.innerHTML=`<span class="rhythm">Set → Guess → Reveal</span><h2 class="t">Let the price depend on the trip</h2>
+    <p>You give the pricing model a minimum and a maximum. It then chooses a bike price for each trip between two hubs.</p>
+    ${seg('Bike price range, CHF per minute',['0.08 – 0.15','0.05 – 0.30','0.02 – 0.50'],0,'A wider range lets the model lower some trips and raise others more.')}
+    ${seg('Longest walk to a bike',['200 m','400 m','600 m'],1,'How far a traveller accepts to walk to a station. <span class="pending">[Q-27]</span>')}
+    <div class="predict"><div class="ctl" style="margin:0"><label>Your guess: how many of 100 will drive?</label><span class="seg" role="group" aria-label="Your guess"><button>44</button><button aria-pressed="true">42</button><button>40</button><button>38</button><button>36</button></span><small>Guess first. The result shows after.</small></div></div>
+    <p class="note" style="margin-top:8px">Controls and their values: <span class="pending">[Q-26]</span></p>`;
+    bar.innerHTML=`<button class="cta" onclick="render('miss')">Reveal the result</button><span class="note">Uses 1 of your 3 tries.</span>`;
+    lg.innerHTML=priceKey('Still the flat price')+hubKey;return}
+  if(s==='miss'||s==='hit'){const ok=s==='hit',v=ok?T2:T1;hubs();pairs(false,ok?1:.35);
+    card.innerHTML=`<span class="rhythm">Set → Guess → Reveal</span><span class="tag model" style="margin-left:8px">PRICING MODEL'S RESULT</span>
+    <h2 class="t">${ok?'38 of 100 drive: mission reached':'42 of 100 drive: not there yet'}</h2>
+    ${goal([[44,'Flat',false],[v.car,'You',true]])}
+    <span class="rowl">Flat price</span>${stack(FLAT)}<span class="rowl">Your pricing, try ${ok?2:1}</span>${stack(v)}${keys}
+    <ul class="checks"><li>${ok?'✓':'✕'} Car trips: <b>${v.car}</b> of 100 (target 38 or fewer)</li><li>✓ Revenue: <b>${ok?'+12 %':'+3 %'}</b> against the flat price (target: not lower)</li><li>Your guess: <b>${ok?'38':'42'}</b> — ${ok?'exact':'exact, but the range was too narrow to change much'}</li></ul>
+    <div class="verdict ${ok?'ok':'no'}">${ok?'A wider range let the model lower the price where a bike replaces a car trip, and raise it where bikes are in demand anyway.':'With a narrow range, the model\'s prices stay close to the flat price. Give it more room.'}</div>
+    ${triesTbl(ok?2:1)}`;
+    bar.innerHTML=ok?`<button class="cta" onclick="render('day')">Watch your day →</button><button class="cta2" onclick="render('set')">Use my last try</button>`:`<button class="cta" onclick="render('set')">Try again</button><span class="note">2 tries left.</span>`;
+    lg.innerHTML=priceKey('Your pricing: bike price per trip between hubs')+`<span>Width: travellers using a bike</span>`+hubKey;return}
+  if(s==='day'){stations([3,11,19]);trips();
+    card.innerHTML=`<span class="rhythm">Watch → Notice</span><span class="tag sim" style="margin-left:8px">SIMULATION</span><h2 class="t">Your prices, one day in the city</h2>
+    <div class="clock">15:20</div>
+    <div class="live"><div><b>2 960</b><span>Travellers so far</span></div><div><b style="color:var(--red-ink)">3</b><span>Stations with no bike</span></div><div><b style="color:var(--red-ink)">41</b><span>Travellers who found no bike</span></div></div>
+    <p>Each dot is one traveller choosing with your prices. Watch the stations: when one runs out of bikes, the next traveller there cannot take a bike.</p>
+    <p class="note">This is a simulation of single travellers, not the pricing model's result: the model sets prices for the whole day at once.</p>`;
+    bar.innerHTML=`<button class="cta" onclick="render('trip')">Now be a traveller →</button><button class="cta2">⏸ Pause</button>`;
+    lg.innerHTML='<b>Simulated travellers</b>'+MODES.map(m=>`<span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="${m[3]}" stroke-width="3" stroke-dasharray="${m[4]}"/></svg>${m[2]} ${m[1]}</span>`).join('')+`<span><i class="sw" style="background:#fff;border:2px solid var(--red-ink)"></i>Station with no bike</span>`;return}
+  if(s==='trip'){hubs();route();
+    const t=(c,n,meta,p,was,on)=>`<button class="trip" style="--c:${c}" aria-pressed="${!!on}"><strong>${n}</strong><span class="was">${was}</span><span class="p">${p} CHF</span><small>${meta}</small></button>`;
+    card.innerHTML=`<span class="rhythm">Compare → Choose</span><h2 class="t">Your own trip: Plainpalais to Eaux-Vives</h2>
+    <p>Here is what you would pay for each option.</p>
+    <div class="trip" style="--c:transparent;border:0;padding-bottom:0;margin:0"><small></small><span class="was">Flat price</span><span class="p">Your pricing</span></div>
+    ${t('#eb6834','🚗 Car','18 min','8.40','8.40')}${t('#1baf7a','🚋+🚲 Public transport + shared bike','22 min · 1 change','2.30','2.60',true)}${t('#2a78d6','🚋 Public transport','27 min · 1 change','2.00','2.00')}${t('#008300','🚲 Shared bike','24 min','1.80','2.40')}
+    <p style="margin-top:8px"><b>Which one would you take?</b> You picked public transport + shared bike.</p>
+    <div class="verdict ok">On this trip, your pricing moved 8 of 100 travellers from the car to a bike option. <span class="tag model">PRICING MODEL'S RESULT</span></div>
+    <p class="note">Price make-up per mode: <span class="pending">[Q-17]</span>. Durations: the trip planner.</p>`;
+    bar.innerHTML=`<button class="cta" onclick="render('debrief')">See what you achieved →</button>`;
+    lg.innerHTML=`<b>Your choice: 🚋+🚲</b><span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--m-pt)" stroke-width="4"/></svg>Public transport</span><span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--m-bike)" stroke-width="4" stroke-dasharray="6 3"/></svg>Shared bike</span><span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--m-walk)" stroke-width="3" stroke-dasharray="2 4"/></svg>Walking</span>`;return}
+  hubs();pairs(false,1);
+  card.innerHTML=`<span class="rhythm">Read → Take away</span><span class="tag model" style="margin-left:8px">PRICING MODEL'S RESULT</span>
+  <h2 class="t">You took 6 of 100 travellers out of their car</h2>
+  ${goal([[44,'Flat',false],[38,'You',true]])}
+  <div class="score"><div><b>6</b><span>fewer car trips per 100 travellers</span></div><div><b>+12 %</b><span>operator revenue against the flat price</span></div><div><b>2 of 3</b><span>tries used</span></div></div>
+  <p><b>What to remember</b></p>
+  <ul class="take"><li>The price did not go up everywhere: it went down where a bike can replace a car trip.</li><li>Nobody was forced: travellers still chose, the comparison changed.</li><li>Prices alone do not put bikes where they are needed: three stations still ran empty.</li></ul>
+  ${triesTbl(2)}`;
+  bar.innerHTML=`<button class="cta" onclick="render('mission')">Play again</button><a class="cta2" href="S-2-lab-setup.html">Open the Lab</a><a class="cta2" href="S-1-home.html">Home</a>`;
+  lg.innerHTML=priceKey('Your pricing')+hubKey;
+}
+document.querySelectorAll('.mock [data-s]').forEach(b=>b.onclick=()=>render(b.dataset.s));
+render(ORDER.includes(location.hash.slice(1))?location.hash.slice(1):'mission');
+</script>
+</body>
+</html>

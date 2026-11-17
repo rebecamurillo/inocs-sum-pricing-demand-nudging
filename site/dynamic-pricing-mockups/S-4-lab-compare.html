@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-4 Lab · Compare — dynamic pricing mockup</title>
+<style>
+/* Tokens: knowledge/visual-identity.md (XD-1), light mode only. Mode colours: UX-SPEC § Mode colours. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#dfebe5;--tint-2:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;--line-2:#e0eae3;
+  --blue:#004494;--blue-d:#00336e;--blue-tint:#e3ebf5;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;
+  --red:#ff3514;--red-ink:#be280b;--red-tint:#ffe9e4;
+  --map-ground:#e4e5e2;--map-street:#fafaf9;--map-water:#d4dbdc;--map-ref:#949c93;--map-ring:#b7bcb5;
+  --m-car:#eb6834;--m-pt:#2a78d6;--m-ptb:#1baf7a;--m-bike:#008300;--m-walk:#5a6459;
+  --up:#00336e;--down:#b4530a;--mid:#c9cdc8;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;--fs:15px;
+}
+html.proj{--fs:18px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--bg);color:var(--ink);font:400 var(--fs)/1.5 'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;grid-template-rows:56px auto 1fr auto}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;line-height:1.15;margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.hdr{background:var(--blue);color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.02em}
+.logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+.hdr h1{font-size:1.15em;font-weight:600}
+.hdr h1 span{font-weight:400;opacity:.8}
+.hdr a.home{color:#fff;font-size:.85em;opacity:.9}
+.chip{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:4px 12px;font-size:.85em;color:#fff}
+.aa{border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:2px 10px;color:#fff;font-weight:700}
+.tabs{display:flex;align-items:flex-end;gap:4px;padding:8px 20px 0;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.tabs a{padding:8px 14px;color:var(--ink-2);text-decoration:none;font-weight:600;font-size:.92em;border-bottom:3px solid transparent}
+.tabs a[aria-current=page]{color:var(--blue);border-bottom-color:var(--blue)}
+.tabs .runs{margin-left:auto;font-size:.82em;color:var(--ink-2);padding-bottom:9px}
+main{display:grid;grid-template-columns:minmax(560px,54vw) 1fr;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--bg);padding:14px 0 14px 16px;position:relative}
+.card{flex:1;overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.brief{display:flex;flex-direction:column;gap:2px;margin:0 0 12px}
+.rhythm{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--green-ink);font-weight:700}
+.bar{display:flex;align-items:center;gap:12px;padding:12px 0 0}
+.cta{background:var(--blue);color:#fff;border-radius:10px;padding:10px 18px;font-weight:600;text-decoration:none}
+.cta2{border:1px solid var(--line);border-radius:10px;padding:9px 14px;color:var(--blue);font-weight:600}
+.note{font-size:.82em;color:var(--ink-2)}
+.mapcol{position:relative;margin:14px 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);background:var(--map-ground)}
+.mapcol svg{width:100%;height:100%;display:block}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border-radius:10px;padding:8px 12px;font-size:.78em;display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)}
+.legend span{display:flex;align-items:center;gap:6px}
+.mapcol .legend svg{width:22px;height:8px;flex:none}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;background:#fff;border-radius:8px;box-shadow:var(--shadow)}
+.zoom button{width:32px;height:32px;font-weight:700}
+.sample{position:absolute;top:10px;left:12px;font-size:.72em;border:1px dashed var(--map-ref);border-radius:6px;padding:2px 8px;background:rgba(255,255,255,.8);color:var(--ink-2)}
+.ftr{display:flex;align-items:center;gap:12px;padding:5px 20px;min-height:30px;font-size:.75em;color:var(--ink-2);background:var(--surface);border-top:1px solid var(--line-2)}
+.eu{display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--map-ref);padding:1px 6px;border-radius:4px}
+.eu b{display:inline-block;width:22px;height:15px;background:#004494;position:relative}
+.eu b::after{content:"★";color:#ffcc00;font-size:9px;position:absolute;inset:0;display:grid;place-items:center}
+.ftr .right{margin-left:auto}
+.mock{position:fixed;right:28px;top:154px;background:#fff;border:2px dashed var(--map-ref);border-radius:99px;padding:4px 6px;display:flex;gap:4px;font-size:12px;z-index:50;box-shadow:var(--shadow)}
+.mock b{padding:4px 8px;color:var(--ink-2)}
+.mock button{padding:4px 10px;border-radius:99px}
+.mock button[aria-pressed=true]{background:var(--ink);color:#fff}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px}
+.tag.model{background:var(--blue-tint);color:var(--blue)}
+.pending{background:#fff8d6;border-bottom:1px dashed #b38f00;padding:0 2px}
+/* tab: compare */
+.pick{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:12px;font-size:.88em}
+.pill{border:1px solid var(--line);border-radius:99px;padding:3px 12px}
+.pill[aria-pressed=true]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pill.ref{border-style:dashed;color:var(--ink-2);cursor:default}
+.hl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hl .scope{font-size:.8em;color:var(--ink-2)}
+.adv{margin-left:auto;font-size:.82em;color:var(--blue);border:1px solid var(--line);border-radius:8px;padding:2px 10px}
+.adv[aria-pressed=true]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.insight{font-size:1.35em;margin:8px 0 12px}
+.split{display:grid;grid-template-columns:150px 1fr;gap:6px 10px;align-items:center;font-size:.82em}
+.stack{display:flex;height:26px;gap:2px}
+.stack i{display:grid;place-items:center;color:#fff;font-style:normal;font-weight:600;font-size:.85em;border-radius:3px;min-width:0;overflow:hidden}
+.c-car{background:var(--m-car)}.c-pt{background:var(--m-pt)}.c-ptb{background:var(--m-ptb)}.c-bike{background:var(--m-bike)}
+.keys{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.78em;margin:8px 0 0}
+.keys span{display:flex;align-items:center;gap:5px}
+.sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+h2.sec{font-size:1em;margin:18px 0 6px}
+table{border-collapse:collapse;width:100%;font-size:.84em}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line-2);text-align:right;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-2);font-weight:600}
+td small{display:block;color:var(--ink-2)}
+td.best{background:var(--green-tint);font-weight:700}
+tr.grp td{background:var(--tint-2);font-weight:700;font-size:.9em;text-align:left}
+td.diff{font-weight:700}
+.caption{font-size:.78em;color:var(--ink-2);margin:4px 0 0}
+.link{color:var(--blue);text-decoration:underline;font-size:.88em}
+.mapsel{position:absolute;top:10px;right:12px;background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:4px 8px;font-size:.8em;display:flex;gap:6px;align-items:center;top:84px}
+.mapsel select{font:inherit;border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:#fff}
+.div{display:flex;align-items:center;gap:6px}
+.div i{display:block;width:110px;height:8px;border-radius:4px;background:linear-gradient(90deg,var(--down),var(--mid),var(--up))}
+.empty{background:var(--tint-2);border-radius:10px;padding:14px;margin-top:8px}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <span class="logo"><i></i>SUM</span>
+  <h1>Dynamic pricing <span>· Lab</span></h1>
+  <a class="home" href="S-1-home.html">← Home</a>
+  <button class="chip">Set-up: Geneva · 3 km · default ▾</button>
+  <button class="aa" aria-label="Larger text for a projector" onclick="document.documentElement.classList.toggle('proj')">Aa</button>
+</header>
+
+<nav class="tabs" aria-label="Lab">
+  <a href="S-2-lab-setup.html">Set-up</a>
+  <a href="S-3-lab-versions.html">Versions</a>
+  <a href="S-4-lab-compare.html" aria-current="page">Compare</a>
+  <a href="S-5-lab-day.html">Simulated day</a>
+  <a href="S-6-lab-trip.html">Trip pricing</a>
+  <span class="runs">No run in progress</span>
+</nav>
+
+<main>
+  <section class="col">
+    <article class="card" id="card"></article>
+    <div class="bar" id="bar"></div>
+  </section>
+  <section class="mapcol" aria-label="Map of the price difference per hub pair">
+    <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Hub pairs coloured by the difference in bike price between two versions"></svg>
+    <span class="sample">sample geometry and values</span>
+    <div class="mapsel" id="mapsel"></div>
+    <div class="legend" id="legend"></div>
+    <div class="zoom"><button aria-label="Zoom in">+</button><button aria-label="Zoom out">−</button></div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <span class="eu"><b></b>Co-funded by the European Union</span>
+  <span>Funded by the European Union under Horizon Europe, project SUM. <span class="pending">[exact statement from the team folder]</span></span>
+  <span class="right">Pricing model: {model author}, Inria INOCS. Run unmodified.</span>
+</footer>
+
+<div class="mock" role="group" aria-label="Mockup state (not part of the design)"><b>mockup state · sample data</b>
+  <button data-s="two">two versions</button><button data-s="three">three versions</button><button data-s="advanced">advanced view on</button><button data-s="one">only one version</button>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+function rng(s){return()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,((s^s>>>7)>>>0)%10000)/10000)}
+const C={x:500,y:430,r:300};
+const R=rng(11);const HUBS=[];
+while(HUBS.length<34){const a=R()*6.283,d=Math.sqrt(R())*C.r*.93;const x=C.x+Math.cos(a)*d,y=C.y+Math.sin(a)*d;if(y<170&&x>560)continue;HUBS.push({id:'H'+(HUBS.length+1),x,y})}
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+const svg=document.getElementById('map');
+function base(){
+  svg.innerHTML='';
+  el('rect',{x:0,y:0,width:1000,height:800,fill:'var(--map-ground)'});
+  el('path',{d:'M600 0 L1000 0 L1000 230 C880 210 760 190 640 120 C610 90 600 40 600 0Z',fill:'var(--map-water)'});
+  el('path',{d:'M640 120 C560 150 520 200 470 260 C420 320 300 330 0 360',stroke:'var(--map-water)','stroke-width':22,fill:'none'});
+  const r=rng(3);for(let i=0;i<46;i++){const x=r()*1000,y=r()*800;el('path',{d:`M${x} ${y} l${(r()-.5)*420} ${(r()-.5)*420}`,stroke:'var(--map-street)','stroke-width':2+r()*5,fill:'none','stroke-linecap':'round'})}
+  el('circle',{cx:C.x,cy:C.y,r:C.r,fill:'none',stroke:'var(--map-ring)','stroke-width':2.5,'stroke-dasharray':'8 6'});
+  HUBS.forEach(h=>el('circle',{cx:h.x,cy:h.y,r:30,fill:'rgba(148,156,147,.08)',stroke:'var(--map-ref)','stroke-width':1.5,'stroke-dasharray':'4 4'}));
+}
+/* diverging: lower price #b4530a · no change #c9cdc8 · higher price #00336e */
+function mix(a,b,t){return 'rgb('+a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')+')'}
+function dcol(t){const m=[0xc9,0xcd,0xc8];return t<0?mix(m,[0xb4,0x53,0x0a],-t):mix(m,[0x00,0x33,0x6e],t)}
+function diffPairs(seed){const r=rng(5),q=rng(seed);for(let i=0;i<HUBS.length;i++)for(let j=i+1;j<HUBS.length;j++){if(r()>.16)continue;const t=(q()-.42)*1.9,c=Math.max(-1,Math.min(1,t));
+  el('line',{x1:HUBS[i].x,y1:HUBS[i].y,x2:HUBS[j].x,y2:HUBS[j].y,stroke:dcol(c),'stroke-width':1+Math.abs(c)*6,'stroke-linecap':'round',opacity:.3+Math.abs(c)*.6})}
+  const a=HUBS[3],b=HUBS[17];el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#00336e','stroke-width':8,'stroke-linecap':'round'});
+  [a,b].forEach(h=>{el('circle',{cx:h.x,cy:h.y,r:10,fill:'#fff',stroke:'#00336e','stroke-width':3});const t=el('text',{x:h.x+14,y:h.y-10,'font-size':18,'font-weight':700,fill:'var(--ink)'});t.textContent=h.id})}
+
+/* ---- sample data ---- */
+const MODES=[['car','Car','🚗'],['pt','Public transport','🚋'],['ptb','Public transport + shared bike','🚋+🚲'],['bike','Shared bike','🚲']];
+const V={F:{n:'Flat price 0.10 CHF/min',car:44,pt:39,ptb:14,bike:3,price:'0.10',rev:'3 054',max:'—',theta:'—',t:'—',gap:'—',obj:'—'},
+ A:{n:'Version A',car:41,pt:40,ptb:15,bike:4,price:'0.12',rev:'3 150',max:'0.30',theta:'0.5',t:'5 min 12 s',gap:'0.6 %',obj:'39 880.1'},
+ B:{n:'Version B',car:38,pt:41,ptb:17,bike:4,price:'0.14',rev:'3 420',max:'0.30',theta:'0.4',t:'6 min 40 s',gap:'0.8 %',obj:'41 207.3'},
+ C:{n:'Version C',car:36,pt:41,ptb:18,bike:5,price:'0.17',rev:'3 610',max:'0.40',theta:'0.5',t:'9 min 02 s',gap:'1.4 %',obj:'42 655.0'}};
+const stack=v=>`<div class="stack" role="img" aria-label="${MODES.map(m=>m[1]+' '+v[m[0]]+' %').join(', ')}">${MODES.map(m=>`<i class="c-${m[0]}" style="flex:${v[m[0]]}">${v[m[0]]>=6?v[m[0]]+' %':''}</i>`).join('')}</div>`;
+const pts=(a,b)=>{const x=a-b;return x===0?'= 0':(x>0?'▲ ':'▼ ')+Math.abs(x)};
+function view(ids,adv){const cols=['F',...ids],last=ids[ids.length-1],prev=ids[ids.length-2];
+ const best=k=>ids.reduce((m,i)=>V[i][k]<V[m][k]?i:m,ids[0]);
+ const row=(l,k,unit,low)=>`<tr><td>${l}</td>${cols.map(i=>`<td class="${low&&i===best(k)?'best':''}">${V[i][k]}${unit}${i!=='F'&&typeof V[i][k]==='number'?`<small>${pts(V[i][k],V.F[k])} ${Math.abs(V[i][k]-V.F[k])===1?'pt':'pts'}</small>`:''}</td>`).join('')}</tr>`;
+ return `<p class="brief"><span class="rhythm">Versions of one set-up, side by side</span><span>Tick the versions to compare. Every number is also shown against the flat bike price.</span></p>
+<div class="pick" role="group" aria-label="Versions to compare">Compare ${['A','B','C'].map(i=>`<button class="pill" aria-pressed="${ids.includes(i)}">${ids.includes(i)?'✓ ':''}Version ${i}</button>`).join('')}<span class="pill ref">Flat price 0.10 CHF/min · always shown</span></div>
+<div class="hl"><span class="tag model">PRICING MODEL'S RESULTS</span><span class="scope">Geneva · 3 km · default · one day, 08:00 timetable</span><button class="adv" aria-pressed="${adv}" onclick="render('${adv?'three':'advanced'}')">Advanced view</button></div>
+<h2 class="insight">${ids.length>2?'Version C has the lowest car share: 36 %, 8 pts under the flat price':'Version B: car share 3 pts under Version A, 6 pts under the flat price'}</h2>
+<div class="split">${cols.map(i=>`<span>${i==='F'?'Flat price <b class="num">0.10 CHF/min</b>':V[i].n}</span>${stack(V[i])}`).join('')}</div>
+<div class="keys">${MODES.map(m=>`<span><i class="sw c-${m[0]}"></i>${m[2]} ${m[1]}</span>`).join('')}</div>
+<p class="caption"><span class="pending">[Q-23]</span> whether shared bike alone is part of the model's split. <span class="pending">[Q-24]</span> how the flat-price column is obtained.</p>
+<table style="margin-top:14px"><thead><tr><th></th>${cols.map(i=>`<th>${i==='F'?'Flat price':V[i].n}</th>`).join('')}</tr></thead><tbody>
+<tr class="grp"><td colspan="${cols.length+1}">Modal split, share of travellers</td></tr>
+${row('🚗 Car','car',' %',true)}${row('🚋 Public transport','pt',' %')}${row('🚋+🚲 Public transport + shared bike','ptb',' %')}${row('🚲 Shared bike','bike',' %')}
+<tr class="grp"><td colspan="${cols.length+1}">Operator</td></tr>
+<tr><td>Average bike price, CHF/min <span class="pending">[Q-17]</span></td>${cols.map(i=>`<td>${V[i].price}</td>`).join('')}</tr>
+<tr><td>Revenue, CHF, one day <span class="pending">[Q-17]</span></td>${cols.map(i=>`<td>${V[i].rev}</td>`).join('')}</tr>
+<tr class="grp"><td colspan="${cols.length+1}">Parameters that differ</td></tr>
+<tr><td>Maximum bike price, CHF/min</td>${cols.map(i=>`<td class="${i==='C'?'diff':''}">${V[i].max}</td>`).join('')}</tr>
+<tr><td>theta <span class="pending">[Q-17]</span></td>${cols.map(i=>`<td class="${i==='B'?'diff':''}">${V[i].theta}</td>`).join('')}</tr>
+${adv?`<tr class="grp"><td colspan="${cols.length+1}">Advanced view · solver</td></tr>
+<tr><td>Solution time</td>${cols.map(i=>`<td>${V[i].t}</td>`).join('')}</tr>
+<tr><td>Optimality gap</td>${cols.map(i=>`<td>${V[i].gap}</td>`).join('')}</tr>
+<tr><td>Objective value</td>${cols.map(i=>`<td>${V[i].obj}</td>`).join('')}</tr>
+<tr><td>Hub pairs · options priced</td>${cols.map(i=>`<td>${i==='F'?'—':'1 806 · 5 418'}</td>`).join('')}</tr>`:''}
+</tbody></table>
+<p class="caption">Small figures: change vs the flat price, in points. Green cell: lowest car share among the ticked versions. Parameters equal in every ticked version are not listed; the full set is in each version's Advanced view.</p>
+<h2 class="sec">Hub pairs where the bike price differs most: ${V[last].n} − ${V[prev].n}</h2>
+<table><thead><tr><th>From → to</th><th>${V[prev].n}</th><th>${V[last].n}</th><th>Difference</th><th>Travellers on bike options</th><th></th></tr></thead><tbody>
+<tr><td>H4 Plainpalais → H18 Eaux-Vives</td><td>${last==='C'?'0.22':'0.15'}</td><td>${last==='C'?'0.31':'0.22'}</td><td>▲ ${last==='C'?'0.09':'0.07'}</td><td>23 → ${last==='C'?'19':'23'}</td><td><a class="link" href="#">Show on map</a></td></tr>
+<tr><td>H2 Cornavin → H11 Carouge</td><td>0.19</td><td>0.26</td><td>▲ 0.07</td><td>11 → 9</td><td><a class="link" href="#">Show on map</a></td></tr>
+<tr><td>H14 Jonction → H2 Cornavin</td><td>0.09</td><td>0.05</td><td>▼ 0.04</td><td>5 → 12</td><td><a class="link" href="#">Show on map</a></td></tr>
+</tbody></table><p class="caption">CHF/min <span class="pending">[Q-17]</span>. Every column sorts. Hub names: sample.</p>`}
+function render(s){
+  document.querySelectorAll('.mock [data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));
+  const card=document.getElementById('card'),bar=document.getElementById('bar'),sel=document.getElementById('mapsel'),lg=document.getElementById('legend');
+  base();
+  if(s==='one'){sel.hidden=true;lg.innerHTML=`<span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--map-ref)" stroke-width="2" stroke-dasharray="4 4"/></svg>Hubs</span>`;
+    card.innerHTML=`<p class="brief"><span class="rhythm">Versions of one set-up, side by side</span><span>Tick the versions to compare.</span></p><div class="empty"><strong>Compare needs two pricing versions of this set-up.</strong><br>“Geneva · 3 km · default” has one: Version A. Create a second version with other parameters, then come back.</div>`;
+    bar.innerHTML=`<a class="cta" href="S-3-lab-versions.html">+ New version</a>`;return}
+  const ids=s==='two'?['A','B']:['A','B','C'];
+  card.innerHTML=view(ids,s==='advanced');
+  bar.innerHTML=`<button class="cta2">Export the table (CSV)</button><a class="link" href="S-5-lab-day.html">Compare the simulated days of these versions</a>`;
+  diffPairs(ids.length>2?21:8);sel.hidden=false;
+  const a=ids[ids.length-2],b=ids[ids.length-1];
+  sel.innerHTML=`Map shows <select aria-label="Map layer"><option>Bike price: Version ${b} − Version ${a}</option><option>Bike price: Version ${b} − flat price</option><option>Bike travellers: Version ${b} − Version ${a}</option></select>`;
+  lg.innerHTML=`<b>Bike price per hub pair: Version ${b} − Version ${a}</b><span class="div">lower <i></i> higher</span><span class="num">−0.10 · 0 · +0.10 CHF/min · width: size of the difference</span><span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--map-ref)" stroke-width="2" stroke-dasharray="4 4"/></svg>Hubs</span>`;
+}
+document.querySelectorAll('.mock [data-s]').forEach(b=>b.onclick=()=>render(b.dataset.s));
+render(document.querySelector('.mock [data-s="'+location.hash.slice(1)+'"]')?location.hash.slice(1):'three');
+</script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Dynamic pricing demonstrator — mockup review</title>
+<style>
+/* Review workspace for the mockups: explanations, live previews, notes kept in the reader's browser.
+   Tokens: knowledge/visual-identity.md (XD-1), light mode only. Not a screen of the demonstrator. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#dfebe5;--tint-2:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;--line-2:#e0eae3;
+  --blue:#004494;--blue-tint:#e3ebf5;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;--warn:#fff8d6;--warn-line:#b38f00;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;line-height:1.15;margin:0;text-wrap:balance}
+a{color:var(--blue)}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.hdr{background:var(--blue);color:#fff;position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:16px;padding:0 24px;height:56px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.02em}
+.logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+.hdr b{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;font-weight:600}
+.hdr span.s{opacity:.8;font-size:.9em}
+.hdr .copy{margin-left:auto;background:#fff;color:var(--blue);border:0;border-radius:99px;padding:6px 16px;font-weight:600;font-size:.9em}
+.page{display:grid;grid-template-columns:230px minmax(0,1fr);gap:28px;max-width:1360px;margin:0 auto;padding:28px 24px 80px}
+nav.toc{position:sticky;top:84px;align-self:start;font-size:.92em}
+nav.toc p{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);font-weight:700;margin:16px 0 4px}
+nav.toc p:first-child{margin-top:0}
+nav.toc a{display:flex;justify-content:space-between;gap:8px;padding:5px 10px;border-radius:8px;text-decoration:none;color:var(--ink)}
+nav.toc a:hover{background:var(--tint-2)}
+nav.toc a i{font-style:normal;color:var(--green-ink);font-size:.85em}
+main{display:flex;flex-direction:column;gap:28px;min-width:0}
+.intro{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:24px 28px}
+.intro h1{font-size:1.9em;margin-bottom:10px}
+.intro p{margin:0 0 10px;max-width:70ch}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+.how div{background:var(--tint-2);border-radius:10px;padding:12px 14px;font-size:.93em}
+.how b{display:block;margin-bottom:2px}
+.who{display:flex;gap:10px;align-items:center;margin-top:16px;font-size:.93em}
+.who input{font:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 10px;width:260px;max-width:100%}
+.map3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.map3 a{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;text-decoration:none;color:var(--ink);border-top:5px solid var(--line)}
+.map3 a.lab{border-top-color:var(--blue)}.map3 a.play{border-top-color:var(--green)}
+.map3 b{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;font-size:1.15em;display:block}
+.map3 span{color:var(--ink-2);font-size:.9em}
+.grp{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;font-size:1.35em;margin:8px 0 -12px}
+.grp small{font:400 .62em 'Public Sans',system-ui,sans-serif;color:var(--ink-2);margin-left:8px}
+.scr{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:22px 24px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px 26px}
+.scr header{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+.scr h2{font-size:1.4em}
+.badge{font-size:.72em;font-weight:700;letter-spacing:.04em;padding:2px 10px;border-radius:99px;background:var(--blue-tint);color:var(--blue)}
+.badge.later{background:var(--tint);color:var(--ink-2)}
+.scr header a{margin-left:auto;font-weight:600;font-size:.92em}
+.txt h3{font-size:.8em;letter-spacing:.07em;text-transform:uppercase;color:var(--green-ink);margin:14px 0 4px;font-family:inherit}
+.txt h3:first-child{margin-top:0}
+.txt p{margin:0;max-width:68ch}
+.txt ul{margin:0;padding-left:18px;max-width:68ch}
+.txt li{margin-bottom:3px}
+.ask{background:var(--warn);border-left:4px solid var(--warn-line);border-radius:0 10px 10px 0;padding:10px 14px;margin-top:14px}
+.ask h3{color:#6b5600;margin:0 0 4px}
+.states{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;font-size:.85em;align-items:center}
+.states button{border:1px solid var(--line);background:#fff;border-radius:99px;padding:2px 12px;color:var(--ink)}
+.states button[aria-pressed=true]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.notes{display:flex;flex-direction:column;gap:6px}
+.notes label{font-weight:600;font-size:.92em}
+.notes textarea{font:inherit;font-size:.93em;border:1px solid var(--line);border-radius:10px;padding:10px;min-height:190px;resize:vertical;width:100%;background:#fbfdfb}
+.notes small{color:var(--ink-2);font-size:.8em}
+.frame{grid-column:1/-1;border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative;background:var(--tint-2)}
+.frame iframe{width:1440px;height:900px;border:0;transform-origin:0 0;display:block}
+.frame.tall iframe{height:1250px}
+.out{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:22px 24px}
+.out h2{font-size:1.4em;margin-bottom:8px}
+.out textarea{width:100%;min-height:160px;font:13px/1.5 ui-monospace,Menlo,monospace;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+.btn{background:var(--blue);color:#fff;border:0;border-radius:10px;padding:10px 18px;font-weight:600}
+.ok{color:var(--green-ink);font-weight:600;margin-left:10px}
+.ftr{font-size:.82em;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.eu{display:inline-flex;align-items:center;gap:6px;border:1px dashed #949c93;padding:2px 8px;border-radius:4px}
+.eu b{display:inline-block;width:26px;height:18px;background:#004494;position:relative}
+.eu b::after{content:"★";color:#ffcc00;font-size:10px;position:absolute;inset:0;display:grid;place-items:center}
+@media (max-width:1000px){.page{grid-template-columns:1fr}nav.toc{position:static;display:none}.scr{grid-template-columns:1fr}.how,.map3{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <span class="logo"><i></i>SUM</span><b>Dynamic pricing demonstrator</b><span class="s">mockup review · 17 November 2026</span>
+  <button class="copy" onclick="location.hash='#send'">Send my notes ↓</button>
+</header>
+
+<div class="page">
+<nav class="toc" aria-label="Screens" id="toc"></nav>
+
+<main>
+  <section class="intro">
+    <h1>Mockups for your review</h1>
+    <p>We are building a new dynamic pricing demonstrator. It runs the pricing model as its author wrote it, on a part of Geneva, and shows what the model's prices do to how people travel. These are the design mockups. Nothing is built yet, so this is the cheapest moment to change anything.</p>
+    <p><b>Every number, name and map is sample data.</b> Text on a yellow ground, like <span style="background:var(--warn);border-bottom:1px dashed var(--warn-line)">[Q-17]</span>, marks wording or a figure that waits for an answer, most of them from you.</p>
+    <div class="how">
+      <div><b>1 · Look</b>Each screen below has a live preview. Use the state buttons above a preview, or open the screen full size and click through it.</div>
+      <div><b>2 · Note</b>Write what is wrong, unclear or missing in the box beside each screen. Your notes stay in this browser until you send them.</div>
+      <div><b>3 · Send</b>At the bottom, copy all your notes in one click and send them to Rebeca by email or chat.</div>
+    </div>
+    <div class="who"><label for="who">Your name</label><input id="who" placeholder="so we know whose notes these are" autocomplete="name"></div>
+  </section>
+
+  <div class="map3">
+    <a href="#S-1"><b>Home</b><span>One page for a city or an operator: the idea in a minute, then two ways to try it.</span></a>
+    <a class="lab" href="#S-2"><b>Lab</b><span>The research workspace: every parameter, live runs, versions compared. This is what the proof of concept builds.</span></a>
+    <a class="play" href="#S-7"><b>Play</b><span>A five-minute game for any visitor, with a few controls. Designed now, built later.</span></a>
+  </div>
+
+  <div id="screens"></div>
+
+  <section class="out" id="send">
+    <h2>Send your notes</h2>
+    <p style="margin:0;max-width:70ch">This gathers everything you wrote above. Copy it and paste it into an email or a chat message to Rebeca. Nothing is sent from this page.</p>
+    <textarea id="all" readonly aria-label="All my notes"></textarea>
+    <p style="margin:10px 0 0"><button class="btn" id="copy">Copy all my notes</button><span class="ok" id="ok" hidden>Copied. Paste it into your message.</span></p>
+  </section>
+
+  <footer class="ftr">
+    <span class="eu"><b></b>Co-funded by the European Union</span>
+    <span>Funded by the European Union under Horizon Europe, project SUM.</span>
+    <span>Design mockups, not for publication.</span>
+  </footer>
+</main>
+</div>
+
+<script>
+/* One entry per mockup. q = what we need from the research team (open questions of INITIATIVE.md). */
+const SCREENS=[
+{g:'Home',gs:'entry page',id:'S-1',file:'S-1-home.html',name:'Home',badge:'Proof of concept: to decide',later:true,tall:true,
+ what:'The first page a visitor sees. It is written for someone who decides on mobility in a city or at a public transport operator, not for a modeller. It explains the idea in three points, shows one result, and offers the game and the Lab.',
+ look:['Is the one-sentence description of the model correct?','“The idea”: is it fair to say the model lowers the price where a bike can replace a car?','The comparison with plane tickets: helpful, or misleading for a price that is set once for the day?'],
+ q:['Which result should be the headline figure here, and from which run? (Q-28)','Every claim on this page needs your validation before it is shown outside the team. (Q-28)'],
+ states:[]},
+{g:'Lab',gs:'research workspace · built in the proof of concept',id:'S-2',file:'S-2-lab-setup.html',name:'Lab · Set-up',badge:'Built in the proof of concept',
+ what:'Pipeline steps 1 to 4: the zone, the hubs, the routes between hubs, the demand and the fleet. Every parameter the package exposes for these steps can be changed. A changed parameter starts a new set-up, and pricing versions are compared only within one set-up.',
+ look:['Are the four groups and their order right?','Each parameter has a plain name, a unit, a default and one sentence. Correct them where they are wrong.','Is anything missing that you change when you experiment?'],
+ q:['Plain name, unit, allowed range and expected effect of each parameter. (Q-17)','How long do clustering, routing and one optimisation take for the 3 km zone? (Q-10)'],
+ states:[['set','default'],['changed','a parameter changed'],['running','running'],['done','done'],['failed','a step failed']]},
+{g:'Lab',id:'S-3',file:'S-3-lab-versions.html',name:'Lab · Versions',badge:'Built in the proof of concept',
+ what:'Pipeline steps 5 and 6. A pricing version is one run of the model with a named set of parameters. Its result leads with the modal split against a flat bike price, then the average bike price and the revenue, then the price and flow of every hub pair. Solver numbers sit in the Advanced view.',
+ look:['Is the modal split against a flat price the right headline?','The list of pricing parameters, including P_bar and theta, which have no plain wording yet.','What else do you want in the Advanced view?'],
+ q:['What do the minimum and maximum bike price mean for the model, and how do they relate to P_bar? (Q-17)','The model reports two average prices: which one is the headline, and in which unit? What period and demand does the revenue cover? (Q-17)','Can the unmodified package produce the flat-price case used as the comparison? (Q-24)','Shared bike alone: is it part of the model’s modal split? (Q-23)','Can the choice-model coefficients be read without changing the package? (Q-19)'],
+ states:[['result','result'],['pairs','hub pairs'],['advanced','Advanced view'],['new','new version'],['running','running']]},
+{g:'Lab',id:'S-4',file:'S-4-lab-compare.html',name:'Lab · Compare',badge:'Built in the proof of concept',
+ what:'Two to four versions of one set-up side by side: their modal split, price and revenue, only the parameters that differ, and a map of where their prices differ per hub pair.',
+ look:['Which indicators do you compare first when you run two experiments? Are they here?','Is the map of price differences useful, and which other difference would you map?','Would you use the CSV export, and what should it contain?'],
+ q:['Which comparisons matter most for a paper or a presentation?'],
+ states:[['two','two versions'],['three','three versions'],['advanced','Advanced view on'],['one','only one version']]},
+{g:'Lab',id:'S-5',file:'S-5-lab-day.html',name:'Lab · Simulated day',badge:'Built in the proof of concept',
+ what:'Pipeline step 7. The demonstrator simulates one day of individual travellers under a version’s prices. Bikes and docks are used up, so a station can run empty. It is always labelled as a simulation, never as the model’s result, and it can be compared with another version’s day.',
+ look:['Is the difference between the model’s result and the simulation explained clearly enough?','Are these the right things to count: trips with no bike available, stations empty, first station empty?'],
+ q:['How does a simulated traveller choose: the option with the highest utility, or by probability? (Q-6b)','How should departure times be spread over the day while demand is random? (Q-8)'],
+ states:[['ready','ready'],['playing','playing'],['end','end of day'],['compare','two days compared'],['rule','how travellers choose']]},
+{g:'Lab',id:'S-6',file:'S-6-lab-trip.html',name:'Lab · Trip pricing',badge:'Built in the proof of concept',
+ what:'One trip as a traveller would see it: the four options with price, duration and legs, under a chosen version. Switching version shows the prices change.',
+ look:['Is the make-up of each price right: what the model sets, and what is a fixed fare or fee?'],
+ q:['What is the displayed price of each mode made of, notably the car? (Q-17)','A trip between two map points takes the price of its hub pair: is that acceptable, and what should we show when no hub pair applies? (Q-6c)'],
+ states:[['pick','pick two points'],['options','options'],['switched','switched version'],['noprice','no price']]},
+{g:'Play',gs:'learning game · designed now, built later',id:'S-7',file:'S-7-play.html',name:'Play · The game',badge:'Designed, built later',later:true,
+ what:'A closed scenario for any visitor. The mission: bring car trips from 44 to 38 or fewer per 100 travellers without losing revenue, in three tries. The visitor first picks a flat price, then gives the model a price range, guesses the result and sees it. Results are computed beforehand in the Lab, so there is no waiting.',
+ look:['Is the mission a fair picture of what the model is for?','The three controls: flat-price strategy, bike price range, longest walk to a bike.','“What to remember” at the end: are these the right three lessons?'],
+ q:['Which controls, with which values, and which target? (Q-26)','Can the model give a flat price per km and per 30 minutes, and does a maximum walking distance exist as an input? (Q-27)'],
+ states:[['mission','1 mission'],['flat','2 flat price'],['set','3 set and guess'],['miss','3 missed'],['hit','3 reached'],['day','4 the day'],['trip','5 your trip'],['debrief','6 debrief']]}
+];
+const K='dp-review-';
+const get=k=>{try{return localStorage.getItem(K+k)||''}catch(e){return ''}};
+const set=(k,v)=>{try{localStorage.setItem(K+k,v)}catch(e){}};
+const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+let html='',toc='',g='';
+SCREENS.forEach(s=>{
+  if(s.g!==g){g=s.g;toc+=`<p>${g}</p>`;if(s.gs)html+=`<h2 class="grp">${g}<small>${s.gs}</small></h2>`}
+  toc+=`<a href="#${s.id}">${s.name.replace(/^(Lab|Play) · /,'')}<i id="dot-${s.id}"></i></a>`;
+  html+=`<section class="scr" id="${s.id}">
+  <header><h2>${s.name}</h2><span class="badge${s.later?' later':''}">${s.badge}</span><a href="${s.file}" target="_blank" rel="noopener">Open full size ↗</a></header>
+  <div class="txt"><h3>What it is for</h3><p>${s.what}</p><h3>What to look at</h3><ul>${s.look.map(l=>`<li>${l}</li>`).join('')}</ul>
+   <div class="ask"><h3>What we need from you</h3><ul>${s.q.map(l=>`<li>${l}</li>`).join('')}</ul></div></div>
+  <div class="notes"><label for="n-${s.id}">Your notes on this screen</label><textarea id="n-${s.id}" data-id="${s.id}" placeholder="What is wrong, unclear or missing?"></textarea><small>Saved in this browser as you type.</small></div>
+  ${s.states.length?`<div class="states" role="group" aria-label="States of ${s.name}" style="grid-column:1/-1">Show: ${s.states.map((t,i)=>`<button data-f="${s.id}" data-h="${t[0]}" aria-pressed="${i===0&&false}">${t[1]}</button>`).join('')}</div>`:''}
+  <div class="frame${s.tall?' tall':''}"><iframe id="f-${s.id}" title="${s.name} mockup" loading="lazy" src="${s.file}"></iframe></div>
+  </section>`});
+toc+=`<p>Finish</p><a href="#send">Send my notes</a>`;
+document.getElementById('screens').outerHTML=html;
+document.getElementById('toc').innerHTML=toc;
+/* previews are drawn at 1440 px and scaled to the column */
+function fit(){document.querySelectorAll('.frame').forEach(f=>{const i=f.firstElementChild,k=f.clientWidth/1440;i.style.transform=`scale(${k})`;f.style.height=i.offsetHeight*k+'px'})}
+addEventListener('resize',fit);fit();
+document.querySelectorAll('.states button').forEach(b=>b.onclick=()=>{const s=SCREENS.find(x=>x.id===b.dataset.f),f=document.getElementById('f-'+s.id);
+  b.parentNode.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  f.src='about:blank';setTimeout(()=>{f.src=s.file+'#'+b.dataset.h},30)});
+const who=document.getElementById('who'),all=document.getElementById('all');
+function compile(){const parts=SCREENS.map(s=>{const v=document.getElementById('n-'+s.id).value.trim();document.getElementById('dot-'+s.id).textContent=v?'●':'';return v?`## ${s.id} ${s.name}\n${v}`:''}).filter(Boolean);
+  all.value=`Dynamic pricing demonstrator — mockup review\nFrom: ${who.value.trim()||'(name)'}\n\n`+(parts.join('\n\n')||'(no notes yet)')}
+who.value=get('who');who.oninput=()=>{set('who',who.value);compile()};
+document.querySelectorAll('.notes textarea').forEach(t=>{t.value=get(t.dataset.id);t.oninput=()=>{set(t.dataset.id,t.value);compile()}});
+compile();
+document.getElementById('copy').onclick=async()=>{compile();try{await navigator.clipboard.writeText(all.value)}catch(e){all.select();document.execCommand&&document.execCommand('copy')}
+  document.getElementById('ok').hidden=false};
+</script>
+</body>
+</html>

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S-3 Lab · Versions — dynamic pricing mockup</title>
+<style>
+/* Tokens: knowledge/visual-identity.md (XD-1), light mode only. Mode colours: UX-SPEC § Mode colours. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#dfebe5;--tint-2:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;--line-2:#e0eae3;
+  --blue:#004494;--blue-d:#00336e;--blue-tint:#e3ebf5;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;
+  --red:#ff3514;--red-ink:#be280b;--red-tint:#ffe9e4;
+  --map-ground:#e4e5e2;--map-street:#fafaf9;--map-water:#d4dbdc;--map-ref:#949c93;--map-ring:#b7bcb5;
+  --m-car:#eb6834;--m-pt:#2a78d6;--m-ptb:#1baf7a;--m-bike:#008300;--m-walk:#5a6459;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;--fs:15px;
+}
+html.proj{--fs:18px}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{overflow:hidden;background:var(--bg);color:var(--ink);font:400 var(--fs)/1.5 'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;display:grid;grid-template-rows:56px auto 1fr auto}
+h1,h2,h3{font-family:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;line-height:1.15;margin:0}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.hdr{background:var(--blue);color:#fff;display:flex;align-items:center;gap:18px;padding:0 20px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;letter-spacing:.02em}
+.logo i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+.hdr h1{font-size:1.15em;font-weight:600}
+.chip{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:99px;padding:4px 12px;font-size:.85em;color:#fff}
+.aa{border:1px solid rgba(255,255,255,.4);border-radius:8px;padding:2px 10px;color:#fff;font-weight:700}
+.tracker{display:flex;align-items:center;gap:16px;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.steps{display:flex;flex:1;list-style:none;margin:0;padding:0;position:relative}
+.steps::before{content:"";position:absolute;left:24px;right:24px;top:15px;height:3px;background:var(--line-2)}
+.steps li{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:.85em;color:var(--ink-2)}
+.steps .no{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--surface);border:2px solid var(--line);font-weight:700;z-index:1}
+.steps .done .no{background:var(--green);border-color:var(--green);color:#fff}
+.steps .current .no{background:var(--blue);border-color:var(--blue);color:#fff}
+.steps .current{color:var(--ink);font-weight:600}
+.steps .locked{opacity:.55}
+.steps .running .no{border-color:#fff;outline:2px dashed var(--blue);outline-offset:2px}
+.hdr a.home{color:#fff;font-size:.85em;opacity:.9}
+.hdr h1 span{font-weight:400;opacity:.8}
+.tabs{display:flex;align-items:flex-end;gap:4px;padding:8px 20px 0;background:var(--surface);border-bottom:1px solid var(--line-2)}
+.tabs a{padding:8px 14px;color:var(--ink-2);text-decoration:none;font-weight:600;font-size:.92em;border-bottom:3px solid transparent}
+.tabs a[aria-current=page]{color:var(--blue);border-bottom-color:var(--blue)}
+.tabs .runs{margin-left:auto;font-size:.82em;color:var(--ink-2);padding-bottom:9px}
+.tabs .runs.on{color:var(--blue);font-weight:600}
+main{display:grid;grid-template-columns:clamp(400px,36vw,540px) 1fr;min-height:0}
+.col{display:flex;flex-direction:column;min-height:0;background:var(--bg);padding:14px 0 14px 16px;position:relative}
+.card{flex:1;overflow:auto;background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);padding:18px 20px}
+.brief{display:flex;flex-direction:column;gap:2px;margin:0 0 12px}
+.rhythm{font-size:.75em;letter-spacing:.08em;text-transform:uppercase;color:var(--green-ink);font-weight:700}
+.bar{display:flex;align-items:center;gap:12px;padding:12px 0 0}
+.cta{background:var(--blue);color:#fff;border-radius:10px;padding:10px 18px;font-weight:600}
+.cta:disabled{background:var(--line);color:var(--ink-2);cursor:not-allowed}
+.cta2{border:1px solid var(--line);border-radius:10px;padding:9px 14px;color:var(--blue);font-weight:600}
+.note{font-size:.82em;color:var(--ink-2)}
+.mapcol{position:relative;margin:14px 16px;border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);background:var(--map-ground)}
+.mapcol svg{width:100%;height:100%;display:block}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border-radius:10px;padding:8px 12px;font-size:.78em;display:flex;flex-direction:column;gap:3px;box-shadow:var(--shadow)}
+.legend span{display:flex;align-items:center;gap:6px}
+.mapcol .legend svg{width:22px;height:8px;flex:none}
+.sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+.zoom{position:absolute;right:12px;bottom:12px;display:flex;flex-direction:column;background:#fff;border-radius:8px;box-shadow:var(--shadow)}
+.zoom button{width:32px;height:32px;font-weight:700}
+.sample{position:absolute;top:10px;left:12px;font-size:.72em;border:1px dashed var(--map-ref);border-radius:6px;padding:2px 8px;background:rgba(255,255,255,.8);color:var(--ink-2)}
+.ftr{display:flex;align-items:center;gap:12px;padding:5px 20px;min-height:30px;font-size:.75em;color:var(--ink-2);background:var(--surface);border-top:1px solid var(--line-2)}
+.eu{display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--map-ref);padding:1px 6px;border-radius:4px}
+.eu b{display:inline-block;width:22px;height:15px;background:#004494;position:relative}
+.eu b::after{content:"★";color:#ffcc00;font-size:9px;position:absolute;inset:0;display:grid;place-items:center}
+.ftr .right{margin-left:auto}
+.mock{position:fixed;right:28px;top:154px;background:#fff;border:2px dashed var(--map-ref);border-radius:99px;padding:4px 6px;display:flex;gap:4px;font-size:12px;z-index:50;box-shadow:var(--shadow)}
+.mock b{padding:4px 8px;color:var(--ink-2)}
+.mock button{padding:4px 10px;border-radius:99px}
+.mock button[aria-pressed=true]{background:var(--ink);color:#fff}
+.tag{display:inline-block;font-size:.72em;font-weight:700;letter-spacing:.04em;padding:2px 8px;border-radius:99px}
+.tag.model{background:var(--blue-tint);color:var(--blue)}
+.tag.sim{background:var(--tint);color:var(--ink-2)}
+.pending{background:#fff8d6;border-bottom:1px dashed #b38f00;padding:0 2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+/* step: pricing */
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.pill{border:1px solid var(--line);border-radius:99px;padding:3px 12px;font-size:.88em}
+.pill[aria-pressed=true]{background:var(--blue);color:#fff;border-color:var(--blue)}
+.pill.add{border-style:dashed;color:var(--blue)}
+.hl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.hl .scope{font-size:.8em;color:var(--ink-2)}
+.adv{margin-left:auto;font-size:.82em;color:var(--blue);border:1px solid var(--line);border-radius:8px;padding:2px 10px}
+.insight{font-size:1.35em;margin:8px 0 10px}
+.split{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;align-items:center;font-size:.82em}
+.stack{display:flex;height:26px;gap:2px}
+.stack i{display:grid;place-items:center;color:#fff;font-style:normal;font-weight:600;font-size:.85em;border-radius:3px;min-width:0;overflow:hidden}
+.c-car{background:var(--m-car)}.c-pt{background:var(--m-pt)}.c-ptb{background:var(--m-ptb)}.c-bike{background:var(--m-bike)}
+.modes{display:grid;grid-template-columns:1fr;gap:2px;margin:8px 0 12px;font-size:.84em}
+.modes span{display:flex;gap:6px;align-items:center}
+.modes em{font-style:normal;color:var(--ink-2);margin-left:auto}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi{border:1px solid var(--line-2);border-radius:12px;padding:10px 12px}
+.kpi .p{font-size:.72em;color:var(--ink-2)}
+.kpi .n{font-size:.85em;font-weight:600}
+.kpi .v{font-size:1.75em;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi .d{font-size:.8em}
+h2.sec{font-size:1em;margin:18px 0 6px}
+table{border-collapse:collapse;width:100%;font-size:.8em}
+th,td{padding:5px 6px;border-bottom:1px solid var(--line-2);text-align:right;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-2);font-weight:600}
+tr.sel td{background:var(--blue-tint)}
+td small{display:block;color:var(--ink-2)}
+.caption{font-size:.78em;color:var(--ink-2);margin:4px 0 0}
+.link{color:var(--blue);text-decoration:underline;font-size:.88em}
+.f{display:grid;grid-template-columns:1fr 120px;gap:2px 10px;padding:8px 0;border-bottom:1px solid var(--line-2);align-items:center}
+.f label{font-weight:600;font-size:.88em}
+.f input{font:inherit;border:1px solid var(--line);border-radius:8px;padding:4px 8px;width:100%;text-align:right}
+.f small{grid-column:1/-1;color:var(--ink-2);font-size:.78em}
+.f .was{text-decoration:line-through;color:var(--ink-2);font-size:.8em;text-align:right;grid-column:2}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;font-size:.82em}
+.seg button{padding:3px 10px}.seg button[aria-pressed=true]{background:var(--blue);color:#fff}
+.prog{list-style:none;margin:0;padding:0}
+.prog li{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line-2)}
+.prog .k{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.8em;flex:none;background:var(--tint);color:var(--ink-2)}
+.prog .ok .k{background:var(--green);color:#fff}
+.prog .run .k{border:2px dashed var(--blue);background:#fff;color:var(--blue);animation:spin 2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.sheet{position:absolute;inset:14px 0 14px 16px;background:#fff;border-radius:var(--r);box-shadow:0 10px 40px rgba(0,51,110,.25);padding:18px 20px;overflow:auto;z-index:5;border-left:4px solid var(--blue)}
+.sheet h3{display:flex;justify-content:space-between;font-size:1.1em;margin-bottom:10px}
+.sheet dl{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:.88em;margin:0}
+.sheet dt{color:var(--ink-2)}.sheet dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.ramp{display:flex;align-items:center;gap:6px}
+.ramp i{display:block;width:90px;height:8px;border-radius:4px;background:linear-gradient(90deg,#e3ebf5,#00336e)}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <span class="logo"><i></i>SUM</span>
+  <h1>Dynamic pricing <span>· Lab</span></h1>
+  <a class="home" href="S-1-home.html">← Home</a>
+  <button class="chip">Set-up: Geneva · 3 km · default ▾</button>
+  <button class="aa" aria-label="Larger text for a projector" onclick="document.documentElement.classList.toggle('proj')">Aa</button>
+</header>
+
+<nav class="tabs" aria-label="Lab">
+  <a href="S-2-lab-setup.html">Set-up</a>
+  <a href="S-3-lab-versions.html" aria-current="page">Versions</a>
+  <a href="S-4-lab-compare.html">Compare</a>
+  <a href="S-5-lab-day.html">Simulated day</a>
+  <a href="S-6-lab-trip.html">Trip pricing</a>
+  <span class="runs" id="runs">No run in progress</span>
+</nav>
+
+<main>
+  <section class="col">
+    <article class="card" id="card"></article>
+    <div class="bar" id="bar"></div>
+    <aside class="sheet" id="sheet" hidden aria-label="Advanced view">
+      <h3>Advanced view — Version B <button aria-label="Close" onclick="render('result')">✕</button></h3>
+      <span class="tag model">PRICING MODEL'S RESULT</span>
+      <dl style="margin-top:12px">
+        <dt>Solution time</dt><dd>6 min 40 s</dd>
+        <dt>Optimality gap</dt><dd>0.8 %</dd>
+        <dt>Objective value</dt><dd>41 207.3</dd>
+        <dt>Hub pairs</dt><dd>1 806</dd>
+        <dt>Options priced</dt><dd>5 418</dd>
+        <dt>Choice-model coefficients</dt><dd><span class="pending">Not exposed by the model's package. [Q-19]</span></dd>
+      </dl>
+      <h2 class="sec">Parameters used</h2>
+      <dl>
+        <dt>1 City</dt><dd>46.2057, 6.1489 · 3.0 km</dd>
+        <dt>2 Hubs</dt><dd>500 m · 100 m margin</dd>
+        <dt>3 Routes</dt><dd>min 500 m · Monday 08:00</dd>
+        <dt>4 Demand and fleet</dt><dd>10–70 · seed 42 · 20 docks · 60 %</dd>
+        <dt>5 Pricing</dt><dd>bike 0.05–0.30 CHF/min · flat 0.10 CHF/min</dd>
+        <dt></dt><dd>PT fare 2.0 · parking 2.8 · bike cost 0.6</dd>
+        <dt></dt><dd>P_bar 0.6 · theta 0.5 · ridership weight 8.0</dd>
+      </dl>
+      <p class="caption" style="margin-top:12px">Esc closes this view.</p>
+    </aside>
+  </section>
+  <section class="mapcol" aria-label="Map of hub pairs">
+    <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid slice" role="img" aria-label="Hub pairs coloured by the model's bike price"></svg>
+    <span class="sample">sample geometry and values</span>
+    <div class="legend" id="legend"></div>
+    <div class="zoom"><button aria-label="Zoom in">+</button><button aria-label="Zoom out">−</button></div>
+  </section>
+</main>
+
+<footer class="ftr">
+  <span class="eu"><b></b>Co-funded by the European Union</span>
+  <span>Funded by the European Union under Horizon Europe, project SUM. <span class="pending">[exact statement from the team folder]</span></span>
+  <span class="right">Pricing model: {model author}, Inria INOCS. Run unmodified.</span>
+</footer>
+
+<div class="mock" role="group" aria-label="Mockup state (not part of the design)"><b>mockup state · sample data</b>
+  <button data-s="result">result</button><button data-s="pairs">hub pairs</button><button data-s="advanced">advanced view</button><button data-s="new">new version</button><button data-s="running">running</button>
+</div>
+
+<script>
+const NS='http://www.w3.org/2000/svg';
+function rng(s){return()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,((s^s>>>7)>>>0)%10000)/10000)}
+const C={x:500,y:430,r:300};
+const R=rng(11);const HUBS=[];
+while(HUBS.length<34){const a=R()*6.283,d=Math.sqrt(R())*C.r*.93;const x=C.x+Math.cos(a)*d,y=C.y+Math.sin(a)*d;if(y<170&&x>560)continue;HUBS.push({id:'H'+(HUBS.length+1),x,y})}
+const STOPS=[],STATIONS=[];HUBS.forEach(h=>{const n=2+Math.floor(R()*4);for(let i=0;i<n;i++)STOPS.push({x:h.x+(R()-.5)*44,y:h.y+(R()-.5)*44});if(R()<.8)STATIONS.push({x:h.x+(R()-.5)*30,y:h.y+(R()-.5)*30,hub:h.id,bikes:Math.floor(R()*20)})});
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);(p||svg).appendChild(e);return e}
+const svg=document.getElementById('map');
+function base(){
+  svg.innerHTML='';
+  el('rect',{x:0,y:0,width:1000,height:800,fill:'var(--map-ground)'});
+  el('path',{d:'M600 0 L1000 0 L1000 230 C880 210 760 190 640 120 C610 90 600 40 600 0Z',fill:'var(--map-water)'});
+  el('path',{d:'M640 120 C560 150 520 200 470 260 C420 320 300 330 0 360',stroke:'var(--map-water)','stroke-width':22,fill:'none'});
+  const r=rng(3);for(let i=0;i<46;i++){const x=r()*1000,y=r()*800;el('path',{d:`M${x} ${y} l${(r()-.5)*420} ${(r()-.5)*420}`,stroke:'var(--map-street)','stroke-width':2+r()*5,fill:'none','stroke-linecap':'round'})}
+}
+function circle(){el('circle',{cx:C.x,cy:C.y,r:C.r,fill:'none',stroke:'var(--map-ring)','stroke-width':2.5,'stroke-dasharray':'8 6'})}
+function hubs(){HUBS.forEach(h=>el('circle',{cx:h.x,cy:h.y,r:30,fill:'rgba(148,156,147,.08)',stroke:'var(--map-ref)','stroke-width':1.5,'stroke-dasharray':'4 4'}))}
+function legend(items){document.getElementById('legend').innerHTML=items.map(([c,l,dash])=>`<span>${dash?`<svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="${c}" stroke-width="3" stroke-dasharray="${dash}"/></svg>`:`<i class="sw" style="background:${c}"></i>`}${l}</span>`).join('')}
+/* price ramp #e3ebf5 → #00336e */
+function ramp(t){const a=[0xe3,0xeb,0xf5],b=[0x00,0x33,0x6e];return 'rgb('+a.map((v,i)=>Math.round(v+(b[i]-v)*t)).join(',')+')'}
+function pricedPairs(highlight){const r=rng(5);for(let i=0;i<HUBS.length;i++)for(let j=i+1;j<HUBS.length;j++){if(r()>.16)continue;const p=r(),f=r();
+  el('line',{x1:HUBS[i].x,y1:HUBS[i].y,x2:HUBS[j].x,y2:HUBS[j].y,stroke:ramp(.15+p*.85),'stroke-width':1+f*6,'stroke-linecap':'round',opacity:highlight?.25:.85})}
+  if(highlight){const a=HUBS[3],b=HUBS[17];el('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#00336e','stroke-width':8,'stroke-linecap':'round'});
+   [a,b].forEach(h=>{el('circle',{cx:h.x,cy:h.y,r:10,fill:'#fff',stroke:'#00336e','stroke-width':3});const t=el('text',{x:h.x+14,y:h.y-10,'font-size':18,'font-weight':700,fill:'var(--ink)'});t.textContent=h.id})}}
+
+/* ---- sample data ---- */
+const MODES=[['car','Car','🚗'],['pt','Public transport','🚋'],['ptb','Public transport + shared bike','🚋+🚲'],['bike','Shared bike','🚲']];
+const B={car:38,pt:41,ptb:17,bike:4},FLAT={car:44,pt:39,ptb:14,bike:3};
+const stack=v=>`<div class="stack" role="img" aria-label="${MODES.map(m=>m[1]+' '+v[m[0]]+' %').join(', ')}">${MODES.map(m=>`<i class="c-${m[0]}" style="flex:${v[m[0]]}">${v[m[0]]>=6?v[m[0]]+' %':''}</i>`).join('')}</div>`;
+const d=(a,b)=>{const x=a-b;return x===0?'= 0 pts':(x>0?'▲ ':'▼ ')+Math.abs(x)+(Math.abs(x)===1?' pt':' pts')};
+const pills=`<div class="pills" role="group" aria-label="Pricing versions of this set-up"><button class="pill">Version A</button><button class="pill" aria-pressed="true">Version B</button><button class="pill add">+ New version</button></div>`;
+const brief=`<p class="brief"><span class="rhythm">Pipeline steps 5 and 6</span><span>Each version is one price set for the whole day, compared with a flat bike price.</span></p>`;
+function result(pairsOpen){return brief+pills+`
+<div class="hl"><span class="tag model">PRICING MODEL'S RESULT</span><span class="scope">Version B · Geneva · 3 km · one day, 08:00 timetable</span><button class="adv" onclick="render('advanced')">Advanced view</button></div>
+<h2 class="insight">Car share 6 pts lower than with a flat bike price</h2>
+<div class="split"><span>This version</span>${stack(B)}<span>Flat price <b class="num">0.10 CHF/min</b></span>${stack(FLAT)}</div>
+<div class="modes">${MODES.map(m=>`<span><i class="sw c-${m[0]}"></i>${m[2]} ${m[1]} <b class="num">${B[m[0]]} %</b><em class="num">${d(B[m[0]],FLAT[m[0]])}</em></span>`).join('')}</div>
+<p class="caption"><span class="pending">[Q-23]</span> whether shared bike alone is part of the model's split.</p>
+<div class="kpis" style="margin-top:10px">
+ <div class="kpi"><div class="p">Version B · one day</div><div class="n">Average bike price</div><div class="v">0.14 <small style="font-size:.5em">CHF/min</small></div><div class="d num">▲ 0.04 vs flat price 0.10</div><div class="p"><span class="pending">[Q-17] which average, unit</span></div></div>
+ <div class="kpi"><div class="p">Version B · one day</div><div class="n">Operator revenue</div><div class="v">3 420 <small style="font-size:.5em">CHF</small></div><div class="d num">▲ 12 % vs flat price</div><div class="p">modelled demand, one day <span class="pending">[Q-17]</span></div></div>
+</div>
+<h2 class="sec">Versions of this set-up</h2>
+<table><thead><tr><th>Version</th><th>Car</th><th>PT</th><th>PT + bike</th><th>Bike</th><th>Avg price</th><th>Revenue</th><th></th></tr></thead><tbody>
+<tr><td>Version A</td><td>41 %<small>▼ 3</small></td><td>40 %<small>▲ 1</small></td><td>15 %<small>▲ 1</small></td><td>4 %<small>▲ 1</small></td><td>0.12<small>▲ 0.02</small></td><td>3 150<small>▲ 3 %</small></td><td><button aria-label="Version A actions">⋯</button></td></tr>
+<tr class="sel"><td><b>Version B</b></td><td>38 %<small>▼ 6</small></td><td>41 %<small>▲ 2</small></td><td>17 %<small>▲ 3</small></td><td>4 %<small>▲ 1</small></td><td>0.14<small>▲ 0.04</small></td><td>3 420<small>▲ 12 %</small></td><td><button aria-label="Version B actions">⋯</button></td></tr>
+</tbody></table>
+<p class="caption">Small figures: change vs each version's own flat-price reference, in pts, CHF/min and %. Versions are compared within one set-up. A new set-up starts its own list. Row menu: Duplicate, Delete.</p>
+<h2 class="sec">${pairsOpen?'▾':'▸'} <a class="link" href="#" onclick="render('${pairsOpen?'result':'pairs'}');return false">Price and flow per hub pair (1 806)</a></h2>
+${pairsOpen?`<table><thead><tr><th>From → to</th><th>Bike price</th><th>Car</th><th>PT</th><th>PT + bike</th><th>Bike</th><th></th></tr></thead><tbody>
+<tr class="sel"><td>H4 Plainpalais → H18 Eaux-Vives</td><td>0.22</td><td>14</td><td>21</td><td>18</td><td>5</td><td><a class="link" href="#">Show on map</a></td></tr>
+<tr><td>H2 Cornavin → H11 Carouge</td><td>0.19</td><td>22</td><td>30</td><td>9</td><td>2</td><td><a class="link" href="#">Show on map</a></td></tr>
+<tr><td>H9 Servette → H4 Plainpalais</td><td>0.08</td><td>18</td><td>12</td><td>6</td><td>3</td><td><a class="link" href="#">Show on map</a></td></tr>
+<tr><td>H14 Jonction → H2 Cornavin</td><td>0.05</td><td>9</td><td>25</td><td>4</td><td>1</td><td><a class="link" href="#">Show on map</a></td></tr>
+</tbody></table><p class="caption">Bike price in CHF/min <span class="pending">[Q-17]</span>; travellers per mode from the model's flows. Sorted by bike price; every column sorts. Hub names: sample.</p>`:''}`}
+function form(){const f=(l,v,s,was)=>`<div class="f"><label>${l}</label><input value="${v}" aria-label="${l}">${was?`<span class="was">${was}</span>`:''}<small>${s}</small></div>`;
+return brief+pills.replace('class="pill add"','class="pill add" aria-pressed="true"').replace('<button class="pill" aria-pressed="true">','<button class="pill">')+`
+<div class="f"><label>Name</label><input value="Version C" aria-label="Name"><small>Shown in every list of versions.</small></div>
+<p class="note" style="margin:10px 0 0"><b>5 Pricing</b> — starts from Version B; changed values show the previous one struck through. <span class="pending">[Q-17] names, units, ranges, sentences</span></p>
+${f('Minimum bike price, CHF/min','0.05','The lowest price the model may set on a hub pair.')}
+${f('Maximum bike price, CHF/min','0.40','The highest price the model may set on a hub pair.','0.30')}
+<div class="f"><label>Flat price reference</label><span class="seg"><button aria-pressed="true">per minute</button><button>per bike trip</button></span><small>The same set-up with one bike price everywhere; every number is compared with it.</small></div>
+${f('Flat price, CHF/min','0.10','Used for the reference only.')}
+${f('Public transport fare, CHF','2.0','Price of a public transport trip, the same in both cases.')}
+${f('Car parking fee, CHF','2.8','Cost added to a car trip.')}
+${f('Bike cost, CHF','0.6','Operator cost per bike trip.')}
+${f('P_bar','0.6','<span class="pending">[Q-17] no visitor wording yet</span>')}
+${f('theta','0.5','<span class="pending">[Q-17] no visitor wording yet</span>','0.4')}
+${f('Ridership weight','8.0','<span class="pending">[Q-17]</span>')}`}
+function running(){return brief+`<div class="hl"><b>Version C</b><span class="scope">Geneva · 3 km · default</span></div>
+<ol class="prog" style="margin-top:8px"><li class="ok"><span class="k">✓</span>1–4 Set-up <span class="note">stored</span></li><li class="run"><span class="k">●</span><div><strong>5 Pricing</strong> — running for <span class="num">3 min 05 s</span></div></li><li><span class="k">6</span>Result <span class="note">waiting</span></li></ol>
+<h2 class="sec">What this version changes</h2>
+<table><thead><tr><th>Parameter</th><th>Version B</th><th>Version C</th></tr></thead><tbody>
+<tr><td>Maximum bike price</td><td>0.30 CHF/min</td><td><b>0.40 CHF/min</b></td></tr><tr><td>theta</td><td>0.4</td><td><b>0.5</b></td></tr></tbody></table>
+<p class="note" style="margin-top:12px">A run takes about ten minutes and has no time limit. You can open other tabs or queue another version meanwhile. <span class="pending">[Q-10]</span></p>`}
+function render(s){
+  document.querySelectorAll('.mock [data-s]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));
+  const card=document.getElementById('card'),bar=document.getElementById('bar'),sheet=document.getElementById('sheet');
+  sheet.hidden=s!=='advanced';
+  const runs=document.getElementById('runs');runs.className='runs'+(s==='running'?' on':'');
+  runs.textContent=s==='running'?'● Version C running · 3 min 05 s':'No run in progress';
+  base();circle();hubs();
+  if(s==='new'){card.innerHTML=form();bar.innerHTML=`<button class="cta">Run the pricing model</button><button class="cta2" onclick="render('result')">Cancel</button><span class="note">About ten minutes.</span>`;
+    pricedPairs(false);svg.querySelectorAll('line').forEach(l=>l.setAttribute('opacity',.2));legend([['var(--map-ref)','Hubs','4 4'],['#9aa8b8','Hub pairs of Version B, dimmed']]);return}
+  if(s==='running'){card.innerHTML=running();bar.innerHTML=`<button class="cta" disabled>Running…</button>`;pricedPairs(false);svg.querySelectorAll('line').forEach(l=>l.setAttribute('opacity',.2));legend([['var(--map-ref)','Hubs','4 4']]);return}
+  card.innerHTML=result(s==='pairs');bar.innerHTML=`<a class="cta" style="text-decoration:none" href="S-4-lab-compare.html">Compare versions →</a><button class="cta2" onclick="render('new')">+ New version</button>`;
+  pricedPairs(s==='pairs');
+  document.getElementById('legend').innerHTML=`<b>Version B · pricing model's result</b><span class="ramp">0.05 <i></i> 0.30 CHF/min</span><span>Colour: bike price · width: travellers on bike options</span><span><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--map-ref)" stroke-width="2" stroke-dasharray="4 4"/></svg>Hubs</span>`;
+}
+document.querySelectorAll('.mock [data-s]').forEach(b=>b.onclick=()=>render(b.dataset.s));
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.getElementById('sheet').hidden)render('result')});
+render(document.querySelector('.mock [data-s="'+location.hash.slice(1)+'"]')?location.hash.slice(1):'result');
+</script>
+</body>
+</html>
