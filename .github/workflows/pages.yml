@@ -1,0 +1,45 @@
+# Publishes the static demos in site/ to GitHub Pages:
+#   https://rebecamurillo.github.io/inocs-sum-pricing-demand-nudging/
+# Only site/ is served. site/index.html is the landing page that links every demo;
+# each demo lives in its own folder, site/<demo>/index.html.
+#
+# *.json and *.geojson are Git LFS files in this repo. The checkout pulls LFS objects
+# for site/ only, so a demo can ship data files without downloading the whole dataset.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull LFS files under site/
+        run: git lfs pull --include "site/**"
+      - name: Check that no LFS pointer is published
+        run: |
+          if grep -rlI --include='*.json' --include='*.geojson' '^version https://git-lfs' site; then
+            echo "::error::LFS pointer files found in site/ (listed above)"; exit 1
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

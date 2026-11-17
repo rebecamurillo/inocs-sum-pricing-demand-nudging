@@ -26,6 +26,7 @@ If OTP is unavailable, route generation and the downstream steps are blocked.
 | [`demo_sum_nsm_dynamic_pricing.ipynb`](demo_sum_nsm_dynamic_pricing.ipynb) | Demo notebook: optimization and metrics on a generated instance. |
 | [`data/sum_nsm_dynamic_pricing/geneva_1km_mon08h/`](data/sum_nsm_dynamic_pricing/geneva_1km_mon08h) | Sample Geneva inputs and outputs (stations, hubs, instance, results, metrics, `web_demo/`). |
 | [`CSI_Report_D1_Mesut_Can_Koseoglu.pdf`](CSI_Report_D1_Mesut_Can_Koseoglu.pdf) | Model document. |
+| [`site/`](site) | Static demos published to GitHub Pages. |
 
 ## Requirements
 
@@ -122,4 +123,22 @@ Build artifacts are generated in `sum_nsm_dynamic_pricing/dist/`. Install the wh
 
 ```bash
 python -m pip install dist/*.whl
+```
+
+## Static demos (GitHub Pages)
+
+The [`site/`](site) folder is published to
+<https://rebecamurillo.github.io/inocs-sum-pricing-demand-nudging/> by
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) on every push to `main` that
+changes `site/`. Nothing outside `site/` is served.
+
+- `site/index.html` is the landing page; it links every demo.
+- Each demo lives in its own folder, `site/<demo>/index.html`. To add one, create the folder
+  and add a card to the list in `site/index.html`.
+- `*.json` and `*.geojson` are Git LFS files; the workflow pulls LFS objects for `site/` only.
+
+Preview locally:
+
+```bash
+python -m http.server -d site 8000   # then open http://localhost:8000
 ```

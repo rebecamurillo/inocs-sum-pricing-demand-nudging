@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>SUM dynamic pricing — demos</title>
+<style>
+/* Landing page of the static demos. Add a demo: put it in site/<demo>/index.html and add one
+   <li class="card"> to the list below. Brand tokens: SUM visual identity, light mode. */
+:root{
+  --bg:#f1f6f2;--surface:#fff;--tint:#eaf2ed;--ink:#2e2d29;--ink-2:#5a6459;--line:#c6d9cd;
+  --blue:#004494;--green:#98c33a;--green-ink:#54740f;--green-tint:#edf6da;
+  --shadow:0 1px 2px rgba(46,45,41,.05),0 6px 18px rgba(0,68,148,.07);--r:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif}
+a{color:var(--blue)}
+:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.hdr{background:var(--blue);color:#fff;display:flex;align-items:center;gap:10px;padding:0 24px;height:56px;font-weight:700;letter-spacing:.02em}
+.hdr i{width:26px;height:26px;border-radius:50%;background:linear-gradient(90deg,#98c33a,#004494);border:2px solid #fff}
+main{max-width:960px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:1.9em;line-height:1.15;margin:0 0 10px}
+.lead{margin:0 0 28px;max-width:70ch;color:var(--ink-2)}
+ul.demos{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--shadow);border:1px solid transparent}
+.card:hover{border-color:var(--line)}
+.card a{display:block;padding:20px 22px;text-decoration:none;color:inherit;height:100%}
+.card .tag{display:inline-block;font-size:.75em;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--green-ink);background:var(--green-tint);border-radius:99px;padding:2px 10px;margin-bottom:10px}
+.card h2{font-size:1.15em;margin:0 0 6px;color:var(--blue)}
+.card p{margin:0;color:var(--ink-2);font-size:.95em}
+.empty{background:var(--tint);border:1px dashed var(--line);border-radius:var(--r);padding:20px 22px;color:var(--ink-2)}
+footer{margin-top:40px;font-size:.85em;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<header class="hdr"><i aria-hidden="true"></i>SUM · Dynamic pricing for demand nudging</header>
+<main>
+  <h1>Demos</h1>
+  <p class="lead">Static demos of the SUM dynamic-pricing work, shared with the research team for review.
+    Mockups show the planned screens; they are not connected to the model.</p>
+
+  <ul class="demos">
+    <!-- One card per demo:
+    <li class="card"><a href="demo-folder/">
+      <span class="tag">Mockup</span>
+      <h2>Demo title</h2>
+      <p>One line: what the reader sees and what to look at.</p>
+    </a></li>
+    -->
+  </ul>
+  <p class="empty" id="empty">No demo is published yet.</p>
+
+  <footer>Source: <a href="https://github.com/rebecamurillo/inocs-sum-pricing-demand-nudging">inocs-sum-pricing-demand-nudging</a></footer>
+</main>
+<script>
+  // Hide the empty-state line once the list has at least one card.
+  if (document.querySelector('ul.demos li')) document.getElementById('empty').hidden = true;
+</script>
+</body>
+</html>
