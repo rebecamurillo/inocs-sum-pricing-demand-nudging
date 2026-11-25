@@ -1,0 +1,56 @@
+# The stack the end-to-end suite runs against: fake adapters, a database in memory, nothing
+# published except the web on E2E_WEB_PORT. It shares no name, port or volume with compose.yaml.
+name: pricing-demo-e2e
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: pricing_demo
+      POSTGRES_PASSWORD: pricing_demo
+      POSTGRES_DB: pricing_demo
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pricing_demo -d pricing_demo']
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: demo/api/Dockerfile
+    environment:
+      PRICING_DEMO_DATABASE_URL: postgresql+psycopg://pricing_demo:pricing_demo@db:5432/pricing_demo
+      PRICING_DEMO_ADAPTERS: fake
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8100/api/health', timeout=3)
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - '127.0.0.1:${E2E_WEB_PORT:-14400}:8080'
+    # nginx resolves `api` once, at start: when the API container is recreated the web
+    # container restarts with it and resolves the new address.
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/']
+      interval: 2s
+      timeout: 3s
+      retries: 20

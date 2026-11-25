@@ -1,0 +1,4 @@
+# The repository root sends *.json and *.geojson to Git LFS, and no LFS server holds this
+# repository's objects. Inside demo/ these files are ordinary text. Never remove these lines.
+*.json !filter !diff !merge text
+*.geojson !filter !diff !merge text

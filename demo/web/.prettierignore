@@ -1,0 +1,6 @@
+node_modules
+dist
+coverage
+.astro
+package-lock.json
+src/infrastructure/api/generated

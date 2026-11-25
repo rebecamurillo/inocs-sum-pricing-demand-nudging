@@ -1,0 +1,24 @@
+.git
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+
+# Research team's legacy material and data: not needed to run the API.
+Geneva_Complete_Link_Instances_and_Optimization
+Old_codes_and_processes
+data
+**/*.ipynb
+**/*.pdf
+
+# The rest of the repository: not part of this image.
+demo/web
+demo/e2e
+demo/otp
+demo/docs
+demo/contracts
+demo/api/tests

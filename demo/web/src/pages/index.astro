@@ -1,0 +1,14 @@
+---
+import SystemStatusIsland from '../composition/SystemStatusIsland';
+import BaseLayout from '../presentation/layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Dynamic pricing demonstrator">
+  <main>
+    <h1>Dynamic pricing demonstrator</h1>
+    <section>
+      <h2>System status</h2>
+      <SystemStatusIsland client:load />
+    </section>
+  </main>
+</BaseLayout>

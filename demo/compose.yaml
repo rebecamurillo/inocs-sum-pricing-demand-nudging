@@ -1,0 +1,87 @@
+# The local stack. Every value that differs per machine is read from .env (see .env.example)
+# and has a default, so the stack starts without a .env file.
+name: pricing-demo
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: pricing_demo
+      POSTGRES_PASSWORD: pricing_demo
+      POSTGRES_DB: pricing_demo
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - '127.0.0.1:${DB_PORT:-5440}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pricing_demo -d pricing_demo']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: demo/api/Dockerfile
+    environment:
+      PRICING_DEMO_DATABASE_URL: postgresql+psycopg://pricing_demo:pricing_demo@db:5432/pricing_demo
+      PRICING_DEMO_ADAPTERS: ${ADAPTERS:-real}
+      PRICING_DEMO_OTP_URL: http://otp:8080/otp/gtfs/v1
+    ports:
+      - '127.0.0.1:${API_PORT:-8100}:8100'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8100/api/health', timeout=3)
+      interval: 3s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  web:
+    build:
+      context: ./web
+    ports:
+      - '127.0.0.1:${WEB_PORT:-4400}:8080'
+    # nginx resolves `api` once, at start: when the API container is recreated the web
+    # container restarts with it and resolves the new address.
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # OpenTripPlanner is optional: it needs data that is not in the repository (otp/README.md).
+  # `make up` starts it when otp/data/graph.obj exists. The graph is built with
+  # `docker compose --profile otp run --rm otp-build`, which no other command starts.
+  otp:
+    profiles: [otp]
+    image: opentripplanner/opentripplanner:2.10.0
+    command: ['--load', '--serve']
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx${OTP_HEAP:-8g}
+    volumes:
+      - ./otp/data:/var/opentripplanner
+    ports:
+      - '127.0.0.1:${OTP_PORT:-8080}:8080'
+
+  otp-build:
+    profiles: [otp]
+    image: opentripplanner/opentripplanner:2.10.0
+    command: ['--build', '--save']
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx${OTP_HEAP:-8g}
+    volumes:
+      - ./otp/data:/var/opentripplanner
+
+volumes:
+  db-data:

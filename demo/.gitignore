@@ -1,0 +1,34 @@
+# The repository root ignores Python packaging folders and .python-version everywhere.
+# Inside demo/ a folder with one of these names is source, and .python-version is committed.
+!lib/
+!lib64/
+!build/
+!downloads/
+!parts/
+!env/
+!.python-version
+
+# Node
+node_modules/
+.astro/
+dist/
+
+# Python
+.venv/
+__pycache__/
+
+# Tests
+playwright-report/
+test-results/
+blob-report/
+.coverage
+coverage/
+htmlcov/
+
+# Local configuration and data
+.env
+.env.*
+!.env.example
+otp/data/*
+!otp/data/.gitkeep
+var/

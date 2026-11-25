@@ -1,0 +1,158 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pricing_demo"
+version = "0.1.0"
+description = "API of the dynamic pricing demonstrator"
+requires-python = ">=3.13"
+dependencies = [
+  "alembic",
+  "fastapi",
+  "httpx",
+  "psycopg[binary]>=3",
+  "pydantic>=2",
+  "pydantic-settings",
+  "sqlalchemy>=2",
+  "sum_nsm_dynamic_pricing",
+  "uvicorn",
+]
+
+[dependency-groups]
+dev = [
+  "httpx2>=2.16.2",
+  "import-linter",
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pricing_demo"]
+
+[tool.uv.sources]
+sum_nsm_dynamic_pricing = { path = "../../sum_nsm_dynamic_pricing", editable = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF", "PT", "ERA", "TID251"]
+
+# A module chosen by name at run time escapes every import rule. The model adapter may need
+# it to load the research package; the architecture test imports each module of a layer to
+# find its error types. Ruff resolves `builtins.__import__` but not a bare `__import__(...)`:
+# tests/architecture/test_no_bare_dynamic_import.py covers that spelling.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"importlib.import_module".msg = "Import statically: the layer rules cannot see a dynamic import."
+"builtins.__import__".msg = "Import statically: the layer rules cannot see a dynamic import."
+
+[tool.ruff.lint.per-file-ignores]
+"src/pricing_demo/infrastructure/pricing_model/**" = ["TID251"]
+"tests/architecture/**" = ["TID251"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["sum_nsm_dynamic_pricing.*", "gurobipy.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = [
+  "--strict-markers",
+  "-m",
+  "not integration and not live",
+  "--cov=pricing_demo.domain",
+  "--cov=pricing_demo.application",
+  "--cov-fail-under=90",
+]
+filterwarnings = ["error"]
+markers = [
+  "integration: needs a throwaway PostgreSQL given by PRICING_DEMO_TEST_DATABASE_URL",
+  "live: needs the real package, a Gurobi licence and a running OpenTripPlanner",
+]
+
+[tool.importlinter]
+root_packages = ["pricing_demo"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Source dependencies point inwards"
+type = "layers"
+layers = [
+  "pricing_demo.asgi | pricing_demo.export_openapi",
+  "pricing_demo.bootstrap",
+  "pricing_demo.infrastructure | pricing_demo.interface",
+  "pricing_demo.application",
+  "pricing_demo.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "domain imports no third-party package"
+type = "forbidden"
+source_modules = ["pricing_demo.domain"]
+forbidden_modules = [
+  "alembic",
+  "fastapi",
+  "gurobipy",
+  "httpx",
+  "psycopg",
+  "pydantic",
+  "pydantic_settings",
+  "sqlalchemy",
+  "starlette",
+  "sum_nsm_dynamic_pricing",
+  "uvicorn",
+]
+
+[[tool.importlinter.contracts]]
+name = "application imports no framework, driver or model package"
+type = "forbidden"
+source_modules = ["pricing_demo.application"]
+forbidden_modules = [
+  "alembic",
+  "fastapi",
+  "gurobipy",
+  "httpx",
+  "psycopg",
+  "pydantic",
+  "pydantic_settings",
+  "sqlalchemy",
+  "starlette",
+  "sum_nsm_dynamic_pricing",
+  "uvicorn",
+]
+
+[[tool.importlinter.contracts]]
+name = "interface imports only fastapi and pydantic from outside"
+type = "forbidden"
+source_modules = ["pricing_demo.interface"]
+forbidden_modules = [
+  "alembic",
+  "gurobipy",
+  "httpx",
+  "psycopg",
+  "pydantic_settings",
+  "sqlalchemy",
+  "starlette",
+  "sum_nsm_dynamic_pricing",
+  "uvicorn",
+]
+
+[[tool.importlinter.contracts]]
+name = "Only infrastructure.pricing_model imports the model and the solver"
+type = "forbidden"
+source_modules = ["pricing_demo"]
+forbidden_modules = ["sum_nsm_dynamic_pricing", "gurobipy"]
+ignore_imports = [
+  "pricing_demo.infrastructure.pricing_model.** -> sum_nsm_dynamic_pricing",
+  "pricing_demo.infrastructure.pricing_model.** -> gurobipy",
+]

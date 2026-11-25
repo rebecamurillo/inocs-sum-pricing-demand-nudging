@@ -1,0 +1,29 @@
+:root {
+  --bg: #f1f6f2;
+  --surface: #ffffff;
+  --tint: #dfebe5;
+  --tint-2: #eaf2ed;
+  --ink: #2e2d29;
+  --ink-2: #5a6459;
+  --line: #c6d9cd;
+  --line-2: #e0eae3;
+
+  --blue: #004494;
+  --blue-d: #00336e;
+  --blue-tint: #e3ebf5;
+  --green: #98c33a;
+  --green-ink: #54740f;
+  --green-tint: #edf6da;
+  --red: #ff3514;
+  --red-ink: #be280b;
+  --red-tint: #ffe9e4;
+
+  --map-ground: #e4e5e2;
+  --map-street: #fafaf9;
+  --map-water: #d4dbdc;
+  --map-ref: #949c93;
+  --map-ring: #b7bcb5;
+
+  --font-body: 'Public Sans Variable', system-ui, sans-serif;
+  --font-heading: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+}
