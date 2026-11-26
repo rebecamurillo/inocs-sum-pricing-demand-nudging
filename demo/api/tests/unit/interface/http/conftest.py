@@ -8,20 +8,24 @@ from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
+from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.report_components import ReportComponents
+from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
 from pricing_demo.domain.system_status import (
     PROBED_COMPONENTS,
     ComponentName,
     ComponentState,
     ComponentStatus,
 )
+from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe, fixed_probe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.interface.http.app import create_app
+from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
@@ -36,8 +40,12 @@ AppFactory = Callable[[GetSystemStatus], TestClient]
 class MemorySeam:
     """The test-control seam on in-memory settings, with the rules of the real one."""
 
-    def __init__(self, settings: InMemoryFakeSettings) -> None:
+    def __init__(
+        self, settings: InMemoryFakeSettings, datasets: InMemoryCityDatasets, clock: FixedClock
+    ) -> None:
         self.settings = settings
+        self.datasets = datasets
+        self.clock = clock
 
     def set_component(self, name: ComponentName, state: ComponentState, reason: str | None) -> None:
         if name not in PROBED_COMPONENTS:
@@ -45,21 +53,37 @@ class MemorySeam:
         ComponentStatus(name, state, reason)
         self.settings.set_component(name.value, state.value, reason)
 
+    def insert_city_dataset(self) -> str:
+        now = self.clock.now()
+        prefix = f"{GENEVA_SLUG}-{now.date().isoformat()}"
+        dataset_id = dataset_id_for(
+            GENEVA_SLUG, now.date(), self.datasets.ids_starting_with(prefix)
+        )
+        self.datasets.add(fake_city_dataset(dataset_id, now))
+        return dataset_id
+
     def reset(self) -> None:
         self.settings.write_defaults()
+        self.datasets.clear()
 
 
 class Faked:
     """An app built from fakes. `worker_reports()` does what the worker does at each cycle:
     its fake probes read the settings the test-control routes wrote and report them."""
 
-    def __init__(self) -> None:
+    def __init__(self, with_city_data: bool = True) -> None:
         self.settings = InMemoryFakeSettings()
         self.reports = InMemoryComponentReports()
         self.clock = FixedClock(SERVER_TIME)
+        self.datasets = InMemoryCityDatasets()
+        if with_city_data:
+            self.datasets.add(fake_city_dataset("geneva-2026-11-26", SERVER_TIME))
         self.reports.worker_heartbeats["w-1"] = SERVER_TIME
         self.use_case = GetSystemStatus(
-            fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)), self.reports, self.clock
+            fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)),
+            self.reports,
+            self.datasets,
+            self.clock,
         )
         self._report = ReportComponents(
             [FakeProbe(name, self.settings) for name in PROBED_COMPONENTS],
@@ -71,8 +95,13 @@ class Faked:
         self.client = TestClient(
             create_app(
                 api_version=API_VERSION,
-                routers=[build_system_status_router(self.use_case)],
-                test_control=build_test_control_router(MemorySeam(self.settings)),
+                routers=[
+                    build_system_status_router(self.use_case),
+                    build_city_datasets_router(ListCityDatasets(self.datasets)),
+                ],
+                test_control=build_test_control_router(
+                    MemorySeam(self.settings, self.datasets, self.clock)
+                ),
             ),
             raise_server_exceptions=False,
         )
@@ -84,6 +113,11 @@ class Faked:
 @pytest.fixture
 def faked() -> Faked:
     return Faked()
+
+
+@pytest.fixture
+def faked_without_city_data() -> Faked:
+    return Faked(with_city_data=False)
 
 
 @pytest.fixture

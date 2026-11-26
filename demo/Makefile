@@ -30,7 +30,7 @@ WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_
 # with this.
 ON_SIGNAL = trap 'exit 130' INT; trap 'exit 143' TERM
 
-.PHONY: help install check test test-integration e2e contract format dev worker up down live-smoke
+.PHONY: help install check test test-integration e2e contract format dev worker city-data up down live-smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -132,6 +132,13 @@ worker: ## The worker on the host (real adapters unless ADAPTERS says otherwise)
 		PRICING_DEMO_OTP_URL=http://localhost:$(OTP_PORT)/otp/gtfs/v1; \
 	uv --directory api run alembic upgrade head; \
 	exec env $(WORKER_ENV) uv --directory api run pricing-demo-worker
+
+city-data: ## Import the Geneva timetable and the first bike-station snapshot as a city data set (Docker, internet)
+	@set -e; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
+	uv --directory api run alembic upgrade head; \
+	env $(WORKER_ENV) uv --directory api run pricing-demo-worker import-city-data
 
 up: ## The whole stack in Docker; OpenTripPlanner too when otp/data/graph.obj exists
 	@set -e; \

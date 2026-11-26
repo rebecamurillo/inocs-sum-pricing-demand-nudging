@@ -13,6 +13,7 @@ describe('componentLabel', () => {
     ['solver', 'Solver'],
     ['package', 'Pricing package'],
     ['tripPlanner', 'Trip planner'],
+    ['cityData', 'City data'],
   ])('names %s in plain English', (name, label) => {
     expect(componentLabel(name)).toBe(label);
   });

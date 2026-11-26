@@ -24,6 +24,14 @@ make check       # the quality gate
 make e2e         # the end-to-end scenarios, in Docker
 ```
 
+For live runs, import the city data once (needs the `.osm.pbf` extract in `otp/data/`, see
+[`otp/README.md`](otp/README.md), and the internet for the bike stations):
+
+```sh
+make city-data   # a data set geneva-{date} in the database and var/data/datasets/
+uv --directory api run pricing-demo-worker refresh-bike-stations   # a newer station snapshot
+```
+
 To change a port or another per-machine value, copy `.env.example` to `.env` and edit it. Every
 variable has a default; the stack starts without a `.env` file.
 
@@ -42,6 +50,7 @@ Run from this folder; `make help` lists them.
 | `make format` | applies ruff format and prettier |
 | `make dev` | PostgreSQL in Docker (and OpenTripPlanner when `otp/data/graph.obj` exists); API (with reload), worker and web dev server on the host. Ctrl-C stops those three; the containers keep running until `make down` |
 | `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it |
+| `make city-data` | imports the Geneva timetable and the first bike-station snapshot as a city data set |
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
 | `make live-smoke` | checks the real package, solver and trip planner |
 

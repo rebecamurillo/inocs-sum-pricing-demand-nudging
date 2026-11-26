@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/city-datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The imported city data sets, oldest first */
+        get: operations["listCityDatasets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -102,12 +119,44 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** CityDatasetList */
+        CityDatasetList: {
+            /** Items */
+            items: components["schemas"]["CityDatasetResource"][];
+        };
+        /** CityDatasetResource */
+        CityDatasetResource: {
+            available_area: components["schemas"]["PolygonResource"];
+            /**
+             * Gbfs Fetched At
+             * Format: date-time
+             */
+            gbfs_fetched_at: string;
+            /** Gtfs Timezone */
+            gtfs_timezone: string;
+            /**
+             * Gtfs Valid From
+             * Format: date
+             */
+            gtfs_valid_from: string;
+            /**
+             * Gtfs Valid To
+             * Format: date
+             */
+            gtfs_valid_to: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            preset: components["schemas"]["PresetResource"];
+            routing_moment: components["schemas"]["RoutingMomentResource"];
+        };
         /**
          * ComponentName
          * @description The parts of the system an action depends on, in the order they are reported.
          * @enum {string}
          */
-        ComponentName: "storage" | "runner" | "solver" | "package" | "trip_planner";
+        ComponentName: "storage" | "runner" | "solver" | "package" | "trip_planner" | "city_data";
         /**
          * ComponentState
          * @enum {string}
@@ -128,6 +177,28 @@ export interface components {
             message: string;
         };
         /**
+         * PolygonResource
+         * @description A GeoJSON polygon: one closed ring of [longitude, latitude] positions.
+         */
+        PolygonResource: {
+            /** Coordinates */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
+        /** PresetResource */
+        PresetResource: {
+            /** Centre Lat */
+            centre_lat: number;
+            /** Centre Lon */
+            centre_lon: number;
+            /** Radius M */
+            radius_m: number;
+        };
+        /**
          * ProblemDetails
          * @description An error, as a problem document (RFC 9457).
          */
@@ -144,6 +215,23 @@ export interface components {
             title: string;
             /** Type */
             type: string;
+        };
+        /** RoutingMomentResource */
+        RoutingMomentResource: {
+            /** Arrive By */
+            arrive_by: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Provisional */
+            provisional: boolean;
+            /**
+             * Time
+             * Format: time
+             */
+            time: string;
         };
         /** RunFailureResource */
         RunFailureResource: {
@@ -288,6 +376,35 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listCityDatasets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CityDatasetList"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     listRuns: {
         parameters: {
             query?: {

@@ -2,8 +2,10 @@
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     Double,
     ForeignKey,
@@ -12,6 +14,7 @@ from sqlalchemy import (
     Integer,
     Table,
     Text,
+    Time,
     UniqueConstraint,
     text,
 )
@@ -130,4 +133,32 @@ fake_settings = Table(
     Column("id", Integer, primary_key=True, autoincrement=False),
     Column("settings", JSONB, nullable=False),
     CheckConstraint("id = 1", name="single_row"),
+)
+
+# An immutable import of a city's timetable and bike stations. `available_area` is a GeoJSON
+# polygon, `preset` is `{centre_lat, centre_lon, radius_m}`. Files are paths relative to the
+# worker's data directory.
+city_datasets = Table(
+    "city_datasets",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("gtfs_file", Text, nullable=False),
+    Column("gtfs_sha256", Text, nullable=False),
+    Column("gtfs_source_sha256", Text, nullable=False),
+    Column("gtfs_valid_from", Date, nullable=False),
+    Column("gtfs_valid_to", Date, nullable=False),
+    Column("gtfs_timezone", Text, nullable=False),
+    Column("gbfs_file", Text, nullable=False),
+    Column("gbfs_sha256", Text, nullable=False),
+    Column("gbfs_source_url", Text, nullable=False),
+    Column("gbfs_fetched_at", DateTime(timezone=True), nullable=False),
+    Column("available_area", JSONB, nullable=False),
+    Column("preset", JSONB, nullable=False),
+    Column("routing_date", Date, nullable=False),
+    Column("routing_time", Time, nullable=False),
+    Column("arrive_by", Boolean, nullable=False),
+    Column("routing_date_provisional", Boolean, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("gtfs_valid_from <= gtfs_valid_to", name="gtfs_validity"),
 )

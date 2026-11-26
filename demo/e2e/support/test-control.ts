@@ -16,12 +16,30 @@ const STATUS_TIMEOUT_MS = 15_000;
 export class TestControl {
   constructor(private readonly request: APIRequestContext) {}
 
-  /** Empty the database and set every fake to available; returns once the status shows it. */
+  /**
+   * Empty the database and set every fake to available; returns once the status shows it.
+   * A reset leaves no city data, so `city_data` is then unavailable.
+   */
   async reset(): Promise<void> {
     await this.expectNoContent(await this.request.post('/api/test-control/reset'));
     await this.waitForStates((states) =>
-      Object.values(states).every((state) => state === 'available'),
+      Object.entries(states).every(([name, state]) =>
+        name === 'city_data' ? state === 'unavailable' : state === 'available',
+      ),
     );
+  }
+
+  /** Insert a fake city data set; returns its id once the status shows city data available. */
+  async insertCityDataset(): Promise<string> {
+    const response = await this.request.post('/api/test-control/city-datasets');
+    if (response.status() !== 201) {
+      throw new Error(
+        `Test control answered HTTP ${String(response.status())} for ${response.url()}: ${await response.text()}`,
+      );
+    }
+    const { id } = (await response.json()) as { id: string };
+    await this.waitForStates((states) => states.city_data === 'available');
+    return id;
   }
 
   async makeUnavailable(component: ComponentName, reason: string): Promise<void> {

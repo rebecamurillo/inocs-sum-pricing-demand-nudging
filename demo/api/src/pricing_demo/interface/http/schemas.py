@@ -1,9 +1,10 @@
-from datetime import datetime
-from typing import Any
+from datetime import date, datetime, time
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from pricing_demo.application.run_view import RunView
+from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.runner_liveness import Runner
 from pricing_demo.domain.runs import (
     STEP_NUMBERS,
@@ -198,3 +199,72 @@ class RunResource(BaseModel):
 
 class RunList(BaseModel):
     items: list[RunResource]
+
+
+class PolygonResource(BaseModel):
+    """A GeoJSON polygon: one closed ring of [longitude, latitude] positions."""
+
+    type: Literal["Polygon"]
+    coordinates: list[list[list[float]]]
+
+
+class PresetResource(BaseModel):
+    centre_lat: float
+    centre_lon: float
+    radius_m: int
+
+
+class RoutingMomentResource(BaseModel):
+    date: date
+    time: time
+    arrive_by: bool
+    provisional: bool
+
+
+class CityDatasetResource(BaseModel):
+    id: str
+    name: str
+    gtfs_valid_from: date
+    gtfs_valid_to: date
+    gtfs_timezone: str
+    gbfs_fetched_at: datetime
+    available_area: PolygonResource
+    preset: PresetResource
+    routing_moment: RoutingMomentResource
+
+    @classmethod
+    def from_domain(cls, dataset: CityDataset) -> "CityDatasetResource":
+        moment = dataset.routing_moment
+        preset = dataset.preset
+        return cls(
+            id=dataset.id,
+            name=dataset.name,
+            gtfs_valid_from=dataset.gtfs.valid_from,
+            gtfs_valid_to=dataset.gtfs.valid_to,
+            gtfs_timezone=dataset.gtfs.timezone,
+            gbfs_fetched_at=dataset.gbfs.fetched_at,
+            available_area=PolygonResource.model_validate(
+                dataset.available_area.to_geojson_polygon()
+            ),
+            preset=PresetResource(
+                centre_lat=preset.centre_lat,
+                centre_lon=preset.centre_lon,
+                radius_m=preset.radius_m,
+            ),
+            routing_moment=RoutingMomentResource(
+                date=moment.date,
+                time=moment.time,
+                arrive_by=moment.arrive_by,
+                provisional=moment.provisional,
+            ),
+        )
+
+
+class CityDatasetList(BaseModel):
+    items: list[CityDatasetResource]
+
+
+class CreatedCityDataset(BaseModel):
+    """What the e2e suite gets back from inserting a fake city data set."""
+
+    id: str

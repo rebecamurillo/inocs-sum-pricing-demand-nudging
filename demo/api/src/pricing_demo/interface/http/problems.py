@@ -9,7 +9,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from pricing_demo.application.errors import ComponentNotControllable, InvalidProbeSet
+from pricing_demo.application.errors import (
+    BikeStationFetchFailed,
+    ComponentNotControllable,
+    GtfsCopyChanged,
+    InvalidProbeSet,
+    InvalidStreetExtract,
+    InvalidTimetable,
+    NoCityDataYet,
+    StreetExtractNotFound,
+)
+from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.runs import (
     InvalidRunTransition,
@@ -56,6 +66,14 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     InvalidStepTransition: INTERNAL_ERROR,
     IncompleteSystemStatus: INTERNAL_ERROR,
     InvalidProbeSet: INTERNAL_ERROR,
+    # Raised by the worker's city data commands only; no route reaches them.
+    BikeStationFetchFailed: INTERNAL_ERROR,
+    StreetExtractNotFound: INTERNAL_ERROR,
+    NoCityDataYet: INTERNAL_ERROR,
+    InvalidTimetable: INTERNAL_ERROR,
+    InvalidStreetExtract: INTERNAL_ERROR,
+    GtfsCopyChanged: INTERNAL_ERROR,
+    DisjointAreas: INTERNAL_ERROR,
 }
 
 

@@ -11,6 +11,7 @@ from pricing_demo.domain.system_status import (
     IncompleteSystemStatus,
     SystemStatus,
 )
+from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import fixed_probe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
@@ -29,6 +30,7 @@ class FailingUseCase(GetSystemStatus):
         super().__init__(
             fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)),
             InMemoryComponentReports(),
+            InMemoryCityDatasets(),
             FixedClock(SERVER_TIME),
         )
         self._error = error

@@ -1,4 +1,5 @@
-export type ComponentName = 'storage' | 'runner' | 'solver' | 'package' | 'tripPlanner';
+export type ComponentName =
+  'storage' | 'runner' | 'solver' | 'package' | 'tripPlanner' | 'cityData';
 
 export type ComponentState = 'available' | 'limited' | 'unavailable';
 
@@ -28,6 +29,7 @@ const labels: Readonly<Record<ComponentName, string>> = {
   solver: 'Solver',
   package: 'Pricing package',
   tripPlanner: 'Trip planner',
+  cityData: 'City data',
 };
 
 const stateLabels: Readonly<Record<ComponentState, string>> = {

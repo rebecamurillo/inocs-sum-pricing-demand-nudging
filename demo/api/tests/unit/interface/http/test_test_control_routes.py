@@ -77,3 +77,36 @@ def test_an_unknown_component_name_is_refused(faked: Faked) -> None:
 
     assert response.status_code == 422
     assert response.json()["errors"][0]["field"] == "name"
+
+
+def test_a_city_data_set_is_inserted_and_a_reset_removes_it(
+    faked_without_city_data: Faked,
+) -> None:
+    faked = faked_without_city_data
+    assert faked.client.get("/api/v1/system-status").json()["components"][5]["state"] == (
+        "unavailable"
+    )
+
+    created = faked.client.post("/api/test-control/city-datasets")
+
+    assert created.status_code == 201
+    assert created.json() == {"id": "geneva-2026-11-26"}
+    body = faked.client.get("/api/v1/system-status").json()
+    assert body["components"][5] == {"name": "city_data", "state": "available", "reason": None}
+    assert faked.client.post("/api/test-control/city-datasets").json() == {
+        "id": "geneva-2026-11-26-2"
+    }
+
+    assert faked.client.post("/api/test-control/reset").status_code == 204
+    assert faked.client.get("/api/v1/system-status").json()["components"][5]["state"] == (
+        "unavailable"
+    )
+
+
+def test_city_data_cannot_be_controlled_like_a_probed_component(faked: Faked) -> None:
+    response = faked.client.put(
+        "/api/test-control/components/city_data", json={"state": "available"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "component_not_controllable"

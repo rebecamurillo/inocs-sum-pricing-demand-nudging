@@ -9,10 +9,14 @@ const wireStatus = {
     { name: 'solver', state: 'limited', reason: 'Size-limited Gurobi licence.' },
     { name: 'package', state: 'available', reason: null },
     { name: 'trip_planner', state: 'unavailable', reason: 'No answer.' },
+    { name: 'city_data', state: 'unavailable', reason: 'No city data is imported yet' },
   ],
   can_build_instances: {
     allowed: false,
-    reasons: [{ component: 'trip_planner', reason: 'No answer.' }],
+    reasons: [
+      { component: 'trip_planner', reason: 'No answer.' },
+      { component: 'city_data', reason: 'No city data is imported yet' },
+    ],
   },
   can_run_pricing: {
     allowed: false,
@@ -57,10 +61,14 @@ describe('HttpSystemStatusGateway', () => {
         { name: 'solver', state: 'limited', reason: 'Size-limited Gurobi licence.' },
         { name: 'package', state: 'available', reason: null },
         { name: 'tripPlanner', state: 'unavailable', reason: 'No answer.' },
+        { name: 'cityData', state: 'unavailable', reason: 'No city data is imported yet' },
       ],
       canBuildInstances: {
         allowed: false,
-        reasons: [{ component: 'tripPlanner', reason: 'No answer.' }],
+        reasons: [
+          { component: 'tripPlanner', reason: 'No answer.' },
+          { component: 'cityData', reason: 'No city data is imported yet' },
+        ],
       },
       canRunPricing: {
         allowed: false,

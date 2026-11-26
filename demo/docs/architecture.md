@@ -24,10 +24,11 @@ goes and what may import what. Decisions and their reasons are in
   licence from the size-limited one), the pricing package and the trip planner, and upserts
   one row each into `component_reports`. The runner's state comes from
   `workers.heartbeat_at`: a runner, or a report of a worker, that did not beat for 30 s reads
-  `unavailable`. `GET /api/v1/system-status` turns the five components (`storage`, `runner`,
-  `solver`, `package`, `trip_planner`, each `available`, `limited` or `unavailable`) into
+  `unavailable`. `GET /api/v1/system-status` turns the six components (`storage`, `runner`,
+  `solver`, `package`, `trip_planner`, `city_data`, each `available`, `limited` or `unavailable`) into
   three verdicts (instance builds, pricing runs, simulations) that carry their blocking
-  reasons; what each action needs is tabulated in the initiative's `ARCHITECTURE.md` § 10.1.
+  reasons. `city_data` is the API's own: `unavailable` ("No city data is imported yet") while
+  `city_datasets` is empty, and it blocks instance builds only; what each action needs is tabulated in the initiative's `ARCHITECTURE.md` § 10.1.
   The API process never imports the package (an architecture test checks it).
 - The worker runs on the host for live runs (`make worker`, also started by `make dev`),
   because a named-user Gurobi licence does not work inside a container
@@ -144,6 +145,21 @@ the set in the composition root. Storage is the real PostgreSQL in both sets.
 
 What the package cannot do as it stands is recorded in [`model-notes.md`](model-notes.md)
 and worked around in the adapter, never in the package.
+
+### City data
+
+A city data set is one immutable row of `city_datasets` plus a folder
+`{data_dir}/datasets/{id}/` (id `geneva-{import date}`, then `-2`, `-3`, ... on the same
+day) holding the GTFS copy and one GBFS `station_information` snapshot, with their hashes,
+the timetable's validity and time zone, the available area (the intersection of the stops'
+bounding box and the OSM header's box), the preset and the provisional routing moment.
+Two worker commands create data sets and nothing else does:
+`pricing-demo-worker import-city-data` (`make city-data`; needs the one `.osm.pbf` in
+`otp/data/`) and `pricing-demo-worker refresh-bike-stations` (the latest timetable and a new
+snapshot). The station feed sits behind the `BikeStationFeed` port: the real adapter runs the
+package's Donkey Republic provider in a child process, the fake copies a committed fixture.
+The timetable and the street extract are read by `infrastructure/city_data/` (`zipfile` and
+`csv` for GTFS, `osmium` for the PBF header). `GET /api/v1/city-datasets` lists the data sets.
 
 ### Persistence
 

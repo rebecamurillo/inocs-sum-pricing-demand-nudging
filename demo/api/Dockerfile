@@ -11,6 +11,12 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
+# pyosmium (reads the header of the OpenStreetMap extract) links libexpat, which the slim
+# image does not carry.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # The layout matches the repository: pyproject.toml refers to ../../sum_nsm_dynamic_pricing.
 WORKDIR /app
 COPY sum_nsm_dynamic_pricing ./sum_nsm_dynamic_pricing

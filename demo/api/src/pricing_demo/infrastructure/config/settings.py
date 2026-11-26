@@ -4,6 +4,14 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# `demo/`, and the default inputs of the city data import.
+DEMO_DIR = Path(__file__).resolve().parents[5]
+DEFAULT_GTFS = (
+    DEMO_DIR.parent
+    / "Geneva_Complete_Link_Instances_and_Optimization/OTP2_Geneva_Instances/tpg_gtfs.zip"
+)
+DEFAULT_OSM_DIR = DEMO_DIR / "otp/data"
+
 
 class Settings(BaseSettings):
     """Every setting of the API and the worker, read from `PRICING_DEMO_*` environment variables."""

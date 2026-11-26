@@ -5,10 +5,12 @@ import pytest
 from pricing_demo.application.errors import InvalidProbeSet
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.domain.system_status import (
+    NO_CITY_DATA_REASON,
     ComponentName,
     ComponentState,
     ComponentStatus,
 )
+from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import fixed_probe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
@@ -21,7 +23,11 @@ class Rig:
     def __init__(self, storage: ComponentStatus = STORAGE_OK) -> None:
         self.reports = InMemoryComponentReports()
         self.clock = FixedClock(T0)
-        self.use_case = GetSystemStatus(fixed_probe(storage), self.reports, self.clock)
+        self.datasets = InMemoryCityDatasets()
+        self.datasets.add(fake_city_dataset("geneva-2026-11-26", T0))
+        self.use_case = GetSystemStatus(
+            fixed_probe(storage), self.reports, self.datasets, self.clock
+        )
 
     def report_all(self, worker_id: str = "w-1") -> None:
         for name in (ComponentName.SOLVER, ComponentName.PACKAGE, ComponentName.TRIP_PLANNER):
@@ -86,6 +92,7 @@ def test_storage_down_does_not_read_the_reports() -> None:
     use_case = GetSystemStatus(
         fixed_probe(ComponentStatus.unavailable(ComponentName.STORAGE, "no database")),
         Exploding(),
+        InMemoryCityDatasets(),
         FixedClock(T0),
     )
 
@@ -100,5 +107,50 @@ def test_a_probe_for_another_component_than_storage_is_refused() -> None:
         GetSystemStatus(
             fixed_probe(ComponentStatus.ready(ComponentName.SOLVER)),
             InMemoryComponentReports(),
+            InMemoryCityDatasets(),
             FixedClock(T0),
         )
+
+
+def test_city_data_is_unavailable_while_no_data_set_is_imported() -> None:
+    rig = Rig()
+    rig.report_all()
+    rig.datasets = InMemoryCityDatasets()
+    rig.use_case = GetSystemStatus(fixed_probe(STORAGE_OK), rig.reports, rig.datasets, rig.clock)
+
+    status = rig.use_case.execute()
+
+    city = status.components[-1]
+    assert (city.name, city.state, city.reason) == (
+        ComponentName.CITY_DATA,
+        ComponentState.UNAVAILABLE,
+        NO_CITY_DATA_REASON,
+    )
+    assert not status.can_build_instances.allowed
+    assert status.can_run_pricing.allowed
+    assert status.can_simulate.allowed
+
+
+def test_city_data_is_available_once_a_data_set_exists() -> None:
+    rig = Rig()
+    rig.report_all()
+
+    assert rig.use_case.execute().components[-1].state is ComponentState.AVAILABLE
+
+
+def test_storage_down_makes_city_data_not_known_without_counting() -> None:
+    class Exploding(InMemoryCityDatasets):
+        def count(self) -> int:
+            raise AssertionError("the data sets must not be counted")
+
+    use_case = GetSystemStatus(
+        fixed_probe(ComponentStatus.unavailable(ComponentName.STORAGE, "no database")),
+        InMemoryComponentReports(),
+        Exploding(),
+        FixedClock(T0),
+    )
+
+    city = use_case.execute().components[-1]
+
+    assert city.state is ComponentState.UNAVAILABLE
+    assert city.reason == "Not known: the database does not answer."

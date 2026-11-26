@@ -1,0 +1,5 @@
+stop_id,stop_name,stop_lat,stop_lon
+S1,Alpha,46.20,6.10
+S2,Beta,46.25,6.20
+S3,Gamma,46.15,6.15
+S4,No coordinates,,

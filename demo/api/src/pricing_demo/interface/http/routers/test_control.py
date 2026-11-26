@@ -3,7 +3,7 @@ from typing import Protocol
 from fastapi import APIRouter, Response
 
 from pricing_demo.domain.system_status import ComponentName, ComponentState
-from pricing_demo.interface.http.schemas import ComponentAnswerRequest
+from pricing_demo.interface.http.schemas import ComponentAnswerRequest, CreatedCityDataset
 
 
 class E2ETestSeam(Protocol):
@@ -21,6 +21,10 @@ class E2ETestSeam(Protocol):
         """
         ...
 
+    def insert_city_dataset(self) -> str:
+        """Insert a fake city data set, with no file behind it; returns its id."""
+        ...
+
     def reset(self) -> None:
         """Return the application to its initial state: fakes at their defaults, no stored data."""
         ...
@@ -33,6 +37,10 @@ def build_test_control_router(seam: E2ETestSeam) -> APIRouter:
     def set_component_answer(name: ComponentName, answer: ComponentAnswerRequest) -> Response:
         seam.set_component(name, answer.state, answer.reason)
         return Response(status_code=204)
+
+    @router.post("/city-datasets", status_code=201)
+    def insert_city_dataset() -> CreatedCityDataset:
+        return CreatedCityDataset(id=seam.insert_city_dataset())
 
     @router.post("/reset", status_code=204)
     def reset() -> Response:

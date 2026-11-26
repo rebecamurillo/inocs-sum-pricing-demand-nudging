@@ -22,6 +22,7 @@ const componentNames: Readonly<Record<ComponentStatusResponse['name'], Component
   solver: 'solver',
   package: 'package',
   trip_planner: 'tripPlanner',
+  city_data: 'cityData',
 };
 
 function toComponentStatus(component: ComponentStatusResponse): ComponentStatus {

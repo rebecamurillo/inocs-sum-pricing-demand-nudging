@@ -15,6 +15,7 @@ class ComponentName(StrEnum):
     SOLVER = "solver"
     PACKAGE = "package"
     TRIP_PLANNER = "trip_planner"
+    CITY_DATA = "city_data"
 
 
 class ComponentState(StrEnum):
@@ -27,6 +28,7 @@ class ComponentState(StrEnum):
 PROBED_COMPONENTS = (ComponentName.SOLVER, ComponentName.PACKAGE, ComponentName.TRIP_PLANNER)
 
 NO_RUNNER_REASON = "No runner has reported in the last 30 s."
+NO_CITY_DATA_REASON = "No city data is imported yet"
 STORAGE_UNKNOWN_REASON = "Not known: the database does not answer."
 _REPORT_LABELS = {
     ComponentName.SOLVER: "solver",
@@ -37,6 +39,10 @@ _REPORT_LABELS = {
 
 def not_reported_reason(name: ComponentName) -> str:
     return f"The runner has not reported the {_REPORT_LABELS[name]}."
+
+
+def no_city_data_status() -> "ComponentStatus":
+    return ComponentStatus.unavailable(ComponentName.CITY_DATA, NO_CITY_DATA_REASON)
 
 
 class InvalidComponentStatus(DomainError):
@@ -95,6 +101,7 @@ REQUIRED: Mapping[str, frozenset[ComponentName]] = {
             ComponentName.RUNNER,
             ComponentName.PACKAGE,
             ComponentName.TRIP_PLANNER,
+            ComponentName.CITY_DATA,
         }
     ),
     "can_run_pricing": frozenset(
@@ -165,9 +172,10 @@ def system_status_from(
     latest_worker_heartbeat: datetime | None,
     reports: Sequence[ComponentReport],
     server_time: datetime,
+    city_data: ComponentStatus,
 ) -> SystemStatus:
-    """The five components from the API's own storage probe, the `workers` heartbeats and the
-    reports, judged on the API's clock."""
+    """The six components from the API's own storage probe, the `workers` heartbeats, the
+    reports and the count of city data sets, judged on the API's clock."""
     if storage.state is not ComponentState.AVAILABLE:
         unknown = [
             ComponentStatus.unavailable(name, STORAGE_UNKNOWN_REASON)
@@ -188,4 +196,4 @@ def system_status_from(
         fresh.get(name) or ComponentStatus.unavailable(name, not_reported_reason(name))
         for name in PROBED_COMPONENTS
     ]
-    return SystemStatus.of([storage, runner, *probed])
+    return SystemStatus.of([storage, runner, *probed, city_data])

@@ -22,6 +22,7 @@ from pricing_demo.domain.system_status import (
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe, fixed_probe
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
+from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
 from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
@@ -60,7 +61,10 @@ class Rig:
             self.waiter,
         )
         self.status = GetSystemStatus(
-            fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)), self.reports, self.clock
+            fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)),
+            self.reports,
+            PostgresCityDatasets(self.engine),
+            self.clock,
         )
 
     def stop_at(self, seconds: float) -> None:

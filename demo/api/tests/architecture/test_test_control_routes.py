@@ -17,6 +17,7 @@ from pricing_demo.infrastructure.persistence.metadata import metadata
 from pricing_demo.worker import main as worker_main
 
 RESET = "/api/test-control/reset"
+CITY_DATASETS = "/api/test-control/city-datasets"
 SOLVER = "/api/test-control/components/solver"
 
 
@@ -45,6 +46,7 @@ def test_the_test_control_routes_are_absent_with_the_real_adapters(
     client = TestClient(application("real"))
 
     assert client.post(RESET).status_code == 404
+    assert client.post(CITY_DATASETS).status_code == 404
     assert client.put(SOLVER, json={"state": "available"}).status_code == 404
     worker = worker_main.build_worker(Settings(adapters="real", data_dir=tmp_path / "data"))
     worker.engine.dispose()
@@ -124,6 +126,8 @@ def test_the_export_needs_a_path() -> None:
         "VerdictResponse",
         "BlockingReasonResponse",
         "ProblemDetails",
+        "CityDatasetList",
+        "CityDatasetResource",
     ],
 )
 def test_the_contract_names_its_schemas(schema: str) -> None:

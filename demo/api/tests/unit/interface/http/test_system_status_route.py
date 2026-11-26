@@ -15,6 +15,7 @@ def test_every_component_is_available_and_every_action_can_start_by_default(fake
             {"name": "solver", "state": "available", "reason": None},
             {"name": "package", "state": "available", "reason": None},
             {"name": "trip_planner", "state": "available", "reason": None},
+            {"name": "city_data", "state": "available", "reason": None},
         ],
         "can_build_instances": ALLOWED,
         "can_run_pricing": ALLOWED,
@@ -65,3 +66,21 @@ def test_the_answer_has_no_trace_of_the_old_shape(faked: Faked) -> None:
     body = faked.client.get("/api/v1/system-status").json()
 
     assert set(body) == {"components", "can_build_instances", "can_run_pricing", "can_simulate"}
+
+
+def test_without_a_city_data_set_builds_are_refused_with_that_reason(
+    faked_without_city_data: Faked,
+) -> None:
+    body = faked_without_city_data.client.get("/api/v1/system-status").json()
+
+    assert body["components"][5] == {
+        "name": "city_data",
+        "state": "unavailable",
+        "reason": "No city data is imported yet",
+    }
+    assert body["can_build_instances"] == {
+        "allowed": False,
+        "reasons": [{"component": "city_data", "reason": "No city data is imported yet"}],
+    }
+    assert body["can_run_pricing"] == ALLOWED
+    assert body["can_simulate"] == ALLOWED

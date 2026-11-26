@@ -5,6 +5,7 @@ import pytest
 
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.system_status import (
+    NO_CITY_DATA_REASON,
     NO_RUNNER_REASON,
     PROBED_COMPONENTS,
     STORAGE_UNKNOWN_REASON,
@@ -40,13 +41,14 @@ def system_status(
     return SystemStatus.of(statuses)
 
 
-def test_the_components_are_the_five_of_the_lab_in_order() -> None:
+def test_the_components_are_the_six_of_the_lab_in_order() -> None:
     assert [name.value for name in ComponentName] == [
         "storage",
         "runner",
         "solver",
         "package",
         "trip_planner",
+        "city_data",
     ]
     assert PROBED_COMPONENTS == (
         ComponentName.SOLVER,
@@ -129,6 +131,7 @@ def test_every_verdict_allows_when_every_component_is_available() -> None:
         ("solver", False, True, False),
         ("package", True, True, False),
         ("trip_planner", True, False, False),
+        ("city_data", True, False, False),
     ],
 )
 def test_a_missing_component_refuses_the_verdicts_that_need_it(
@@ -189,7 +192,14 @@ def test_storage_down_refuses_all_three() -> None:
 
 def test_reasons_come_in_component_order() -> None:
     status = system_status(
-        {"storage": "s", "runner": "r", "solver": "v", "package": "p", "trip_planner": "t"}
+        {
+            "storage": "s",
+            "runner": "r",
+            "solver": "v",
+            "package": "p",
+            "trip_planner": "t",
+            "city_data": "c",
+        }
     )
 
     assert [item.component for item in status.can_build_instances.reasons] == [
@@ -197,6 +207,7 @@ def test_reasons_come_in_component_order() -> None:
         ComponentName.RUNNER,
         ComponentName.PACKAGE,
         ComponentName.TRIP_PLANNER,
+        ComponentName.CITY_DATA,
     ]
     assert [item.component for item in status.can_run_pricing.reasons] == [
         ComponentName.STORAGE,
@@ -234,6 +245,7 @@ def reports(**overrides: ComponentReport) -> list[ComponentReport]:
 
 
 STORAGE_OK = ComponentStatus.ready(ComponentName.STORAGE)
+CITY_OK = ComponentStatus.ready(ComponentName.CITY_DATA)
 
 
 def by_name(status: SystemStatus) -> dict[ComponentName, ComponentStatus]:
@@ -241,13 +253,13 @@ def by_name(status: SystemStatus) -> dict[ComponentName, ComponentStatus]:
 
 
 def test_fresh_reports_and_a_fresh_heartbeat_make_everything_available() -> None:
-    status = system_status_from(STORAGE_OK, NOW - timedelta(seconds=2), reports(), NOW)
+    status = system_status_from(STORAGE_OK, NOW - timedelta(seconds=2), reports(), NOW, CITY_OK)
 
     assert all(item.state is ComponentState.AVAILABLE for item in status.components)
 
 
 def test_no_heartbeat_makes_the_runner_unavailable_with_its_reason() -> None:
-    status = system_status_from(STORAGE_OK, None, [], NOW)
+    status = system_status_from(STORAGE_OK, None, [], NOW, CITY_OK)
 
     runner = by_name(status)[ComponentName.RUNNER]
     assert runner.state is ComponentState.UNAVAILABLE
@@ -258,14 +270,14 @@ def test_no_heartbeat_makes_the_runner_unavailable_with_its_reason() -> None:
 def test_the_runner_is_alive_within_thirty_seconds_of_the_heartbeat(
     age: float, alive: bool
 ) -> None:
-    status = system_status_from(STORAGE_OK, NOW - timedelta(seconds=age), reports(), NOW)
+    status = system_status_from(STORAGE_OK, NOW - timedelta(seconds=age), reports(), NOW, CITY_OK)
 
     runner = by_name(status)[ComponentName.RUNNER]
     assert (runner.state is ComponentState.AVAILABLE) is alive
 
 
 def test_a_probed_component_without_a_report_says_the_runner_has_not_reported_it() -> None:
-    status = system_status_from(STORAGE_OK, NOW, [], NOW)
+    status = system_status_from(STORAGE_OK, NOW, [], NOW, CITY_OK)
 
     items = by_name(status)
     assert items[ComponentName.SOLVER].reason == "The runner has not reported the solver."
@@ -283,6 +295,7 @@ def test_a_report_of_a_worker_that_stopped_reporting_is_stale(heartbeat_age: flo
         NOW,
         reports(solver=report(ComponentName.SOLVER, heartbeat_age=heartbeat_age)),
         NOW,
+        CITY_OK,
     )
 
     items = by_name(status)
@@ -303,6 +316,7 @@ def test_a_fresh_report_is_used_as_it_is() -> None:
             trip_planner=report(ComponentName.TRIP_PLANNER, status=down),
         ),
         NOW,
+        CITY_OK,
     )
 
     items = by_name(status)
@@ -313,7 +327,7 @@ def test_a_fresh_report_is_used_as_it_is() -> None:
 def test_storage_down_makes_every_other_component_not_known() -> None:
     storage = ComponentStatus.unavailable(ComponentName.STORAGE, "no database")
 
-    status = system_status_from(storage, NOW, reports(), NOW)
+    status = system_status_from(storage, NOW, reports(), NOW, CITY_OK)
 
     items = by_name(status)
     assert items[ComponentName.STORAGE] == storage
@@ -321,3 +335,29 @@ def test_storage_down_makes_every_other_component_not_known() -> None:
         assert items[name].state is ComponentState.UNAVAILABLE
         assert items[name].reason == STORAGE_UNKNOWN_REASON
     assert not status.can_simulate.allowed
+
+
+def test_city_data_is_the_api_s_own_status_and_is_kept_as_given() -> None:
+    empty = ComponentStatus.unavailable(ComponentName.CITY_DATA, NO_CITY_DATA_REASON)
+
+    status = system_status_from(STORAGE_OK, NOW, reports(), NOW, empty)
+
+    assert by_name(status)[ComponentName.CITY_DATA] == empty
+    assert status.components[-1].name is ComponentName.CITY_DATA
+
+
+def test_no_city_data_refuses_builds_only_and_says_why() -> None:
+    empty = ComponentStatus.unavailable(ComponentName.CITY_DATA, NO_CITY_DATA_REASON)
+
+    status = system_status_from(STORAGE_OK, NOW, reports(), NOW, empty)
+
+    assert NO_CITY_DATA_REASON == "No city data is imported yet"
+    assert status.can_build_instances.reasons == (
+        BlockingReason(ComponentName.CITY_DATA, NO_CITY_DATA_REASON),
+    )
+    assert status.can_run_pricing.allowed
+    assert status.can_simulate.allowed
+
+
+def test_city_data_is_not_a_worker_probed_component() -> None:
+    assert ComponentName.CITY_DATA not in PROBED_COMPONENTS

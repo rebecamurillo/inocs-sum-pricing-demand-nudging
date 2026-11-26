@@ -4,34 +4,55 @@ Like `bootstrap` and `asgi` for the API, this is the one place that builds the w
 adapters and injects them. The API and the worker share only PostgreSQL.
 """
 
+import argparse
 import logging
 import os
 import signal
 import socket
+import sys
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
+from pathlib import Path
 from types import FrameType
 
 from sqlalchemy import Engine
 
+from pricing_demo.application.errors import (
+    BikeStationFetchFailed,
+    GtfsCopyChanged,
+    InvalidStreetExtract,
+    InvalidTimetable,
+    NoCityDataYet,
+    StreetExtractNotFound,
+)
+from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
 from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
+from pricing_demo.application.use_cases.import_city_data import ImportCityData
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
+from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBikeStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.run_worker import RunWorker
+from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
+from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
+from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader
+from pricing_demo.infrastructure.city_data.osm import PbfStreetExtract
 from pricing_demo.infrastructure.clock import SystemClock
-from pricing_demo.infrastructure.config.settings import Settings
+from pricing_demo.infrastructure.config.settings import DEFAULT_GTFS, DEFAULT_OSM_DIR, Settings
+from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
+from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
 from pricing_demo.infrastructure.pricing_model.solver_probe import SolverProbe
 from pricing_demo.infrastructure.trip_planner.otp_probe import OtpProbe
@@ -90,7 +111,7 @@ def build_worker(settings: Settings) -> BuiltWorker:
     return BuiltWorker(worker, identity, engine)
 
 
-def main() -> None:
+def run_loop() -> None:
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
@@ -112,5 +133,82 @@ def main() -> None:
         logger.info("Worker %s stopped", built.identity.id)
 
 
+COMMAND_ERRORS = (
+    BikeStationFetchFailed,
+    DisjointAreas,
+    GtfsCopyChanged,
+    InvalidStreetExtract,
+    InvalidTimetable,
+    NoCityDataYet,
+    StreetExtractNotFound,
+)
+
+
+def build_bike_station_feed(settings: Settings) -> BikeStationFeed:
+    """The one adapter that fetches the bike-station feed, by adapter set."""
+    if settings.adapters == "fake":
+        return FixtureBikeStationFeed()
+    return PackageBikeStationFeed()
+
+
+def build_import_city_data(settings: Settings, engine: Engine) -> ImportCityData:
+    return ImportCityData(
+        PostgresCityDatasets(engine),
+        ZipTimetableReader(),
+        PbfStreetExtract(),
+        LocalDatasetFiles(settings.data_dir),
+        build_bike_station_feed(settings),
+        SystemClock(),
+    )
+
+
+def build_refresh_bike_stations(settings: Settings, engine: Engine) -> RefreshBikeStations:
+    return RefreshBikeStations(
+        PostgresCityDatasets(engine),
+        LocalDatasetFiles(settings.data_dir),
+        build_bike_station_feed(settings),
+        SystemClock(),
+    )
+
+
+def parser() -> argparse.ArgumentParser:
+    root = argparse.ArgumentParser(prog="pricing-demo-worker")
+    commands = root.add_subparsers(dest="command")
+    importing = commands.add_parser(
+        "import-city-data", help="import the timetable and a first bike-station snapshot"
+    )
+    importing.add_argument("--gtfs", type=Path, default=DEFAULT_GTFS)
+    importing.add_argument("--osm-dir", type=Path, default=DEFAULT_OSM_DIR)
+    commands.add_parser(
+        "refresh-bike-stations", help="a new data set with the latest timetable and new stations"
+    )
+    return root
+
+
+def run_command(args: argparse.Namespace, settings: Settings) -> int:
+    """Run one city data command; prints the new id, or the reason on stderr (exit 1)."""
+    engine = create_db_engine(settings.database_url)
+    try:
+        if args.command == "import-city-data":
+            created = build_import_city_data(settings, engine).execute(args.gtfs, args.osm_dir)
+        else:
+            created = build_refresh_bike_stations(settings, engine).execute()
+    except COMMAND_ERRORS as error:
+        print(str(error), file=sys.stderr)
+        return 1
+    finally:
+        engine.dispose()
+    print(created.id)
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int | None:
+    args = parser().parse_args(argv)
+    if args.command is None:
+        run_loop()
+        return None
+    return run_command(args, Settings())
+
+
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
