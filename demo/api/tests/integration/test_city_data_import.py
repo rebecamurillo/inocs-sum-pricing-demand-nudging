@@ -10,9 +10,10 @@ from sqlalchemy import Engine
 from pricing_demo.application.use_cases.import_city_data import ImportCityData
 from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBikeStations
 from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
-from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader
+from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader, ZipTimetableShapes
 from pricing_demo.infrastructure.city_data.osm import PbfStreetExtract
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
+from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from tests.support.city_data import osm_folder, zip_gtfs
@@ -37,7 +38,14 @@ def test_the_import_then_the_refresh_store_two_data_sets_that_share_the_timetabl
     gtfs = zip_gtfs(tmp_path / "source" / "tpg_gtfs.zip")
 
     first = ImportCityData(
-        datasets, ZipTimetableReader(), PbfStreetExtract(), files, feed, clock
+        datasets,
+        ZipTimetableReader(),
+        PbfStreetExtract(),
+        files,
+        feed,
+        FakeBusShapeMatcher(),
+        ZipTimetableShapes(),
+        clock,
     ).execute(gtfs, osm_folder(tmp_path / "osm"))
 
     assert first.id == "geneva-2026-11-26"
@@ -61,3 +69,4 @@ def test_the_import_then_the_refresh_store_two_data_sets_that_share_the_timetabl
     stored = datasets.list()[0]
     assert stored.available_area == first.available_area
     assert stored.gtfs.valid_from == first.gtfs.valid_from
+    assert stored.bus_shapes == first.bus_shapes == second.bus_shapes

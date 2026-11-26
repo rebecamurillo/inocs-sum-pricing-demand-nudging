@@ -4,6 +4,7 @@ from sqlalchemy import Engine, func, select
 
 from pricing_demo.domain.city_datasets import (
     BoundingBox,
+    BusShapes,
     CityDataset,
     GbfsSnapshot,
     GtfsSnapshot,
@@ -50,6 +51,9 @@ class PostgresCityDatasets:
                     routing_time=dataset.routing_moment.time,
                     arrive_by=dataset.routing_moment.arrive_by,
                     routing_date_provisional=dataset.routing_moment.provisional,
+                    bus_shapes=dataset.bus_shapes.status,
+                    bus_shapes_reason=dataset.bus_shapes.reason,
+                    shape_tool_image=dataset.bus_shapes.tool_image,
                     created_at=dataset.created_at,
                 )
             )
@@ -112,5 +116,6 @@ class PostgresCityDatasets:
                 arrive_by=row.arrive_by,
                 provisional=row.routing_date_provisional,
             ),
+            bus_shapes=BusShapes(row.bus_shapes, row.bus_shapes_reason, row.shape_tool_image),
             created_at=row.created_at,
         )

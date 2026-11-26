@@ -161,6 +161,19 @@ package's Donkey Republic provider in a child process, the fake copies a committ
 The timetable and the street extract are read by `infrastructure/city_data/` (`zipfile` and
 `csv` for GTFS, `osmium` for the PBF header). `GET /api/v1/city-datasets` lists the data sets.
 
+The GTFS copy is shaped: after copying, the import hands the copy and the `.osm.pbf` to the
+`BusShapeMatcher` port, and `ZipTimetableShapes` writes the tool's `shapes.txt` and the
+`shape_id` of the bus trips (route types 3 and 700-799) into the copy; every other entry stays
+byte for byte as in the source zip, and `gtfs_sha256` is taken after the rewrite. The real
+adapter, `DockerPfaedleMatcher`, runs pfaedle (image `PRICING_DEMO_SHAPE_TOOL_IMAGE`, pinned by
+digest) in a container, moving the files with `docker cp` so that it works with any Docker
+daemon, and keeps only `shapes.txt` and the trips' `shape_id` from its output; the fake
+(`FakeBusShapeMatcher`) draws each bus trip through its stops and needs no Docker. A matcher that
+cannot run, exits non-zero or produces no bus shape does not fail the import: the copy stays the
+source zip and the data set records `bus_shapes = none`. The columns `bus_shapes`
+(`generated` or `none`), `bus_shapes_reason` (set exactly when `none`) and `shape_tool_image`
+record the outcome and the tool; the refresh carries them over with the reused copy.
+
 ### Persistence
 
 PostgreSQL through SQLAlchemy 2 and psycopg 3. Repositories implement ports and return

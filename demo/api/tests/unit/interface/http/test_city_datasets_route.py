@@ -37,4 +37,28 @@ def test_a_data_set_is_listed_with_its_facts(faked: Faked) -> None:
             "arrive_by": True,
             "provisional": True,
         },
+        "bus_shapes": "generated",
+        "bus_shapes_reason": None,
+        "shape_tool_image": "fake-bus-shape-matcher",
     }
+
+
+def test_a_data_set_without_shapes_lists_the_reason_and_the_tool() -> None:
+    from dataclasses import replace
+
+    from pricing_demo.domain.city_datasets import BusShapes
+    from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
+    from pricing_demo.interface.http.schemas import CityDatasetResource
+    from tests.support.runs import T0
+
+    dataset = replace(
+        fake_city_dataset("a", T0), bus_shapes=BusShapes.none("Docker is not available", "img")
+    )
+
+    resource = CityDatasetResource.from_domain(dataset)
+
+    assert (resource.bus_shapes, resource.bus_shapes_reason, resource.shape_tool_image) == (
+        "none",
+        "Docker is not available",
+        "img",
+    )

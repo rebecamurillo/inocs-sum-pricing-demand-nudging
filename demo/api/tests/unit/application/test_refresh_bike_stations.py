@@ -8,9 +8,10 @@ from pricing_demo.application.ports.bike_station_feed import FetchedStations
 from pricing_demo.application.use_cases.import_city_data import ImportCityData
 from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBikeStations
 from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
-from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader
+from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader, ZipTimetableShapes
 from pricing_demo.infrastructure.city_data.osm import PbfStreetExtract
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
+from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from tests.support.city_data import osm_folder, zip_gtfs
@@ -25,6 +26,7 @@ class Rig:
         self.clock = FixedClock(NOW)
         self.feed = FixtureBikeStationFeed()
         self.files = LocalDatasetFiles(self.data_dir)
+        self.matcher = FakeBusShapeMatcher()
         self.gtfs = zip_gtfs(tmp_path / "source" / "tpg_gtfs.zip")
         self.osm = osm_folder(tmp_path / "osm")
 
@@ -35,6 +37,8 @@ class Rig:
             PbfStreetExtract(),
             self.files,
             self.feed,
+            self.matcher,
+            ZipTimetableShapes(),
             self.clock,
         ).execute(self.gtfs, self.osm)
 
@@ -124,3 +128,17 @@ def test_a_timetable_copy_that_changed_on_disk_is_refused(rig: Rig) -> None:
 
     assert rig.datasets.count() == 1
     assert not (rig.data_dir / "datasets" / "geneva-2026-11-26-2").exists()
+
+
+@pytest.mark.parametrize("failing", [False, True])
+def test_the_refresh_carries_the_bus_shapes_of_the_data_it_reuses(rig: Rig, failing: bool) -> None:
+    if failing:
+        rig.matcher = FakeBusShapeMatcher(fail_with="Docker is not available")
+    rig.import_first()
+    first = rig.datasets.latest()
+    assert first is not None
+
+    new = rig.refresh().execute()
+
+    assert new.bus_shapes == first.bus_shapes
+    assert new.bus_shapes.status == ("none" if failing else "generated")

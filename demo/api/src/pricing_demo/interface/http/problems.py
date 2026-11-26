@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from pricing_demo.application.errors import (
     BikeStationFetchFailed,
+    BusShapeMatchingFailed,
     ComponentNotControllable,
     GtfsCopyChanged,
     InvalidProbeSet,
@@ -74,6 +75,7 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     InvalidStreetExtract: INTERNAL_ERROR,
     GtfsCopyChanged: INTERNAL_ERROR,
     DisjointAreas: INTERNAL_ERROR,
+    BusShapeMatchingFailed: INTERNAL_ERROR,
 }
 
 

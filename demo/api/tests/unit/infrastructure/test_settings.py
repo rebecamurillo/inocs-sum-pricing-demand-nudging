@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from pricing_demo.infrastructure.config.settings import Settings
+from pricing_demo.infrastructure.config.settings import DEFAULT_SHAPE_TOOL_IMAGE, Settings
 
 
 def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -13,6 +13,7 @@ def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) 
         "DATA_DIR",
         "WORKER_ID",
         "COMPONENT_REPORT_INTERVAL_S",
+        "SHAPE_TOOL_IMAGE",
     ):
         monkeypatch.delenv(f"PRICING_DEMO_{name}", raising=False)
 
@@ -26,6 +27,7 @@ def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) 
     assert settings.data_dir == Path("var/data")
     assert settings.worker_id is None
     assert settings.component_report_interval_s == 30
+    assert settings.shape_tool_image == DEFAULT_SHAPE_TOOL_IMAGE
 
 
 def test_settings_come_from_prefixed_environment_variables(
@@ -80,3 +82,15 @@ def test_a_component_report_interval_of_zero_is_refused(monkeypatch: pytest.Monk
 
     with pytest.raises(ValueError, match="greater than 0"):
         Settings()
+
+
+def test_the_shape_tool_image_is_pinned_by_digest_and_can_be_overridden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert DEFAULT_SHAPE_TOOL_IMAGE == (
+        "ghcr.io/ad-freiburg/pfaedle"
+        "@sha256:af4fdc647699ea1ffe5150fd1f9d264c465c2876710ea749e8cb284f13abd20d"
+    )
+    monkeypatch.setenv("PRICING_DEMO_SHAPE_TOOL_IMAGE", "example/pfaedle:2")
+
+    assert Settings().shape_tool_image == "example/pfaedle:2"

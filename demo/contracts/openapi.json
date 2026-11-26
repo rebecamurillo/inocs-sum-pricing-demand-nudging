@@ -40,6 +40,25 @@
           "available_area": {
             "$ref": "#/components/schemas/PolygonResource"
           },
+          "bus_shapes": {
+            "enum": [
+              "generated",
+              "none"
+            ],
+            "title": "Bus Shapes",
+            "type": "string"
+          },
+          "bus_shapes_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bus Shapes Reason"
+          },
           "gbfs_fetched_at": {
             "format": "date-time",
             "title": "Gbfs Fetched At",
@@ -72,6 +91,17 @@
           },
           "routing_moment": {
             "$ref": "#/components/schemas/RoutingMomentResource"
+          },
+          "shape_tool_image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Tool Image"
           }
         },
         "required": [
@@ -83,7 +113,10 @@
           "gbfs_fetched_at",
           "available_area",
           "preset",
-          "routing_moment"
+          "routing_moment",
+          "bus_shapes",
+          "bus_shapes_reason",
+          "shape_tool_image"
         ],
         "title": "CityDatasetResource",
         "type": "object"

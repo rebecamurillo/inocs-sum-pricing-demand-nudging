@@ -11,6 +11,10 @@ DEFAULT_GTFS = (
     / "Geneva_Complete_Link_Instances_and_Optimization/OTP2_Geneva_Instances/tpg_gtfs.zip"
 )
 DEFAULT_OSM_DIR = DEMO_DIR / "otp/data"
+# pfaedle, the tool that draws the bus legs on the streets; the digest of
+# `ghcr.io/ad-freiburg/pfaedle:latest` on 2026-11-26.
+_PFAEDLE_DIGEST = "sha256:af4fdc647699ea1ffe5150fd1f9d264c465c2876710ea749e8cb284f13abd20d"
+DEFAULT_SHAPE_TOOL_IMAGE = f"ghcr.io/ad-freiburg/pfaedle@{_PFAEDLE_DIGEST}"
 
 
 class Settings(BaseSettings):
@@ -25,6 +29,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("var/data")
     # The worker's identity; None means "{host}-{pid}".
     worker_id: str | None = None
+    # The Docker image the city data import runs to draw the bus legs on the streets.
+    shape_tool_image: str = DEFAULT_SHAPE_TOOL_IMAGE
     # How often the worker probes the solver, the package and the trip planner and reports them.
     component_report_interval_s: float = Field(default=30.0, gt=0)
 

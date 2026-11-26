@@ -23,7 +23,8 @@ E2E_LOG = e2e/test-results/stack.log
 # The worker's optional settings, passed only when .env sets them (the worker has defaults).
 WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_DATA_DIR)) \
 	$(if $(PRICING_DEMO_WORKER_ID),PRICING_DEMO_WORKER_ID=$(PRICING_DEMO_WORKER_ID)) \
-	$(if $(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S),PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S=$(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S))
+	$(if $(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S),PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S=$(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S)) \
+	$(if $(PRICING_DEMO_SHAPE_TOOL_IMAGE),PRICING_DEMO_SHAPE_TOOL_IMAGE=$(PRICING_DEMO_SHAPE_TOOL_IMAGE))
 
 # A shell ended by Ctrl-C or a termination signal runs its EXIT trap only if the signal makes
 # it exit (dash does not otherwise), so every recipe that cleans up in an EXIT trap starts
@@ -133,7 +134,7 @@ worker: ## The worker on the host (real adapters unless ADAPTERS says otherwise)
 	uv --directory api run alembic upgrade head; \
 	exec env $(WORKER_ENV) uv --directory api run pricing-demo-worker
 
-city-data: ## Import the Geneva timetable and the first bike-station snapshot as a city data set (Docker, internet)
+city-data: ## Import the Geneva timetable, the bus legs drawn on the streets and the first bike-station snapshot as a city data set (Docker, internet)
 	@set -e; \
 	docker compose up --detach --wait db; \
 	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \

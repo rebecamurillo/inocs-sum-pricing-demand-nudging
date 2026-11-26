@@ -8,7 +8,9 @@ GTFS_FILES = FIXTURES / "gtfs"
 TINY_PBF = FIXTURES / "tiny.osm.pbf"
 # The bounding box of the header of tiny.osm.pbf is lon 6.05-6.30, lat 46.10-46.30; the stops
 # of the synthetic feed span lon 6.10-6.20, lat 46.15-46.25. tiny.osm.pbf was written once
-# with osmium.SimpleWriter: a Header with that box added, then two nodes.
+# with osmium.SimpleWriter: a Header with that box added, three nodes on the stops S1 (6.10,
+# 46.20), S2 (6.20, 46.25) and S3 (6.15, 46.15), and two highway=residential ways S1-S2 and
+# S2-S3, so that pfaedle can match the bus trip T1 (stops S1, S2, S3) onto them.
 
 
 def zip_gtfs(target: Path, *, without: tuple[str, ...] = ()) -> Path:

@@ -53,3 +53,17 @@ def test_a_header_without_a_box_is_refused(tmp_path: Path) -> None:
 
     with pytest.raises(InvalidStreetExtract, match=r"nobox\.osm\.pbf"):
         PbfStreetExtract().bounds(folder)
+
+
+def test_the_file_is_the_one_extract_of_the_folder(tmp_path: Path) -> None:
+    folder = osm_folder(tmp_path / "osm", ("geneva.osm.pbf",))
+
+    assert PbfStreetExtract().file(folder) == folder / "geneva.osm.pbf"
+
+
+@pytest.mark.parametrize("names", [(), ("a.osm.pbf", "b.osm.pbf")])
+def test_a_wrong_number_of_extracts_has_no_file(tmp_path: Path, names: tuple[str, ...]) -> None:
+    folder = osm_folder(tmp_path / "osm", names)
+
+    with pytest.raises(StreetExtractNotFound):
+        PbfStreetExtract().file(folder)

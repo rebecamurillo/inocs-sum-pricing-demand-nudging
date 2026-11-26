@@ -231,6 +231,9 @@ class CityDatasetResource(BaseModel):
     available_area: PolygonResource
     preset: PresetResource
     routing_moment: RoutingMomentResource
+    bus_shapes: Literal["generated", "none"]
+    bus_shapes_reason: str | None
+    shape_tool_image: str | None
 
     @classmethod
     def from_domain(cls, dataset: CityDataset) -> "CityDatasetResource":
@@ -257,6 +260,9 @@ class CityDatasetResource(BaseModel):
                 arrive_by=moment.arrive_by,
                 provisional=moment.provisional,
             ),
+            bus_shapes=dataset.bus_shapes.status,
+            bus_shapes_reason=dataset.bus_shapes.reason,
+            shape_tool_image=dataset.bus_shapes.tool_image,
         )
 
 

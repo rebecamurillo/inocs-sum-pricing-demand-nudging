@@ -6,10 +6,12 @@ from pricing_demo.domain.city_datasets import (
     GENEVA_PRESET,
     GENEVA_ROUTING_MOMENT,
     BoundingBox,
+    BusShapes,
     CityDataset,
     GbfsSnapshot,
     GtfsSnapshot,
 )
+from pricing_demo.infrastructure.fakes.bus_shape_matcher import FAKE_SHAPE_TOOL_IMAGE
 
 
 class InMemoryCityDatasets:
@@ -62,5 +64,6 @@ def fake_city_dataset(dataset_id: str, now: datetime) -> CityDataset:
         available_area=BoundingBox(min_lon=6.05, min_lat=46.12, max_lon=6.25, max_lat=46.29),
         preset=GENEVA_PRESET,
         routing_moment=GENEVA_ROUTING_MOMENT,
+        bus_shapes=BusShapes.generated(FAKE_SHAPE_TOOL_IMAGE),
         created_at=now,
     )

@@ -43,8 +43,15 @@ def test_the_table_has_the_columns_of_the_data_set(migrated_database: Engine) ->
         "arrive_by",
         "routing_date_provisional",
         "created_at",
+        "bus_shapes",
+        "bus_shapes_reason",
+        "shape_tool_image",
     ]
-    assert {nullable for _, nullable in columns} == {"NO"}
+    assert dict(columns) == {
+        **{name: "NO" for name, _ in columns},
+        "bus_shapes_reason": "YES",
+        "shape_tool_image": "YES",
+    }
 
 
 def test_the_stored_json_holds_the_polygon_and_the_preset(migrated_database: Engine) -> None:
@@ -69,3 +76,42 @@ def test_a_validity_that_ends_before_it_starts_is_refused(migrated_database: Eng
 
     with pytest.raises(IntegrityError):
         PostgresCityDatasets(migrated_database).add(backwards)
+
+
+def test_a_data_set_that_generated_shapes_cannot_carry_a_reason(
+    migrated_database: Engine,
+) -> None:
+    from dataclasses import replace
+
+    original = fake_city_dataset("a", T0)
+    contradictory = replace(
+        original, bus_shapes=replace(original.bus_shapes, reason="no bus shape was produced")
+    )
+
+    with pytest.raises(IntegrityError, match="bus_shapes_reason"):
+        PostgresCityDatasets(migrated_database).add(contradictory)
+
+
+def test_a_data_set_without_shapes_must_carry_a_reason(migrated_database: Engine) -> None:
+    from dataclasses import replace
+
+    original = fake_city_dataset("a", T0)
+    unexplained = replace(
+        original, bus_shapes=replace(original.bus_shapes, status="none", reason=None)
+    )
+
+    with pytest.raises(IntegrityError, match="bus_shapes_reason"):
+        PostgresCityDatasets(migrated_database).add(unexplained)
+
+
+def test_an_unknown_bus_shapes_status_is_refused(migrated_database: Engine) -> None:
+    from dataclasses import replace
+
+    original = fake_city_dataset("a", T0)
+    unknown = replace(
+        original,
+        bus_shapes=replace(original.bus_shapes, status="partial"),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(IntegrityError, match="ck_city_datasets_bus_shapes"):
+        PostgresCityDatasets(migrated_database).add(unknown)

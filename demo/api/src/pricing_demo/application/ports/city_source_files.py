@@ -3,6 +3,7 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol
 
+from pricing_demo.application.ports.bus_shape_matcher import MatchedShapes
 from pricing_demo.domain.city_datasets import BoundingBox
 
 
@@ -25,6 +26,19 @@ class StreetExtract(Protocol):
         """The bounding box of the one `.osm.pbf` in the folder.
 
         Raises StreetExtractNotFound unless there is exactly one.
+        """
+        ...
+
+    def file(self, osm_dir: Path) -> Path:
+        """The one `.osm.pbf` in the folder; the same refusal as `bounds`."""
+        ...
+
+
+class TimetableShapes(Protocol):
+    def add_bus_shapes(self, gtfs_zip: Path, shapes: MatchedShapes) -> int:
+        """Rewrite the zip in place with `shapes.txt` and the `shape_id` of the bus trips.
+
+        Returns the number of bus trips given a shape; writes nothing when it is 0.
         """
         ...
 

@@ -25,7 +25,10 @@ make e2e         # the end-to-end scenarios, in Docker
 ```
 
 For live runs, import the city data once (needs the `.osm.pbf` extract in `otp/data/`, see
-[`otp/README.md`](otp/README.md), and the internet for the bike stations):
+[`otp/README.md`](otp/README.md), and the internet for the bike stations). The import runs
+pfaedle in Docker to draw the bus legs on the streets of that extract; without Docker, or when
+pfaedle produces no bus shape, the import still succeeds, the data set records
+`bus_shapes = none` with the reason, and bus legs stay straight lines between stops:
 
 ```sh
 make city-data   # a data set geneva-{date} in the database and var/data/datasets/
@@ -50,7 +53,7 @@ Run from this folder; `make help` lists them.
 | `make format` | applies ruff format and prettier |
 | `make dev` | PostgreSQL in Docker (and OpenTripPlanner when `otp/data/graph.obj` exists); API (with reload), worker and web dev server on the host. Ctrl-C stops those three; the containers keep running until `make down` |
 | `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it |
-| `make city-data` | imports the Geneva timetable and the first bike-station snapshot as a city data set |
+| `make city-data` | imports the Geneva timetable, the bus legs drawn on the streets and the first bike-station snapshot as a city data set |
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
 | `make live-smoke` | checks the real package, solver and trip planner |
 

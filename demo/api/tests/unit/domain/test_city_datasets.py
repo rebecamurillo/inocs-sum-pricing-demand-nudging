@@ -7,10 +7,13 @@ from pricing_demo.domain.city_datasets import (
     GENEVA_PRESET,
     GENEVA_ROUTING_MOMENT,
     GENEVA_SLUG,
+    NO_BUS_SHAPE_REASON,
     BoundingBox,
+    BusShapes,
     DisjointAreas,
     city_data_status,
     dataset_id_for,
+    is_bus_route_type,
 )
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.system_status import NO_CITY_DATA_REASON, ComponentName, ComponentState
@@ -98,3 +101,52 @@ def test_the_geneva_constants() -> None:
     assert GENEVA_ROUTING_MOMENT.time == time(8, 30)
     assert GENEVA_ROUTING_MOMENT.arrive_by
     assert GENEVA_ROUTING_MOMENT.provisional
+
+
+@pytest.mark.parametrize(
+    ("route_type", "is_bus"),
+    [
+        (0, False),
+        (1, False),
+        (2, False),
+        (3, True),
+        (100, False),
+        (199, False),
+        (700, True),
+        (799, True),
+        (800, False),
+        (900, False),
+        (999, False),
+    ],
+)
+def test_only_basic_and_extended_bus_route_types_are_bus(route_type: int, is_bus: bool) -> None:
+    assert is_bus_route_type(route_type) is is_bus
+
+
+def test_generated_bus_shapes_carry_the_tool_image_and_no_reason() -> None:
+    shapes = BusShapes.generated("pfaedle@sha256:abc")
+
+    assert (shapes.status, shapes.reason, shapes.tool_image) == (
+        "generated",
+        None,
+        "pfaedle@sha256:abc",
+    )
+
+
+def test_bus_shapes_none_carry_the_reason_and_the_tool_image() -> None:
+    shapes = BusShapes.none("Docker is not available", "pfaedle@sha256:abc")
+
+    assert (shapes.status, shapes.reason, shapes.tool_image) == (
+        "none",
+        "Docker is not available",
+        "pfaedle@sha256:abc",
+    )
+
+
+def test_bus_shapes_none_require_a_reason() -> None:
+    with pytest.raises(ValueError, match="reason"):
+        BusShapes.none("", "pfaedle@sha256:abc")
+
+
+def test_the_reason_for_no_shape_is_the_quoted_sentence() -> None:
+    assert NO_BUS_SHAPE_REASON == "no bus shape was produced"

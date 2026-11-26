@@ -7,9 +7,16 @@ import pytest
 
 from pricing_demo.application.errors import NoCityDataYet
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
-from pricing_demo.infrastructure.config.settings import DEFAULT_GTFS, DEFAULT_OSM_DIR, Settings
+from pricing_demo.infrastructure.config.settings import (
+    DEFAULT_GTFS,
+    DEFAULT_OSM_DIR,
+    DEFAULT_SHAPE_TOOL_IMAGE,
+    Settings,
+)
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
+from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
+from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
 from pricing_demo.worker import main as worker_main
 from pricing_demo.worker.main import build_probes, build_worker, worker_id_for
 
@@ -120,6 +127,28 @@ def test_the_feed_is_chosen_by_the_adapter_set(tmp_path: Path, adapters: str, fe
     assert isinstance(
         worker_main.build_bike_station_feed(settings_for(tmp_path, adapters=adapters)), feed
     )
+
+
+def test_the_fake_adapter_set_draws_the_bus_legs_without_docker(tmp_path: Path) -> None:
+    matcher = worker_main.build_bus_shape_matcher(settings_for(tmp_path, adapters="fake"))
+
+    assert isinstance(matcher, FakeBusShapeMatcher)
+
+
+def test_the_real_adapter_set_runs_the_configured_image_in_docker(tmp_path: Path) -> None:
+    matcher = worker_main.build_bus_shape_matcher(
+        settings_for(tmp_path, adapters="real", shape_tool_image="example/pfaedle:1")
+    )
+
+    assert isinstance(matcher, DockerPfaedleMatcher)
+    assert matcher.image == "example/pfaedle:1"
+
+
+def test_the_real_matcher_defaults_to_the_pinned_pfaedle_image(tmp_path: Path) -> None:
+    matcher = worker_main.build_bus_shape_matcher(settings_for(tmp_path, adapters="real"))
+
+    assert matcher.image == DEFAULT_SHAPE_TOOL_IMAGE
+    assert "@sha256:" in matcher.image
 
 
 def test_each_subcommand_builds_its_use_case_and_prints_the_new_id(

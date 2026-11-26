@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from pricing_demo.infrastructure.persistence.metadata import metadata
 
+BUS_SHAPES_STATUSES = ("generated", "none")
 RUN_KINDS = ("build", "pricing", "simulation")
 RUN_STATES = ("queued", "running", "succeeded", "failed", "cancelled")
 STEP_NAMES = (
@@ -160,5 +161,14 @@ city_datasets = Table(
     Column("arrive_by", Boolean, nullable=False),
     Column("routing_date_provisional", Boolean, nullable=False),
     Column("created_at", DateTime(timezone=True), nullable=False),
+    # `generated` when the GTFS copy holds shapes of the bus trips, else `none` with the reason.
+    # Both are set on every row; only rows imported before bus shapes existed lack the image.
+    Column("bus_shapes", Text, nullable=False),
+    Column("bus_shapes_reason", Text),
+    Column("shape_tool_image", Text),
     CheckConstraint("gtfs_valid_from <= gtfs_valid_to", name="gtfs_validity"),
+    CheckConstraint(one_of("bus_shapes", BUS_SHAPES_STATUSES), name="bus_shapes"),
+    CheckConstraint(
+        "(bus_shapes = 'none') = (bus_shapes_reason IS NOT NULL)", name="bus_shapes_reason"
+    ),
 )

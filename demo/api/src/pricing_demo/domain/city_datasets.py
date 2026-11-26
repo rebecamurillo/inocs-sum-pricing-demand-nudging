@@ -3,12 +3,19 @@
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from typing import Literal
 
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.system_status import ComponentName, ComponentStatus, no_city_data_status
 
 GENEVA_SLUG = "geneva"
 GENEVA_NAME = "Geneva · tpg + Donkey Republic"
+NO_BUS_SHAPE_REASON = "no bus shape was produced"
+
+
+def is_bus_route_type(route_type: int) -> bool:
+    """GTFS basic type 3 and the extended types 700-799; trams (0, 900-999) and rail are not."""
+    return route_type == 3 or 700 <= route_type <= 799
 
 
 class DisjointAreas(DomainError):
@@ -79,6 +86,25 @@ class GbfsSnapshot:
 
 
 @dataclass(frozen=True)
+class BusShapes:
+    """Whether the GTFS copy holds shapes of the bus trips drawn on the streets, and why not."""
+
+    status: Literal["generated", "none"]
+    reason: str | None
+    tool_image: str | None
+
+    @classmethod
+    def generated(cls, tool_image: str) -> "BusShapes":
+        return cls("generated", None, tool_image)
+
+    @classmethod
+    def none(cls, reason: str, tool_image: str | None) -> "BusShapes":
+        if not reason:
+            raise ValueError("Bus shapes recorded as none need a reason.")
+        return cls("none", reason, tool_image)
+
+
+@dataclass(frozen=True)
 class CityDataset:
     id: str
     name: str
@@ -87,6 +113,7 @@ class CityDataset:
     available_area: BoundingBox
     preset: Preset
     routing_moment: RoutingMoment
+    bus_shapes: BusShapes
     created_at: datetime
 
 

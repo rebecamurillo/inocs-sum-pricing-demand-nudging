@@ -128,6 +128,13 @@ export interface components {
         CityDatasetResource: {
             available_area: components["schemas"]["PolygonResource"];
             /**
+             * Bus Shapes
+             * @enum {string}
+             */
+            bus_shapes: "generated" | "none";
+            /** Bus Shapes Reason */
+            bus_shapes_reason: string | null;
+            /**
              * Gbfs Fetched At
              * Format: date-time
              */
@@ -150,6 +157,8 @@ export interface components {
             name: string;
             preset: components["schemas"]["PresetResource"];
             routing_moment: components["schemas"]["RoutingMomentResource"];
+            /** Shape Tool Image */
+            shape_tool_image: string | null;
         };
         /**
          * ComponentName
