@@ -6,9 +6,11 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from pricing_demo import bootstrap
 from pricing_demo.bootstrap import create_application
 from pricing_demo.export_openapi import main, render_openapi
 from pricing_demo.infrastructure.config.settings import Settings
+from pricing_demo.infrastructure.persistence.metadata import metadata
 
 RESET = "/api/test-control/reset"
 SOLVER = "/api/test-control/components/solver"
@@ -25,10 +27,19 @@ def test_the_test_control_routes_are_absent_with_the_real_adapters() -> None:
     assert client.put(SOLVER, json={"available": True}).status_code == 404
 
 
-def test_the_test_control_routes_are_present_with_the_fake_adapters() -> None:
+def test_the_test_control_routes_are_present_with_the_fake_adapters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The metadata now holds the run tables, so the reset reaches for a database; the
+    # integration suite (test_truncate.py) covers the real emptying.
+    emptied: list[object] = []
+    monkeypatch.setattr(
+        bootstrap, "truncate_all", lambda engine, metadata: emptied.append(metadata)
+    )
     client = TestClient(application("fake"))
 
     assert client.post(RESET).status_code == 204
+    assert emptied == [metadata]
     assert (
         client.put(
             SOLVER, json={"available": False, "reason": "No Gurobi licence was found."}

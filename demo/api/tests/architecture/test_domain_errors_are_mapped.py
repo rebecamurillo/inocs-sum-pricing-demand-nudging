@@ -5,6 +5,12 @@ import pkgutil
 
 from pricing_demo.application.errors import ComponentNotControllable, InvalidProbeSet
 from pricing_demo.domain.errors import DomainError
+from pricing_demo.domain.runs import (
+    InvalidRunTransition,
+    InvalidStepTransition,
+    RunAlreadyFinished,
+    RunNotFound,
+)
 from pricing_demo.domain.system_status import IncompleteSystemStatus, InvalidComponentStatus
 from pricing_demo.interface.http.problems import DOMAIN_PROBLEMS
 
@@ -40,6 +46,10 @@ def test_the_walk_finds_the_errors_the_domain_and_the_application_declare() -> N
         IncompleteSystemStatus,
         ComponentNotControllable,
         InvalidProbeSet,
+        InvalidRunTransition,
+        InvalidStepTransition,
+        RunNotFound,
+        RunAlreadyFinished,
     } <= set(declared_errors())
 
 

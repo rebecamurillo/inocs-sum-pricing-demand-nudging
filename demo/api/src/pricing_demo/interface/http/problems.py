@@ -11,6 +11,12 @@ from fastapi.responses import JSONResponse
 
 from pricing_demo.application.errors import ComponentNotControllable, InvalidProbeSet
 from pricing_demo.domain.errors import DomainError
+from pricing_demo.domain.runs import (
+    InvalidRunTransition,
+    InvalidStepTransition,
+    RunAlreadyFinished,
+    RunNotFound,
+)
 from pricing_demo.domain.system_status import IncompleteSystemStatus, InvalidComponentStatus
 from pricing_demo.interface.http.schemas import FieldError, ProblemDetails
 
@@ -43,6 +49,11 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     ComponentNotControllable: Problem(
         409, "component_not_controllable", "The component cannot be controlled"
     ),
+    RunNotFound: Problem(404, "run_not_found", "The run does not exist"),
+    RunAlreadyFinished: Problem(409, "run_finished", "The run has already finished"),
+    # No route lets a client ask for a transition the machine refuses: reaching one is a bug.
+    InvalidRunTransition: INTERNAL_ERROR,
+    InvalidStepTransition: INTERNAL_ERROR,
     IncompleteSystemStatus: INTERNAL_ERROR,
     InvalidProbeSet: INTERNAL_ERROR,
 }

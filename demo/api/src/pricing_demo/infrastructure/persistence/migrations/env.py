@@ -3,6 +3,9 @@ from logging.config import fileConfig
 from alembic import context
 
 from pricing_demo.infrastructure.config.settings import Settings
+
+# Imported for its effect: it defines the application's tables on `metadata`.
+from pricing_demo.infrastructure.persistence import tables  # noqa: F401
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.metadata import metadata
 

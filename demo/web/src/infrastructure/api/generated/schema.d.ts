@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stored runs, oldest queue time first */
+        get: operations["listRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One run, with its steps and the state of its runner */
+        get: operations["getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Cancel a run: at once when queued, at its next safe point when running */
+        put: operations["cancelRun"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The log excerpts of the run's steps, in step order */
+        get: operations["getRunLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system-status": {
         parameters: {
             query?: never;
@@ -64,6 +132,125 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** RunFailureResource */
+        RunFailureResource: {
+            /** Code */
+            code: string;
+            /** Reason */
+            reason: string;
+            /** Step */
+            step: string | null;
+        };
+        /**
+         * RunKind
+         * @enum {string}
+         */
+        RunKind: "build" | "pricing" | "simulation";
+        /** RunList */
+        RunList: {
+            /** Items */
+            items: components["schemas"]["RunResource"][];
+        };
+        /** RunResource */
+        RunResource: {
+            /** Attempt */
+            attempt: number;
+            failure: components["schemas"]["RunFailureResource"] | null;
+            /**
+             * Failure Pct
+             * @description Share of failed trip-planner queries; null on every run that is not a build.
+             */
+            failure_pct: number | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            kind: components["schemas"]["RunKind"];
+            /** Queue Position */
+            queue_position: number | null;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            runner: components["schemas"]["RunnerResource"];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /** Started At */
+            started_at: string | null;
+            state: components["schemas"]["RunState"];
+            /** Steps */
+            steps: components["schemas"]["RunStepResource"][];
+            subject: components["schemas"]["RunSubject"];
+        };
+        /**
+         * RunState
+         * @enum {string}
+         */
+        RunState: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /** RunStepResource */
+        RunStepResource: {
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            };
+            /** Finished At */
+            finished_at: string | null;
+            /** Last Duration S */
+            last_duration_s: number | null;
+            /** Number */
+            number: number;
+            /** Period */
+            period: string | null;
+            progress: components["schemas"]["StepProgress"] | null;
+            /** Reason */
+            reason: string | null;
+            /** Started At */
+            started_at: string | null;
+            state: components["schemas"]["StepState"];
+            step: components["schemas"]["StepName"];
+        };
+        /** RunSubject */
+        RunSubject: {
+            /** Id */
+            id: string;
+            type: components["schemas"]["SubjectType"];
+        };
+        /**
+         * RunnerResource
+         * @description Whether the process that should work on the run reported within the last 30 s.
+         */
+        RunnerResource: {
+            /** Alive */
+            alive: boolean;
+            /** Last Heartbeat At */
+            last_heartbeat_at: string | null;
+        };
+        /**
+         * StepName
+         * @enum {string}
+         */
+        StepName: "area" | "hubs" | "routes" | "travellers_and_bikes" | "pricing_model" | "traveller_simulation";
+        /** StepProgress */
+        StepProgress: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * StepState
+         * @enum {string}
+         */
+        StepState: "pending" | "running" | "done" | "kept" | "failed" | "cancelled";
+        /**
+         * SubjectType
+         * @enum {string}
+         */
+        SubjectType: "instance_version" | "pricing_version";
         /** SystemStatusResponse */
         SystemStatusResponse: {
             /** Api Version */
@@ -84,6 +271,214 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listRuns: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated run states to keep, such as queued,running. */
+                state?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunList"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    cancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description A running run was asked to stop */
+            202: {
+                headers: {
+                    /** @description The run, which reports when it stops */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The run has already finished */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getRunLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     getSystemStatus: {
         parameters: {
             query?: never;

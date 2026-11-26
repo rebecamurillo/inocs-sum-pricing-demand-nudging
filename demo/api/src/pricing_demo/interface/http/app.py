@@ -67,8 +67,18 @@ def _declare_problem_documents(schema: dict[str, Any]) -> None:
                 content = response.get("content", {})
                 body = content.get("application/json", {})
                 reference = body.get("schema", {}).get("$ref", "")
-                if reference.endswith("/ProblemDetails"):
-                    response["content"] = {PROBLEM_MEDIA_TYPE: body}
+                # A route with another response class (text/plain) documents its error models
+                # under that media type; they are problem documents all the same.
+                problem = next(
+                    (
+                        entry
+                        for entry in content.values()
+                        if entry.get("schema", {}).get("$ref", "").endswith("/ProblemDetails")
+                    ),
+                    None,
+                )
+                if problem is not None:
+                    response["content"] = {PROBLEM_MEDIA_TYPE: problem}
                 elif status == "422" and reference.endswith("/HTTPValidationError"):
                     response["description"] = "The request is not valid"
                     response["content"] = {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": PROBLEM_REF}}}

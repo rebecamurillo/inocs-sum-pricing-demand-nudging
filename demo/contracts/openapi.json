@@ -107,6 +107,382 @@
         "title": "ProblemDetails",
         "type": "object"
       },
+      "RunFailureResource": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step"
+          }
+        },
+        "required": [
+          "step",
+          "code",
+          "reason"
+        ],
+        "title": "RunFailureResource",
+        "type": "object"
+      },
+      "RunKind": {
+        "enum": [
+          "build",
+          "pricing",
+          "simulation"
+        ],
+        "title": "RunKind",
+        "type": "string"
+      },
+      "RunList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunResource"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RunList",
+        "type": "object"
+      },
+      "RunResource": {
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunFailureResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "failure_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Share of failed trip-planner queries; null on every run that is not a build.",
+            "title": "Failure Pct"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RunKind"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
+          },
+          "queued_at": {
+            "format": "date-time",
+            "title": "Queued At",
+            "type": "string"
+          },
+          "runner": {
+            "$ref": "#/components/schemas/RunnerResource"
+          },
+          "server_time": {
+            "format": "date-time",
+            "title": "Server Time",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/RunState"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RunStepResource"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/RunSubject"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "subject",
+          "state",
+          "attempt",
+          "queued_at",
+          "started_at",
+          "finished_at",
+          "server_time",
+          "queue_position",
+          "runner",
+          "steps",
+          "failure",
+          "failure_pct"
+        ],
+        "title": "RunResource",
+        "type": "object"
+      },
+      "RunState": {
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
+        "title": "RunState",
+        "type": "string"
+      },
+      "RunStepResource": {
+        "properties": {
+          "counts": {
+            "additionalProperties": true,
+            "title": "Counts",
+            "type": "object"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "last_duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Duration S"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "$ref": "#/components/schemas/StepState"
+          },
+          "step": {
+            "$ref": "#/components/schemas/StepName"
+          }
+        },
+        "required": [
+          "step",
+          "number",
+          "period",
+          "state",
+          "started_at",
+          "finished_at",
+          "counts",
+          "progress",
+          "last_duration_s",
+          "reason"
+        ],
+        "title": "RunStepResource",
+        "type": "object"
+      },
+      "RunSubject": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/SubjectType"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "RunSubject",
+        "type": "object"
+      },
+      "RunnerResource": {
+        "description": "Whether the process that should work on the run reported within the last 30 s.",
+        "properties": {
+          "alive": {
+            "title": "Alive",
+            "type": "boolean"
+          },
+          "last_heartbeat_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat At"
+          }
+        },
+        "required": [
+          "alive",
+          "last_heartbeat_at"
+        ],
+        "title": "RunnerResource",
+        "type": "object"
+      },
+      "StepName": {
+        "enum": [
+          "area",
+          "hubs",
+          "routes",
+          "travellers_and_bikes",
+          "pricing_model",
+          "traveller_simulation"
+        ],
+        "title": "StepName",
+        "type": "string"
+      },
+      "StepProgress": {
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "done",
+          "total"
+        ],
+        "title": "StepProgress",
+        "type": "object"
+      },
+      "StepState": {
+        "enum": [
+          "pending",
+          "running",
+          "done",
+          "kept",
+          "failed",
+          "cancelled"
+        ],
+        "title": "StepState",
+        "type": "string"
+      },
+      "SubjectType": {
+        "enum": [
+          "instance_version",
+          "pricing_version"
+        ],
+        "title": "SubjectType",
+        "type": "string"
+      },
       "SystemStatusResponse": {
         "properties": {
           "api_version": {
@@ -146,6 +522,281 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/runs": {
+      "get": {
+        "operationId": "listRuns",
+        "parameters": [
+          {
+            "description": "Comma-separated run states to keep, such as queued,running.",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma-separated run states to keep, such as queued,running.",
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The stored runs, oldest queue time first",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/v1/runs/{run_id}": {
+      "get": {
+        "operationId": "getRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No run has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "One run, with its steps and the state of its runner",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/v1/runs/{run_id}/cancellation": {
+      "put": {
+        "operationId": "cancelRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResource"
+                }
+              }
+            },
+            "description": "A running run was asked to stop",
+            "headers": {
+              "Location": {
+                "description": "The run, which reports when it stops",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No run has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The run has already finished"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Cancel a run: at once when queued, at its next safe point when running",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
+    "/api/v1/runs/{run_id}/log": {
+      "get": {
+        "operationId": "getRunLog",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No run has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The log excerpts of the run's steps, in step order",
+        "tags": [
+          "runs"
+        ]
+      }
+    },
     "/api/v1/system-status": {
       "get": {
         "operationId": "getSystemStatus",
