@@ -4,10 +4,17 @@
   box-sizing: border-box;
 }
 
+html,
 body {
+  height: 100%;
   margin: 0;
+}
+
+body {
+  /* No page scroll: the Lab is one workspace that fits the window. */
+  overflow: hidden;
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--ink);
   background: var(--bg);
@@ -20,22 +27,6 @@ h2 {
   line-height: 1.2;
 }
 
-h1 {
-  margin: 0 0 24px;
-  font-size: 26px;
-}
-
-h2 {
-  margin: 0 0 12px;
-  font-size: 18px;
-}
-
-main {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 32px 16px;
-}
-
 a {
   color: var(--blue);
 }
@@ -43,4 +34,14 @@ a {
 :focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0s !important;
+  }
 }

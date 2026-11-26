@@ -1,14 +1,9 @@
 ---
-import SystemStatusIsland from '../composition/SystemStatusIsland';
+import LabIsland from '../composition/LabIsland';
 import BaseLayout from '../presentation/layouts/BaseLayout.astro';
 ---
 
-<BaseLayout title="Dynamic pricing demonstrator">
-  <main>
-    <h1>Dynamic pricing demonstrator</h1>
-    <section>
-      <h2>System status</h2>
-      <SystemStatusIsland client:load />
-    </section>
-  </main>
+<BaseLayout title="Dynamic pricing · Lab">
+  <!-- client:only: the island reads the hash and the browser's storage, which a build cannot. -->
+  <LabIsland client:only="react" />
 </BaseLayout>

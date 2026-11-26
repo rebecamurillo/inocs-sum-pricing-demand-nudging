@@ -165,8 +165,9 @@ web/
       use-cases/               plain functions that take their ports as arguments
     infrastructure/
       api/                     HTTP adapters; generated/ holds the types from the contract
+      storage/                 the browser-storage adapter of the layout preferences
     presentation/
-      components/  hooks/  layouts/  styles/
+      assets/  components/  hooks/  layouts/  styles/
     composition/               builds the adapters once; one island per page wraps its components in the provider
     pages/                     Astro routes: a layout and one island each
 ```
@@ -199,6 +200,20 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   holds the provider and the page's components.
 - Astro renders the page shell; everything interactive is a React island. Routing inside the
   Lab is in the URL hash, so the build stays static.
+- The Lab is one page with one island, `composition/LabIsland.tsx` (mounted with `client:only`,
+  because it reads the hash and the browser's storage). It wraps `LabShell` in the gateways
+  provider and a TanStack Query client. Server state (the system status, refetched every 10 s)
+  goes through TanStack Query hooks in `presentation/hooks/` that call the use cases.
+- The router is the URL hash: `domain/route.ts` parses and serialises `#/lab…` routes
+  (`#/lab/{instance version}/pricing|result/{letter}`, `compare/{letters}`,
+  `traveller/{instance version}/{letter}`, each with an optional `?period=`), and
+  `presentation/hooks/useHashRoute.ts` follows `hashchange` and replaces a hash that does not
+  parse by `#/lab`.
+- The layout the visitor chooses (menu, map, share per view, Advanced view, Aa) goes through the
+  `LayoutPreferences` port; `infrastructure/storage/` holds the one `localStorage` adapter and
+  `composition/gateways.ts` hands it `window.localStorage`.
+- The footer's statement, the model's author and the "Run unmodified." switch are constants of
+  `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode
   only), with a CSS module per component. Fonts are bundled; nothing is loaded from a CDN.
 

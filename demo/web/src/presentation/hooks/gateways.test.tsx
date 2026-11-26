@@ -5,6 +5,14 @@ import { GatewaysProvider, useGateways } from './gateways';
 
 const gateways: Gateways = {
   systemStatus: { load: () => Promise.reject(new Error('not called')) },
+  layoutPreferences: {
+    load: () => {
+      throw new Error('not called');
+    },
+    save: () => {
+      throw new Error('not called');
+    },
+  },
 };
 
 describe('useGateways', () => {

@@ -1,63 +1,80 @@
-import type { Page } from '@playwright/test';
+import type { APIRequestContext } from '@playwright/test';
 import { expect, test } from '../support/fixtures';
 
-const components = ['Storage', 'Runner', 'Solver', 'Pricing package', 'Trip planner'];
+const components = ['storage', 'runner', 'solver', 'package', 'trip_planner'];
 
-function row(page: Page, label: string) {
-  return page.getByRole('listitem').filter({ has: page.getByText(label, { exact: true }) });
+interface Verdict {
+  allowed: boolean;
+  reasons: { component: string; reason: string }[];
+}
+
+interface StatusAnswer {
+  components: { name: string; state: string; reason: string | null }[];
+  can_build_instances: Verdict;
+  can_run_pricing: Verdict;
+  can_simulate: Verdict;
+}
+
+async function readStatus(request: APIRequestContext): Promise<StatusAnswer> {
+  const response = await request.get('/api/v1/system-status');
+  expect(response.status()).toBe(200);
+  return (await response.json()) as StatusAnswer;
+}
+
+function component(status: StatusAnswer, name: string) {
+  const found = status.components.find((candidate) => candidate.name === name);
+  if (found === undefined) throw new Error(`The status has no component ${name}.`);
+  return found;
 }
 
 test.describe('System status', () => {
   test('every component available: all five components read available and builds, pricing runs and simulations can start', async ({
-    page,
+    request,
   }) => {
-    await page.goto('/');
+    const status = await readStatus(request);
 
-    for (const component of components) {
-      await expect(row(page, component)).toContainText('Available');
+    expect(status.components.map((entry) => entry.name)).toEqual(components);
+    for (const name of components) {
+      expect(component(status, name).state).toBe('available');
     }
-    await expect(page.getByText('Instance builds can start.')).toBeVisible();
-    await expect(page.getByText('Pricing runs can start.')).toBeVisible();
-    await expect(page.getByText('Simulations can start.')).toBeVisible();
+    expect(status.can_build_instances.allowed).toBe(true);
+    expect(status.can_run_pricing.allowed).toBe(true);
+    expect(status.can_simulate.allowed).toBe(true);
   });
 
   test('NFR-2 · an unavailable trip planner is shown with its reason and refuses builds only', async ({
-    page,
+    request,
     control,
   }) => {
     const reason = 'No answer from http://otp:8080/otp/gtfs/v1 within 2 s.';
     await control.makeUnavailable('trip_planner', reason);
 
-    await page.goto('/');
+    const status = await readStatus(request);
 
-    // The row names the component alone; the verdict list reads "Trip planner: …".
-    const tripPlanner = row(page, 'Trip planner');
-    await expect(tripPlanner).toContainText('Unavailable');
-    await expect(tripPlanner).toContainText(reason);
-    await expect(page.getByText('Instance builds cannot start:')).toBeVisible();
-    await expect(page.getByText(`Trip planner: ${reason}`)).toBeVisible();
-    await expect(page.getByText('trip_planner')).toBeHidden();
-    await expect(page.getByText('Instance builds can start.')).toBeHidden();
-    await expect(page.getByText('Pricing runs can start.')).toBeVisible();
-    await expect(page.getByText('Simulations can start.')).toBeVisible();
+    const tripPlanner = component(status, 'trip_planner');
+    expect(tripPlanner.state).toBe('unavailable');
+    expect(tripPlanner.reason).toContain(reason);
+    expect(status.can_build_instances.allowed).toBe(false);
+    expect(status.can_build_instances.reasons).toEqual([{ component: 'trip_planner', reason }]);
+    expect(status.can_run_pricing.allowed).toBe(true);
+    expect(status.can_simulate.allowed).toBe(true);
   });
 
   test('NFR-2 · with the solver limited, pricing runs are refused with its reason; builds and simulations are not', async ({
-    page,
+    request,
     control,
   }) => {
     const reason = 'Size-limited Gurobi licence: a model of 2001 variables is refused.';
     await control.makeLimited('solver', reason);
 
-    await page.goto('/');
+    const status = await readStatus(request);
 
-    const solver = row(page, 'Solver');
-    await expect(solver).toContainText('Limited');
-    await expect(solver).toContainText(reason);
-    await expect(page.getByText('Pricing runs cannot start:')).toBeVisible();
-    await expect(page.getByText(`Solver: ${reason}`)).toBeVisible();
-    await expect(page.getByText('Pricing runs can start.')).toBeHidden();
-    await expect(page.getByText('Instance builds can start.')).toBeVisible();
-    await expect(page.getByText('Simulations can start.')).toBeVisible();
+    const solver = component(status, 'solver');
+    expect(solver.state).toBe('limited');
+    expect(solver.reason).toContain(reason);
+    expect(status.can_run_pricing.allowed).toBe(false);
+    expect(status.can_run_pricing.reasons).toEqual([{ component: 'solver', reason }]);
+    expect(status.can_build_instances.allowed).toBe(true);
+    expect(status.can_simulate.allowed).toBe(true);
   });
 });
