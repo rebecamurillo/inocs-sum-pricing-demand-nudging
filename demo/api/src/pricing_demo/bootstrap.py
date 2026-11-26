@@ -3,15 +3,17 @@
 A new feature adds its lines here and its router module; `create_app` does not change.
 """
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from importlib.metadata import version
 
 from fastapi import FastAPI
 from sqlalchemy import Engine
 
+from pricing_demo.application.build_planning import BuildPlanning
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.ports.clock import Clock
+from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
@@ -34,6 +36,10 @@ from pricing_demo.domain.system_status import (
 from pricing_demo.infrastructure.clock import SystemClock
 from pricing_demo.infrastructure.config.settings import Settings
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
+from pricing_demo.infrastructure.ids import UuidV7Source
+from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
+from pricing_demo.infrastructure.persistence.build_sources import PostgresBuildSources
+from pricing_demo.infrastructure.persistence.builds import PostgresBuilds
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from pricing_demo.infrastructure.persistence.city_instances import PostgresCityInstances
 from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
@@ -87,6 +93,12 @@ class _E2ESeam:
         self._datasets.add(fake_city_dataset(dataset_id, now))
         return dataset_id
 
+    def set_pricing_model(self, settings: Mapping[str, object]) -> None:
+        self._fake_settings.set_pricing_model(settings)
+
+    def release_run(self, run_id: str) -> None:
+        self._fake_settings.release_run(run_id)
+
     def reset(self) -> None:
         truncate_all(self._engine, metadata)
         self._fake_settings.write_defaults()
@@ -121,6 +133,15 @@ def create_application(settings: Settings) -> FastAPI:
         )
     run_repository = PostgresRunRepository(engine)
     instances = PostgresCityInstances(engine)
+    builds = PostgresBuilds(engine)
+    planning = BuildPlanning(
+        instances,
+        datasets,
+        PostgresArtifacts(engine),
+        PostgresBuildSources(engine),
+        builds,
+        get_system_status.execute,
+    )
 
     return create_app(
         api_version=api_version,
@@ -128,12 +149,16 @@ def create_application(settings: Settings) -> FastAPI:
             build_system_status_router(get_system_status),
             build_city_datasets_router(ListCityDatasets(datasets)),
             build_city_instances_router(
-                CreateCityInstance(instances, datasets, PostgresPackageFingerprints(engine), clock),
-                ListCityInstances(instances),
-                CreateInstanceVersion(instances, datasets, clock),
-                GetInstanceVersion(instances, datasets),
-                UpdateInstanceVersion(instances, datasets),
+                CreateCityInstance(
+                    instances, datasets, PostgresPackageFingerprints(engine), clock, planning
+                ),
+                ListCityInstances(instances, builds),
+                CreateInstanceVersion(instances, datasets, clock, planning),
+                GetInstanceVersion(instances, datasets, planning),
+                UpdateInstanceVersion(instances, datasets, planning),
                 DeleteInstanceVersion(instances),
+                BuildInstanceVersion(instances, datasets, builds, planning, UuidV7Source(), clock),
+                GetRun(run_repository, clock),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),

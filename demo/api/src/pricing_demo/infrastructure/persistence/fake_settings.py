@@ -25,6 +25,19 @@ class PostgresFakeSettings:
         components[name] = {"state": state, "reason": reason}
         self._write({**current, "components": components})
 
+    def set_pricing_model(self, value: Mapping[str, object] | None) -> None:
+        current = {key: item for key, item in self.read().items() if key != "pricing_model"}
+        if value is not None:
+            current["pricing_model"] = dict(value)
+        self._write(current)
+
+    def release_run(self, run_id: str) -> None:
+        current: dict[str, Any] = dict(self.read())
+        released = list(current.get("released_runs") or [])
+        if run_id not in released:
+            released.append(run_id)
+        self._write({**current, "released_runs": released})
+
     def write_defaults(self) -> None:
         self._write(default_settings())
 

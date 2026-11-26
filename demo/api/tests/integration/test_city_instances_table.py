@@ -18,6 +18,7 @@ from pricing_demo.domain.city_instances import (
     parameters_from_defaults,
 )
 from pricing_demo.infrastructure.config.settings import Settings
+from pricing_demo.infrastructure.fakes.build_sources import InMemoryBuildSources
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.package_fingerprints import (
@@ -32,6 +33,7 @@ from pricing_demo.infrastructure.persistence.package_fingerprints import (
 from pricing_demo.infrastructure.persistence.tables import run_steps, runs
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.worker.main import build_worker
+from tests.support.builds import postgres_planning
 from tests.support.instances import ensure_instance_versions
 from tests.support.runs import T0, later
 
@@ -265,7 +267,11 @@ def test_two_patches_of_different_parameters_sent_at_once_both_stay(
     migrated_database: Engine,
 ) -> None:
     store = create(migrated_database)
-    update = UpdateInstanceVersion(store, PostgresCityDatasets(migrated_database))
+    update = UpdateInstanceVersion(
+        store,
+        PostgresCityDatasets(migrated_database),
+        postgres_planning(migrated_database, InMemoryBuildSources()),
+    )
     errors: list[BaseException] = []
 
     def patch(changes: dict[str, int]) -> None:

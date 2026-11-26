@@ -17,6 +17,7 @@ from pricing_demo.domain.system_status import (
     IncompleteSystemStatus,
     InvalidComponentStatus,
     SystemStatus,
+    build_verdict,
     system_status_from,
 )
 
@@ -361,3 +362,74 @@ def test_no_city_data_refuses_builds_only_and_says_why() -> None:
 
 def test_city_data_is_not_a_worker_probed_component() -> None:
     assert ComponentName.CITY_DATA not in PROBED_COMPONENTS
+
+
+def test_a_build_needs_storage_the_runner_the_package_the_city_data_and_the_trip_planner() -> None:
+    status = system_status(
+        {
+            "storage": "No database.",
+            "runner": "No runner.",
+            "package": "No package.",
+            "trip_planner": "No planner.",
+            "city_data": "No data.",
+        }
+    )
+
+    verdict = build_verdict(status, needs_trip_planner=True)
+
+    assert verdict.allowed is False
+    assert [item.component for item in verdict.reasons] == [
+        ComponentName.STORAGE,
+        ComponentName.RUNNER,
+        ComponentName.PACKAGE,
+        ComponentName.TRIP_PLANNER,
+        ComponentName.CITY_DATA,
+    ]
+
+
+def test_a_build_that_keeps_the_routes_does_not_need_the_trip_planner() -> None:
+    status = system_status({"trip_planner": "No planner."})
+
+    assert build_verdict(status, needs_trip_planner=False).allowed is True
+    assert build_verdict(status, needs_trip_planner=True).reasons == (
+        BlockingReason(ComponentName.TRIP_PLANNER, "No planner."),
+    )
+
+
+def test_a_build_never_needs_the_solver() -> None:
+    assert build_verdict(system_status({"solver": "No licence."}), True).allowed is True
+    assert build_verdict(system_status(limited=("solver",)), True).allowed is True
+
+
+def test_a_plan_without_a_fingerprint_or_a_manifest_names_the_component_that_lacks_it() -> None:
+    verdict = build_verdict(
+        system_status(), needs_trip_planner=True, package_missing=True, manifest_missing=True
+    )
+
+    assert [(item.component, item.reason) for item in verdict.reasons] == [
+        (
+            ComponentName.PACKAGE,
+            "The runner has not reported the pricing model's package yet: start the worker.",
+        ),
+        (
+            ComponentName.TRIP_PLANNER,
+            "The trip planner's graph has no manifest: build it with make otp-graph.",
+        ),
+    ]
+
+
+def test_a_component_that_already_blocks_gives_the_only_reason_for_it() -> None:
+    verdict = build_verdict(system_status({"package": "No package."}), True, package_missing=True)
+
+    assert verdict.reasons == (BlockingReason(ComponentName.PACKAGE, "No package."),)
+
+
+def test_a_missing_manifest_does_not_block_a_plan_that_needs_no_trip_planner() -> None:
+    assert build_verdict(system_status(), False, manifest_missing=True).allowed is True
+
+
+def test_the_three_existing_verdicts_are_unchanged_by_the_verdict_for_a_set() -> None:
+    status = system_status({"solver": "No licence."})
+
+    assert status.can_run_pricing.reasons == (BlockingReason(ComponentName.SOLVER, "No licence."),)
+    assert status.can_build_instances.allowed is True

@@ -10,6 +10,7 @@ from typing import Literal
 from pricing_demo.domain.city_datasets import CityDataset, Preset, RoutingMoment
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.package_fingerprint import instance_defaults
+from pricing_demo.domain.runs import RunState
 
 Number = int | float
 VersionStatus = Literal["draft", "sealed"]
@@ -201,3 +202,22 @@ def what_changes(before: InstanceParameters, after: InstanceParameters) -> list[
         for name in PARAMETER_NAMES
         if old[name] != new[name]
     ]
+
+
+_BUILD_STATES = {
+    RunState.QUEUED: "queued",
+    RunState.RUNNING: "building",
+    RunState.SUCCEEDED: "ready",
+    RunState.FAILED: "failed",
+    RunState.CANCELLED: "cancelled",
+}
+
+
+def version_state(status: VersionStatus, latest_build_state: RunState | None) -> str:
+    """What a client reads as a version's state: `draft`, then the state of its latest build
+    (`queued`, `building`, `ready`, `failed`, `cancelled`), `sealed` while no build exists."""
+    if status == "draft":
+        return "draft"
+    if latest_build_state is None:
+        return "sealed"
+    return _BUILD_STATES[latest_build_state]

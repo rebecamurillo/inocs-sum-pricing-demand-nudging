@@ -1,18 +1,20 @@
 from datetime import date, datetime, time
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
 from pricing_demo.application.instance_version_view import InstanceVersionView
 from pricing_demo.application.run_view import RunView
+from pricing_demo.application.use_cases.list_city_instances import InstanceMenuEntry
+from pricing_demo.domain.build_plan import BUILD_STEPS, BuildPlan, Cause, PlannedStep
 from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import (
     PARAMETER_NAMES,
     InstancePeriod,
-    InstanceWithVersions,
     Number,
     ParameterChange,
 )
+from pricing_demo.domain.failure_codes import FAILURE_CODES
 from pricing_demo.domain.instance_rules import RuleResult, RuleValue
 from pricing_demo.domain.runner_liveness import Runner
 from pricing_demo.domain.runs import (
@@ -89,23 +91,42 @@ class FieldError(BaseModel):
     message: str
 
 
-class ProblemDetails(BaseModel):
-    """An error, as a problem document (RFC 9457)."""
-
-    type: str
-    title: str
-    status: int
-    detail: str
-    code: str
-    errors: list[FieldError] | None = None
-    draft_id: str | None = Field(
-        default=None, description="The existing draft, on a draft_exists conflict."
-    )
-
-
 class ComponentAnswerRequest(BaseModel):
     state: ComponentState
     reason: str | None = None
+
+
+def _a_build_step(value: StepName | None) -> StepName | None:
+    """The fake pricing model only plays the four build steps: another step would be accepted
+    and never acted on, so a test naming it would silently run the happy path."""
+    if value is not None and value not in BUILD_STEPS:
+        raise ValueError(f"must be one of {', '.join(item.value for item in BUILD_STEPS)}")
+    return value
+
+
+class FailAt(BaseModel):
+    step: StepName
+    code: str
+
+    _step_is_a_build_step = field_validator("step")(_a_build_step)
+
+    @field_validator("code")
+    @classmethod
+    def _is_a_failure_code(cls, value: str) -> str:
+        if value not in FAILURE_CODES:
+            raise ValueError(f"must be one of {', '.join(FAILURE_CODES)}")
+        return value
+
+
+class PricingModelSettings(BaseModel):
+    """What the fake pricing model does: fail a step with a code, hold a step until it is
+    released, and pace the routes step. The defaults are no failure, no hold and no pace."""
+
+    fail_at: FailAt | None = None
+    hold_at: StepName | None = None
+    routes_pace_ms: int = Field(default=0, ge=0)
+
+    _hold_is_a_build_step = field_validator("hold_at")(_a_build_step)
 
 
 class RunSubject(BaseModel):
@@ -393,6 +414,30 @@ class RuleResultResource(BaseModel):
         )
 
 
+class ProblemDetails(BaseModel):
+    """An error, as a problem document (RFC 9457)."""
+
+    type: str
+    title: str
+    status: int
+    detail: str
+    code: str
+    errors: list[FieldError] | None = None
+    draft_id: str | None = Field(
+        default=None, description="The existing draft, on a draft_exists conflict."
+    )
+    failures: list[RuleResultResource] | None = Field(
+        default=None, description="The rules the draft breaks, on a rule_broken conflict."
+    )
+    reasons: list[BlockingReasonResponse] | None = Field(
+        default=None,
+        description="The components that block the action, on a component_unavailable answer.",
+    )
+    run_id: str | None = Field(
+        default=None, description="The queued or running run, on a run_active conflict."
+    )
+
+
 class ParameterChangeResource(BaseModel):
     parameter: str
     before: float
@@ -431,13 +476,69 @@ class InstancePeriodResource(BaseModel):
         )
 
 
+class CauseResource(BaseModel):
+    kind: Literal["parameter", "city_data", "package", "trip_planner_graph"]
+    parameters: list[str] = Field(description="The parameter names, for a `parameter` cause.")
+
+    @classmethod
+    def from_domain(cls, cause: Cause) -> "CauseResource":
+        return cls(kind=cause.kind, parameters=list(cause.parameters))
+
+
+class PlannedStepResource(BaseModel):
+    step: StepName
+    number: int
+    period_id: str | None
+    input_key: str | None = Field(
+        description="Null while the package fingerprint or the trip planner's graph manifest is "
+        "unknown."
+    )
+    action: Literal["kept", "rebuilt"]
+    causes: list[CauseResource] = Field(
+        description="Why the key differs from the same step of `based_on_id`; empty when the "
+        "version is based on none."
+    )
+    last_duration_s: float | None = Field(
+        description="Seconds the same step last took on the same data set and radius."
+    )
+
+    @classmethod
+    def from_domain(cls, planned: PlannedStep) -> "PlannedStepResource":
+        return cls(
+            step=planned.step,
+            number=STEP_NUMBERS[planned.step],
+            period_id=planned.period_id,
+            input_key=planned.input_key,
+            action=planned.action,
+            causes=[CauseResource.from_domain(item) for item in planned.causes],
+            last_duration_s=planned.last_duration_s,
+        )
+
+
+class BuildPlanResource(BaseModel):
+    steps: list[PlannedStepResource]
+    build_verdict: VerdictResponse = Field(
+        description="Whether this plan can be built now, and what blocks it."
+    )
+
+    @classmethod
+    def from_domain(cls, plan: BuildPlan, verdict: Verdict) -> "BuildPlanResource":
+        return cls(
+            steps=[PlannedStepResource.from_domain(item) for item in plan.steps],
+            build_verdict=VerdictResponse.from_domain(verdict),
+        )
+
+
 class InstanceVersionResource(BaseModel):
     id: str
     instance_id: str
     number: int
     based_on_id: str | None
     status: Literal["draft", "sealed"]
-    state: str = Field(description="The status until builds exist; then the build state.")
+    state: str = Field(
+        description="`draft`; for a saved version the state of its latest build: `queued`, "
+        "`building`, `ready`, `failed` or `cancelled` (`sealed` while it has none)."
+    )
     parameters: InstanceParametersResource
     periods: list[InstancePeriodResource]
     rules: list[RuleResultResource]
@@ -445,6 +546,7 @@ class InstanceVersionResource(BaseModel):
         description="The parameters that differ from `based_on_id`, in column order."
     )
     counts: dict[str, int] | None = Field(description="Null until the counts exist.")
+    build_plan: BuildPlanResource
 
     @classmethod
     def from_view(cls, view: InstanceVersionView) -> "InstanceVersionResource":
@@ -461,6 +563,7 @@ class InstanceVersionResource(BaseModel):
             rules=[RuleResultResource.from_domain(item) for item in view.rules],
             changes=[ParameterChangeResource.from_domain(item) for item in view.changes],
             counts=None,
+            build_plan=BuildPlanResource.from_domain(view.plan, view.build_verdict),
         )
 
 
@@ -468,7 +571,10 @@ class MenuVersion(BaseModel):
     id: str
     number: int
     status: Literal["draft", "sealed"]
-    state: str
+    state: str = Field(
+        description="`draft`, or the state of the latest build: `queued`, `building`, `ready`, "
+        "`failed`, `cancelled` (`sealed` while it has none)."
+    )
     pricing_version_count: int
 
 
@@ -479,7 +585,7 @@ class CityInstanceMenuItem(BaseModel):
     versions: list[MenuVersion]
 
     @classmethod
-    def from_domain(cls, entry: InstanceWithVersions) -> "CityInstanceMenuItem":
+    def from_domain(cls, entry: InstanceMenuEntry) -> "CityInstanceMenuItem":
         return cls(
             id=entry.instance.id,
             name=entry.instance.name,
@@ -489,7 +595,7 @@ class CityInstanceMenuItem(BaseModel):
                     id=version.id,
                     number=version.number,
                     status=version.status,
-                    state=version.status,
+                    state=entry.states[version.id],
                     pricing_version_count=0,
                 )
                 for version in entry.versions

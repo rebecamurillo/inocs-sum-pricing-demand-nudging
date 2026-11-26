@@ -110,3 +110,72 @@ def test_city_data_cannot_be_controlled_like_a_probed_component(faked: Faked) ->
 
     assert response.status_code == 409
     assert response.json()["code"] == "component_not_controllable"
+
+
+PRICING_MODEL = "/api/test-control/pricing-model"
+
+
+def test_the_pricing_model_settings_are_written_as_sent(faked: Faked) -> None:
+    response = faked.client.put(
+        PRICING_MODEL,
+        json={
+            "fail_at": {"step": "routes", "code": "trip_planner_unreachable"},
+            "hold_at": "hubs",
+            "routes_pace_ms": 50,
+        },
+    )
+
+    assert response.status_code == 204
+    assert faked.settings.read()["pricing_model"] == {
+        "fail_at": {"step": "routes", "code": "trip_planner_unreachable"},
+        "hold_at": "hubs",
+        "routes_pace_ms": 50,
+    }
+
+
+def test_an_empty_body_sets_the_defaults_of_the_pricing_model(faked: Faked) -> None:
+    faked.client.put(PRICING_MODEL, json={"hold_at": "area"})
+
+    response = faked.client.put(PRICING_MODEL, json={})
+
+    assert response.status_code == 204
+    assert faked.settings.read()["pricing_model"] == {
+        "fail_at": None,
+        "hold_at": None,
+        "routes_pace_ms": 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("body", "field"),
+    [
+        ({"fail_at": {"step": "routes", "code": "nonsense"}}, "fail_at.code"),
+        ({"fail_at": {"step": "nowhere", "code": "stage_error"}}, "fail_at.step"),
+        ({"hold_at": "nowhere"}, "hold_at"),
+        ({"routes_pace_ms": -1}, "routes_pace_ms"),
+    ],
+)
+def test_a_pricing_model_setting_that_is_not_valid_is_refused(
+    faked: Faked, body: dict[str, object], field: str
+) -> None:
+    response = faked.client.put(PRICING_MODEL, json=body)
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "validation_failed"
+    assert response.json()["errors"][0]["field"].startswith(field)
+    assert "pricing_model" not in faked.settings.read()
+
+
+def test_a_run_is_released_and_a_reset_forgets_the_release_and_the_settings(
+    faked: Faked,
+) -> None:
+    faked.client.put(PRICING_MODEL, json={"hold_at": "routes"})
+
+    first = faked.client.post("/api/test-control/runs/run-1/release")
+    again = faked.client.post("/api/test-control/runs/run-1/release")
+
+    assert (first.status_code, again.status_code) == (204, 204)
+    assert faked.settings.read()["released_runs"] == ["run-1"]
+    faked.client.post("/api/test-control/reset")
+    assert "released_runs" not in faked.settings.read()
+    assert "pricing_model" not in faked.settings.read()

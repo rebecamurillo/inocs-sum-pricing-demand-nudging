@@ -66,6 +66,22 @@ of mind is a new entry that names the one it replaces.
 - **Why:** agents write most of the code and copy what they find. A rule that only a
   document states is broken by the fiftieth copy.
 
+## D-8 — Artefact store and keyed steps (2026-11-26)
+
+- **Decision:** a build step's outputs are files named by the step's input key: the sha256 of
+  the canonical JSON of the step name, the parameters it reads, the keys of the steps it reads,
+  the snapshot hashes it reads, the routing moment (steps 3 and 4) and the package
+  fingerprint. They live in `var/data/artifacts/{step}/{key}/`, written under a temporary name
+  and renamed, read-only, with each file's sha256 and size in the `artifacts` table; a step
+  whose key has an artefact is `kept`. The worker computes the keys again before each step; the
+  API's plan is a forecast. Each instance version is linked to the artefact of each of its
+  steps in `instance_version_steps`, written as the step ends. ARCHITECTURE.md § 16 names this
+  entry D-8 (artefact store and read model); the read model is the next story's.
+- **Why:** an edit then rebuilds only the steps whose inputs changed, a failure keeps the steps
+  already done, and the files a result was computed from can be found and checked by hash. The
+  worker, not the API, has the last word on a key because the package fingerprint and the graph
+  manifest are the worker's to read and can change between the request and the run.
+
 ## D-10 — The worker runs on the host for live runs (2026-11-26)
 
 - **Decision:** the worker, the only process that runs the package and the solver, runs on

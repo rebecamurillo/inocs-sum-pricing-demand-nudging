@@ -3,7 +3,15 @@ import pytest
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
-from pricing_demo.domain.runs import RunFailure, RunState, StepName, StepState
+from pricing_demo.domain.runs import (
+    Run,
+    RunFailure,
+    RunState,
+    RunStep,
+    StepName,
+    StepState,
+    request_cancellation,
+)
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
@@ -180,4 +188,106 @@ def test_a_run_with_no_step_left_to_do_succeeds(rig: Rig) -> None:
 
     rig.process.execute()
 
+    assert rig.stored().state is RunState.SUCCEEDED
+
+
+class Keeper:
+    """A keeper that keeps the steps it was told to keep, and records what it was asked."""
+
+    def __init__(self, keeps: set[StepName], log: list[str] | None = None) -> None:
+        self._keeps = keeps
+        self.log = log if log is not None else []
+
+    def keep(self, run: Run, step: RunStep) -> bool:
+        self.log.append(f"keep:{step.step.value}")
+        return step.step in self._keeps
+
+
+class RaisingKeeper:
+    def keep(self, run: Run, step: RunStep) -> bool:
+        raise RuntimeError("cannot tell")
+
+
+def test_a_registry_returns_the_keeper_registered_for_a_step() -> None:
+    registry = StepRegistry()
+    keeper = Keeper(set())
+
+    registry.register(StepName.AREA, RecordingExecutor([]), keeper)
+    registry.register(StepName.HUBS, RecordingExecutor([]))
+
+    assert registry.keeper_for(StepName.AREA) is keeper
+    assert registry.keeper_for(StepName.HUBS) is None
+
+
+def test_a_step_its_keeper_keeps_ends_kept_and_its_executor_is_not_called(rig: Rig) -> None:
+    log: list[str] = []
+    keeper = Keeper({StepName.AREA, StepName.HUBS}, log)
+    for name in (StepName.AREA, StepName.HUBS, StepName.ROUTES, StepName.TRAVELLERS_AND_BIKES):
+        rig.registry.register(name, RecordingExecutor(log), keeper)
+    rig.runs.add(make_run("r1"))
+
+    rig.process.execute()
+
+    run = rig.stored()
+    assert [item.state for item in run.steps] == [
+        StepState.KEPT,
+        StepState.KEPT,
+        StepState.DONE,
+        StepState.DONE,
+    ]
+    assert log == [
+        "keep:area",
+        "keep:hubs",
+        "keep:routes",
+        "r1:routes",
+        "keep:travellers_and_bikes",
+        "r1:travellers_and_bikes",
+    ]
+    assert run.state is RunState.SUCCEEDED
+    assert run.steps[0].finished_at is not None
+    assert run.steps[0].started_at is None
+
+
+def test_a_run_whose_steps_are_all_kept_succeeds(rig: Rig) -> None:
+    keeper = Keeper(set(StepName))
+    for name in (StepName.AREA, StepName.HUBS, StepName.ROUTES, StepName.TRAVELLERS_AND_BIKES):
+        rig.registry.register(name, FailingExecutor(), keeper)
+    rig.runs.add(make_run("r1"))
+
+    rig.process.execute()
+
+    assert rig.stored().state is RunState.SUCCEEDED
+
+
+def test_a_run_cancelled_while_a_step_is_kept_ends_cancelled(rig: Rig) -> None:
+    class Asking(Keeper):
+        """Keeps the first step and, meanwhile, a person asks to cancel the run."""
+
+        def keep(self, run: Run, step: RunStep) -> bool:
+            kept = super().keep(run, step)
+            rig.runs.update(run.id, lambda stored: request_cancellation(stored, T0))
+            return kept
+
+    asking = Asking({StepName.AREA, StepName.HUBS})
+    for name in (StepName.AREA, StepName.HUBS, StepName.ROUTES, StepName.TRAVELLERS_AND_BIKES):
+        rig.registry.register(name, RecordingExecutor([]), asking)
+    rig.runs.add(make_run("r1"))
+
+    rig.process.execute()
+
+    run = rig.stored()
+    assert run.state is RunState.CANCELLED
+    assert [item.state for item in run.steps] == [StepState.CANCELLED] * 4
+    assert asking.log == ["keep:area"]
+
+
+def test_a_keeper_that_raises_lets_the_executor_run_the_step(rig: Rig) -> None:
+    log: list[str] = []
+    for name in (StepName.AREA, StepName.HUBS, StepName.ROUTES, StepName.TRAVELLERS_AND_BIKES):
+        rig.registry.register(name, RecordingExecutor(log), RaisingKeeper())
+    rig.runs.add(make_run("r1"))
+
+    rig.process.execute()
+
+    assert log == ["r1:area", "r1:hubs", "r1:routes", "r1:travellers_and_bikes"]
     assert rig.stored().state is RunState.SUCCEEDED

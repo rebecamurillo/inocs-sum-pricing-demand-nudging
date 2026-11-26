@@ -26,10 +26,10 @@ class PostgresRunRepository:
 
     def add(self, run: Run) -> None:
         with self._engine.begin() as connection:
-            connection.execute(insert(runs).values(_run_values(run)))
+            connection.execute(insert(runs).values(run_values(run)))
             if run.steps:
                 connection.execute(
-                    insert(run_steps), [_step_values(run.id, item) for item in run.steps]
+                    insert(run_steps), [step_values(run.id, item) for item in run.steps]
                 )
 
     def get(self, run_id: str) -> Run | None:
@@ -37,8 +37,8 @@ class PostgresRunRepository:
             row = connection.execute(select(runs).where(runs.c.id == run_id)).mappings().first()
             if row is None:
                 return None
-            steps = _steps_of(connection.execute(_steps_query([run_id])).mappings())
-            return _run_of(row, steps.get(run_id, ()))
+            steps = steps_of(connection.execute(steps_query([run_id])).mappings())
+            return run_of(row, steps.get(run_id, ()))
 
     def list_by_states(self, states: Collection[RunState]) -> list[Run]:
         if not states:
@@ -53,10 +53,10 @@ class PostgresRunRepository:
                 .mappings()
                 .all()
             )
-            steps = _steps_of(
-                connection.execute(_steps_query([row["id"] for row in rows])).mappings()
+            steps = steps_of(
+                connection.execute(steps_query([row["id"] for row in rows])).mappings()
             )
-        return [_run_of(row, steps.get(row["id"], ())) for row in rows]
+        return [run_of(row, steps.get(row["id"], ())) for row in rows]
 
     def latest_worker_heartbeat(self) -> datetime | None:
         with self._engine.connect() as connection:
@@ -79,8 +79,8 @@ class PostgresRunRepository:
             )
             if row is None:
                 raise RunNotFound(f"No run has the id {run_id}.")
-            steps = _steps_of(connection.execute(_steps_query([run_id])).mappings())
-            changed = change(_run_of(row, steps.get(run_id, ())))
+            steps = steps_of(connection.execute(steps_query([run_id])).mappings())
+            changed = change(run_of(row, steps.get(run_id, ())))
             _write_run(connection, changed)
             return changed
 
@@ -99,8 +99,8 @@ class PostgresRunRepository:
             )
             if row is None:
                 return None
-            steps = _steps_of(connection.execute(_steps_query([row["id"]])).mappings())
-            claimed = start(_run_of(row, steps.get(row["id"], ())), at, worker_id)
+            steps = steps_of(connection.execute(steps_query([row["id"]])).mappings())
+            claimed = start(run_of(row, steps.get(row["id"], ())), at, worker_id)
             _write_run(connection, claimed)
             return claimed
 
@@ -117,7 +117,7 @@ class PostgresRunRepository:
 
 
 def _write_run(connection: Connection, run: Run) -> None:
-    values = _run_values(run)
+    values = run_values(run)
     del values["id"]
     result = connection.execute(update(runs).where(runs.c.id == run.id).values(values))
     if result.rowcount == 0:
@@ -126,11 +126,11 @@ def _write_run(connection: Connection, run: Run) -> None:
         connection.execute(
             update(run_steps)
             .where(run_steps.c.run_id == run.id, run_steps.c.position == item.position)
-            .values(_step_values(run.id, item))
+            .values(step_values(run.id, item))
         )
 
 
-def _steps_query(run_ids: list[str]) -> Any:
+def steps_query(run_ids: list[str]) -> Any:
     return (
         select(run_steps)
         .where(run_steps.c.run_id.in_(run_ids))
@@ -146,7 +146,7 @@ def _subject_columns(run: Run) -> dict[str, str | None]:
     }
 
 
-def _run_values(run: Run) -> dict[str, Any]:
+def run_values(run: Run) -> dict[str, Any]:
     failure = run.failure
     return {
         "id": run.id,
@@ -168,7 +168,7 @@ def _run_values(run: Run) -> dict[str, Any]:
     }
 
 
-def _step_values(run_id: str, step: RunStep) -> dict[str, Any]:
+def step_values(run_id: str, step: RunStep) -> dict[str, Any]:
     return {
         "run_id": run_id,
         "position": step.position,
@@ -187,7 +187,7 @@ def _step_values(run_id: str, step: RunStep) -> dict[str, Any]:
     }
 
 
-def _steps_of(rows: Any) -> dict[str, tuple[RunStep, ...]]:
+def steps_of(rows: Any) -> dict[str, tuple[RunStep, ...]]:
     grouped: dict[str, list[RunStep]] = {}
     for row in rows:
         grouped.setdefault(row["run_id"], []).append(_step_of(row))
@@ -212,7 +212,7 @@ def _step_of(row: Any) -> RunStep:
     )
 
 
-def _run_of(row: Any, steps: tuple[RunStep, ...]) -> Run:
+def run_of(row: Any, steps: tuple[RunStep, ...]) -> Run:
     if row["instance_version_id"] is not None:
         subject = Subject(SubjectType.INSTANCE_VERSION, row["instance_version_id"])
     else:

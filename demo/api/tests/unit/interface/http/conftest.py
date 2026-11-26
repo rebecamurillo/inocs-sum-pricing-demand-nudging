@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 import pytest
 from fastapi.testclient import TestClient
@@ -25,7 +25,6 @@ from pricing_demo.domain.system_status import (
     ComponentStatus,
 )
 from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
-from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe, fixed_probe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
@@ -41,6 +40,7 @@ from pricing_demo.interface.http.routers.city_instances import build_city_instan
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
+from tests.support.builds import FINGERPRINT, MemoryBuilds
 from tests.support.runs import later
 
 API_VERSION = "0.1.0"
@@ -73,6 +73,12 @@ class MemorySeam:
         )
         self.datasets.add(fake_city_dataset(dataset_id, now))
         return dataset_id
+
+    def set_pricing_model(self, settings: Mapping[str, object]) -> None:
+        self.settings.set_pricing_model(settings)
+
+    def release_run(self, run_id: str) -> None:
+        self.settings.release_run(run_id)
 
     def reset(self) -> None:
         self.settings.write_defaults()
@@ -177,29 +183,38 @@ def runs_app() -> RunsApp:
 
 class CityInstancesApp:
     """An app with the city instance routes on in-memory adapters, a data set
-    `geneva-2026-11-26` and, unless told otherwise, a recorded package fingerprint."""
+    `geneva-2026-11-26` and, unless told otherwise, a recorded package fingerprint (the
+    worker's, for the build plan) and a trip planner manifest."""
 
     def __init__(self, with_fingerprint: bool = True) -> None:
-        self.clock = FixedClock(SERVER_TIME)
-        self.datasets = InMemoryCityDatasets()
+        self.rig = MemoryBuilds(
+            fingerprint=FINGERPRINT if with_fingerprint else None, now=SERVER_TIME
+        )
+        self.clock = self.rig.clock
+        self.datasets = self.rig.datasets
         self.datasets.add(fake_city_dataset("geneva-2026-11-26", SERVER_TIME))
-        self.instances = InMemoryCityInstances()
+        self.instances = self.rig.instances
+        self.runs = self.rig.runs
+        self.status = self.rig.status
         self.fingerprints = InMemoryPackageFingerprints()
         if with_fingerprint:
             self.fingerprints.record(FAKE_FINGERPRINT, SERVER_TIME)
+        planning = self.rig.planning
         self.client = TestClient(
             create_app(
                 api_version=API_VERSION,
                 routers=[
                     build_city_instances_router(
                         CreateCityInstance(
-                            self.instances, self.datasets, self.fingerprints, self.clock
+                            self.instances, self.datasets, self.fingerprints, self.clock, planning
                         ),
-                        ListCityInstances(self.instances),
-                        CreateInstanceVersion(self.instances, self.datasets, self.clock),
-                        GetInstanceVersion(self.instances, self.datasets),
-                        UpdateInstanceVersion(self.instances, self.datasets),
+                        ListCityInstances(self.instances, self.rig.builds),
+                        CreateInstanceVersion(self.instances, self.datasets, self.clock, planning),
+                        GetInstanceVersion(self.instances, self.datasets, planning),
+                        UpdateInstanceVersion(self.instances, self.datasets, planning),
                         DeleteInstanceVersion(self.instances),
+                        self.rig.build,
+                        GetRun(self.runs, self.clock),
                     )
                 ],
             ),

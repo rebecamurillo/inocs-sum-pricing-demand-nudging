@@ -23,6 +23,10 @@ class RecordPackageFingerprint:
         self._clock = clock
         self._read: PackageFingerprint | None = None
 
+    def current(self) -> str | None:
+        """The fingerprint read so far, without reading or recording anything."""
+        return self._read.fingerprint if self._read is not None else None
+
     def execute(self) -> str | None:
         """The recorded fingerprint, or None when the package could not be read."""
         if self._read is None:

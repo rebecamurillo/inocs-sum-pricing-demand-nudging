@@ -36,6 +36,10 @@ at once; the work continues on the server and is a resource of its own with a st
 running step, the finished steps and, on failure, the step and the reason. The client reads
 it again to follow progress. Leaving the page changes nothing.
 
+A request that queues a run (`POST /api/v1/instance-versions/{id}/builds`) answers `202` with
+the run as its body. Asking again after a failure is the same `POST`: the steps already done
+come back as `kept`.
+
 The pattern: the `202` carries a `Location` header naming the run, `GET /api/v1/runs/{id}`
 reads it, and `PUT /api/v1/runs/{id}/cancellation` asks it to stop. A separate worker
 process executes the run ([D-12](decisions.md)); the API only stores and reads it, so a
@@ -67,8 +71,11 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   error that reaches the mapping without an entry is a fault of the server: `500`.
 - Every error the framework produces itself (unknown route, wrong method, unreadable body,
   failed validation) is a problem document too, and the contract documents `422` as one.
-- A problem document may carry one named extension member that identifies the resource the
-  request conflicts with: `draft_id` on `draft_exists`, the draft the instance already has.
+- A problem document may carry one named extension member that identifies what the request
+  conflicts with or what blocks it: `draft_id` on `draft_exists` (the draft the instance
+  already has), `run_id` on `run_active` (the run in progress), `failures` on `rule_broken`
+  (each broken rule with both values it compares) and `reasons` on `component_unavailable`
+  (each missing component with its reason).
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

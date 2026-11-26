@@ -6,6 +6,9 @@ from pathlib import Path
 import pytest
 
 from pricing_demo.application.errors import NoCityDataYet, OtherTimetableInGraphFolder
+from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
+from pricing_demo.domain.build_plan import BUILD_STEPS
+from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.config.settings import (
     DEFAULT_GTFS,
@@ -15,11 +18,13 @@ from pricing_demo.infrastructure.config.settings import (
 )
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
+from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
 from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphBuilder
 from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
+from pricing_demo.infrastructure.worker_build_sources import WorkerBuildSources
 from pricing_demo.worker import main as worker_main
 from pricing_demo.worker.main import build_probes, build_worker, worker_id_for
 
@@ -279,6 +284,34 @@ def test_the_graph_is_built_by_compose_in_both_adapter_sets(tmp_path: Path, adap
 
     assert isinstance(use_case._builder, ComposeGraphBuilder)
     assert use_case._folder._path == tmp_path / "graph"  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(("adapters", "registered"), [("fake", True), ("real", False)])
+def test_only_the_fake_adapter_set_registers_the_build_steps(
+    tmp_path: Path, adapters: str, registered: bool
+) -> None:
+    built = build_worker(settings_for(tmp_path, adapters=adapters))
+    built.engine.dispose()
+
+    registry = built.worker._process._registry
+    for step in BUILD_STEPS:
+        assert (registry.executor_for(step) is not None) is registered
+        assert (registry.keeper_for(step) is not None) is registered
+    assert registry.executor_for(StepName.PRICING_MODEL) is None
+
+
+def test_the_fake_worker_reports_and_plans_with_the_same_graph_fingerprints(
+    tmp_path: Path,
+) -> None:
+    built = build_worker(settings_for(tmp_path, adapters="fake"))
+    built.engine.dispose()
+
+    reported = built.worker._report._graph
+    executor = built.worker._process._registry.executor_for(StepName.AREA)
+    assert isinstance(reported, FakeGraphFingerprints)
+    assert isinstance(executor, BuildStepExecutor)
+    assert isinstance(executor._sources, WorkerBuildSources)
+    assert executor._sources._graph is reported
 
 
 def test_the_worker_reports_the_graph_in_the_graph_folder(tmp_path: Path) -> None:

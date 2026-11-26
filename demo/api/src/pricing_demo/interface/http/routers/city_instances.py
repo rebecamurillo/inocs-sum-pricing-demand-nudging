@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Response
 
+from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.create_city_instance import (
     CreateCityInstance,
     FromCopy,
@@ -11,6 +12,7 @@ from pricing_demo.application.use_cases.create_city_instance import (
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
+from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.interface.http.schemas import (
@@ -22,6 +24,7 @@ from pricing_demo.interface.http.schemas import (
     InstanceVersionPatch,
     InstanceVersionResource,
     ProblemDetails,
+    RunResource,
 )
 
 Responses = dict[int | str, dict[str, Any]]
@@ -50,6 +53,8 @@ def build_city_instances_router(
     get_version: GetInstanceVersion,
     update_version: UpdateInstanceVersion,
     delete_version: DeleteInstanceVersion,
+    build_version: BuildInstanceVersion,
+    get_run: GetRun,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["city-instances"])
 
@@ -161,5 +166,37 @@ def build_city_instances_router(
     def discard_version(version_id: str) -> Response:
         delete_version.execute(version_id)
         return Response(status_code=204)
+
+    @router.post(
+        "/instance-versions/{version_id}/builds",
+        operation_id="buildInstanceVersion",
+        summary="Seal a draft and queue its build, or queue the build again after a failure",
+        status_code=202,
+        response_model=RunResource,
+        responses={
+            202: {
+                "description": "The build run is queued; the body is the run",
+                "headers": {
+                    "Location": {
+                        "description": "The run",
+                        "schema": {"type": "string"},
+                    }
+                },
+            },
+            **VERSION_NOT_FOUND,
+            409: _problem(
+                "`rule_broken` (the draft breaks a rule: `failures` lists each with both "
+                "values), `run_active` (`run_id` is the run) or `already_built`"
+            ),
+            503: _problem(
+                "`component_unavailable`: `reasons` names each component the build needs and lacks"
+            ),
+            **UNEXPECTED,
+        },
+    )
+    def build(version_id: str, response: Response) -> RunResource:
+        run = build_version.execute(version_id)
+        response.headers["Location"] = f"/api/v1/runs/{run.id}"
+        return RunResource.from_view(get_run.execute(run.id))
 
     return router

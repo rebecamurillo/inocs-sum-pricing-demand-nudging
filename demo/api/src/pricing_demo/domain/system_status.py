@@ -147,13 +147,54 @@ class SystemStatus:
         return self._verdict("can_simulate")
 
     def _verdict(self, action: str) -> Verdict:
-        needed = REQUIRED[action]
+        return self.verdict_for(REQUIRED[action])
+
+    def verdict_for(self, needed: frozenset[ComponentName]) -> Verdict:
+        """Whether every component in `needed` is available, and what blocks if not."""
         reasons = tuple(
             BlockingReason(status.name, status.reason or "")
             for status in self.components
             if status.name in needed and status.state is not ComponentState.AVAILABLE
         )
         return Verdict(allowed=not reasons, reasons=reasons)
+
+
+NO_FINGERPRINT_REASON = (
+    "The runner has not reported the pricing model's package yet: start the worker."
+)
+NO_MANIFEST_REASON = "The trip planner's graph has no manifest: build it with make otp-graph."
+
+
+def build_verdict(
+    status: SystemStatus,
+    needs_trip_planner: bool,
+    *,
+    package_missing: bool = False,
+    manifest_missing: bool = False,
+) -> Verdict:
+    """`can_build_instances` for one plan (ARCHITECTURE.md § 10.1): storage, the runner, the
+    package and the city data always, the trip planner only when a routes step is rebuilt, the
+    solver never. A plan that has no package fingerprint, or no graph manifest while routes are
+    rebuilt, cannot name its artefacts: that is a reason too, unless the component already
+    gives one."""
+    needed = {
+        ComponentName.STORAGE,
+        ComponentName.RUNNER,
+        ComponentName.PACKAGE,
+        ComponentName.CITY_DATA,
+    }
+    if needs_trip_planner:
+        needed.add(ComponentName.TRIP_PLANNER)
+    verdict = status.verdict_for(frozenset(needed))
+    reasons = list(verdict.reasons)
+    blocked = {item.component for item in reasons}
+    if package_missing and ComponentName.PACKAGE not in blocked:
+        reasons.append(BlockingReason(ComponentName.PACKAGE, NO_FINGERPRINT_REASON))
+    if manifest_missing and needs_trip_planner and ComponentName.TRIP_PLANNER not in blocked:
+        reasons.append(BlockingReason(ComponentName.TRIP_PLANNER, NO_MANIFEST_REASON))
+    order = {name: position for position, name in enumerate(ComponentName)}
+    reasons.sort(key=lambda item: order[item.component])
+    return Verdict(allowed=not reasons, reasons=tuple(reasons))
 
 
 @dataclass(frozen=True)

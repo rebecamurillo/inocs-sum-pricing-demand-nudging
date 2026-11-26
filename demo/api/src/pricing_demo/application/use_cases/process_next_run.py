@@ -95,6 +95,11 @@ class ProcessNextRun:
                 continue
             if shutdown.is_set():
                 return
+            if self._is_kept(claimed.id, planned):
+                run = self._queue.update(claimed.id, partial(self._keep, position=planned.position))
+                if run.state is not RunState.RUNNING:
+                    return
+                continue
             run = self._queue.update(claimed.id, partial(self._begin, position=planned.position))
             if run.state is not RunState.RUNNING:
                 return
@@ -122,6 +127,28 @@ class ProcessNextRun:
             if run.state is not RunState.RUNNING:
                 return
         self._queue.update(claimed.id, self._finish)
+
+    def _is_kept(self, run_id: str, planned: RunStep) -> bool:
+        """Ask the step's keeper, if it has one, whether the step needs no work. A keeper that
+        raises is logged and the step runs: its executor then reports what is wrong."""
+        keeper = self._registry.keeper_for(planned.step)
+        if keeper is None:
+            return False
+        current = self._queue.get(run_id)
+        if current is None or current.state is not RunState.RUNNING:
+            return False
+        step = next(item for item in current.steps if item.position == planned.position)
+        try:
+            return keeper.keep(current, step)
+        except Exception:
+            logger.exception("The keeper of step %s of run %s raised", planned.step.value, run_id)
+            return False
+
+    def _keep(self, run: Run, position: int) -> Run:
+        now = self._clock.now()
+        if run.cancel_requested_at is not None:
+            return cancel_running(run, now)
+        return _replace_step(run, position, lambda item: transition_step(item, StepState.KEPT, now))
 
     def _begin(self, run: Run, position: int) -> Run:
         now = self._clock.now()

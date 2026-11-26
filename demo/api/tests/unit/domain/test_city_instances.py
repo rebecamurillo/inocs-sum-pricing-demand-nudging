@@ -11,9 +11,11 @@ from pricing_demo.domain.city_instances import (
     instance_slug,
     parameters_from_defaults,
     version_id,
+    version_state,
     what_changes,
 )
 from pricing_demo.domain.package_fingerprint import instance_defaults
+from pricing_demo.domain.runs import RunState
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from tests.support.runs import T0
@@ -128,3 +130,21 @@ def test_a_whole_float_equals_the_same_integer() -> None:
     before = parameters()
 
     assert what_changes(before, replace(before, fixed_capacity=20.0)) == []
+
+
+@pytest.mark.parametrize(
+    ("status", "latest", "state"),
+    [
+        ("draft", None, "draft"),
+        ("sealed", None, "sealed"),
+        ("sealed", RunState.QUEUED, "queued"),
+        ("sealed", RunState.RUNNING, "building"),
+        ("sealed", RunState.SUCCEEDED, "ready"),
+        ("sealed", RunState.FAILED, "failed"),
+        ("sealed", RunState.CANCELLED, "cancelled"),
+    ],
+)
+def test_the_state_of_a_version_reads_its_latest_build(
+    status: str, latest: RunState | None, state: str
+) -> None:
+    assert version_state(status, latest) == state  # type: ignore[arg-type]

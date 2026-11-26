@@ -38,6 +38,8 @@ def test_the_head_creates_the_tables_of_the_runs(migrated_database: Engine) -> N
         "city_instances",
         "instance_versions",
         "instance_periods",
+        "artifacts",
+        "instance_version_steps",
     }
 
 
@@ -60,6 +62,8 @@ def test_the_migration_goes_down_and_up_again(migrated_database: Engine) -> None
         "city_instances",
         "instance_versions",
         "instance_periods",
+        "artifacts",
+        "instance_version_steps",
     }
     assert StorageProbe(migrated_database).check().state is ComponentState.AVAILABLE
 

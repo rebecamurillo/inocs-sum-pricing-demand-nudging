@@ -37,3 +37,10 @@ class StepExecutor(Protocol):
     def execute(self, run: Run, step: RunStep, stop: StopSignal) -> StepOutcome:
         """Run the step; return when it ends, or soon after `stop` is set."""
         ...
+
+
+class StepKeeper(Protocol):
+    def keep(self, run: Run, step: RunStep) -> bool:
+        """True when the step needs no work: its output already exists and is linked for the
+        run's subject. Called before the step starts; the step then ends `kept`."""
+        ...

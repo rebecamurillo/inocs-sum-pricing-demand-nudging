@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from pricing_demo.application.build_planning import BuildPlanning
 from pricing_demo.application.errors import (
     PackageDefaultsMissing,
     UnknownCityDataset,
@@ -40,11 +41,13 @@ class CreateCityInstance:
         datasets: CityDatasets,
         fingerprints: PackageFingerprints,
         clock: Clock,
+        planning: BuildPlanning,
     ) -> None:
         self._instances = instances
         self._datasets = datasets
         self._fingerprints = fingerprints
         self._clock = clock
+        self._planning = planning
 
     def execute(self, name: str, dataset_id: str, start_from: StartFrom) -> InstanceVersionView:
         slug = instance_slug(name)
@@ -67,4 +70,4 @@ class CreateCityInstance:
         instance = CityInstance(slug, name, dataset_id, next_number=2, created_at=now)
         draft = InstanceVersion(draft_id, slug, 1, based_on_id, "draft", parameters, now)
         self._instances.create(instance, draft, first_period(draft_id, dataset))
-        return build_view(draft, self._instances, self._datasets)
+        return build_view(draft, self._instances, self._datasets, self._planning)

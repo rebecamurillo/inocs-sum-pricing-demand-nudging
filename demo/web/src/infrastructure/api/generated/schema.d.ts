@@ -75,6 +75,23 @@ export interface paths {
         patch: operations["updateInstanceVersion"];
         trace?: never;
     };
+    "/api/v1/instance-versions/{version_id}/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seal a draft and queue its build, or queue the build again after a failure */
+        post: operations["buildInstanceVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -172,6 +189,26 @@ export interface components {
             component: components["schemas"]["ComponentName"];
             /** Reason */
             reason: string;
+        };
+        /** BuildPlanResource */
+        BuildPlanResource: {
+            /** @description Whether this plan can be built now, and what blocks it. */
+            build_verdict: components["schemas"]["VerdictResponse"];
+            /** Steps */
+            steps: components["schemas"]["PlannedStepResource"][];
+        };
+        /** CauseResource */
+        CauseResource: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "parameter" | "city_data" | "package" | "trip_planner_graph";
+            /**
+             * Parameters
+             * @description The parameter names, for a `parameter` cause.
+             */
+            parameters: string[];
         };
         /** CityDatasetList */
         CityDatasetList: {
@@ -384,6 +421,7 @@ export interface components {
         InstanceVersionResource: {
             /** Based On Id */
             based_on_id: string | null;
+            build_plan: components["schemas"]["BuildPlanResource"];
             /**
              * Changes
              * @description The parameters that differ from `based_on_id`, in column order.
@@ -409,7 +447,7 @@ export interface components {
             rules: components["schemas"]["RuleResultResource"][];
             /**
              * State
-             * @description The status until builds exist; then the build state.
+             * @description `draft`; for a saved version the state of its latest build: `queued`, `building`, `ready`, `failed` or `cancelled` (`sealed` while it has none).
              */
             state: string;
             /**
@@ -426,7 +464,10 @@ export interface components {
             number: number;
             /** Pricing Version Count */
             pricing_version_count: number;
-            /** State */
+            /**
+             * State
+             * @description `draft`, or the state of the latest build: `queued`, `building`, `ready`, `failed`, `cancelled` (`sealed` while it has none).
+             */
             state: string;
             /**
              * Status
@@ -450,6 +491,34 @@ export interface components {
             before: number;
             /** Parameter */
             parameter: string;
+        };
+        /** PlannedStepResource */
+        PlannedStepResource: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "kept" | "rebuilt";
+            /**
+             * Causes
+             * @description Why the key differs from the same step of `based_on_id`; empty when the version is based on none.
+             */
+            causes: components["schemas"]["CauseResource"][];
+            /**
+             * Input Key
+             * @description Null while the package fingerprint or the trip planner's graph manifest is unknown.
+             */
+            input_key: string | null;
+            /**
+             * Last Duration S
+             * @description Seconds the same step last took on the same data set and radius.
+             */
+            last_duration_s: number | null;
+            /** Number */
+            number: number;
+            /** Period Id */
+            period_id: string | null;
+            step: components["schemas"]["StepName"];
         };
         /**
          * PolygonResource
@@ -489,6 +558,21 @@ export interface components {
             draft_id?: string | null;
             /** Errors */
             errors?: components["schemas"]["FieldError"][] | null;
+            /**
+             * Failures
+             * @description The rules the draft breaks, on a rule_broken conflict.
+             */
+            failures?: components["schemas"]["RuleResultResource"][] | null;
+            /**
+             * Reasons
+             * @description The components that block the action, on a component_unavailable answer.
+             */
+            reasons?: components["schemas"]["BlockingReasonResponse"][] | null;
+            /**
+             * Run Id
+             * @description The queued or running run, on a run_active conflict.
+             */
+            run_id?: string | null;
             /** Status */
             status: number;
             /** Title */
@@ -1010,6 +1094,75 @@ export interface operations {
             };
             /** @description Unexpected error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    buildInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The build run is queued; the body is the run */
+            202: {
+                headers: {
+                    /** @description The run */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `rule_broken` (the draft breaks a rule: `failures` lists each with both values), `run_active` (`run_id` is the run) or `already_built` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `component_unavailable`: `reasons` names each component the build needs and lacks */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -86,3 +86,23 @@ def test_the_latest_row_is_the_one_first_seen_last() -> None:
     store.record(FAKE_FINGERPRINT, T0 + timedelta(seconds=9))
 
     assert store.latest() == other
+
+
+def test_the_current_fingerprint_is_none_until_the_package_was_read_and_reads_nothing() -> None:
+    reader = CountingReader()
+    record = RecordPackageFingerprint(reader, InMemoryPackageFingerprints(), FixedClock(T0))
+
+    assert record.current() is None
+    record.execute()
+
+    assert record.current() == FAKE_FINGERPRINT.fingerprint
+    assert reader.reads == 1
+
+
+def test_the_current_fingerprint_stays_none_when_the_package_cannot_be_read() -> None:
+    record = RecordPackageFingerprint(
+        FailingReader(), InMemoryPackageFingerprints(), FixedClock(T0)
+    )
+    record.execute()
+
+    assert record.current() is None

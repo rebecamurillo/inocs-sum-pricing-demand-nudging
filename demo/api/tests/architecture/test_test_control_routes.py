@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from types import ModuleType
-from typing import Literal
+from typing import Any, Literal
 
 import pytest
 from fastapi import FastAPI
@@ -19,6 +19,8 @@ from pricing_demo.worker import main as worker_main
 RESET = "/api/test-control/reset"
 CITY_DATASETS = "/api/test-control/city-datasets"
 SOLVER = "/api/test-control/components/solver"
+PRICING_MODEL = "/api/test-control/pricing-model"
+RELEASE = "/api/test-control/runs/run-1/release"
 
 
 def application(adapters: Literal["fake", "real"]) -> FastAPI:
@@ -48,6 +50,8 @@ def test_the_test_control_routes_are_absent_with_the_real_adapters(
     assert client.post(RESET).status_code == 404
     assert client.post(CITY_DATASETS).status_code == 404
     assert client.put(SOLVER, json={"state": "available"}).status_code == 404
+    assert client.put(PRICING_MODEL, json={}).status_code == 404
+    assert client.post(RELEASE).status_code == 404
     worker = worker_main.build_worker(Settings(adapters="real", data_dir=tmp_path / "data"))
     worker.engine.dispose()
     assert built == [], "the fake_settings store is never constructed with real adapters"
@@ -70,7 +74,7 @@ def test_the_test_control_routes_are_present_with_the_fake_adapters(
 ) -> None:
     # make check has no database; truncation is covered by the integration and e2e suites.
     emptied: list[object] = []
-    written: list[tuple[str, object]] = []
+    written: list[tuple[str, Any]] = []
     monkeypatch.setattr(
         bootstrap, "truncate_all", lambda engine, metadata: emptied.append(metadata)
     )
@@ -81,6 +85,16 @@ def test_the_test_control_routes_are_present_with_the_fake_adapters(
         PostgresFakeSettings,
         "set_component",
         lambda self, name, state, reason: written.append((name, (state, reason))),
+    )
+    monkeypatch.setattr(
+        PostgresFakeSettings,
+        "set_pricing_model",
+        lambda self, value: written.append(("pricing_model", value)),
+    )
+    monkeypatch.setattr(
+        PostgresFakeSettings,
+        "release_run",
+        lambda self, run_id: written.append(("release", run_id)),
     )
     client = TestClient(application("fake"))
 
@@ -95,6 +109,13 @@ def test_the_test_control_routes_are_present_with_the_fake_adapters(
         == 204
     )
     assert written[-1] == ("solver", ("unavailable", "No Gurobi licence was found."))
+    assert client.put(PRICING_MODEL, json={"hold_at": "routes"}).status_code == 204
+    assert written.pop() == (
+        "pricing_model",
+        {"fail_at": None, "hold_at": "routes", "routes_pace_ms": 0},
+    )
+    assert client.post(RELEASE).status_code == 204
+    assert written.pop() == ("release", "run-1")
 
 
 def test_the_test_control_routes_are_not_in_the_exported_contract(tmp_path: Path) -> None:

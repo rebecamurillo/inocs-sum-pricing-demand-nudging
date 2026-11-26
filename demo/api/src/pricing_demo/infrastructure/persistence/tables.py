@@ -33,6 +33,7 @@ STEP_NAMES = (
     "pricing_model",
     "traveller_simulation",
 )
+BUILD_STEP_NAMES = ("area", "hubs", "routes", "travellers_and_bikes")
 VERSION_STATUSES = ("draft", "sealed")
 PARAMETER_COLUMNS = (
     "center_lat",
@@ -264,4 +265,50 @@ instance_periods = Table(
     Column("arrive_by", Boolean, nullable=False),
     Column("routing_date_provisional", Boolean, nullable=False),
     UniqueConstraint("instance_version_id", "key", name="uq_instance_periods_version_key"),
+)
+
+# The outputs of one build step, named by its input key. `inputs` is the canonical JSON the key
+# hashes, `files` lists each file's name, sha256 and size, `path` is the folder relative to the
+# worker's data directory.
+artifacts = Table(
+    "artifacts",
+    metadata,
+    Column("input_key", Text, primary_key=True),
+    Column("step", Text, nullable=False),
+    Column("inputs", JSONB, nullable=False),
+    Column("files", JSONB, nullable=False),
+    Column("path", Text, nullable=False),
+    Column(
+        "package_fingerprint",
+        Text,
+        ForeignKey("package_fingerprints.fingerprint"),
+        nullable=False,
+    ),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(one_of("step", BUILD_STEP_NAMES), name="step"),
+)
+
+# The artefact of each step of a version. The period is null for the steps that have none, so
+# the key is a unique constraint that treats two nulls as equal.
+instance_version_steps = Table(
+    "instance_version_steps",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column(
+        "instance_version_id",
+        Text,
+        ForeignKey("instance_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("step", Text, nullable=False),
+    Column("period_id", Text, ForeignKey("instance_periods.id", ondelete="CASCADE")),
+    Column("input_key", Text, ForeignKey("artifacts.input_key"), nullable=False),
+    UniqueConstraint(
+        "instance_version_id",
+        "step",
+        "period_id",
+        name="uq_instance_version_steps_instance_version_id",
+        postgresql_nulls_not_distinct=True,
+    ),
+    CheckConstraint(one_of("step", BUILD_STEP_NAMES), name="step"),
 )

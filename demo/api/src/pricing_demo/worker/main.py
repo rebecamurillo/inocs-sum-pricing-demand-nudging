@@ -32,8 +32,10 @@ from pricing_demo.application.errors import (
 )
 from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
 from pricing_demo.application.ports.bus_shape_matcher import BusShapeMatcher
+from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.ports.package_fingerprints import PackageFingerprintReader
+from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.build_trip_planner_graph import BuildTripPlannerGraph
@@ -45,9 +47,12 @@ from pricing_demo.application.use_cases.record_package_fingerprint import (
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
 from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBikeStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
+from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.run_worker import RunWorker
+from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
+from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
 from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
 from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader, ZipTimetableShapes
 from pricing_demo.infrastructure.city_data.osm import PbfStreetExtract
@@ -60,9 +65,13 @@ from pricing_demo.infrastructure.config.settings import (
 )
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
+from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.fakes.package_fingerprints import FakePackageFingerprintReader
+from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
+from pricing_demo.infrastructure.persistence.city_instances import PostgresCityInstances
 from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
@@ -83,6 +92,7 @@ from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGrap
 from pricing_demo.infrastructure.trip_planner.graph_folder import LocalGraphFolder
 from pricing_demo.infrastructure.trip_planner.otp_probe import OtpProbe
 from pricing_demo.infrastructure.waiter import SystemWaiter
+from pricing_demo.infrastructure.worker_build_sources import WorkerBuildSources
 
 logger = logging.getLogger("pricing_demo.worker")
 
@@ -99,12 +109,15 @@ def worker_id_for(settings: Settings, host: str, pid: int) -> str:
     return settings.worker_id or f"{host}-{pid}"
 
 
-def build_probes(settings: Settings, engine: Engine) -> Sequence[ComponentProbe]:
+def build_probes(
+    settings: Settings, engine: Engine, fake_settings: PostgresFakeSettings | None = None
+) -> Sequence[ComponentProbe]:
     """The probes of the solver, the package and the trip planner, by adapter set. Only the
-    worker builds them: the API process never loads the package."""
+    worker builds them: the API process never loads the package. The fake probes read the
+    fake settings the worker's other fakes read."""
     if settings.adapters == "fake":
-        fake_settings = PostgresFakeSettings(engine)
-        return [FakeProbe(name, fake_settings) for name in PROBED_COMPONENTS]
+        shared = fake_settings or PostgresFakeSettings(engine)
+        return [FakeProbe(name, shared) for name in PROBED_COMPONENTS]
     return [SolverProbe(), PackageProbe(), OtpProbe(settings.otp_url)]
 
 
@@ -113,6 +126,44 @@ def build_fingerprint_reader(settings: Settings) -> PackageFingerprintReader:
     if settings.adapters == "fake":
         return FakePackageFingerprintReader()
     return PackageSourcesReader(DEMO_DIR.parent / "sum_nsm_dynamic_pricing")
+
+
+def build_graph_fingerprints(settings: Settings) -> FileGraphFingerprints:
+    """The manifest and hash of the trip planner's graph; the fake set falls back to a fixed
+    manifest when no graph was built, so the e2e stack's routes key exists."""
+    if settings.adapters == "fake":
+        return FakeGraphFingerprints(settings.otp_graph_dir)
+    return FileGraphFingerprints(settings.otp_graph_dir)
+
+
+def register_build_steps(
+    settings: Settings,
+    registry: StepRegistry,
+    engine: Engine,
+    repository: PostgresRunRepository,
+    clock: Clock,
+    waiter: Waiter,
+    fingerprint: RecordPackageFingerprint,
+    graph: FileGraphFingerprints,
+    fake_settings: PostgresFakeSettings | None,
+) -> None:
+    """The executor and keeper of the four build steps. The real city preparation is built
+    with the pricing-model adapter (story 2-7): until then a real build fails at its first
+    step with `stage_error`."""
+    if settings.adapters != "fake" or fake_settings is None:
+        return
+    executor = BuildStepExecutor(
+        FakeCityPreparation(fake_settings, waiter),
+        LocalArtifactStore(settings.data_dir),
+        PostgresArtifacts(engine),
+        repository,
+        PostgresCityInstances(engine),
+        PostgresCityDatasets(engine),
+        WorkerBuildSources(fingerprint.current, graph),
+        clock,
+    )
+    for step in BUILD_STEPS:
+        registry.register(step, executor, executor)
 
 
 def build_worker(settings: Settings) -> BuiltWorker:
@@ -125,9 +176,15 @@ def build_worker(settings: Settings) -> BuiltWorker:
     waiter = SystemWaiter()
     host, pid = socket.gethostname(), os.getpid()
     identity = WorkerIdentity(worker_id_for(settings, host, pid), host, pid, clock.now())
-    # No step executor exists yet: story 2-5 registers the first. The `fake` and the `real`
-    # adapter set therefore build the same registry for now.
+    fake_settings = PostgresFakeSettings(engine) if settings.adapters == "fake" else None
+    fingerprint = RecordPackageFingerprint(
+        build_fingerprint_reader(settings), PostgresPackageFingerprints(engine), clock
+    )
+    graph = build_graph_fingerprints(settings)
     registry = StepRegistry()
+    register_build_steps(
+        settings, registry, engine, repository, clock, waiter, fingerprint, graph, fake_settings
+    )
     logger.info("Adapter set: %s; data directory: %s", settings.adapters, settings.data_dir)
     worker = RunWorker(
         identity,
@@ -135,18 +192,16 @@ def build_worker(settings: Settings) -> BuiltWorker:
         RecoverInterruptedRuns(repository, clock),
         ProcessNextRun(repository, registry, workers, identity, clock, waiter),
         ReportComponents(
-            build_probes(settings, engine),
+            build_probes(settings, engine, fake_settings),
             PostgresComponentReports(engine),
             identity.id,
             clock,
-            trip_planner_graph=FileGraphFingerprints(settings.otp_graph_dir),
+            trip_planner_graph=graph,
         ),
         timedelta(seconds=settings.component_report_interval_s),
         clock,
         waiter,
-        RecordPackageFingerprint(
-            build_fingerprint_reader(settings), PostgresPackageFingerprints(engine), clock
-        ),
+        fingerprint,
     )
     return BuiltWorker(worker, identity, engine)
 

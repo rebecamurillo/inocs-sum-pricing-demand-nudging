@@ -218,6 +218,48 @@ truncates both tables). The API reads the latest row for "start from the package
 The fake adapter set records a fixed fingerprint whose defaults are constants copied from the
 package.
 
+### Builds and the artefact store
+
+`POST /api/v1/instance-versions/{id}/builds` (`BuildInstanceVersion`) checks, in this order,
+that the version exists, that a draft breaks no rule, that no run of the version is queued or
+running, that its latest build has not succeeded, and that the components its plan needs are
+available. It then, in one transaction (`Builds.queue_build`), seals the draft and inserts a
+`build` run with four `pending` `run_steps`; a sealed version whose build failed or was
+cancelled is queued again without sealing. The one-active-run index turns a racing second
+request into `run_active`.
+
+A step's **input key** is the sha256 of the canonical JSON (sorted keys, compact, a whole
+number written without a decimal) of: the step name, the parameters it reads
+(`domain/build_plan.py`: `STEP_PARAMETERS`), the keys of the steps it reads, the snapshot
+hashes it reads (the timetable and bike-station hashes for `area`, the timetable's for `hubs`,
+the trip planner's graph manifest for `routes`), the routing moment (steps 3 and 4) and the
+package fingerprint. `otp_workers` is not in any key. A key is null while the fingerprint (or,
+for steps 3 and 4, the graph manifest) is unknown; the step is then planned as rebuilt and the
+plan's `build_verdict` says which component lacks it. The API computes the plan from what is
+stored (`application/build_planning.py`); the worker computes it again for each step and writes
+the key it finds to the run step, so the stored artefacts, not the plan the API made earlier,
+decide `kept`.
+
+A **working directory** `var/data/runs/{run}/{step}/` holds a step while it runs, with the
+upstream artefacts copied in by the file names the package expects (copies, made writable,
+because the package rewrites its inputs). On success the step's outputs move to
+`var/data/artifacts/{step}/{key}/` through a temporary sibling name and a rename, so no partial
+folder is ever visible; the files are made `0444` and the folder `0555`. One `artifacts` row
+holds the key, the step, the canonical inputs, each file's name, sha256 and size, the path
+(relative to the data directory) and the package fingerprint; the folder is never changed. A
+key whose folder exists is reused: same key, same content. The working directory is deleted on
+success and on a stop, and kept on a failure. As each step ends `done` or `kept` the worker
+writes its `instance_version_steps` row (version, step, period, key), so the steps already
+done are readable while the run goes on. That table's key is a unique constraint with
+`NULLS NOT DISTINCT`, because steps 1 and 2 have no period and a primary key cannot hold a
+null.
+
+`ProcessNextRun` asks a step's keeper (`StepKeeper`, implemented by `BuildStepExecutor` with
+the executor) before it starts the step; a step whose key has an artefact moves `pending` to
+`kept` at once and costs nothing. The city is prepared through the `CityPreparation` port;
+only its fake exists so far (the real adapter is built on the pricing-model adapter later), so
+a real-adapter build fails at its first step with `stage_error`.
+
 ### Persistence
 
 PostgreSQL through SQLAlchemy 2 and psycopg 3. Repositories implement ports and return
@@ -302,6 +344,7 @@ settings from them. The web build takes none: it calls `/api`.
 
 The skeleton proves the layers, the tooling and one request from the screen to the
 database. How runs are queued and executed, and where the worker runs, are settled by
-[D-12 and D-10](decisions.md). The data model of city instances and pricing versions, the
-map and the artefact store belong to the initiative's architecture step, which builds on this
-document.
+[D-12 and D-10](decisions.md); the artefact store by [D-8](decisions.md) and the
+[Builds and the artefact store](#builds-and-the-artefact-store) section. The data model of
+pricing versions and the map belong to the initiative's architecture step, which builds on
+this document.

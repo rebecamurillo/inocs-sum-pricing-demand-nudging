@@ -19,6 +19,55 @@
         "title": "BlockingReasonResponse",
         "type": "object"
       },
+      "BuildPlanResource": {
+        "properties": {
+          "build_verdict": {
+            "$ref": "#/components/schemas/VerdictResponse",
+            "description": "Whether this plan can be built now, and what blocks it."
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedStepResource"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "steps",
+          "build_verdict"
+        ],
+        "title": "BuildPlanResource",
+        "type": "object"
+      },
+      "CauseResource": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "parameter",
+              "city_data",
+              "package",
+              "trip_planner_graph"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "parameters": {
+            "description": "The parameter names, for a `parameter` cause.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Parameters",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "parameters"
+        ],
+        "title": "CauseResource",
+        "type": "object"
+      },
       "CityDatasetList": {
         "properties": {
           "items": {
@@ -650,6 +699,9 @@
             ],
             "title": "Based On Id"
           },
+          "build_plan": {
+            "$ref": "#/components/schemas/BuildPlanResource"
+          },
           "changes": {
             "description": "The parameters that differ from `based_on_id`, in column order.",
             "items": {
@@ -703,7 +755,7 @@
             "type": "array"
           },
           "state": {
-            "description": "The status until builds exist; then the build state.",
+            "description": "`draft`; for a saved version the state of its latest build: `queued`, `building`, `ready`, `failed` or `cancelled` (`sealed` while it has none).",
             "title": "State",
             "type": "string"
           },
@@ -727,7 +779,8 @@
           "periods",
           "rules",
           "changes",
-          "counts"
+          "counts",
+          "build_plan"
         ],
         "title": "InstanceVersionResource",
         "type": "object"
@@ -747,6 +800,7 @@
             "type": "integer"
           },
           "state": {
+            "description": "`draft`, or the state of the latest build: `queued`, `building`, `ready`, `failed`, `cancelled` (`sealed` while it has none).",
             "title": "State",
             "type": "string"
           },
@@ -804,6 +858,79 @@
           "after"
         ],
         "title": "ParameterChangeResource",
+        "type": "object"
+      },
+      "PlannedStepResource": {
+        "properties": {
+          "action": {
+            "enum": [
+              "kept",
+              "rebuilt"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "causes": {
+            "description": "Why the key differs from the same step of `based_on_id`; empty when the version is based on none.",
+            "items": {
+              "$ref": "#/components/schemas/CauseResource"
+            },
+            "title": "Causes",
+            "type": "array"
+          },
+          "input_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null while the package fingerprint or the trip planner's graph manifest is unknown.",
+            "title": "Input Key"
+          },
+          "last_duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds the same step last took on the same data set and radius.",
+            "title": "Last Duration S"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "period_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period Id"
+          },
+          "step": {
+            "$ref": "#/components/schemas/StepName"
+          }
+        },
+        "required": [
+          "step",
+          "number",
+          "period_id",
+          "input_key",
+          "action",
+          "causes",
+          "last_duration_s"
+        ],
+        "title": "PlannedStepResource",
         "type": "object"
       },
       "PolygonResource": {
@@ -894,6 +1021,48 @@
               }
             ],
             "title": "Errors"
+          },
+          "failures": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/RuleResultResource"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rules the draft breaks, on a rule_broken conflict.",
+            "title": "Failures"
+          },
+          "reasons": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/BlockingReasonResponse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The components that block the action, on a component_unavailable answer.",
+            "title": "Reasons"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The queued or running run, on a run_active conflict.",
+            "title": "Run Id"
           },
           "status": {
             "title": "Status",
@@ -1866,6 +2035,96 @@
           }
         },
         "summary": "Change parameters of a draft; the answer reports every rule",
+        "tags": [
+          "city-instances"
+        ]
+      }
+    },
+    "/api/v1/instance-versions/{version_id}/builds": {
+      "post": {
+        "operationId": "buildInstanceVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResource"
+                }
+              }
+            },
+            "description": "The build run is queued; the body is the run",
+            "headers": {
+              "Location": {
+                "description": "The run",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rule_broken` (the draft breaks a rule: `failures` lists each with both values), `run_active` (`run_id` is the run) or `already_built`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`component_unavailable`: `reasons` names each component the build needs and lacks"
+          }
+        },
+        "summary": "Seal a draft and queue its build, or queue the build again after a failure",
         "tags": [
           "city-instances"
         ]

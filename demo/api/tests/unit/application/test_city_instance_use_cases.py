@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+from pricing_demo.application.build_planning import BuildPlanning
 from pricing_demo.application.errors import (
     PackageDefaultsMissing,
     UnknownCityDataset,
@@ -27,6 +28,9 @@ from pricing_demo.domain.city_instances import (
     ParameterChange,
     VersionSealed,
 )
+from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
+from pricing_demo.infrastructure.fakes.build_sources import InMemoryBuildSources
+from pricing_demo.infrastructure.fakes.builds import InMemoryBuilds
 from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.clock import FixedClock
@@ -34,6 +38,8 @@ from pricing_demo.infrastructure.fakes.package_fingerprints import (
     FAKE_FINGERPRINT,
     InMemoryPackageFingerprints,
 )
+from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
+from tests.support.builds import all_available
 from tests.support.runs import T0
 
 DATASET_ID = "geneva-2026-11-26"
@@ -48,14 +54,25 @@ class Rig:
         self.fingerprints = InMemoryPackageFingerprints()
         if with_fingerprint:
             self.fingerprints.record(FAKE_FINGERPRINT, T0)
-        self.create = CreateCityInstance(
-            self.instances, self.datasets, self.fingerprints, self.clock
+        builds = InMemoryBuilds(InMemoryRunRepository(), self.instances)
+        planning = BuildPlanning(
+            self.instances,
+            self.datasets,
+            InMemoryArtifacts(),
+            InMemoryBuildSources(),
+            builds,
+            all_available,
         )
-        self.create_version = CreateInstanceVersion(self.instances, self.datasets, self.clock)
-        self.update = UpdateInstanceVersion(self.instances, self.datasets)
-        self.get = GetInstanceVersion(self.instances, self.datasets)
+        self.create = CreateCityInstance(
+            self.instances, self.datasets, self.fingerprints, self.clock, planning
+        )
+        self.create_version = CreateInstanceVersion(
+            self.instances, self.datasets, self.clock, planning
+        )
+        self.update = UpdateInstanceVersion(self.instances, self.datasets, planning)
+        self.get = GetInstanceVersion(self.instances, self.datasets, planning)
         self.delete = DeleteInstanceVersion(self.instances)
-        self.menu = ListCityInstances(self.instances)
+        self.menu = ListCityInstances(self.instances, builds)
 
     def geneva(self) -> InstanceVersionView:
         return self.create.execute("Geneva 3 km", DATASET_ID, FromPackageDefaults())

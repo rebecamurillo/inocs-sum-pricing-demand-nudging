@@ -25,6 +25,13 @@ from pricing_demo.application.errors import (
     UnknownCityDataset,
     UnknownStartVersion,
 )
+from pricing_demo.domain.builds import (
+    AlreadyBuilt,
+    ComponentUnavailable,
+    DraftChanged,
+    RuleBroken,
+    RunActive,
+)
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.city_instances import (
     CityInstanceNameTaken,
@@ -35,6 +42,7 @@ from pricing_demo.domain.city_instances import (
     VersionSealed,
 )
 from pricing_demo.domain.errors import DomainError
+from pricing_demo.domain.failure_codes import UnknownFailureCode
 from pricing_demo.domain.runs import (
     InvalidRunTransition,
     InvalidStepTransition,
@@ -42,7 +50,12 @@ from pricing_demo.domain.runs import (
     RunNotFound,
 )
 from pricing_demo.domain.system_status import IncompleteSystemStatus, InvalidComponentStatus
-from pricing_demo.interface.http.schemas import FieldError, ProblemDetails
+from pricing_demo.interface.http.schemas import (
+    BlockingReasonResponse,
+    FieldError,
+    ProblemDetails,
+    RuleResultResource,
+)
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 PROBLEM_TYPE_BASE = "https://sum-project.eu/problems/"
@@ -110,6 +123,17 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     ),
     OtherTimetableInGraphFolder: INTERNAL_ERROR,
     GraphBuildFailed: INTERNAL_ERROR,
+    RuleBroken: Problem(409, "rule_broken", "The draft breaks a rule"),
+    RunActive: Problem(409, "run_active", "The version has a queued or running run"),
+    AlreadyBuilt: Problem(409, "already_built", "The version is already built"),
+    ComponentUnavailable: Problem(
+        503, "component_unavailable", "A component the build needs is not available"
+    ),
+    # Only after every retry of the use case found the draft edited again meanwhile.
+    DraftChanged: INTERNAL_ERROR,
+    # Raised by the fake pricing model when a test names a code the domain does not have; the
+    # test-control request refuses such a code before it gets there.
+    UnknownFailureCode: INTERNAL_ERROR,
 }
 
 
@@ -119,6 +143,9 @@ def problem_response(
     errors: list[FieldError] | None = None,
     headers: Mapping[str, str] | None = None,
     draft_id: str | None = None,
+    failures: list[RuleResultResource] | None = None,
+    reasons: list[BlockingReasonResponse] | None = None,
+    run_id: str | None = None,
 ) -> JSONResponse:
     body = ProblemDetails(
         type=PROBLEM_TYPE_BASE + problem.code.replace("_", "-"),
@@ -128,6 +155,9 @@ def problem_response(
         code=problem.code,
         errors=errors,
         draft_id=draft_id,
+        failures=failures,
+        reasons=reasons,
+        run_id=run_id,
     )
     return JSONResponse(
         status_code=problem.status,
@@ -140,10 +170,22 @@ def problem_response(
 def _domain_error(request: Request, error: Exception) -> JSONResponse:
     assert isinstance(error, DomainError)
     problem = DOMAIN_PROBLEMS.get(type(error))
-    if problem is None or problem.status >= 500:
+    # A mapped 503 is an answer to the client, not a fault: only the unmapped and the
+    # explicitly internal errors are logged and hidden.
+    if problem is None or problem is INTERNAL_ERROR:
         return _unexpected_error(request, error)
-    draft_id = error.draft_id if isinstance(error, DraftExists) else None
-    return problem_response(problem, str(error), draft_id=draft_id)
+    return problem_response(
+        problem,
+        str(error),
+        draft_id=error.draft_id if isinstance(error, DraftExists) else None,
+        failures=[RuleResultResource.from_domain(item) for item in error.failures]
+        if isinstance(error, RuleBroken)
+        else None,
+        reasons=[BlockingReasonResponse.from_domain(item) for item in error.reasons]
+        if isinstance(error, ComponentUnavailable)
+        else None,
+        run_id=error.run_id if isinstance(error, RunActive) else None,
+    )
 
 
 def _validation_error(_: Request, error: Exception) -> JSONResponse:
