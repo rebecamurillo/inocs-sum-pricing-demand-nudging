@@ -30,8 +30,7 @@ def test_the_test_control_routes_are_absent_with_the_real_adapters() -> None:
 def test_the_test_control_routes_are_present_with_the_fake_adapters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The metadata now holds the run tables, so the reset reaches for a database; the
-    # integration suite (test_truncate.py) covers the real emptying.
+    # make check has no database; truncation is covered by the integration and e2e suites.
     emptied: list[object] = []
     monkeypatch.setattr(
         bootstrap, "truncate_all", lambda engine, metadata: emptied.append(metadata)
@@ -39,7 +38,8 @@ def test_the_test_control_routes_are_present_with_the_fake_adapters(
     client = TestClient(application("fake"))
 
     assert client.post(RESET).status_code == 204
-    assert emptied == [metadata]
+    assert len(emptied) == 1
+    assert emptied[0] is metadata
     assert (
         client.put(
             SOLVER, json={"available": False, "reason": "No Gurobi licence was found."}
