@@ -127,8 +127,5 @@ Accepted for a tool that runs on one machine; each must be settled before any ho
 
 ## Open, for the initiative's architecture step
 
-- How the system status tells a full licence from the size-limited one that `gurobipy`
-  ships with (`model-notes.md` entry 8). The skeleton's solver probe reports "available" as
-  soon as an environment starts.
 - The data model of city instances, pricing versions, results and periods.
 - The map and its basemap.

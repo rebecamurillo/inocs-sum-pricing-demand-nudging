@@ -48,6 +48,8 @@ services:
     environment:
       PRICING_DEMO_DATABASE_URL: postgresql+psycopg://pricing_demo:pricing_demo@db:5432/pricing_demo
       PRICING_DEMO_ADAPTERS: fake
+      # A test-control change reaches the system status within the e2e polling time.
+      PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S: 1
     tmpfs:
       - /app/demo/api/var/data
     # The API's start applies the migrations the worker's queries need.

@@ -79,7 +79,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Which components of the system work now */
+        /** Which components work now and which actions they allow */
         get: operations["getSystemStatus"];
         put?: never;
         post?: never;
@@ -94,18 +94,31 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * BlockingReasonResponse
+         * @description The component that blocks an action, with that component's own reason.
+         */
+        BlockingReasonResponse: {
+            component: components["schemas"]["ComponentName"];
+            /** Reason */
+            reason: string;
+        };
+        /**
          * ComponentName
-         * @description The parts of the system a run depends on, in the order they are reported.
+         * @description The parts of the system an action depends on, in the order they are reported.
          * @enum {string}
          */
-        ComponentName: "storage" | "pricing_model" | "solver" | "trip_planner";
+        ComponentName: "storage" | "runner" | "solver" | "package" | "trip_planner";
+        /**
+         * ComponentState
+         * @enum {string}
+         */
+        ComponentState: "available" | "limited" | "unavailable";
         /** ComponentStatusResponse */
         ComponentStatusResponse: {
-            /** Available */
-            available: boolean;
             name: components["schemas"]["ComponentName"];
             /** Reason */
             reason: string | null;
+            state: components["schemas"]["ComponentState"];
         };
         /** FieldError */
         FieldError: {
@@ -253,14 +266,18 @@ export interface components {
         SubjectType: "instance_version" | "pricing_version";
         /** SystemStatusResponse */
         SystemStatusResponse: {
-            /** Api Version */
-            api_version: string;
-            /** Can Read Stored Results */
-            can_read_stored_results: boolean;
-            /** Can Start Runs */
-            can_start_runs: boolean;
+            can_build_instances: components["schemas"]["VerdictResponse"];
+            can_run_pricing: components["schemas"]["VerdictResponse"];
+            can_simulate: components["schemas"]["VerdictResponse"];
             /** Components */
             components: components["schemas"]["ComponentStatusResponse"][];
+        };
+        /** VerdictResponse */
+        VerdictResponse: {
+            /** Allowed */
+            allowed: boolean;
+            /** Reasons */
+            reasons: components["schemas"]["BlockingReasonResponse"][];
         };
     };
     responses: never;

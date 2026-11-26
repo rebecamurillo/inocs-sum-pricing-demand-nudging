@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     data_dir: Path = Path("var/data")
     # The worker's identity; None means "{host}-{pid}".
     worker_id: str | None = None
+    # How often the worker probes the solver, the package and the trip planner and reports them.
+    component_report_interval_s: float = Field(default=30.0, gt=0)
 
     @field_validator("worker_id")
     @classmethod

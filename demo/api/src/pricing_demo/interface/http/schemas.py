@@ -15,32 +15,62 @@ from pricing_demo.domain.runs import (
     StepState,
     SubjectType,
 )
-from pricing_demo.domain.system_status import ComponentName, ComponentStatus, SystemStatus
+from pricing_demo.domain.system_status import (
+    BlockingReason,
+    ComponentName,
+    ComponentState,
+    ComponentStatus,
+    SystemStatus,
+    Verdict,
+)
 
 
 class ComponentStatusResponse(BaseModel):
     name: ComponentName
-    available: bool
+    state: ComponentState
     reason: str | None
 
     @classmethod
     def from_domain(cls, status: ComponentStatus) -> "ComponentStatusResponse":
-        return cls(name=status.name, available=status.available, reason=status.reason)
+        return cls(name=status.name, state=status.state, reason=status.reason)
+
+
+class BlockingReasonResponse(BaseModel):
+    """The component that blocks an action, with that component's own reason."""
+
+    component: ComponentName
+    reason: str
+
+    @classmethod
+    def from_domain(cls, blocking: BlockingReason) -> "BlockingReasonResponse":
+        return cls(component=blocking.component, reason=blocking.reason)
+
+
+class VerdictResponse(BaseModel):
+    allowed: bool
+    reasons: list[BlockingReasonResponse]
+
+    @classmethod
+    def from_domain(cls, verdict: Verdict) -> "VerdictResponse":
+        return cls(
+            allowed=verdict.allowed,
+            reasons=[BlockingReasonResponse.from_domain(item) for item in verdict.reasons],
+        )
 
 
 class SystemStatusResponse(BaseModel):
-    api_version: str
     components: list[ComponentStatusResponse]
-    can_read_stored_results: bool
-    can_start_runs: bool
+    can_build_instances: VerdictResponse
+    can_run_pricing: VerdictResponse
+    can_simulate: VerdictResponse
 
     @classmethod
-    def from_domain(cls, status: SystemStatus, api_version: str) -> "SystemStatusResponse":
+    def from_domain(cls, status: SystemStatus) -> "SystemStatusResponse":
         return cls(
-            api_version=api_version,
             components=[ComponentStatusResponse.from_domain(item) for item in status.components],
-            can_read_stored_results=status.can_read_stored_results,
-            can_start_runs=status.can_start_runs,
+            can_build_instances=VerdictResponse.from_domain(status.can_build_instances),
+            can_run_pricing=VerdictResponse.from_domain(status.can_run_pricing),
+            can_simulate=VerdictResponse.from_domain(status.can_simulate),
         )
 
 
@@ -61,7 +91,7 @@ class ProblemDetails(BaseModel):
 
 
 class ComponentAnswerRequest(BaseModel):
-    available: bool
+    state: ComponentState
     reason: str | None = None
 
 

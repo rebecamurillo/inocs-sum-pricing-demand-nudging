@@ -3,15 +3,22 @@ import { ApiProblemError } from '../../application/errors';
 import { HttpSystemStatusGateway } from './http-system-status-gateway';
 
 const wireStatus = {
-  api_version: '0.1.0',
   components: [
-    { name: 'storage', available: true, reason: null },
-    { name: 'pricing_model', available: true, reason: null },
-    { name: 'solver', available: false, reason: 'No Gurobi licence was found.' },
-    { name: 'trip_planner', available: true, reason: null },
+    { name: 'storage', state: 'available', reason: null },
+    { name: 'runner', state: 'available', reason: null },
+    { name: 'solver', state: 'limited', reason: 'Size-limited Gurobi licence.' },
+    { name: 'package', state: 'available', reason: null },
+    { name: 'trip_planner', state: 'unavailable', reason: 'No answer.' },
   ],
-  can_read_stored_results: true,
-  can_start_runs: false,
+  can_build_instances: {
+    allowed: false,
+    reasons: [{ component: 'trip_planner', reason: 'No answer.' }],
+  },
+  can_run_pricing: {
+    allowed: false,
+    reasons: [{ component: 'solver', reason: 'Size-limited Gurobi licence.' }],
+  },
+  can_simulate: { allowed: true, reasons: [] },
 };
 
 function gatewayAnswering(response: Response | Error) {
@@ -44,15 +51,22 @@ describe('HttpSystemStatusGateway', () => {
     const { gateway } = gatewayAnswering(Response.json(wireStatus));
 
     await expect(gateway.load()).resolves.toEqual({
-      apiVersion: '0.1.0',
       components: [
-        { name: 'storage', available: true, reason: null },
-        { name: 'pricingModel', available: true, reason: null },
-        { name: 'solver', available: false, reason: 'No Gurobi licence was found.' },
-        { name: 'tripPlanner', available: true, reason: null },
+        { name: 'storage', state: 'available', reason: null },
+        { name: 'runner', state: 'available', reason: null },
+        { name: 'solver', state: 'limited', reason: 'Size-limited Gurobi licence.' },
+        { name: 'package', state: 'available', reason: null },
+        { name: 'tripPlanner', state: 'unavailable', reason: 'No answer.' },
       ],
-      canReadStoredResults: true,
-      canStartRuns: false,
+      canBuildInstances: {
+        allowed: false,
+        reasons: [{ component: 'tripPlanner', reason: 'No answer.' }],
+      },
+      canRunPricing: {
+        allowed: false,
+        reasons: [{ component: 'solver', reason: 'Size-limited Gurobi licence.' }],
+      },
+      canSimulate: { allowed: true, reasons: [] },
     });
   });
 

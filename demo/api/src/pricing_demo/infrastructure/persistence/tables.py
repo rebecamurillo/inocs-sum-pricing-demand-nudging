@@ -106,3 +106,28 @@ run_steps = Table(
     CheckConstraint(one_of("step", STEP_NAMES), name="step"),
     CheckConstraint(one_of("state", STEP_STATES), name="state"),
 )
+
+COMPONENT_STATES = ("available", "limited", "unavailable")
+
+# `worker_id` has no foreign key: the e2e reset truncates `workers` and the worker must still
+# be able to write its reports. A report is fresh when the `workers` row it names beats.
+component_reports = Table(
+    "component_reports",
+    metadata,
+    Column("component", Text, primary_key=True),
+    Column("state", Text, nullable=False),
+    Column("reason", Text),
+    Column("details", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("reported_at", DateTime(timezone=True), nullable=False),
+    Column("worker_id", Text, nullable=False),
+    CheckConstraint(one_of("state", COMPONENT_STATES), name="state"),
+)
+
+# One row, written by the test-control routes; always empty with real adapters.
+fake_settings = Table(
+    "fake_settings",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=False),
+    Column("settings", JSONB, nullable=False),
+    CheckConstraint("id = 1", name="single_row"),
+)

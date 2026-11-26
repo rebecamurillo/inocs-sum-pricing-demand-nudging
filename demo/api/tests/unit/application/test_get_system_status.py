@@ -1,55 +1,104 @@
+from datetime import timedelta
+
 import pytest
 
 from pricing_demo.application.errors import InvalidProbeSet
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
-from pricing_demo.domain.system_status import ComponentName
-from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.domain.system_status import (
+    ComponentName,
+    ComponentState,
+    ComponentStatus,
+)
+from pricing_demo.infrastructure.fakes.clock import FixedClock
+from pricing_demo.infrastructure.fakes.component_probe import fixed_probe
+from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
+from tests.support.runs import T0
+
+STORAGE_OK = ComponentStatus.ready(ComponentName.STORAGE)
 
 
-def all_probes() -> list[FakeProbe]:
-    return [FakeProbe(name) for name in ComponentName]
+class Rig:
+    def __init__(self, storage: ComponentStatus = STORAGE_OK) -> None:
+        self.reports = InMemoryComponentReports()
+        self.clock = FixedClock(T0)
+        self.use_case = GetSystemStatus(fixed_probe(storage), self.reports, self.clock)
+
+    def report_all(self, worker_id: str = "w-1") -> None:
+        for name in (ComponentName.SOLVER, ComponentName.PACKAGE, ComponentName.TRIP_PLANNER):
+            self.reports.write(ComponentStatus.ready(name), worker_id, T0)
+        self.reports.worker_heartbeats[worker_id] = T0
 
 
 def test_the_status_lists_every_component_in_order() -> None:
-    status = GetSystemStatus(list(reversed(all_probes()))).execute()
+    rig = Rig()
+    rig.report_all()
+
+    status = rig.use_case.execute()
 
     assert [item.name for item in status.components] == list(ComponentName)
 
 
-def test_runs_can_start_when_every_probe_reports_available() -> None:
-    status = GetSystemStatus(all_probes()).execute()
+def test_every_action_can_start_when_the_runner_reports_every_component_available() -> None:
+    rig = Rig()
+    rig.report_all()
 
-    assert status.can_start_runs
+    status = rig.use_case.execute()
+
+    assert status.can_build_instances.allowed
+    assert status.can_run_pricing.allowed
+    assert status.can_simulate.allowed
 
 
-def test_an_unavailable_probe_blocks_runs_and_keeps_its_reason() -> None:
-    probes = all_probes()
-    probes[2].set_answer(available=False, reason="No Gurobi licence was found.")
+def test_a_reported_unavailable_component_keeps_its_reason_and_refuses_its_action() -> None:
+    rig = Rig()
+    rig.report_all()
+    rig.reports.write(
+        ComponentStatus.unavailable(ComponentName.TRIP_PLANNER, "OTP does not answer."),
+        "w-1",
+        T0,
+    )
 
-    status = GetSystemStatus(probes).execute()
+    status = rig.use_case.execute()
 
-    assert not status.can_start_runs
-    solver = status.components[2]
-    assert (solver.name, solver.reason) == (ComponentName.SOLVER, "No Gurobi licence was found.")
+    assert not status.can_build_instances.allowed
+    assert status.can_build_instances.reasons[0].reason == "OTP does not answer."
+    assert status.can_simulate.allowed
 
 
 def test_the_status_is_read_again_at_each_execution() -> None:
-    probes = all_probes()
-    use_case = GetSystemStatus(probes)
-    assert use_case.execute().can_start_runs
+    rig = Rig()
+    rig.report_all()
+    assert rig.use_case.execute().can_simulate.allowed
 
-    probes[1].set_answer(available=False, reason="Not installed.")
+    rig.clock.advance(timedelta(seconds=31))
 
-    assert not use_case.execute().can_start_runs
+    status = rig.use_case.execute()
+    assert not status.can_simulate.allowed
+    runner = status.components[1]
+    assert runner.state is ComponentState.UNAVAILABLE
 
 
-def test_a_missing_probe_is_refused() -> None:
-    with pytest.raises(InvalidProbeSet, match="missing: solver"):
+def test_storage_down_does_not_read_the_reports() -> None:
+    class Exploding(InMemoryComponentReports):
+        def read(self):  # type: ignore[no-untyped-def]
+            raise AssertionError("reports must not be read")
+
+    use_case = GetSystemStatus(
+        fixed_probe(ComponentStatus.unavailable(ComponentName.STORAGE, "no database")),
+        Exploding(),
+        FixedClock(T0),
+    )
+
+    status = use_case.execute()
+
+    assert status.components[0].reason == "no database"
+    assert not status.can_simulate.allowed
+
+
+def test_a_probe_for_another_component_than_storage_is_refused() -> None:
+    with pytest.raises(InvalidProbeSet, match="storage"):
         GetSystemStatus(
-            [probe for probe in all_probes() if probe.component != ComponentName.SOLVER]
+            fixed_probe(ComponentStatus.ready(ComponentName.SOLVER)),
+            InMemoryComponentReports(),
+            FixedClock(T0),
         )
-
-
-def test_two_probes_for_one_component_are_refused() -> None:
-    with pytest.raises(InvalidProbeSet, match="duplicated: storage"):
-        GetSystemStatus([*all_probes(), FakeProbe(ComponentName.STORAGE)])

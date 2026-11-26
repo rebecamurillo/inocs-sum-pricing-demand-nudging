@@ -9,7 +9,7 @@ The rules that bind every change are in `AGENTS.md` (rules 3, 4 and 7).
 | --- | --- | --- | --- | --- |
 | Unit | a rule, a calculation, a use case, a component, in isolation with fakes | `api/tests/unit/`, `web/src/**/*.test.ts(x)` | `make check`, `make test` | nothing |
 | Contract | a fake and its real adapter behave the same way behind a port | `api/tests/contract/` | the fake, and the real adapters' unreachable cases: `make check`; the rest: `make test-integration` or `make live-smoke` | in `make check`: nothing |
-| Architecture | the rules a linter cannot express (which routes exist in which mode) | `api/tests/architecture/` | `make check` | nothing |
+| Architecture | the rules a linter cannot express (which routes exist in which mode, that the API process never loads the package) | `api/tests/architecture/` | `make check` | nothing |
 | Integration | repositories, migrations and the worker's claim, lease and cancellation against a real PostgreSQL | `api/tests/integration/` | `make test-integration` | Docker |
 | End-to-end | a user's scenario through the browser, the API and the database | `e2e/tests/` | `make e2e` | Docker |
 | Live smoke | the real package, solver and trip planner answer | `api/tests/live/` | `make live-smoke` | licence, OpenTripPlanner |
@@ -37,8 +37,10 @@ situations that need no outside service (an unreachable database URL, a closed l
 in `make check`; and under the `integration` marker (a working PostgreSQL) or the `live`
 marker (package, solver, running trip planner) otherwise.
 The suite asserts behaviour, not types: each implementation supplies the situations the
-port's contract names (for a probe: the component working, the component unavailable) and
-the same assertions run on all of them. A fake that drifts from the real adapter fails
+port's contract names (for a probe: the component working, unavailable, and for the solver
+limited) and the same assertions run on all of them. The report store (`ComponentReports`) and
+the fake settings store each have their suite (`contract/test_component_reports.py`,
+`contract/test_fake_settings.py`): in memory always, PostgreSQL under `integration`. A fake that drifts from the real adapter fails
 here. Adding a port means adding its fake and its suite in the same change.
 
 ## Integration tests
@@ -64,8 +66,8 @@ e2e/
   support/                      the fixtures every test uses, the client of the test-control API, page objects
 ```
 
-- **One worker.** What the fakes answer is one shared state in the API, so scenarios run one
-  after the other.
+- **One worker.** What the fakes answer is one shared row in the database, so scenarios run
+  one after the other.
 
 - **The stack.** `compose.e2e.yaml` starts PostgreSQL, the API with the fake adapters, the
   worker with the fake adapters and the web container, on its own project name and port (14400), so it runs beside `make dev`.
@@ -76,14 +78,23 @@ e2e/
 - **Selectors** are roles, labels and visible text. No CSS selector, no test id unless the
   element has no accessible name, no fixed wait.
 - **State.** Every test starts from an empty database and from fakes in their default
-  state: a fixture calls the test-control reset before each test. The reset truncates every
+  state: a fixture calls the test-control reset before each test and waits for the status to read
+  every component available again. The reset truncates every
   table of the application's metadata, so a new table is covered without further work.
   Tests do not depend on each other's order.
 - **The test-control API** (`/api/test-control/…`) exists only when the API runs with the
   fake adapters. It resets stored data and sets what the fakes answer (a component
-  unavailable, a run that fails at a named step). An architecture test asserts it is not
-  mounted with the real adapters. It is the only test seam: a scenario never stubs the
-  network in the browser.
+  unavailable or, for the solver, limited; a run that fails at a named step). An
+  architecture test asserts it is not mounted with the real adapters. It is the only test
+  seam: a scenario never stubs the network in the browser.
+- **Fakes are set through `fake_settings`.** The API and the worker are two processes, so the
+  test-control routes write one row of the table `fake_settings` and the worker's fake probes
+  read it at each report cycle. The worker reports the components every second on the e2e
+  stack (`PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S: 1`) and the reset truncates every table
+  and writes the default settings (every component available). `TestControl.reset()` and
+  `setComponent()` therefore wait, with a polling assertion on `GET /api/v1/system-status`,
+  until the status shows the change: a scenario never sleeps. With real adapters
+  `fake_settings` stays empty and nothing constructs its store (an architecture test).
 - **When a scenario fails**, the stack's logs are in `e2e/test-results/stack.log` and the
   Playwright report in `e2e/playwright-report/`.
 

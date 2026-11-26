@@ -16,6 +16,7 @@ from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
+from tests.support.reporting import REPORT_EVERY, quiet_report
 from tests.support.runs import T0, BlockingExecutor, RecordingExecutor, later, make_run, step
 
 pytestmark = pytest.mark.integration
@@ -36,7 +37,14 @@ def test_a_cancellation_stops_the_executor_and_cancels_the_run_keeping_done_step
     steps.register(StepName.HUBS, blocking)
     process = ProcessNextRun(repository, steps, workers, identity, clock, waiter)
     worker = RunWorker(
-        identity, workers, RecoverInterruptedRuns(repository, clock), process, clock, waiter
+        identity,
+        workers,
+        RecoverInterruptedRuns(repository, clock),
+        process,
+        quiet_report(clock),
+        REPORT_EVERY,
+        clock,
+        waiter,
     )
     repository.add(
         make_run(

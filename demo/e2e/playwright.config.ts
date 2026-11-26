@@ -1,7 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // No webServer: `make e2e` starts the stack (compose.e2e.yaml) and removes it afterwards.
-// The fakes' state is one in-memory object in the API, so scenarios run one at a time.
+// The fakes' state is the one `fake_settings` row the worker's fakes read, so scenarios run
+// one at a time.
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false,

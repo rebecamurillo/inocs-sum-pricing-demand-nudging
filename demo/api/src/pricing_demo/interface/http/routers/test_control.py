@@ -2,7 +2,7 @@ from typing import Protocol
 
 from fastapi import APIRouter, Response
 
-from pricing_demo.domain.system_status import ComponentName
+from pricing_demo.domain.system_status import ComponentName, ComponentState
 from pricing_demo.interface.http.schemas import ComponentAnswerRequest
 
 
@@ -13,10 +13,11 @@ class E2ETestSeam(Protocol):
     structurally.
     """
 
-    def set_component(self, name: ComponentName, available: bool, reason: str | None) -> None:
+    def set_component(self, name: ComponentName, state: ComponentState, reason: str | None) -> None:
         """Make a faked component answer as given.
 
-        Raises ComponentNotControllable when the component is not faked.
+        Raises ComponentNotControllable when the component is not faked and
+        InvalidComponentStatus when the answer is not a valid status.
         """
         ...
 
@@ -30,7 +31,7 @@ def build_test_control_router(seam: E2ETestSeam) -> APIRouter:
 
     @router.put("/components/{name}", status_code=204)
     def set_component_answer(name: ComponentName, answer: ComponentAnswerRequest) -> Response:
-        seam.set_component(name, answer.available, answer.reason)
+        seam.set_component(name, answer.state, answer.reason)
         return Response(status_code=204)
 
     @router.post("/reset", status_code=204)

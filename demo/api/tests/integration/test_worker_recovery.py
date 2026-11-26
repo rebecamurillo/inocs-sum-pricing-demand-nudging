@@ -16,6 +16,7 @@ from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
+from tests.support.reporting import REPORT_EVERY, quiet_report
 from tests.support.runs import T0, RecordingExecutor, later, make_run, step
 
 pytestmark = pytest.mark.integration
@@ -95,6 +96,8 @@ def test_a_worker_restarted_within_sixty_seconds_recovers_the_old_run_on_a_later
         workers,
         RecoverInterruptedRuns(repository, clock),
         ProcessNextRun(repository, steps, workers, identity, clock, waiter),
+        quiet_report(clock),
+        REPORT_EVERY,
         clock,
         waiter,
     )

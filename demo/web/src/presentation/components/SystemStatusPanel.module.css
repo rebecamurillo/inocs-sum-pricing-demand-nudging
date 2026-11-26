@@ -53,6 +53,7 @@
 }
 
 .available,
+.limited,
 .unavailable {
   justify-self: start;
   padding: 1px 8px;
@@ -63,6 +64,11 @@
 .available {
   color: var(--green-ink);
   background: var(--green-tint);
+}
+
+.limited {
+  color: var(--blue-d);
+  background: var(--blue-tint);
 }
 
 .unavailable {

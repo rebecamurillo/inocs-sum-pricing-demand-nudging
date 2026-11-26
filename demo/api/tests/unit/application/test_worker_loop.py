@@ -10,10 +10,13 @@ from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
 from pricing_demo.application.use_cases.run_worker import RunWorker
 from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
+from pricing_demo.domain.system_status import ComponentStatus
 from pricing_demo.infrastructure.fakes.clock import FixedClock
+from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.fakes.worker_registry import InMemoryWorkerRegistry
+from tests.support.reporting import REPORT_EVERY, quiet_report
 from tests.support.runs import (
     T0,
     BlockingExecutor,
@@ -42,6 +45,8 @@ class Rig:
             self.workers,
             RecoverInterruptedRuns(self.runs, self.clock),
             self.process,
+            quiet_report(self.clock),
+            REPORT_EVERY,
             self.clock,
             self.waiter,
         )
@@ -365,6 +370,8 @@ def test_after_a_reset_deleted_the_worker_row_the_worker_writes_it_before_claimi
         workers,
         RecoverInterruptedRuns(rig.runs, rig.clock),
         rig.process,
+        quiet_report(rig.clock),
+        REPORT_EVERY,
         rig.clock,
         rig.waiter,
     )
@@ -434,3 +441,119 @@ def test_a_step_that_ends_as_the_worker_is_told_to_stop_keeps_its_outcome(rig: R
     run = rig.stored()
     assert run.steps[0].state is StepState.DONE
     assert run.state is RunState.SUCCEEDED
+
+
+# -- the report of the components ----------------------------------------------------------
+
+
+class ReportRig(Rig):
+    """The same worker with a report whose writes are visible."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.reports = InMemoryComponentReports()
+        self.worker = RunWorker(
+            self.identity,
+            self.workers,
+            RecoverInterruptedRuns(self.runs, self.clock),
+            self.process,
+            quiet_report(self.clock, "w-1", self.reports),
+            REPORT_EVERY,
+            self.clock,
+            self.waiter,
+        )
+
+    def reported_at(self) -> set[datetime]:
+        return {item.reported_at for item in self.reports.read().reports}
+
+
+def test_starting_reports_the_three_probed_components_at_the_time_of_the_clock() -> None:
+    rig = ReportRig()
+
+    rig.worker.start()
+
+    reports = rig.reports.read().reports
+    assert sorted(item.status.name.value for item in reports) == [
+        "package",
+        "solver",
+        "trip_planner",
+    ]
+    assert rig.reported_at() == {T0}
+
+
+def test_the_components_are_reported_again_only_after_the_interval() -> None:
+    rig = ReportRig()
+    rig.worker.start()
+    rig.stop_at(65)
+
+    seen: list[set[datetime]] = []
+    previous = rig.waiter.on_wait
+
+    def hook(now: datetime) -> None:
+        if previous is not None:
+            previous(now)
+        seen.append(rig.reported_at())
+
+    rig.waiter.on_wait = hook
+
+    rig.worker.run(rig.until)
+
+    assert seen[28] == {T0}  # second 29: not yet due
+    assert seen[30] == {later(30)}
+    assert seen[-1] == {later(60)}
+
+
+def test_the_components_are_reported_while_a_run_executes() -> None:
+    rig = ReportRig()
+    gate = GatedExecutor()
+    rig.registry.register(StepName.AREA, gate)
+    rig.runs.add(make_run("r1", steps=(step(1, StepName.AREA),)))
+
+    def hook(now: datetime) -> None:
+        if now >= later(40):
+            gate.release.set()
+
+    rig.waiter.on_wait = hook
+    rig.worker.start()
+    rig.stop_at(45)
+
+    rig.worker.run(rig.until)
+
+    assert rig.reported_at() == {later(30)}
+    assert rig.stored().state is RunState.SUCCEEDED
+
+
+def test_a_failing_report_does_not_end_the_loop_and_is_tried_at_the_next_tick() -> None:
+    class FlakyReports(InMemoryComponentReports):
+        def __init__(self) -> None:
+            super().__init__()
+            self.failures_left = 3
+
+        def write(self, status: ComponentStatus, worker_id: str, at: datetime) -> None:
+            if self.failures_left:
+                self.failures_left -= 1
+                raise ConnectionError("the database is restarting")
+            super().write(status, worker_id, at)
+
+    rig = Rig()
+    reports = FlakyReports()
+    rig.worker = RunWorker(
+        rig.identity,
+        rig.workers,
+        RecoverInterruptedRuns(rig.runs, rig.clock),
+        rig.process,
+        quiet_report(rig.clock, "w-1", reports),
+        REPORT_EVERY,
+        rig.clock,
+        rig.waiter,
+    )
+    rig.runs.add(make_run("r1", steps=(step(1, StepName.AREA),)))
+    log: list[str] = []
+    rig.registry.register(StepName.AREA, RecordingExecutor(log))
+
+    rig.worker.start()
+    rig.stop_at(3)
+    rig.worker.run(rig.until)
+
+    assert log == ["r1:area"]
+    assert {item.reported_at for item in reports.read().reports} == {later(1)}

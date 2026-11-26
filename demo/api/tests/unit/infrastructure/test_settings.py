@@ -6,7 +6,14 @@ from pricing_demo.infrastructure.config.settings import Settings
 
 
 def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) -> None:
-    for name in ("DATABASE_URL", "ADAPTERS", "OTP_URL", "DATA_DIR", "WORKER_ID"):
+    for name in (
+        "DATABASE_URL",
+        "ADAPTERS",
+        "OTP_URL",
+        "DATA_DIR",
+        "WORKER_ID",
+        "COMPONENT_REPORT_INTERVAL_S",
+    ):
         monkeypatch.delenv(f"PRICING_DEMO_{name}", raising=False)
 
     settings = Settings()
@@ -18,6 +25,7 @@ def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) 
     assert settings.otp_url == "http://localhost:8080/otp/gtfs/v1"
     assert settings.data_dir == Path("var/data")
     assert settings.worker_id is None
+    assert settings.component_report_interval_s == 30
 
 
 def test_settings_come_from_prefixed_environment_variables(
@@ -57,3 +65,18 @@ def test_an_empty_worker_id_reads_as_none(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("PRICING_DEMO_WORKER_ID", "")
 
     assert Settings().worker_id is None
+
+
+def test_the_component_report_interval_is_read_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S", "1")
+
+    assert Settings().component_report_interval_s == 1
+
+
+def test_a_component_report_interval_of_zero_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S", "0")
+
+    with pytest.raises(ValueError, match="greater than 0"):
+        Settings()

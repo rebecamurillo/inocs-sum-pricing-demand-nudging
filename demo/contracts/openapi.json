@@ -1,23 +1,47 @@
 {
   "components": {
     "schemas": {
+      "BlockingReasonResponse": {
+        "description": "The component that blocks an action, with that component's own reason.",
+        "properties": {
+          "component": {
+            "$ref": "#/components/schemas/ComponentName"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "component",
+          "reason"
+        ],
+        "title": "BlockingReasonResponse",
+        "type": "object"
+      },
       "ComponentName": {
-        "description": "The parts of the system a run depends on, in the order they are reported.",
+        "description": "The parts of the system an action depends on, in the order they are reported.",
         "enum": [
           "storage",
-          "pricing_model",
+          "runner",
           "solver",
+          "package",
           "trip_planner"
         ],
         "title": "ComponentName",
         "type": "string"
       },
+      "ComponentState": {
+        "enum": [
+          "available",
+          "limited",
+          "unavailable"
+        ],
+        "title": "ComponentState",
+        "type": "string"
+      },
       "ComponentStatusResponse": {
         "properties": {
-          "available": {
-            "title": "Available",
-            "type": "boolean"
-          },
           "name": {
             "$ref": "#/components/schemas/ComponentName"
           },
@@ -31,11 +55,14 @@
               }
             ],
             "title": "Reason"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ComponentState"
           }
         },
         "required": [
           "name",
-          "available",
+          "state",
           "reason"
         ],
         "title": "ComponentStatusResponse",
@@ -485,17 +512,14 @@
       },
       "SystemStatusResponse": {
         "properties": {
-          "api_version": {
-            "title": "Api Version",
-            "type": "string"
+          "can_build_instances": {
+            "$ref": "#/components/schemas/VerdictResponse"
           },
-          "can_read_stored_results": {
-            "title": "Can Read Stored Results",
-            "type": "boolean"
+          "can_run_pricing": {
+            "$ref": "#/components/schemas/VerdictResponse"
           },
-          "can_start_runs": {
-            "title": "Can Start Runs",
-            "type": "boolean"
+          "can_simulate": {
+            "$ref": "#/components/schemas/VerdictResponse"
           },
           "components": {
             "items": {
@@ -506,12 +530,33 @@
           }
         },
         "required": [
-          "api_version",
           "components",
-          "can_read_stored_results",
-          "can_start_runs"
+          "can_build_instances",
+          "can_run_pricing",
+          "can_simulate"
         ],
         "title": "SystemStatusResponse",
+        "type": "object"
+      },
+      "VerdictResponse": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/BlockingReasonResponse"
+            },
+            "title": "Reasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "allowed",
+          "reasons"
+        ],
+        "title": "VerdictResponse",
         "type": "object"
       }
     }
@@ -822,7 +867,7 @@
             "description": "Unexpected error"
           }
         },
-        "summary": "Which components of the system work now",
+        "summary": "Which components work now and which actions they allow",
         "tags": [
           "system"
         ]

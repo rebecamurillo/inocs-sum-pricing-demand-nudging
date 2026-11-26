@@ -1,4 +1,10 @@
-import { blockingComponents, componentLabel, type SystemStatus } from '../../domain/system-status';
+import {
+  componentLabel,
+  stateLabel,
+  type ComponentState,
+  type SystemStatus,
+  type Verdict,
+} from '../../domain/system-status';
 import { useSystemStatus, type FailureReason } from '../hooks/useSystemStatus';
 import styles from './SystemStatusPanel.module.css';
 
@@ -25,6 +31,36 @@ function Failed({ reason, onRetry }: { reason: FailureReason; onRetry: () => voi
   );
 }
 
+const stateClasses: Readonly<Record<ComponentState, string>> = {
+  available: styles.available ?? '',
+  limited: styles.limited ?? '',
+  unavailable: styles.unavailable ?? '',
+};
+
+function VerdictLine({
+  verdict,
+  allowed,
+  refused,
+}: {
+  verdict: Verdict;
+  allowed: string;
+  refused: string;
+}) {
+  if (verdict.allowed) return <p>{allowed}</p>;
+  return (
+    <>
+      <p>{refused}</p>
+      <ul className={styles.reasons}>
+        {verdict.reasons.map((blocking) => (
+          <li key={blocking.component}>
+            {componentLabel(blocking.component)}: {blocking.reason}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 function Loaded({ status }: { status: SystemStatus }) {
   return (
     <>
@@ -32,28 +68,26 @@ function Loaded({ status }: { status: SystemStatus }) {
         {status.components.map((component) => (
           <li key={component.name} className={styles.component}>
             <span className={styles.name}>{componentLabel(component.name)}</span>
-            <span className={component.available ? styles.available : styles.unavailable}>
-              {component.available ? 'Available' : 'Unavailable'}
-            </span>
+            <span className={stateClasses[component.state]}>{stateLabel(component.state)}</span>
             {component.reason !== null && <span className={styles.reason}>{component.reason}</span>}
           </li>
         ))}
       </ul>
-      {status.canStartRuns ? (
-        <p>New runs can start.</p>
-      ) : (
-        <>
-          <p>New runs cannot start:</p>
-          <ul className={styles.reasons}>
-            {blockingComponents(status).map((component) => (
-              <li key={component.name}>
-                {componentLabel(component.name)}: {component.reason}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {!status.canReadStoredResults && <p>Stored results cannot be read.</p>}
+      <VerdictLine
+        verdict={status.canBuildInstances}
+        allowed="Instance builds can start."
+        refused="Instance builds cannot start:"
+      />
+      <VerdictLine
+        verdict={status.canRunPricing}
+        allowed="Pricing runs can start."
+        refused="Pricing runs cannot start:"
+      />
+      <VerdictLine
+        verdict={status.canSimulate}
+        allowed="Simulations can start."
+        refused="Simulations cannot start:"
+      />
     </>
   );
 }

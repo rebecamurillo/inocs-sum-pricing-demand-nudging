@@ -12,7 +12,7 @@ pytestmark = pytest.mark.live
 def test_the_package_probe_answers() -> None:
     status = PackageProbe().check()
 
-    assert status == ComponentStatus.ready(ComponentName.PRICING_MODEL), status.reason
+    assert status == ComponentStatus.ready(ComponentName.PACKAGE), status.reason
 
 
 def test_the_solver_probe_answers() -> None:

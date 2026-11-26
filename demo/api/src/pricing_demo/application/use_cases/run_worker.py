@@ -11,6 +11,7 @@ from pricing_demo.application.use_cases.process_next_run import (
     ProcessNextRun,
 )
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
+from pricing_demo.application.use_cases.report_components import ReportComponents
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +22,13 @@ RECOVERY_EVERY = timedelta(seconds=10)
 
 
 class RunWorker:
-    """The worker's loop: register, recover interrupted runs, then poll for queued runs.
+    """The worker's loop: register, recover interrupted runs, report the components, then poll
+    for queued runs.
 
     The recovery runs at the start and again every `RECOVERY_EVERY`, idle or while a run
-    executes; it never recovers the run this worker has in hand.
+    executes; it never recovers the run this worker has in hand. The components are reported
+    at the start and again every `report_every`, in the same way; a failed report is logged
+    and tried again at the next tick.
     """
 
     def __init__(
@@ -33,6 +37,8 @@ class RunWorker:
         workers: WorkerRegistry,
         recover: RecoverInterruptedRuns,
         process: ProcessNextRun,
+        report: ReportComponents,
+        report_every: timedelta,
         clock: Clock,
         waiter: Waiter,
     ) -> None:
@@ -40,21 +46,38 @@ class RunWorker:
         self._workers = workers
         self._recover = recover
         self._process = process
+        self._report = report
+        self._report_every = report_every
         self._clock = clock
         self._waiter = waiter
         self._last_recovery: datetime | None = None
+        self._last_report: datetime | None = None
 
     def start(self) -> None:
         identity = self._identity
         self._workers.register(identity.id, identity.host, identity.pid, self._clock.now())
+        self._report_if_due()
         self._recover_now(None)
+
+    def _report_if_due(self) -> None:
+        last = self._last_report
+        if last is not None and self._clock.now() - last < self._report_every:
+            return
+        started = self._clock.now()
+        try:
+            self._report.execute()
+        except Exception:
+            logger.exception("The report of the components failed; trying again")
+            return
+        self._last_report = started
 
     def _recover_now(self, in_hand: str | None) -> None:
         self._last_recovery = self._clock.now()
         for run in self._recover.execute(in_hand):
             logger.warning("Run %s was interrupted: it is now %s", run.id, run.state.value)
 
-    def _recover_if_due(self, in_hand: str | None) -> None:
+    def _periodic(self, in_hand: str | None) -> None:
+        self._report_if_due()
         last = self._last_recovery
         if last is None or self._clock.now() - last >= RECOVERY_EVERY:
             self._recover_now(in_hand)
@@ -65,7 +88,7 @@ class RunWorker:
         while not until.is_set():
             idle = True
             try:
-                self._recover_if_due(None)
+                self._periodic(None)
             except Exception:
                 logger.exception("The recovery of interrupted runs failed; trying again")
             try:
@@ -74,7 +97,7 @@ class RunWorker:
                     # the worker (foreign key), and an e2e reset may have deleted the row.
                     last_heartbeat = self._clock.now()
                     self._heartbeat(last_heartbeat)
-                idle = not self._process.execute(until, self._recover_if_due)
+                idle = not self._process.execute(until, self._periodic)
                 now = self._clock.now()
                 if last_heartbeat is None or now - last_heartbeat >= HEARTBEAT_EVERY:
                     self._heartbeat(now)

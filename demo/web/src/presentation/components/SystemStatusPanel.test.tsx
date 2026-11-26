@@ -3,42 +3,76 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiProblemError } from '../../application/errors';
 import type { SystemStatusGateway } from '../../application/ports/system-status-gateway';
-import type { SystemStatus } from '../../domain/system-status';
+import type { ComponentStatus, SystemStatus, Verdict } from '../../domain/system-status';
 import { GatewaysProvider } from '../hooks/gateways';
 import { SystemStatusPanel } from './SystemStatusPanel';
 
+const allowed: Verdict = { allowed: true, reasons: [] };
+
 const everythingAvailable: SystemStatus = {
-  apiVersion: '0.1.0',
   components: [
-    { name: 'storage', available: true, reason: null },
-    { name: 'pricingModel', available: true, reason: null },
-    { name: 'solver', available: true, reason: null },
-    { name: 'tripPlanner', available: true, reason: null },
+    { name: 'storage', state: 'available', reason: null },
+    { name: 'runner', state: 'available', reason: null },
+    { name: 'solver', state: 'available', reason: null },
+    { name: 'package', state: 'available', reason: null },
+    { name: 'tripPlanner', state: 'available', reason: null },
   ],
-  canReadStoredResults: true,
-  canStartRuns: true,
+  canBuildInstances: allowed,
+  canRunPricing: allowed,
+  canSimulate: allowed,
 };
 
-const solverMissing: SystemStatus = {
+function withComponent(component: ComponentStatus): SystemStatus['components'] {
+  return everythingAvailable.components.map((item) =>
+    item.name === component.name ? component : item,
+  );
+}
+
+const solverLimited: SystemStatus = {
   ...everythingAvailable,
-  components: [
-    { name: 'storage', available: true, reason: null },
-    { name: 'pricingModel', available: true, reason: null },
-    { name: 'solver', available: false, reason: 'No Gurobi licence was found.' },
-    { name: 'tripPlanner', available: true, reason: null },
-  ],
-  canStartRuns: false,
+  components: withComponent({
+    name: 'solver',
+    state: 'limited',
+    reason: 'Size-limited Gurobi licence.',
+  }),
+  canRunPricing: {
+    allowed: false,
+    reasons: [{ component: 'solver', reason: 'Size-limited Gurobi licence.' }],
+  },
 };
 
-const twoMissing: SystemStatus = {
+const tripPlannerDown: SystemStatus = {
   ...everythingAvailable,
-  components: [
-    { name: 'storage', available: true, reason: null },
-    { name: 'pricingModel', available: false, reason: 'Not installed.' },
-    { name: 'solver', available: true, reason: null },
-    { name: 'tripPlanner', available: false, reason: 'No answer from OpenTripPlanner.' },
-  ],
-  canStartRuns: false,
+  components: withComponent({
+    name: 'tripPlanner',
+    state: 'unavailable',
+    reason: 'No answer from OpenTripPlanner.',
+  }),
+  canBuildInstances: {
+    allowed: false,
+    reasons: [{ component: 'tripPlanner', reason: 'No answer from OpenTripPlanner.' }],
+  },
+};
+
+const runnerDown: SystemStatus = {
+  ...everythingAvailable,
+  components: withComponent({
+    name: 'runner',
+    state: 'unavailable',
+    reason: 'No runner has reported in the last 30 s.',
+  }),
+  canBuildInstances: {
+    allowed: false,
+    reasons: [{ component: 'runner', reason: 'No runner has reported in the last 30 s.' }],
+  },
+  canRunPricing: {
+    allowed: false,
+    reasons: [{ component: 'runner', reason: 'No runner has reported in the last 30 s.' }],
+  },
+  canSimulate: {
+    allowed: false,
+    reasons: [{ component: 'runner', reason: 'No runner has reported in the last 30 s.' }],
+  },
 };
 
 const unreachable = new ApiProblemError({
@@ -62,60 +96,61 @@ describe('SystemStatusPanel', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Reading the system status.');
   });
 
-  it('shows one row per component with its availability', async () => {
-    renderPanel({ load: () => Promise.resolve(solverMissing) });
+  it('shows five rows with their state and reason', async () => {
+    renderPanel({ load: () => Promise.resolve(solverLimited) });
 
     const rows = await screen.findAllByRole('listitem');
-    const solverRow = rows.find((row) => within(row).queryByText('Solver') !== null);
+    const rowOf = (label: string) => rows.find((row) => within(row).queryByText(label) !== null);
 
-    expect(screen.getByText('Storage')).toBeInTheDocument();
-    expect(screen.getByText('Pricing model')).toBeInTheDocument();
-    expect(screen.getByText('Trip planner')).toBeInTheDocument();
-    expect(screen.getAllByText('Available')).toHaveLength(3);
-    expect(solverRow).toBeDefined();
-    expect(solverRow).toHaveTextContent('Unavailable');
-    expect(solverRow).toHaveTextContent('No Gurobi licence was found.');
+    for (const label of ['Storage', 'Runner', 'Solver', 'Pricing package', 'Trip planner']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getAllByText('Available')).toHaveLength(4);
+    expect(rowOf('Solver')).toHaveTextContent('Limited');
+    expect(rowOf('Solver')).toHaveTextContent('Size-limited Gurobi licence.');
   });
 
-  it('says that new runs can start when nothing blocks them', async () => {
+  it('says each action can start when nothing blocks it', async () => {
     renderPanel({ load: () => Promise.resolve(everythingAvailable) });
 
-    expect(await screen.findByText('New runs can start.')).toBeInTheDocument();
+    expect(await screen.findByText('Instance builds can start.')).toBeInTheDocument();
+    expect(screen.getByText('Pricing runs can start.')).toBeInTheDocument();
+    expect(screen.getByText('Simulations can start.')).toBeInTheDocument();
     expect(screen.queryByText(/cannot/)).not.toBeInTheDocument();
   });
 
-  it('lists each blocking component by its label with its reason when new runs cannot start', async () => {
-    renderPanel({ load: () => Promise.resolve(solverMissing) });
+  it('refuses builds only, with the trip planner and its reason', async () => {
+    renderPanel({ load: () => Promise.resolve(tripPlannerDown) });
 
-    expect(await screen.findByText('New runs cannot start:')).toBeInTheDocument();
-    expect(screen.getAllByText('Solver: No Gurobi licence was found.')).toHaveLength(1);
-    expect(screen.queryByText('New runs can start.')).not.toBeInTheDocument();
+    expect(await screen.findByText('Instance builds cannot start:')).toBeInTheDocument();
+    expect(screen.getByText('Trip planner: No answer from OpenTripPlanner.')).toBeInTheDocument();
+    expect(screen.getByText('Pricing runs can start.')).toBeInTheDocument();
+    expect(screen.getByText('Simulations can start.')).toBeInTheDocument();
   });
 
-  it('lists every blocking component in order and shows no identifier from the API', async () => {
-    renderPanel({ load: () => Promise.resolve(twoMissing) });
+  it('refuses pricing runs only when the solver is limited', async () => {
+    renderPanel({ load: () => Promise.resolve(solverLimited) });
 
-    const blocking = await screen.findAllByText(/^(Pricing model|Trip planner): /);
-
-    expect(blocking.map((item) => item.textContent)).toEqual([
-      'Pricing model: Not installed.',
-      'Trip planner: No answer from OpenTripPlanner.',
-    ]);
-    expect(screen.queryByText(/pricing_model|trip_planner|pricingModel|tripPlanner/)).toBeNull();
+    expect(await screen.findByText('Pricing runs cannot start:')).toBeInTheDocument();
+    expect(screen.getByText('Solver: Size-limited Gurobi licence.')).toBeInTheDocument();
+    expect(screen.getByText('Instance builds can start.')).toBeInTheDocument();
+    expect(screen.getByText('Simulations can start.')).toBeInTheDocument();
   });
 
-  it('says that stored results cannot be read when the API reports so', async () => {
-    renderPanel({
-      load: () => Promise.resolve({ ...solverMissing, canReadStoredResults: false }),
-    });
+  it('lists the blocking component under each refused action and shows no identifier', async () => {
+    renderPanel({ load: () => Promise.resolve(runnerDown) });
 
-    expect(await screen.findByText('Stored results cannot be read.')).toBeInTheDocument();
+    const blocking = await screen.findAllByText('Runner: No runner has reported in the last 30 s.');
+
+    expect(blocking).toHaveLength(3);
+    expect(screen.getByText('Simulations cannot start:')).toBeInTheDocument();
+    expect(screen.queryByText(/trip_planner|tripPlanner/)).toBeNull();
   });
 
-  it('does not mention stored results when they can be read', async () => {
+  it('does not mention stored results', async () => {
     renderPanel({ load: () => Promise.resolve(everythingAvailable) });
 
-    await screen.findByText('New runs can start.');
+    await screen.findByText('Simulations can start.');
 
     expect(screen.queryByText(/Stored results/)).not.toBeInTheDocument();
   });
@@ -148,7 +183,7 @@ describe('SystemStatusPanel', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Try again' }));
 
-    expect(await screen.findByText('New runs can start.')).toBeInTheDocument();
+    expect(await screen.findByText('Simulations can start.')).toBeInTheDocument();
     expect(load).toHaveBeenCalledTimes(2);
   });
 });

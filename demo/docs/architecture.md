@@ -18,8 +18,17 @@ goes and what may import what. Decisions and their reasons are in
   reaches the trip planner: it claims queued runs from PostgreSQL, one at a time, and executes
   their steps ([D-12](decisions.md)). The API and the worker share only PostgreSQL, so the API
   starts and serves stored results with no licence, no trip planner and no package import.
-  (The foundation's readiness probes, with real adapters, still check the package, the solver
-  and the trip planner from the API; story 1-3 changes them.)
+- **The system status.** The API probes the database only and reads the worker's reports.
+  Every `PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S` (default 30 s), idle or while a run
+  executes, the worker probes the solver (a 2 001-variable model, which tells a full Gurobi
+  licence from the size-limited one), the pricing package and the trip planner, and upserts
+  one row each into `component_reports`. The runner's state comes from
+  `workers.heartbeat_at`: a runner, or a report of a worker, that did not beat for 30 s reads
+  `unavailable`. `GET /api/v1/system-status` turns the five components (`storage`, `runner`,
+  `solver`, `package`, `trip_planner`, each `available`, `limited` or `unavailable`) into
+  three verdicts (instance builds, pricing runs, simulations) that carry their blocking
+  reasons; what each action needs is tabulated in the initiative's `ARCHITECTURE.md` § 10.1.
+  The API process never imports the package (an architecture test checks it).
 - The worker runs on the host for live runs (`make worker`, also started by `make dev`),
   because a named-user Gurobi licence does not work inside a container
   ([D-10](decisions.md)); in `make up` it is a container, and in the e2e stack a container
@@ -76,8 +85,9 @@ api/
       step_registry.py         the executor of each step, filled by the worker's composition root
     infrastructure/
       config/                  settings read from the environment
-      persistence/             engine, the shared metadata, repositories, migrations/
-      pricing_model/           the package gateway
+      persistence/             engine, the shared metadata, repositories, component reports,
+                               the fake settings, migrations/
+      pricing_model/           the package gateway: the package and solver probes (worker only)
       trip_planner/            the OpenTripPlanner client
       fakes/                   every fake adapter, one module per kind
     interface/

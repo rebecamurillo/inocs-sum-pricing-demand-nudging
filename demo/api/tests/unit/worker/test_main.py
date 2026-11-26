@@ -1,11 +1,13 @@
 import os
 import socket
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
 
+from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.config.settings import Settings
-from pricing_demo.worker.main import build_worker, worker_id_for
+from pricing_demo.worker.main import build_probes, build_worker, worker_id_for
 
 
 def settings_for(tmp_path: Path, **fields: object) -> Settings:
@@ -48,3 +50,30 @@ def test_a_configured_worker_id_is_the_built_workers_id(tmp_path: Path) -> None:
     built.engine.dispose()
 
     assert built.identity.id == "w-9"
+
+
+@pytest.mark.parametrize("adapters", ["real", "fake"])
+def test_each_adapter_set_builds_a_worker_that_reports_the_probed_components(
+    tmp_path: Path, adapters: str
+) -> None:
+    built = build_worker(settings_for(tmp_path, adapters=adapters))
+    built.engine.dispose()
+
+    assert built.worker is not None
+
+
+def test_the_probes_of_each_adapter_set_cover_the_probed_components(tmp_path: Path) -> None:
+    for adapters in ("real", "fake"):
+        settings = settings_for(tmp_path, adapters=adapters)
+        built = build_worker(settings)
+        probes = build_probes(settings, built.engine)
+        built.engine.dispose()
+
+        assert sorted(probe.component for probe in probes) == sorted(PROBED_COMPONENTS)
+
+
+def test_the_report_interval_is_read_from_the_settings(tmp_path: Path) -> None:
+    built = build_worker(settings_for(tmp_path, component_report_interval_s=1))
+    built.engine.dispose()
+
+    assert built.worker._report_every == timedelta(seconds=1)

@@ -9,21 +9,32 @@ import os
 import signal
 import socket
 import threading
+from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import timedelta
 from types import FrameType
 
 from sqlalchemy import Engine
 
+from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
+from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.run_worker import RunWorker
+from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.clock import SystemClock
 from pricing_demo.infrastructure.config.settings import Settings
+from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
+from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
+from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
+from pricing_demo.infrastructure.pricing_model.solver_probe import SolverProbe
+from pricing_demo.infrastructure.trip_planner.otp_probe import OtpProbe
 from pricing_demo.infrastructure.waiter import SystemWaiter
 
 logger = logging.getLogger("pricing_demo.worker")
@@ -39,6 +50,15 @@ class BuiltWorker:
 def worker_id_for(settings: Settings, host: str, pid: int) -> str:
     """`PRICING_DEMO_WORKER_ID` when set, otherwise `{host}-{pid}`."""
     return settings.worker_id or f"{host}-{pid}"
+
+
+def build_probes(settings: Settings, engine: Engine) -> Sequence[ComponentProbe]:
+    """The probes of the solver, the package and the trip planner, by adapter set. Only the
+    worker builds them: the API process never loads the package."""
+    if settings.adapters == "fake":
+        fake_settings = PostgresFakeSettings(engine)
+        return [FakeProbe(name, fake_settings) for name in PROBED_COMPONENTS]
+    return [SolverProbe(), PackageProbe(), OtpProbe(settings.otp_url)]
 
 
 def build_worker(settings: Settings) -> BuiltWorker:
@@ -60,6 +80,10 @@ def build_worker(settings: Settings) -> BuiltWorker:
         workers,
         RecoverInterruptedRuns(repository, clock),
         ProcessNextRun(repository, registry, workers, identity, clock, waiter),
+        ReportComponents(
+            build_probes(settings, engine), PostgresComponentReports(engine), identity.id, clock
+        ),
+        timedelta(seconds=settings.component_report_interval_s),
         clock,
         waiter,
     )

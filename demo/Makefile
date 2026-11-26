@@ -22,7 +22,8 @@ E2E_LOG = e2e/test-results/stack.log
 
 # The worker's optional settings, passed only when .env sets them (the worker has defaults).
 WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_DATA_DIR)) \
-	$(if $(PRICING_DEMO_WORKER_ID),PRICING_DEMO_WORKER_ID=$(PRICING_DEMO_WORKER_ID))
+	$(if $(PRICING_DEMO_WORKER_ID),PRICING_DEMO_WORKER_ID=$(PRICING_DEMO_WORKER_ID)) \
+	$(if $(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S),PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S=$(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S))
 
 # A shell ended by Ctrl-C or a termination signal runs its EXIT trap only if the signal makes
 # it exit (dash does not otherwise), so every recipe that cleans up in an EXIT trap starts

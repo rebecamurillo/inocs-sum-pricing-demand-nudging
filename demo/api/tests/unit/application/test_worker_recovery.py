@@ -17,6 +17,7 @@ from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.fakes.worker_registry import InMemoryWorkerRegistry
+from tests.support.reporting import REPORT_EVERY, quiet_report
 from tests.support.runs import T0, GatedExecutor, RecordingExecutor, later, make_run, step
 
 
@@ -36,6 +37,8 @@ class Rig:
             ProcessNextRun(
                 self.runs, self.registry, self.workers, self.identity, self.clock, self.waiter
             ),
+            quiet_report(self.clock, "w-2"),
+            REPORT_EVERY,
             self.clock,
             self.waiter,
         )
