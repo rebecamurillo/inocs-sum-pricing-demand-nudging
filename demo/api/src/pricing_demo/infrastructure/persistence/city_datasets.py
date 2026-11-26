@@ -63,6 +63,13 @@ class PostgresCityDatasets:
         with self._engine.connect() as connection:
             return [self._dataset(row) for row in connection.execute(query)]
 
+    def get(self, dataset_id: str) -> CityDataset | None:
+        with self._engine.connect() as connection:
+            row = connection.execute(
+                select(city_datasets).where(city_datasets.c.id == dataset_id)
+            ).first()
+        return self._dataset(row) if row else None
+
     def latest(self) -> CityDataset | None:
         query = (
             select(city_datasets)

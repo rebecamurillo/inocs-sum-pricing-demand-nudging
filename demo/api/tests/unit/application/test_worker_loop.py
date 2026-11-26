@@ -17,7 +17,7 @@ from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponen
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.fakes.worker_registry import InMemoryWorkerRegistry
-from tests.support.reporting import REPORT_EVERY, quiet_report
+from tests.support.reporting import REPORT_EVERY, quiet_fingerprint, quiet_report
 from tests.support.runs import (
     T0,
     BlockingExecutor,
@@ -50,6 +50,7 @@ class Rig:
             REPORT_EVERY,
             self.clock,
             self.waiter,
+            quiet_fingerprint(self.clock),
         )
 
     def stop_at(self, seconds: float) -> None:
@@ -375,6 +376,7 @@ def test_after_a_reset_deleted_the_worker_row_the_worker_writes_it_before_claimi
         REPORT_EVERY,
         rig.clock,
         rig.waiter,
+        quiet_fingerprint(rig.clock),
     )
     log: list[str] = []
     rig.registry.register(StepName.AREA, RecordingExecutor(log))
@@ -462,6 +464,7 @@ class ReportRig(Rig):
             REPORT_EVERY,
             self.clock,
             self.waiter,
+            quiet_fingerprint(self.clock),
         )
 
     def reported_at(self) -> set[datetime]:
@@ -553,6 +556,7 @@ def test_a_failing_report_does_not_end_the_loop_and_is_tried_at_the_next_tick() 
         REPORT_EVERY,
         rig.clock,
         rig.waiter,
+        quiet_fingerprint(rig.clock),
     )
     rig.runs.add(make_run("r1", steps=(step(1, StepName.AREA),)))
     log: list[str] = []

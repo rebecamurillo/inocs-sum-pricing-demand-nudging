@@ -85,3 +85,12 @@ def test_an_id_cannot_be_stored_twice(datasets: CityDatasets) -> None:
         datasets.add(dataset("a"))
 
     assert datasets.count() == 1
+
+
+def test_a_data_set_is_found_by_its_id(datasets: CityDatasets) -> None:
+    stored = dataset("a")
+    datasets.add(stored)
+    datasets.add(dataset("b", 5))
+
+    assert datasets.get("a") == stored
+    assert datasets.get("c") is None

@@ -10,6 +10,9 @@ from pricing_demo.application.use_cases.process_next_run import (
     TICK_SECONDS,
     ProcessNextRun,
 )
+from pricing_demo.application.use_cases.record_package_fingerprint import (
+    RecordPackageFingerprint,
+)
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
 from pricing_demo.application.use_cases.report_components import ReportComponents
 
@@ -41,6 +44,7 @@ class RunWorker:
         report_every: timedelta,
         clock: Clock,
         waiter: Waiter,
+        fingerprint: RecordPackageFingerprint,
     ) -> None:
         self._identity = identity
         self._workers = workers
@@ -50,12 +54,19 @@ class RunWorker:
         self._report_every = report_every
         self._clock = clock
         self._waiter = waiter
+        self._fingerprint = fingerprint
         self._last_recovery: datetime | None = None
         self._last_report: datetime | None = None
 
     def start(self) -> None:
         identity = self._identity
-        self._workers.register(identity.id, identity.host, identity.pid, self._clock.now())
+        self._workers.register(
+            identity.id,
+            identity.host,
+            identity.pid,
+            self._clock.now(),
+            self._fingerprint.execute(),
+        )
         self._report_if_due()
         self._recover_now(None)
 
@@ -112,4 +123,11 @@ class RunWorker:
 
     def _heartbeat(self, at: datetime) -> None:
         identity = self._identity
-        self._workers.heartbeat(identity.id, identity.host, identity.pid, identity.started_at, at)
+        self._workers.heartbeat(
+            identity.id,
+            identity.host,
+            identity.pid,
+            identity.started_at,
+            at,
+            self._fingerprint.execute(),
+        )

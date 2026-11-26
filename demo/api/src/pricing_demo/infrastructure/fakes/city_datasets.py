@@ -31,6 +31,9 @@ class InMemoryCityDatasets:
     def list(self) -> Sequence[CityDataset]:
         return sorted(self._datasets, key=lambda item: item.created_at)
 
+    def get(self, dataset_id: str) -> CityDataset | None:
+        return next((item for item in self._datasets if item.id == dataset_id), None)
+
     def latest(self) -> CityDataset | None:
         ordered = self.list()
         return ordered[-1] if ordered else None

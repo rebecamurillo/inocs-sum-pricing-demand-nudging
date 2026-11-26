@@ -28,7 +28,7 @@ from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSe
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.tables import component_reports, workers
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
-from tests.support.reporting import REPORT_EVERY
+from tests.support.reporting import REPORT_EVERY, quiet_fingerprint
 from tests.support.runs import T0, later
 
 pytestmark = pytest.mark.integration
@@ -59,6 +59,7 @@ class Rig:
             REPORT_EVERY,
             self.clock,
             self.waiter,
+            quiet_fingerprint(self.clock),
         )
         self.status = GetSystemStatus(
             fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)),

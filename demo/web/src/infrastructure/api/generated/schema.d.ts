@@ -21,6 +21,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/city-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The instances with their versions, oldest instance first */
+        get: operations["listCityInstances"];
+        put?: never;
+        /** Create a city instance with its first draft version */
+        post: operations["createCityInstance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/city-instances/{instance_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create the draft of a new version, based on a version */
+        post: operations["createInstanceVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One version: parameters, periods, rule results and what changes */
+        get: operations["getInstanceVersion"];
+        put?: never;
+        post?: never;
+        /** Discard a draft, and its instance when it was the only version */
+        delete: operations["deleteInstanceVersion"];
+        options?: never;
+        head?: never;
+        /** Change parameters of a draft; the answer reports every rule */
+        patch: operations["updateInstanceVersion"];
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -160,6 +214,22 @@ export interface components {
             /** Shape Tool Image */
             shape_tool_image: string | null;
         };
+        /** CityInstanceMenu */
+        CityInstanceMenu: {
+            /** Items */
+            items: components["schemas"]["CityInstanceMenuItem"][];
+        };
+        /** CityInstanceMenuItem */
+        CityInstanceMenuItem: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Versions */
+            versions: components["schemas"]["MenuVersion"][];
+        };
         /**
          * ComponentName
          * @description The parts of the system an action depends on, in the order they are reported.
@@ -178,12 +248,208 @@ export interface components {
             reason: string | null;
             state: components["schemas"]["ComponentState"];
         };
+        /** CopyStart */
+        CopyStart: {
+            /** Instance Version Id */
+            instance_version_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "copy";
+        };
+        /** CreateCityInstanceRequest */
+        CreateCityInstanceRequest: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Name */
+            name: string;
+            /** Start From */
+            start_from: components["schemas"]["PackageDefaultsStart"] | components["schemas"]["CopyStart"];
+        };
+        /** CreateInstanceVersionRequest */
+        CreateInstanceVersionRequest: {
+            /** Based On Id */
+            based_on_id: string;
+        };
         /** FieldError */
         FieldError: {
             /** Field */
             field: string;
             /** Message */
             message: string;
+        };
+        /** InstanceParametersResource */
+        InstanceParametersResource: {
+            /** Center Lat */
+            center_lat: number;
+            /** Center Lon */
+            center_lon: number;
+            /** Clustering Buffer M */
+            clustering_buffer_m: number;
+            /** Clustering Threshold M */
+            clustering_threshold_m: number;
+            /** Fixed Capacity */
+            fixed_capacity: number;
+            /** Max Demand */
+            max_demand: number;
+            /** Max Inventory Pct */
+            max_inventory_pct: number;
+            /** Max Park Time Min */
+            max_park_time_min: number;
+            /** Min Demand */
+            min_demand: number;
+            /** Min Inventory Pct */
+            min_inventory_pct: number;
+            /** Min Od Distance M */
+            min_od_distance_m: number;
+            /** Min Park Time Min */
+            min_park_time_min: number;
+            /** Radius M */
+            radius_m: number;
+            /** Seed */
+            seed: number;
+        };
+        /** InstancePeriodResource */
+        InstancePeriodResource: {
+            /** Arrive By */
+            arrive_by: boolean;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Id */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Routing Date
+             * Format: date
+             */
+            routing_date: string;
+            /** Routing Date Provisional */
+            routing_date_provisional: boolean;
+            /**
+             * Routing Time
+             * Format: time
+             */
+            routing_time: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /**
+         * InstanceVersionPatch
+         * @description Any subset of the parameters. A value is stored as sent: a rule it breaks is reported
+         *     in the answer, never corrected.
+         */
+        InstanceVersionPatch: {
+            /** Center Lat */
+            center_lat?: number;
+            /** Center Lon */
+            center_lon?: number;
+            /** Clustering Buffer M */
+            clustering_buffer_m?: number;
+            /** Clustering Threshold M */
+            clustering_threshold_m?: number;
+            /** Fixed Capacity */
+            fixed_capacity?: number;
+            /** Max Demand */
+            max_demand?: number;
+            /** Max Inventory Pct */
+            max_inventory_pct?: number;
+            /** Max Park Time Min */
+            max_park_time_min?: number;
+            /** Min Demand */
+            min_demand?: number;
+            /** Min Inventory Pct */
+            min_inventory_pct?: number;
+            /** Min Od Distance M */
+            min_od_distance_m?: number;
+            /** Min Park Time Min */
+            min_park_time_min?: number;
+            /** Radius M */
+            radius_m?: number;
+            /** Seed */
+            seed?: number;
+        };
+        /** InstanceVersionResource */
+        InstanceVersionResource: {
+            /** Based On Id */
+            based_on_id: string | null;
+            /**
+             * Changes
+             * @description The parameters that differ from `based_on_id`, in column order.
+             */
+            changes: components["schemas"]["ParameterChangeResource"][];
+            /**
+             * Counts
+             * @description Null until the counts exist.
+             */
+            counts: {
+                [key: string]: number;
+            } | null;
+            /** Id */
+            id: string;
+            /** Instance Id */
+            instance_id: string;
+            /** Number */
+            number: number;
+            parameters: components["schemas"]["InstanceParametersResource"];
+            /** Periods */
+            periods: components["schemas"]["InstancePeriodResource"][];
+            /** Rules */
+            rules: components["schemas"]["RuleResultResource"][];
+            /**
+             * State
+             * @description The status until builds exist; then the build state.
+             */
+            state: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sealed";
+        };
+        /** MenuVersion */
+        MenuVersion: {
+            /** Id */
+            id: string;
+            /** Number */
+            number: number;
+            /** Pricing Version Count */
+            pricing_version_count: number;
+            /** State */
+            state: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sealed";
+        };
+        /** PackageDefaultsStart */
+        PackageDefaultsStart: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "package_defaults";
+        };
+        /** ParameterChangeResource */
+        ParameterChangeResource: {
+            /** After */
+            after: number;
+            /** Before */
+            before: number;
+            /** Parameter */
+            parameter: string;
         };
         /**
          * PolygonResource
@@ -216,6 +482,11 @@ export interface components {
             code: string;
             /** Detail */
             detail: string;
+            /**
+             * Draft Id
+             * @description The existing draft, on a draft_exists conflict.
+             */
+            draft_id?: string | null;
             /** Errors */
             errors?: components["schemas"]["FieldError"][] | null;
             /** Status */
@@ -241,6 +512,27 @@ export interface components {
              * Format: time
              */
             time: string;
+        };
+        /** RuleResultResource */
+        RuleResultResource: {
+            /** Passed */
+            passed: boolean;
+            /** Rule */
+            rule: string;
+            /**
+             * Values
+             * @description The two values the rule compares.
+             */
+            values: components["schemas"]["RuleValueResource"][];
+        };
+        /** RuleValueResource */
+        RuleValueResource: {
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string;
         };
         /** RunFailureResource */
         RunFailureResource: {
@@ -401,6 +693,319 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CityDatasetList"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listCityInstances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CityInstanceMenu"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createCityInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCityInstanceRequest"];
+            };
+        };
+        responses: {
+            /** @description The instance exists; the body is its first draft */
+            201: {
+                headers: {
+                    /** @description The draft version */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description `name_taken` (the name or its identifier is used) or `package_defaults_missing` (no worker reported the package yet) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid, or the data set or version is unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInstanceVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft */
+            201: {
+                headers: {
+                    /** @description The draft version */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description No city instance has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The instance has a draft: `draft_exists` carries its `draft_id` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid, or the version to base on is unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deleteInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The version is saved: `version_sealed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    updateInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstanceVersionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The version is saved: `version_sealed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A value is not a JSON number, or a name is not a parameter */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unexpected error */

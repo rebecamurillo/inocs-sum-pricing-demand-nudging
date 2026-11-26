@@ -20,10 +20,20 @@ from pricing_demo.application.errors import (
     InvalidTimetable,
     NoCityDataYet,
     OtherTimetableInGraphFolder,
+    PackageDefaultsMissing,
     StreetExtractNotFound,
     UnknownCityDataset,
+    UnknownStartVersion,
 )
 from pricing_demo.domain.city_datasets import DisjointAreas
+from pricing_demo.domain.city_instances import (
+    CityInstanceNameTaken,
+    CityInstanceNotFound,
+    DraftExists,
+    InstanceVersionNotFound,
+    InvalidInstanceName,
+    VersionSealed,
+)
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.runs import (
     InvalidRunTransition,
@@ -79,7 +89,25 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     GtfsCopyChanged: INTERNAL_ERROR,
     DisjointAreas: INTERNAL_ERROR,
     BusShapeMatchingFailed: INTERNAL_ERROR,
-    UnknownCityDataset: INTERNAL_ERROR,
+    UnknownCityDataset: Problem(422, "unknown_city_dataset", "The city data set does not exist"),
+    UnknownStartVersion: Problem(
+        422, "unknown_start_version", "The version to start from does not exist"
+    ),
+    InvalidInstanceName: Problem(
+        422, "invalid_instance_name", "The name cannot make an identifier"
+    ),
+    CityInstanceNameTaken: Problem(409, "name_taken", "The name is already used"),
+    DraftExists: Problem(409, "draft_exists", "The instance already has a draft"),
+    VersionSealed: Problem(409, "version_sealed", "The version is saved and cannot change"),
+    PackageDefaultsMissing: Problem(
+        409, "package_defaults_missing", "The package defaults are not known yet"
+    ),
+    InstanceVersionNotFound: Problem(
+        404, "instance_version_not_found", "The instance version does not exist"
+    ),
+    CityInstanceNotFound: Problem(
+        404, "city_instance_not_found", "The city instance does not exist"
+    ),
     OtherTimetableInGraphFolder: INTERNAL_ERROR,
     GraphBuildFailed: INTERNAL_ERROR,
 }
@@ -90,6 +118,7 @@ def problem_response(
     detail: str,
     errors: list[FieldError] | None = None,
     headers: Mapping[str, str] | None = None,
+    draft_id: str | None = None,
 ) -> JSONResponse:
     body = ProblemDetails(
         type=PROBLEM_TYPE_BASE + problem.code.replace("_", "-"),
@@ -98,6 +127,7 @@ def problem_response(
         detail=detail,
         code=problem.code,
         errors=errors,
+        draft_id=draft_id,
     )
     return JSONResponse(
         status_code=problem.status,
@@ -112,7 +142,8 @@ def _domain_error(request: Request, error: Exception) -> JSONResponse:
     problem = DOMAIN_PROBLEMS.get(type(error))
     if problem is None or problem.status >= 500:
         return _unexpected_error(request, error)
-    return problem_response(problem, str(error))
+    draft_id = error.draft_id if isinstance(error, DraftExists) else None
+    return problem_response(problem, str(error), draft_id=draft_id)
 
 
 def _validation_error(_: Request, error: Exception) -> JSONResponse:

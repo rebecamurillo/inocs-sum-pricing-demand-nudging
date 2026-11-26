@@ -1,10 +1,19 @@
 from datetime import date, datetime, time
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
+from pricing_demo.application.instance_version_view import InstanceVersionView
 from pricing_demo.application.run_view import RunView
 from pricing_demo.domain.city_datasets import CityDataset
+from pricing_demo.domain.city_instances import (
+    PARAMETER_NAMES,
+    InstancePeriod,
+    InstanceWithVersions,
+    Number,
+    ParameterChange,
+)
+from pricing_demo.domain.instance_rules import RuleResult, RuleValue
 from pricing_demo.domain.runner_liveness import Runner
 from pricing_demo.domain.runs import (
     STEP_NUMBERS,
@@ -89,6 +98,9 @@ class ProblemDetails(BaseModel):
     detail: str
     code: str
     errors: list[FieldError] | None = None
+    draft_id: str | None = Field(
+        default=None, description="The existing draft, on a draft_exists conflict."
+    )
 
 
 class ComponentAnswerRequest(BaseModel):
@@ -274,3 +286,216 @@ class CreatedCityDataset(BaseModel):
     """What the e2e suite gets back from inserting a fake city data set."""
 
     id: str
+
+
+class PackageDefaultsStart(BaseModel):
+    kind: Literal["package_defaults"]
+
+
+class CopyStart(BaseModel):
+    kind: Literal["copy"]
+    instance_version_id: str
+
+
+class CreateCityInstanceRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    dataset_id: str
+    start_from: Annotated[PackageDefaultsStart | CopyStart, Field(discriminator="kind")]
+
+
+class CreateInstanceVersionRequest(BaseModel):
+    based_on_id: str
+
+
+# A JSON number: a string or a boolean is refused, and so are NaN and infinity. An integer
+# is held to what a double stores exactly (the columns are doubles), so it is kept as sent.
+EXACT_INTEGER = 2**53
+ParameterNumber = (
+    Annotated[StrictInt, Field(ge=-EXACT_INTEGER, le=EXACT_INTEGER)]
+    | Annotated[float, Field(strict=True, allow_inf_nan=False)]
+)
+
+
+# Every field is optional, yet `null` is not a number: the default is never read, because
+# `changes()` looks at the fields the request set, and a default factory keeps it out of the
+# contract.
+_UNSET: Any = Field(default_factory=float)
+
+
+class InstanceVersionPatch(BaseModel):
+    """Any subset of the parameters. A value is stored as sent: a rule it breaks is reported
+    in the answer, never corrected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    center_lat: ParameterNumber = _UNSET
+    center_lon: ParameterNumber = _UNSET
+    radius_m: ParameterNumber = _UNSET
+    clustering_threshold_m: ParameterNumber = _UNSET
+    clustering_buffer_m: ParameterNumber = _UNSET
+    min_od_distance_m: ParameterNumber = _UNSET
+    seed: ParameterNumber = _UNSET
+    fixed_capacity: ParameterNumber = _UNSET
+    min_demand: ParameterNumber = _UNSET
+    max_demand: ParameterNumber = _UNSET
+    min_inventory_pct: ParameterNumber = _UNSET
+    max_inventory_pct: ParameterNumber = _UNSET
+    min_park_time_min: ParameterNumber = _UNSET
+    max_park_time_min: ParameterNumber = _UNSET
+
+    def changes(self) -> dict[str, Number]:
+        return {name: getattr(self, name) for name in self.model_fields_set}
+
+
+assert set(InstanceVersionPatch.model_fields) == set(PARAMETER_NAMES)
+
+
+class InstanceParametersResource(BaseModel):
+    center_lat: float
+    center_lon: float
+    radius_m: float
+    clustering_threshold_m: float
+    clustering_buffer_m: float
+    min_od_distance_m: float
+    seed: float
+    fixed_capacity: float
+    min_demand: float
+    max_demand: float
+    min_inventory_pct: float
+    max_inventory_pct: float
+    min_park_time_min: float
+    max_park_time_min: float
+
+
+class RuleValueResource(BaseModel):
+    name: str
+    value: float | str
+    unit: str | None
+
+    @classmethod
+    def from_domain(cls, value: RuleValue) -> "RuleValueResource":
+        return cls(name=value.name, value=value.value, unit=value.unit)
+
+
+class RuleResultResource(BaseModel):
+    rule: str
+    passed: bool
+    values: list[RuleValueResource] = Field(
+        min_length=2, max_length=2, description="The two values the rule compares."
+    )
+
+    @classmethod
+    def from_domain(cls, result: RuleResult) -> "RuleResultResource":
+        return cls(
+            rule=result.rule,
+            passed=result.passed,
+            values=[RuleValueResource.from_domain(item) for item in result.values],
+        )
+
+
+class ParameterChangeResource(BaseModel):
+    parameter: str
+    before: float
+    after: float
+
+    @classmethod
+    def from_domain(cls, change: ParameterChange) -> "ParameterChangeResource":
+        return cls(parameter=change.parameter, before=change.before, after=change.after)
+
+
+class InstancePeriodResource(BaseModel):
+    id: str
+    key: str
+    label: str
+    weekday: int
+    start_time: time
+    end_time: time
+    routing_date: date
+    routing_time: time
+    arrive_by: bool
+    routing_date_provisional: bool
+
+    @classmethod
+    def from_domain(cls, period: InstancePeriod) -> "InstancePeriodResource":
+        return cls(
+            id=period.id,
+            key=period.key,
+            label=period.label,
+            weekday=period.weekday,
+            start_time=period.start_time,
+            end_time=period.end_time,
+            routing_date=period.routing_date,
+            routing_time=period.routing_time,
+            arrive_by=period.arrive_by,
+            routing_date_provisional=period.routing_date_provisional,
+        )
+
+
+class InstanceVersionResource(BaseModel):
+    id: str
+    instance_id: str
+    number: int
+    based_on_id: str | None
+    status: Literal["draft", "sealed"]
+    state: str = Field(description="The status until builds exist; then the build state.")
+    parameters: InstanceParametersResource
+    periods: list[InstancePeriodResource]
+    rules: list[RuleResultResource]
+    changes: list[ParameterChangeResource] = Field(
+        description="The parameters that differ from `based_on_id`, in column order."
+    )
+    counts: dict[str, int] | None = Field(description="Null until the counts exist.")
+
+    @classmethod
+    def from_view(cls, view: InstanceVersionView) -> "InstanceVersionResource":
+        version = view.version
+        return cls(
+            id=version.id,
+            instance_id=version.instance_id,
+            number=version.number,
+            based_on_id=version.based_on_id,
+            status=version.status,
+            state=view.state,
+            parameters=InstanceParametersResource(**version.parameters.as_dict()),
+            periods=[InstancePeriodResource.from_domain(item) for item in view.periods],
+            rules=[RuleResultResource.from_domain(item) for item in view.rules],
+            changes=[ParameterChangeResource.from_domain(item) for item in view.changes],
+            counts=None,
+        )
+
+
+class MenuVersion(BaseModel):
+    id: str
+    number: int
+    status: Literal["draft", "sealed"]
+    state: str
+    pricing_version_count: int
+
+
+class CityInstanceMenuItem(BaseModel):
+    id: str
+    name: str
+    dataset_id: str
+    versions: list[MenuVersion]
+
+    @classmethod
+    def from_domain(cls, entry: InstanceWithVersions) -> "CityInstanceMenuItem":
+        return cls(
+            id=entry.instance.id,
+            name=entry.instance.name,
+            dataset_id=entry.instance.dataset_id,
+            versions=[
+                MenuVersion(
+                    id=version.id,
+                    number=version.number,
+                    status=version.status,
+                    state=version.status,
+                    pricing_version_count=0,
+                )
+                for version in entry.versions
+            ],
+        )
+
+
+class CityInstanceMenu(BaseModel):
+    items: list[CityInstanceMenuItem]

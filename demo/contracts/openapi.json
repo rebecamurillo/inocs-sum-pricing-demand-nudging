@@ -121,6 +121,53 @@
         "title": "CityDatasetResource",
         "type": "object"
       },
+      "CityInstanceMenu": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CityInstanceMenuItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "CityInstanceMenu",
+        "type": "object"
+      },
+      "CityInstanceMenuItem": {
+        "properties": {
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/MenuVersion"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "dataset_id",
+          "versions"
+        ],
+        "title": "CityInstanceMenuItem",
+        "type": "object"
+      },
       "ComponentName": {
         "description": "The parts of the system an action depends on, in the order they are reported.",
         "enum": [
@@ -171,6 +218,77 @@
         "title": "ComponentStatusResponse",
         "type": "object"
       },
+      "CopyStart": {
+        "properties": {
+          "instance_version_id": {
+            "title": "Instance Version Id",
+            "type": "string"
+          },
+          "kind": {
+            "const": "copy",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "instance_version_id"
+        ],
+        "title": "CopyStart",
+        "type": "object"
+      },
+      "CreateCityInstanceRequest": {
+        "properties": {
+          "dataset_id": {
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "start_from": {
+            "discriminator": {
+              "mapping": {
+                "copy": "#/components/schemas/CopyStart",
+                "package_defaults": "#/components/schemas/PackageDefaultsStart"
+              },
+              "propertyName": "kind"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PackageDefaultsStart"
+              },
+              {
+                "$ref": "#/components/schemas/CopyStart"
+              }
+            ],
+            "title": "Start From"
+          }
+        },
+        "required": [
+          "name",
+          "dataset_id",
+          "start_from"
+        ],
+        "title": "CreateCityInstanceRequest",
+        "type": "object"
+      },
+      "CreateInstanceVersionRequest": {
+        "properties": {
+          "based_on_id": {
+            "title": "Based On Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "based_on_id"
+        ],
+        "title": "CreateInstanceVersionRequest",
+        "type": "object"
+      },
       "FieldError": {
         "properties": {
           "field": {
@@ -187,6 +305,505 @@
           "message"
         ],
         "title": "FieldError",
+        "type": "object"
+      },
+      "InstanceParametersResource": {
+        "properties": {
+          "center_lat": {
+            "title": "Center Lat",
+            "type": "number"
+          },
+          "center_lon": {
+            "title": "Center Lon",
+            "type": "number"
+          },
+          "clustering_buffer_m": {
+            "title": "Clustering Buffer M",
+            "type": "number"
+          },
+          "clustering_threshold_m": {
+            "title": "Clustering Threshold M",
+            "type": "number"
+          },
+          "fixed_capacity": {
+            "title": "Fixed Capacity",
+            "type": "number"
+          },
+          "max_demand": {
+            "title": "Max Demand",
+            "type": "number"
+          },
+          "max_inventory_pct": {
+            "title": "Max Inventory Pct",
+            "type": "number"
+          },
+          "max_park_time_min": {
+            "title": "Max Park Time Min",
+            "type": "number"
+          },
+          "min_demand": {
+            "title": "Min Demand",
+            "type": "number"
+          },
+          "min_inventory_pct": {
+            "title": "Min Inventory Pct",
+            "type": "number"
+          },
+          "min_od_distance_m": {
+            "title": "Min Od Distance M",
+            "type": "number"
+          },
+          "min_park_time_min": {
+            "title": "Min Park Time Min",
+            "type": "number"
+          },
+          "radius_m": {
+            "title": "Radius M",
+            "type": "number"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "number"
+          }
+        },
+        "required": [
+          "center_lat",
+          "center_lon",
+          "radius_m",
+          "clustering_threshold_m",
+          "clustering_buffer_m",
+          "min_od_distance_m",
+          "seed",
+          "fixed_capacity",
+          "min_demand",
+          "max_demand",
+          "min_inventory_pct",
+          "max_inventory_pct",
+          "min_park_time_min",
+          "max_park_time_min"
+        ],
+        "title": "InstanceParametersResource",
+        "type": "object"
+      },
+      "InstancePeriodResource": {
+        "properties": {
+          "arrive_by": {
+            "title": "Arrive By",
+            "type": "boolean"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "routing_date": {
+            "format": "date",
+            "title": "Routing Date",
+            "type": "string"
+          },
+          "routing_date_provisional": {
+            "title": "Routing Date Provisional",
+            "type": "boolean"
+          },
+          "routing_time": {
+            "format": "time",
+            "title": "Routing Time",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label",
+          "weekday",
+          "start_time",
+          "end_time",
+          "routing_date",
+          "routing_time",
+          "arrive_by",
+          "routing_date_provisional"
+        ],
+        "title": "InstancePeriodResource",
+        "type": "object"
+      },
+      "InstanceVersionPatch": {
+        "additionalProperties": false,
+        "description": "Any subset of the parameters. A value is stored as sent: a rule it breaks is reported\nin the answer, never corrected.",
+        "properties": {
+          "center_lat": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Center Lat"
+          },
+          "center_lon": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Center Lon"
+          },
+          "clustering_buffer_m": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Clustering Buffer M"
+          },
+          "clustering_threshold_m": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Clustering Threshold M"
+          },
+          "fixed_capacity": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Fixed Capacity"
+          },
+          "max_demand": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Demand"
+          },
+          "max_inventory_pct": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Inventory Pct"
+          },
+          "max_park_time_min": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Park Time Min"
+          },
+          "min_demand": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Demand"
+          },
+          "min_inventory_pct": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Inventory Pct"
+          },
+          "min_od_distance_m": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Od Distance M"
+          },
+          "min_park_time_min": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Min Park Time Min"
+          },
+          "radius_m": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Radius M"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Seed"
+          }
+        },
+        "title": "InstanceVersionPatch",
+        "type": "object"
+      },
+      "InstanceVersionResource": {
+        "properties": {
+          "based_on_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On Id"
+          },
+          "changes": {
+            "description": "The parameters that differ from `based_on_id`, in column order.",
+            "items": {
+              "$ref": "#/components/schemas/ParameterChangeResource"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until the counts exist.",
+            "title": "Counts"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "instance_id": {
+            "title": "Instance Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/InstanceParametersResource"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/InstancePeriodResource"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleResultResource"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "state": {
+            "description": "The status until builds exist; then the build state.",
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "sealed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "instance_id",
+          "number",
+          "based_on_id",
+          "status",
+          "state",
+          "parameters",
+          "periods",
+          "rules",
+          "changes",
+          "counts"
+        ],
+        "title": "InstanceVersionResource",
+        "type": "object"
+      },
+      "MenuVersion": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "pricing_version_count": {
+            "title": "Pricing Version Count",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "sealed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "status",
+          "state",
+          "pricing_version_count"
+        ],
+        "title": "MenuVersion",
+        "type": "object"
+      },
+      "PackageDefaultsStart": {
+        "properties": {
+          "kind": {
+            "const": "package_defaults",
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "PackageDefaultsStart",
+        "type": "object"
+      },
+      "ParameterChangeResource": {
+        "properties": {
+          "after": {
+            "title": "After",
+            "type": "number"
+          },
+          "before": {
+            "title": "Before",
+            "type": "number"
+          },
+          "parameter": {
+            "title": "Parameter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "parameter",
+          "before",
+          "after"
+        ],
+        "title": "ParameterChangeResource",
         "type": "object"
       },
       "PolygonResource": {
@@ -251,6 +868,18 @@
           "detail": {
             "title": "Detail",
             "type": "string"
+          },
+          "draft_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The existing draft, on a draft_exists conflict.",
+            "title": "Draft Id"
           },
           "errors": {
             "anyOf": [
@@ -317,6 +946,72 @@
           "provisional"
         ],
         "title": "RoutingMomentResource",
+        "type": "object"
+      },
+      "RuleResultResource": {
+        "properties": {
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "values": {
+            "description": "The two values the rule compares.",
+            "items": {
+              "$ref": "#/components/schemas/RuleValueResource"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rule",
+          "passed",
+          "values"
+        ],
+        "title": "RuleResultResource",
+        "type": "object"
+      },
+      "RuleValueResource": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "unit"
+        ],
+        "title": "RuleValueResource",
         "type": "object"
       },
       "RunFailureResource": {
@@ -780,6 +1475,399 @@
         "summary": "The imported city data sets, oldest first",
         "tags": [
           "city-data"
+        ]
+      }
+    },
+    "/api/v1/city-instances": {
+      "get": {
+        "operationId": "listCityInstances",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CityInstanceMenu"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The instances with their versions, oldest instance first",
+        "tags": [
+          "city-instances"
+        ]
+      },
+      "post": {
+        "operationId": "createCityInstance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCityInstanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceVersionResource"
+                }
+              }
+            },
+            "description": "The instance exists; the body is its first draft",
+            "headers": {
+              "Location": {
+                "description": "The draft version",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`name_taken` (the name or its identifier is used) or `package_defaults_missing` (no worker reported the package yet)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid, or the data set or version is unknown"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Create a city instance with its first draft version",
+        "tags": [
+          "city-instances"
+        ]
+      }
+    },
+    "/api/v1/city-instances/{instance_id}/versions": {
+      "post": {
+        "operationId": "createInstanceVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInstanceVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceVersionResource"
+                }
+              }
+            },
+            "description": "The draft",
+            "headers": {
+              "Location": {
+                "description": "The draft version",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No city instance has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The instance has a draft: `draft_exists` carries its `draft_id`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid, or the version to base on is unknown"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Create the draft of a new version, based on a version",
+        "tags": [
+          "city-instances"
+        ]
+      }
+    },
+    "/api/v1/instance-versions/{version_id}": {
+      "delete": {
+        "operationId": "deleteInstanceVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The version is saved: `version_sealed`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Discard a draft, and its instance when it was the only version",
+        "tags": [
+          "city-instances"
+        ]
+      },
+      "get": {
+        "operationId": "getInstanceVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceVersionResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "One version: parameters, periods, rule results and what changes",
+        "tags": [
+          "city-instances"
+        ]
+      },
+      "patch": {
+        "operationId": "updateInstanceVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstanceVersionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstanceVersionResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The version is saved: `version_sealed`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "A value is not a JSON number, or a name is not a parameter"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Change parameters of a draft; the answer reports every rule",
+        "tags": [
+          "city-instances"
         ]
       }
     },

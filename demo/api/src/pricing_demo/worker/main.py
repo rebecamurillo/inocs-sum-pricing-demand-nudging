@@ -33,11 +33,15 @@ from pricing_demo.application.errors import (
 from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
 from pricing_demo.application.ports.bus_shape_matcher import BusShapeMatcher
 from pricing_demo.application.ports.component_probe import ComponentProbe
+from pricing_demo.application.ports.package_fingerprints import PackageFingerprintReader
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.build_trip_planner_graph import BuildTripPlannerGraph
 from pricing_demo.application.use_cases.import_city_data import ImportCityData
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
+from pricing_demo.application.use_cases.record_package_fingerprint import (
+    RecordPackageFingerprint,
+)
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
 from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBikeStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
@@ -57,13 +61,20 @@ from pricing_demo.infrastructure.config.settings import (
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.fakes.package_fingerprints import FakePackageFingerprintReader
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
+from pricing_demo.infrastructure.persistence.package_fingerprints import (
+    PostgresPackageFingerprints,
+)
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
+from pricing_demo.infrastructure.pricing_model.package_fingerprint import (
+    PackageFingerprintReader as PackageSourcesReader,
+)
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
 from pricing_demo.infrastructure.pricing_model.solver_probe import SolverProbe
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
@@ -97,6 +108,13 @@ def build_probes(settings: Settings, engine: Engine) -> Sequence[ComponentProbe]
     return [SolverProbe(), PackageProbe(), OtpProbe(settings.otp_url)]
 
 
+def build_fingerprint_reader(settings: Settings) -> PackageFingerprintReader:
+    """What the worker reports about the pricing package, by adapter set."""
+    if settings.adapters == "fake":
+        return FakePackageFingerprintReader()
+    return PackageSourcesReader(DEMO_DIR.parent / "sum_nsm_dynamic_pricing")
+
+
 def build_worker(settings: Settings) -> BuiltWorker:
     """Choose the adapters and wire them. Nothing here connects to the database."""
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -126,6 +144,9 @@ def build_worker(settings: Settings) -> BuiltWorker:
         timedelta(seconds=settings.component_report_interval_s),
         clock,
         waiter,
+        RecordPackageFingerprint(
+            build_fingerprint_reader(settings), PostgresPackageFingerprints(engine), clock
+        ),
     )
     return BuiltWorker(worker, identity, engine)
 

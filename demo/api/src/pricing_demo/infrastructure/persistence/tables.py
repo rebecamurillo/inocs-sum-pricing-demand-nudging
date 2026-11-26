@@ -33,6 +33,23 @@ STEP_NAMES = (
     "pricing_model",
     "traveller_simulation",
 )
+VERSION_STATUSES = ("draft", "sealed")
+PARAMETER_COLUMNS = (
+    "center_lat",
+    "center_lon",
+    "radius_m",
+    "clustering_threshold_m",
+    "clustering_buffer_m",
+    "min_od_distance_m",
+    "seed",
+    "fixed_capacity",
+    "min_demand",
+    "max_demand",
+    "min_inventory_pct",
+    "max_inventory_pct",
+    "min_park_time_min",
+    "max_park_time_min",
+)
 STEP_STATES = ("pending", "running", "done", "kept", "failed", "cancelled")
 
 KIND_SUBJECT_CHECK = (
@@ -55,6 +72,8 @@ workers = Table(
     Column("pid", Integer, nullable=False),
     Column("started_at", DateTime(timezone=True), nullable=False),
     Column("heartbeat_at", DateTime(timezone=True), nullable=False),
+    # No foreign key: the e2e reset truncates both tables independently.
+    Column("package_fingerprint", Text),
 )
 
 runs = Table(
@@ -62,7 +81,7 @@ runs = Table(
     metadata,
     Column("id", Text, primary_key=True),
     Column("kind", Text, nullable=False),
-    Column("instance_version_id", Text),
+    Column("instance_version_id", Text, ForeignKey("instance_versions.id")),
     Column("pricing_version_id", Text),
     Column("state", Text, nullable=False),
     Column("attempt", Integer, nullable=False, server_default=text("1")),
@@ -95,7 +114,7 @@ run_steps = Table(
     Column("run_id", Text, ForeignKey("runs.id"), nullable=False),
     Column("position", Integer, nullable=False),
     Column("step", Text, nullable=False),
-    Column("period_id", Text),
+    Column("period_id", Text, ForeignKey("instance_periods.id")),
     Column("state", Text, nullable=False),
     Column("started_at", DateTime(timezone=True)),
     Column("finished_at", DateTime(timezone=True)),
@@ -171,4 +190,78 @@ city_datasets = Table(
     CheckConstraint(
         "(bus_shapes = 'none') = (bus_shapes_reason IS NOT NULL)", name="bus_shapes_reason"
     ),
+)
+
+# What the worker found out about the pricing package it runs: `defaults` holds the dataclass
+# defaults of `PipelineConfig`, `InstanceParams` and `OptimizerParams`.
+package_fingerprints = Table(
+    "package_fingerprints",
+    metadata,
+    Column("fingerprint", Text, primary_key=True),
+    Column("version", Text, nullable=False),
+    Column("git_commit", Text, nullable=False),
+    Column("git_dirty", Boolean, nullable=False),
+    Column("defaults", JSONB, nullable=False),
+    Column("first_seen_at", DateTime(timezone=True), nullable=False),
+)
+
+city_instances = Table(
+    "city_instances",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column("name", Text, nullable=False),
+    Column("dataset_id", Text, ForeignKey("city_datasets.id"), nullable=False),
+    Column("next_number", Integer, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("name", name="uq_city_instances_name"),
+)
+
+# The parameters are doubles: a value is stored as sent. The trigger that refuses an UPDATE of
+# a parameter once `status = 'sealed'` exists in the migration only.
+instance_versions = Table(
+    "instance_versions",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column(
+        "instance_id",
+        Text,
+        ForeignKey("city_instances.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("number", Integer, nullable=False),
+    Column("based_on_id", Text, ForeignKey("instance_versions.id", ondelete="SET NULL")),
+    Column("status", Text, nullable=False),
+    *(Column(name, Double, nullable=False) for name in PARAMETER_COLUMNS),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("sealed_at", DateTime(timezone=True)),
+    UniqueConstraint("instance_id", "number", name="uq_instance_versions_instance_id"),
+    CheckConstraint(one_of("status", VERSION_STATUSES), name="status"),
+    Index(
+        "uq_instance_versions_one_draft",
+        "instance_id",
+        unique=True,
+        postgresql_where=text("status = 'draft'"),
+    ),
+)
+
+instance_periods = Table(
+    "instance_periods",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column(
+        "instance_version_id",
+        Text,
+        ForeignKey("instance_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("key", Text, nullable=False),
+    Column("label", Text, nullable=False),
+    Column("weekday", Integer, nullable=False),
+    Column("start_time", Time, nullable=False),
+    Column("end_time", Time, nullable=False),
+    Column("routing_date", Date, nullable=False),
+    Column("routing_time", Time, nullable=False),
+    Column("arrive_by", Boolean, nullable=False),
+    Column("routing_date_provisional", Boolean, nullable=False),
+    UniqueConstraint("instance_version_id", "key", name="uq_instance_periods_version_key"),
 )

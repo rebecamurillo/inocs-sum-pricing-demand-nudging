@@ -3,11 +3,18 @@
 from datetime import timedelta
 
 from pricing_demo.application.ports.clock import Clock
+from pricing_demo.application.use_cases.record_package_fingerprint import (
+    RecordPackageFingerprint,
+)
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
+from pricing_demo.infrastructure.fakes.package_fingerprints import (
+    FakePackageFingerprintReader,
+    InMemoryPackageFingerprints,
+)
 
 REPORT_EVERY = timedelta(seconds=30)
 
@@ -21,4 +28,11 @@ def quiet_report(
         reports or InMemoryComponentReports(),
         worker_id,
         clock,
+    )
+
+
+def quiet_fingerprint(clock: Clock) -> RecordPackageFingerprint:
+    """The fingerprint recorder of a worker whose tests do not look at it."""
+    return RecordPackageFingerprint(
+        FakePackageFingerprintReader(), InMemoryPackageFingerprints(), clock
     )

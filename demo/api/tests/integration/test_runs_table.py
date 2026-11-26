@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.infrastructure.persistence.metadata import metadata
 from pricing_demo.infrastructure.persistence.tables import run_steps, runs
+from tests.support.instances import ensure_instance_versions
 from tests.support.runs import T0
 
 pytestmark = pytest.mark.integration
@@ -23,6 +24,9 @@ def values(run_id: str, **fields: object) -> dict[str, object]:
 
 
 def insert_run(engine: Engine, run_id: str, **fields: object) -> None:
+    subject = values(run_id, **fields)["instance_version_id"]
+    if isinstance(subject, str):
+        ensure_instance_versions(engine, [subject])
     with engine.begin() as connection:
         connection.execute(insert(runs).values(values(run_id, **fields)))
 

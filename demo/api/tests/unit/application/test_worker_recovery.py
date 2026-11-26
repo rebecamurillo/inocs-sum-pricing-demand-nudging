@@ -17,7 +17,7 @@ from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.fakes.worker_registry import InMemoryWorkerRegistry
-from tests.support.reporting import REPORT_EVERY, quiet_report
+from tests.support.reporting import REPORT_EVERY, quiet_fingerprint, quiet_report
 from tests.support.runs import T0, GatedExecutor, RecordingExecutor, later, make_run, step
 
 
@@ -41,6 +41,7 @@ class Rig:
             REPORT_EVERY,
             self.clock,
             self.waiter,
+            quiet_fingerprint(self.clock),
         )
         self.hooks: list[Callable[[datetime], object]] = []
         self.waiter.on_wait = self._on_wait

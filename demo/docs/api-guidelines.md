@@ -67,6 +67,8 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   error that reaches the mapping without an entry is a fault of the server: `500`.
 - Every error the framework produces itself (unknown route, wrong method, unreadable body,
   failed validation) is a problem document too, and the contract documents `422` as one.
+- A problem document may carry one named extension member that identifies the resource the
+  request conflicts with: `draft_id` on `draft_exists`, the draft the instance already has.
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

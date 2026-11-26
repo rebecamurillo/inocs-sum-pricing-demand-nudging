@@ -8,6 +8,7 @@ from pricing_demo.domain.runs import Run, RunState, StepName, StepState
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
+from tests.support.instances import SeedingRunRepository
 from tests.support.runs import T0, later, make_run, step
 
 pytestmark = pytest.mark.integration
@@ -51,7 +52,7 @@ def running(run_id: str, heartbeat_age: float, attempt: int = 1) -> Run:
 @pytest.fixture
 def repository(migrated_database: Engine) -> PostgresRunRepository:
     PostgresWorkerRegistry(migrated_database).register("old-worker", "h", 1, T0)
-    return PostgresRunRepository(migrated_database)
+    return SeedingRunRepository(migrated_database)
 
 
 def recover(repository: PostgresRunRepository) -> list[Run]:

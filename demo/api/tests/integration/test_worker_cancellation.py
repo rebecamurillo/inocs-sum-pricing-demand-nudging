@@ -14,9 +14,9 @@ from pricing_demo.application.use_cases.run_worker import RunWorker
 from pricing_demo.domain.runs import Run, RunState, StepName, StepState
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
-from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
-from tests.support.reporting import REPORT_EVERY, quiet_report
+from tests.support.instances import SeedingRunRepository
+from tests.support.reporting import REPORT_EVERY, quiet_fingerprint, quiet_report
 from tests.support.runs import T0, BlockingExecutor, RecordingExecutor, later, make_run, step
 
 pytestmark = pytest.mark.integration
@@ -25,7 +25,7 @@ pytestmark = pytest.mark.integration
 def test_a_cancellation_stops_the_executor_and_cancels_the_run_keeping_done_steps(
     migrated_database: Engine,
 ) -> None:
-    repository = PostgresRunRepository(migrated_database)
+    repository = SeedingRunRepository(migrated_database)
     workers = PostgresWorkerRegistry(migrated_database)
     clock = FixedClock(T0)
     waiter = FakeWaiter(clock)
@@ -45,6 +45,7 @@ def test_a_cancellation_stops_the_executor_and_cancels_the_run_keeping_done_step
         REPORT_EVERY,
         clock,
         waiter,
+        quiet_fingerprint(clock),
     )
     repository.add(
         make_run(
@@ -88,7 +89,7 @@ def test_a_cancellation_stops_the_executor_and_cancels_the_run_keeping_done_step
 def test_a_cancellation_and_a_concurrent_write_of_the_worker_both_survive(
     migrated_database: Engine,
 ) -> None:
-    repository = PostgresRunRepository(migrated_database)
+    repository = SeedingRunRepository(migrated_database)
     PostgresWorkerRegistry(migrated_database).register("w-1", "h", 1, T0)
     repository.add(make_run("r1"))
     claimed = repository.claim_next("w-1", later(1))

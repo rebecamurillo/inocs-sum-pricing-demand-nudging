@@ -189,6 +189,35 @@ source zip and the data set records `bus_shapes = none`. The columns `bus_shapes
 (`generated` or `none`), `bus_shapes_reason` (set exactly when `none`) and `shape_tool_image`
 record the outcome and the tool; the refresh carries them over with the reused copy.
 
+### City instances
+
+A city instance is a named set of parameters on one data set, saved as numbered versions that
+never change once saved. Four tables hold it (`city_instances`, `instance_versions`,
+`instance_periods`, `package_fingerprints`). The instance's id is the slug of its name, fixed
+at creation (`Geneva 3 km` becomes `geneva-3km`); a version is `{instance}.v{n}` and its
+first period `{version}.mon-08`. `city_instances.next_number` is taken and incremented in the
+transaction that creates a draft, under a row lock, so a discarded number is never used
+again. A partial unique index allows one draft per instance. The 14 parameters are typed
+`double precision` columns of `instance_versions`: a value is stored as sent, so a seed of
+1.5 is kept and reported as a broken rule. A `BEFORE UPDATE` trigger (declared in the
+migration only) raises when a row with `status = 'sealed'` has any parameter column changed.
+`runs.instance_version_id` and `run_steps.period_id` are foreign keys to the version and the
+period.
+
+The ten rules a draft is checked against live in `domain/instance_rules.py`; every `PATCH` of
+a draft answers with their results, each naming two values, and with "what changes" against
+the version the draft is based on. A rule reports, it never corrects.
+
+At start and with every heartbeat the worker records the package it runs
+(`RecordPackageFingerprint`, port `PackageFingerprints`): the sha256 over the package's source
+files and the repository commit, `git_dirty`, the version from `pyproject.toml` and the
+dataclass defaults of `PipelineConfig`, `InstanceParams` and `OptimizerParams`, read in a child
+process by `infrastructure/pricing_model/package_fingerprint.py`. The row is insert-if-new, and
+its fingerprint is also written on the worker's `workers` row (no foreign key: the e2e reset
+truncates both tables). The API reads the latest row for "start from the package defaults".
+The fake adapter set records a fixed fingerprint whose defaults are constants copied from the
+package.
+
 ### Persistence
 
 PostgreSQL through SQLAlchemy 2 and psycopg 3. Repositories implement ports and return

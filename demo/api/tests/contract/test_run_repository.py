@@ -25,8 +25,8 @@ from pricing_demo.domain.runs import (
     request_cancellation,
 )
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
-from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.tables import workers
+from tests.support.instances import SeedingRunRepository
 from tests.support.runs import T0, later, make_run, step
 
 
@@ -73,7 +73,7 @@ def postgres_store(migrated_database: Engine) -> Store:
                 )
             )
 
-    return Store(PostgresRunRepository(migrated_database), record, register)
+    return Store(SeedingRunRepository(migrated_database), record, register)
 
 
 @pytest.fixture(

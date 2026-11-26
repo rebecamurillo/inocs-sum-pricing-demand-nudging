@@ -13,11 +13,17 @@ from sqlalchemy import Engine
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.use_cases.cancel_run import CancelRun
+from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
+from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
+from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
+from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.list_runs import ListRuns
+from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
 from pricing_demo.domain.system_status import (
     PROBED_COMPONENTS,
@@ -29,15 +35,20 @@ from pricing_demo.infrastructure.clock import SystemClock
 from pricing_demo.infrastructure.config.settings import Settings
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
+from pricing_demo.infrastructure.persistence.city_instances import PostgresCityInstances
 from pricing_demo.infrastructure.persistence.component_reports import PostgresComponentReports
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
 from pricing_demo.infrastructure.persistence.metadata import metadata
+from pricing_demo.infrastructure.persistence.package_fingerprints import (
+    PostgresPackageFingerprints,
+)
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
 from pricing_demo.infrastructure.persistence.truncate import truncate_all
 from pricing_demo.interface.http.app import Lifespan, create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
+from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
@@ -109,12 +120,21 @@ def create_application(settings: Settings) -> FastAPI:
             _E2ESeam(PostgresFakeSettings(engine), engine, datasets, clock)
         )
     run_repository = PostgresRunRepository(engine)
+    instances = PostgresCityInstances(engine)
 
     return create_app(
         api_version=api_version,
         routers=[
             build_system_status_router(get_system_status),
             build_city_datasets_router(ListCityDatasets(datasets)),
+            build_city_instances_router(
+                CreateCityInstance(instances, datasets, PostgresPackageFingerprints(engine), clock),
+                ListCityInstances(instances),
+                CreateInstanceVersion(instances, datasets, clock),
+                GetInstanceVersion(instances, datasets),
+                UpdateInstanceVersion(instances, datasets),
+                DeleteInstanceVersion(instances),
+            ),
             build_runs_router(
                 ListRuns(run_repository, clock),
                 GetRun(run_repository, clock),

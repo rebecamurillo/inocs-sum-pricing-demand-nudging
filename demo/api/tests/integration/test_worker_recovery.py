@@ -16,7 +16,8 @@ from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
-from tests.support.reporting import REPORT_EVERY, quiet_report
+from tests.support.instances import SeedingRunRepository
+from tests.support.reporting import REPORT_EVERY, quiet_fingerprint, quiet_report
 from tests.support.runs import T0, RecordingExecutor, later, make_run, step
 
 pytestmark = pytest.mark.integration
@@ -44,7 +45,7 @@ def left_running(
 @pytest.fixture
 def repository(migrated_database: Engine) -> PostgresRunRepository:
     PostgresWorkerRegistry(migrated_database).register("old-worker", "h", 1, T0)
-    return PostgresRunRepository(migrated_database)
+    return SeedingRunRepository(migrated_database)
 
 
 def stored(repository: PostgresRunRepository, run_id: str) -> Run:
@@ -100,6 +101,7 @@ def test_a_worker_restarted_within_sixty_seconds_recovers_the_old_run_on_a_later
         REPORT_EVERY,
         clock,
         waiter,
+        quiet_fingerprint(clock),
     )
     repository.add(left_running("r1", later(-3)))
     until = threading.Event()

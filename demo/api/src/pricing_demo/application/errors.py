@@ -67,3 +67,16 @@ class GraphBuildFailed(DomainError):
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(reason)
+
+
+class PackageDefaultsMissing(DomainError):
+    def __init__(self) -> None:
+        super().__init__(
+            "The runner has not reported the pricing model's package yet: start the worker."
+        )
+
+
+class UnknownStartVersion(DomainError):
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(f"There is no instance version {version_id} to start from.")

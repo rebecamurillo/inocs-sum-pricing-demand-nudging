@@ -24,6 +24,7 @@ when a new one is found; report each to the model's author.
 | 16 | Clustering works in EPSG:3857, so the grouping distance is in Web-Mercator units (at Geneva one unit is about 0.69 m on the ground: the default 500 is about 346 m); the minimum trip distance is in ground metres | `clustering/strategy.py:12-13`, `routing/od_permutations.py:30-35` | The two distances are not in the same unit |
 | 17 | The choice-model coefficients are constants local to the solver | `optimizer/solver.py:87-101` | They appear in no output |
 | 18 | `optimizer.solve` always computes its own upper price bound, 0.2 above the lowest price | `optimizer/__init__.py:39-46`, `optimizer/p_off.py:72-73` | No value of its parameters fixes the price; a flat price needs the inner solver function the package exports |
+| 19 | `PipelineConfig.seed` defaults to `None` | `config.py` | An instance version's seed column is not null: the demonstrator stores 42 when it starts from the package defaults (not a model change) |
 
 Entries 1, 2 and 10 to 18 were read in the code (10, 15 and 18 re-checked on 2026-11-25) and
 not yet reproduced by a run on this set-up. Each is to be reported to the model's author.

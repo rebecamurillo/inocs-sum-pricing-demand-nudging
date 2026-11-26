@@ -10,15 +10,15 @@ from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.domain.runs import Run, RunKind, RunState, RunStep, StepName
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
-from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
+from tests.support.instances import SeedingRunRepository
 from tests.support.runs import T0, later, make_run
 
 pytestmark = pytest.mark.integration
 
 
 def test_two_workers_claiming_at_once_never_take_the_same_run(migrated_database: Engine) -> None:
-    repository = PostgresRunRepository(migrated_database)
+    repository = SeedingRunRepository(migrated_database)
     registry = PostgresWorkerRegistry(migrated_database)
     registry.register("w-1", "h", 1, T0)
     registry.register("w-2", "h", 2, T0)
@@ -76,7 +76,7 @@ class OneAtATime:
 def test_one_worker_runs_the_queue_one_run_at_a_time_in_queue_order(
     migrated_database: Engine,
 ) -> None:
-    repository = PostgresRunRepository(migrated_database)
+    repository = SeedingRunRepository(migrated_database)
     workers = PostgresWorkerRegistry(migrated_database)
     clock = FixedClock(T0)
     identity = WorkerIdentity("w-1", "h", 1, T0)

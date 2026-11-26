@@ -5,12 +5,18 @@ from fastapi.testclient import TestClient
 
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.use_cases.cancel_run import CancelRun
+from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
+from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
+from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
+from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.report_components import ReportComponents
+from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
 from pricing_demo.domain.system_status import (
     PROBED_COMPONENTS,
@@ -19,13 +25,19 @@ from pricing_demo.domain.system_status import (
     ComponentStatus,
 )
 from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
+from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe, fixed_probe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
+from pricing_demo.infrastructure.fakes.package_fingerprints import (
+    FAKE_FINGERPRINT,
+    InMemoryPackageFingerprints,
+)
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.interface.http.app import create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
+from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
@@ -161,3 +173,40 @@ class RunsApp:
 @pytest.fixture
 def runs_app() -> RunsApp:
     return RunsApp()
+
+
+class CityInstancesApp:
+    """An app with the city instance routes on in-memory adapters, a data set
+    `geneva-2026-11-26` and, unless told otherwise, a recorded package fingerprint."""
+
+    def __init__(self, with_fingerprint: bool = True) -> None:
+        self.clock = FixedClock(SERVER_TIME)
+        self.datasets = InMemoryCityDatasets()
+        self.datasets.add(fake_city_dataset("geneva-2026-11-26", SERVER_TIME))
+        self.instances = InMemoryCityInstances()
+        self.fingerprints = InMemoryPackageFingerprints()
+        if with_fingerprint:
+            self.fingerprints.record(FAKE_FINGERPRINT, SERVER_TIME)
+        self.client = TestClient(
+            create_app(
+                api_version=API_VERSION,
+                routers=[
+                    build_city_instances_router(
+                        CreateCityInstance(
+                            self.instances, self.datasets, self.fingerprints, self.clock
+                        ),
+                        ListCityInstances(self.instances),
+                        CreateInstanceVersion(self.instances, self.datasets, self.clock),
+                        GetInstanceVersion(self.instances, self.datasets),
+                        UpdateInstanceVersion(self.instances, self.datasets),
+                        DeleteInstanceVersion(self.instances),
+                    )
+                ],
+            ),
+            raise_server_exceptions=False,
+        )
+
+
+@pytest.fixture
+def instances_app() -> CityInstancesApp:
+    return CityInstancesApp()
