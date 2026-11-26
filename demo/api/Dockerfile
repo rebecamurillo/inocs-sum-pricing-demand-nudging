@@ -27,9 +27,14 @@ COPY demo/api/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
-RUN useradd --system --create-home app
+# var/data is the worker's data directory (PRICING_DEMO_DATA_DIR, relative to this WORKDIR).
+# Created here and owned by `app`, so a named volume mounted on it is writable by the worker.
+RUN useradd --system --create-home app \
+    && mkdir -p /app/demo/api/var/data \
+    && chown -R app:app /app/demo/api/var
 USER app
 
 EXPOSE 8100
 
+# The API. The worker service runs `pricing-demo-worker` from the same image.
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn pricing_demo.asgi:app --host 0.0.0.0 --port 8100"]

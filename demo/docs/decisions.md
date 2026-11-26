@@ -66,6 +66,38 @@ of mind is a new entry that names the one it replaces.
 - **Why:** agents write most of the code and copy what they find. A rule that only a
   document states is broken by the fiftieth copy.
 
+## D-10 — The worker runs on the host for live runs (2026-11-26)
+
+- **Decision:** the worker, the only process that runs the package and the solver, runs on
+  the host for live runs: `make worker`, also started by `make dev`. `make up` runs it as a
+  container (`compose.yaml`, service `worker`) and the e2e stack runs it as a container with
+  fake adapters. The API never needs the host: the API in a container with the worker on the
+  host is a supported set-up (`docker compose up --detach db api web` beside `make worker`;
+  `make up` also starts the container worker, which would compete with the host worker for
+  the queue).
+- **Why:** a named-user academic Gurobi licence does not work inside a container. A container
+  worker with real adapters needs a container-capable licence (Gurobi WLS).
+
+## D-12 — The worker and the queue (2026-11-26)
+
+- **Decision:** ARCHITECTURE.md § 16 correction 1 calls this entry D-7; D-7 was already
+  taken, so it is D-12. A separate worker process claims runs. It polls every second with
+  `SELECT … WHERE state = 'queued' ORDER BY queued_at LIMIT 1 FOR UPDATE SKIP LOCKED`, and the
+  claiming transaction sets `running`, `worker_id`, `started_at` and `heartbeat_at`. It
+  executes one run at a time, step by step, through a registry of step executors; a failed
+  step stops the run and later steps stay `pending`. It heartbeats its `workers` row and the
+  claimed run every 5 s and checks every 2 s whether a cancellation was requested, in which
+  case it asks the executor to stop and marks the step and the run `cancelled`. When a worker
+  starts, every `running` run whose heartbeat is more than 60 s old is queued again once
+  (`attempt` 2, `queued_at` kept) and failed with the code `interrupted` when it is found
+  stale a second time. Every write to an existing run, by the worker and by the API's
+  cancellation, is a read-modify-write under `SELECT … FOR UPDATE` in one transaction, so a
+  cancellation cannot overwrite a claim, a heartbeat or a step state.
+- **Why:** a run must go on when the person leaves the page or the API restarts. One run at a
+  time because one solve already uses four threads and the trip planner must not be loaded
+  twice. The lease (a heartbeat and a 60 s limit) lets a restarted worker tell a run that is
+  still alive from one that was abandoned, without any other coordination than PostgreSQL.
+
 ## Known debt
 
 Accepted for a tool that runs on one machine; each must be settled before any hosting.
@@ -94,9 +126,6 @@ Accepted for a tool that runs on one machine; each must be settled before any ho
 
 ## Open, for the initiative's architecture step
 
-- How long runs are queued and executed so that they outlive a request and a restart.
-- How the solver's licence reaches the API: a named-user academic licence does not work
-  inside a container, which may mean running the API on the host (`make dev`) for live runs.
 - How the system status tells a full licence from the size-limited one that `gurobipy`
   ships with (`model-notes.md` entry 8). The skeleton's solver probe reports "available" as
   soon as an environment starts.

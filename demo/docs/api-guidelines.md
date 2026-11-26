@@ -36,6 +36,11 @@ at once; the work continues on the server and is a resource of its own with a st
 running step, the finished steps and, on failure, the step and the reason. The client reads
 it again to follow progress. Leaving the page changes nothing.
 
+The pattern: the `202` carries a `Location` header naming the run, `GET /api/v1/runs/{id}`
+reads it, and `PUT /api/v1/runs/{id}/cancellation` asks it to stop. A separate worker
+process executes the run ([D-12](decisions.md)); the API only stores and reads it, so a
+request never waits for the work and a restart of the API does not stop it.
+
 ## Errors
 
 Every error body is a problem document (RFC 9457, `application/problem+json`):

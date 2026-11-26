@@ -1,19 +1,21 @@
-from collections.abc import Collection
+from collections.abc import Callable, Collection
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Engine, func, insert, select, update
+from sqlalchemy import Connection, Engine, func, insert, select, update
 
 from pricing_demo.domain.runs import (
     Run,
     RunFailure,
     RunKind,
+    RunNotFound,
     RunState,
     RunStep,
     StepName,
     StepState,
     Subject,
     SubjectType,
+    start,
 )
 from pricing_demo.infrastructure.persistence.tables import run_steps, runs, workers
 
@@ -64,19 +66,68 @@ class PostgresRunRepository:
             return latest
 
     def save(self, run: Run) -> None:
+        """Overwrite the stored run. Not safe against a concurrent writer: use `update`."""
         with self._engine.begin() as connection:
-            values = _run_values(run)
-            del values["id"]
-            result = connection.execute(update(runs).where(runs.c.id == run.id).values(values))
-            if result.rowcount == 0:
-                raise KeyError(run.id)
-            for item in run.steps:
-                step_values = _step_values(run.id, item)
+            _write_run(connection, run)
+
+    def update(self, run_id: str, change: Callable[[Run], Run]) -> Run:
+        with self._engine.begin() as connection:
+            row = (
+                connection.execute(select(runs).where(runs.c.id == run_id).with_for_update())
+                .mappings()
+                .first()
+            )
+            if row is None:
+                raise RunNotFound(f"No run has the id {run_id}.")
+            steps = _steps_of(connection.execute(_steps_query([run_id])).mappings())
+            changed = change(_run_of(row, steps.get(run_id, ())))
+            _write_run(connection, changed)
+            return changed
+
+    def claim_next(self, worker_id: str, at: datetime) -> Run | None:
+        with self._engine.begin() as connection:
+            row = (
                 connection.execute(
-                    update(run_steps)
-                    .where(run_steps.c.run_id == run.id, run_steps.c.position == item.position)
-                    .values(step_values)
+                    select(runs)
+                    .where(runs.c.state == RunState.QUEUED.value)
+                    .order_by(runs.c.queued_at, runs.c.id)
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
                 )
+                .mappings()
+                .first()
+            )
+            if row is None:
+                return None
+            steps = _steps_of(connection.execute(_steps_query([row["id"]])).mappings())
+            claimed = start(_run_of(row, steps.get(row["id"], ())), at, worker_id)
+            _write_run(connection, claimed)
+            return claimed
+
+    def heartbeat_run(self, run_id: str, at: datetime) -> None:
+        with self._engine.begin() as connection:
+            connection.execute(
+                update(runs)
+                .where(runs.c.id == run_id, runs.c.state == RunState.RUNNING.value)
+                .values(heartbeat_at=at)
+            )
+
+    def running_runs(self) -> list[Run]:
+        return self.list_by_states([RunState.RUNNING])
+
+
+def _write_run(connection: Connection, run: Run) -> None:
+    values = _run_values(run)
+    del values["id"]
+    result = connection.execute(update(runs).where(runs.c.id == run.id).values(values))
+    if result.rowcount == 0:
+        raise KeyError(run.id)
+    for item in run.steps:
+        connection.execute(
+            update(run_steps)
+            .where(run_steps.c.run_id == run.id, run_steps.c.position == item.position)
+            .values(_step_values(run.id, item))
+        )
 
 
 def _steps_query(run_ids: list[str]) -> Any:

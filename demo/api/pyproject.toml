@@ -19,6 +19,9 @@ dependencies = [
   "uvicorn",
 ]
 
+[project.scripts]
+pricing-demo-worker = "pricing_demo.worker.main:main"
+
 [dependency-groups]
 dev = [
   "httpx2>=2.16.2",
@@ -88,7 +91,7 @@ include_external_packages = true
 name = "Source dependencies point inwards"
 type = "layers"
 layers = [
-  "pricing_demo.asgi | pricing_demo.export_openapi",
+  "pricing_demo.asgi | pricing_demo.export_openapi | pricing_demo.worker",
   "pricing_demo.bootstrap",
   "pricing_demo.infrastructure | pricing_demo.interface",
   "pricing_demo.application",

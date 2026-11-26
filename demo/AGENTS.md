@@ -33,7 +33,8 @@ Run from `demo/`. `make help` lists them.
 | `make e2e` | builds the e2e stack, runs every Playwright scenario, removes the stack | Docker, `make install` |
 | `make contract` | regenerates `contracts/openapi.json` and the web's API types | — |
 | `make format` | rewrites files to the formatters' output | — |
-| `make dev` | PostgreSQL in Docker, API and web on the host with reload | Docker |
+| `make dev` | PostgreSQL in Docker (and the trip planner when `otp/data/graph.obj` exists); API (with reload), worker and web on the host | Docker |
+| `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it | Docker |
 | `make up` / `make down` | the whole local stack in Docker | Docker |
 | `make live-smoke` | checks the real package, solver and trip planner | Gurobi licence, running OpenTripPlanner |
 

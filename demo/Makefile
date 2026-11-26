@@ -20,12 +20,16 @@ INTEGRATION_DB_URL = postgresql+psycopg://pricing_demo:pricing_demo@localhost:$(
 E2E = docker compose -f compose.e2e.yaml
 E2E_LOG = e2e/test-results/stack.log
 
+# The worker's optional settings, passed only when .env sets them (the worker has defaults).
+WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_DATA_DIR)) \
+	$(if $(PRICING_DEMO_WORKER_ID),PRICING_DEMO_WORKER_ID=$(PRICING_DEMO_WORKER_ID))
+
 # A shell ended by Ctrl-C or a termination signal runs its EXIT trap only if the signal makes
 # it exit (dash does not otherwise), so every recipe that cleans up in an EXIT trap starts
 # with this.
 ON_SIGNAL = trap 'exit 130' INT; trap 'exit 143' TERM
 
-.PHONY: help install check test test-integration e2e contract format dev up down live-smoke
+.PHONY: help install check test test-integration e2e contract format dev worker up down live-smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -100,22 +104,37 @@ format: ## Rewrite files to the formatters' output (ruff format, prettier)
 	npm --prefix e2e run format
 
 # --ignore-lock: Astro detaches itself when an AI agent runs it, which would end this recipe.
-dev: ## PostgreSQL in Docker; API and web dev server on the host; Ctrl-C stops those two, PostgreSQL runs until make down
+dev: ## PostgreSQL (and OpenTripPlanner if its graph exists) in Docker; API, worker and web dev server on the host; Ctrl-C stops those three
 	@set -e; \
 	$(ON_SIGNAL); \
 	docker compose up --detach --wait db; \
+	if [ -f otp/data/graph.obj ]; then \
+		docker compose --profile otp up --detach otp; \
+	else \
+		echo "Trip planner not started: otp/data/graph.obj does not exist (see otp/README.md)."; \
+	fi; \
 	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS) \
 		PRICING_DEMO_OTP_URL=http://localhost:$(OTP_PORT)/otp/gtfs/v1 \
 		API_PROXY_TARGET=http://localhost:$(API_PORT); \
 	uv --directory api run alembic upgrade head; \
 	uv --directory api run uvicorn pricing_demo.asgi:app --reload --reload-dir src --port $(API_PORT) & \
 	api=$$!; \
-	trap 'kill $$api 2> /dev/null || true' EXIT; \
+	env $(WORKER_ENV) uv --directory api run pricing-demo-worker & \
+	worker=$$!; \
+	trap 'kill $$api $$worker 2> /dev/null || true' EXIT; \
 	npm --prefix web run dev -- --port $(WEB_PORT) --ignore-lock
+
+worker: ## The worker on the host (real adapters unless ADAPTERS says otherwise), for live runs; Ctrl-C stops it
+	@set -e; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS) \
+		PRICING_DEMO_OTP_URL=http://localhost:$(OTP_PORT)/otp/gtfs/v1; \
+	uv --directory api run alembic upgrade head; \
+	exec env $(WORKER_ENV) uv --directory api run pricing-demo-worker
 
 up: ## The whole stack in Docker; OpenTripPlanner too when otp/data/graph.obj exists
 	@set -e; \
-	services="db api web"; \
+	services="db api worker web"; \
 	if [ -f otp/data/graph.obj ]; then \
 		services="$$services otp"; \
 	else \

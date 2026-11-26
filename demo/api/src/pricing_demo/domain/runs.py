@@ -185,6 +185,28 @@ def cancel_queued(run: Run, at: datetime) -> Run:
     return replace(cancel(run, at), steps=steps)
 
 
+def cancel_running(run: Run, at: datetime) -> Run:
+    """End a running run the person asked to stop: the step it was in and the steps after it
+    are cancelled, the steps already done or kept stay as they are."""
+    if run.state is not RunState.RUNNING:
+        raise InvalidRunTransition(f"A {run.state.value} run is not a running run.")
+    cancelled = cancel(run, at)
+    steps = tuple(
+        transition_step(item, StepState.CANCELLED, at)
+        if item.state is StepState.RUNNING
+        else replace(item, state=StepState.CANCELLED)
+        if item.state is StepState.PENDING
+        else item
+        for item in run.steps
+    )
+    return replace(cancelled, steps=steps)
+
+
+def all_steps_complete(run: Run) -> bool:
+    """True when every step is done or kept, so the run can succeed."""
+    return all(item.state in (StepState.DONE, StepState.KEPT) for item in run.steps)
+
+
 def request_cancellation(run: Run, at: datetime) -> Run:
     """Record that the person asked to cancel a running run; the first request stays."""
     if run.state is not RunState.RUNNING:
@@ -199,14 +221,23 @@ def request_cancellation(run: Run, at: datetime) -> Run:
 def requeue_after_interruption(run: Run) -> Run:
     """The restart rule: a running run whose worker died goes back to the queue.
 
-    It is the only way from running to queued. The steps that were running start again.
+    It is the only way from running to queued. The steps that were running start again, with
+    their times, progress and reason cleared; `queued_at` stays, so the run keeps its place.
     """
     if run.state is not RunState.RUNNING:
         raise InvalidRunTransition(
             f"Only a running run can be queued again, not a {run.state.value} one."
         )
     steps = tuple(
-        replace(item, state=StepState.PENDING, started_at=None)
+        replace(
+            item,
+            state=StepState.PENDING,
+            started_at=None,
+            finished_at=None,
+            progress_done=None,
+            progress_total=None,
+            reason=None,
+        )
         if item.state is StepState.RUNNING
         else item
         for item in run.steps

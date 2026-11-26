@@ -1,5 +1,6 @@
-# The stack the end-to-end suite runs against: fake adapters, a database in memory, nothing
-# published except the web on E2E_WEB_PORT. It shares no name, port or volume with compose.yaml.
+# The stack the end-to-end suite runs against: fake adapters in the API and the worker, a
+# database in memory, nothing published except the web on E2E_WEB_PORT. It shares no name,
+# port or volume with compose.yaml.
 name: pricing-demo-e2e
 
 services:
@@ -37,6 +38,22 @@ services:
       timeout: 5s
       retries: 30
       start_period: 5s
+
+  # The worker with fake adapters: it claims and executes the runs the scenarios queue.
+  worker:
+    build:
+      context: ..
+      dockerfile: demo/api/Dockerfile
+    command: ['pricing-demo-worker']
+    environment:
+      PRICING_DEMO_DATABASE_URL: postgresql+psycopg://pricing_demo:pricing_demo@db:5432/pricing_demo
+      PRICING_DEMO_ADAPTERS: fake
+    tmpfs:
+      - /app/demo/api/var/data
+    # The API's start applies the migrations the worker's queries need.
+    depends_on:
+      api:
+        condition: service_healthy
 
   web:
     build:

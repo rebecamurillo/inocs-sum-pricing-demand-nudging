@@ -5,8 +5,8 @@ from pricing_demo.application.ports.run_repository import RunRepository
 from pricing_demo.application.run_view import RunView, view_runs
 from pricing_demo.domain.runs import (
     FINISHED_STATES,
+    Run,
     RunAlreadyFinished,
-    RunNotFound,
     RunState,
     cancel_queued,
     request_cancellation,
@@ -26,16 +26,16 @@ class CancelRun:
         self._clock = clock
 
     def execute(self, run_id: str) -> Cancellation:
-        run = self._repository.get(run_id)
-        if run is None:
-            raise RunNotFound(f"No run has the id {run_id}.")
-        if run.state in FINISHED_STATES:
-            raise RunAlreadyFinished(f"The run is already {run.state.value}.")
         now = self._clock.now()
-        if run.state is RunState.QUEUED:
-            run = cancel_queued(run, now)
-        else:
-            run = request_cancellation(run, now)
-        self._repository.save(run)
+
+        def change(run: Run) -> Run:
+            if run.state in FINISHED_STATES:
+                raise RunAlreadyFinished(f"The run is already {run.state.value}.")
+            if run.state is RunState.QUEUED:
+                return cancel_queued(run, now)
+            return request_cancellation(run, now)
+
+        # A locked read-modify-write: a claim or a heartbeat that lands meanwhile is kept.
+        run = self._repository.update(run_id, change)
         view = view_runs([run], self._repository, self._clock)[0]
         return Cancellation(view, cancelled_at_once=run.state is RunState.CANCELLED)

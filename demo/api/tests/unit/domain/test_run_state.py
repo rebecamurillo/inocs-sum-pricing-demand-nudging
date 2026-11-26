@@ -15,6 +15,7 @@ from pricing_demo.domain.runs import (
     StepState,
     cancel,
     cancel_queued,
+    cancel_running,
     ensure_run_transition,
     fail,
     queue_positions,
@@ -232,3 +233,69 @@ def test_the_queue_position_is_the_rank_by_queue_time_among_queued_runs() -> Non
 
 def test_the_kind_of_a_run_is_one_of_three() -> None:
     assert {kind.value for kind in RunKind} == {"build", "pricing", "simulation"}
+
+
+def test_the_restart_operation_clears_the_reset_steps_times_progress_and_reason() -> None:
+    running = make_run(
+        "r1",
+        state=RunState.RUNNING,
+        started_at=T0,
+        steps=(
+            step(1, StepName.AREA, StepState.DONE, started_at=T0, finished_at=later(5)),
+            step(
+                2,
+                StepName.HUBS,
+                StepState.RUNNING,
+                started_at=later(5),
+                finished_at=later(6),
+                progress_done=3,
+                progress_total=9,
+                reason="half way",
+            ),
+        ),
+    )
+
+    queued = requeue_after_interruption(running)
+
+    assert queued.steps[0] == running.steps[0]
+    reset = queued.steps[1]
+    assert reset.state is StepState.PENDING
+    assert (reset.started_at, reset.finished_at) == (None, None)
+    assert (reset.progress_done, reset.progress_total, reset.reason) == (None, None, None)
+
+
+def test_cancelling_a_running_run_cancels_the_running_and_pending_steps_and_keeps_done_ones() -> (
+    None
+):
+    running = make_run(
+        "r1",
+        state=RunState.RUNNING,
+        started_at=T0,
+        steps=(
+            step(1, StepName.AREA, StepState.DONE, started_at=T0, finished_at=later(5)),
+            step(2, StepName.HUBS, StepState.KEPT),
+            step(3, StepName.ROUTES, StepState.RUNNING, started_at=later(5)),
+            step(4, StepName.TRAVELLERS_AND_BIKES),
+        ),
+    )
+
+    cancelled = cancel_running(running, NOW)
+
+    assert cancelled.state is RunState.CANCELLED
+    assert cancelled.finished_at == NOW
+    assert [s.state for s in cancelled.steps] == [
+        StepState.DONE,
+        StepState.KEPT,
+        StepState.CANCELLED,
+        StepState.CANCELLED,
+    ]
+    assert cancelled.steps[0] == running.steps[0]
+    assert cancelled.steps[2].finished_at == NOW
+
+
+@pytest.mark.parametrize("state", [s for s in RunState if s is not RunState.RUNNING])
+def test_cancelling_a_run_that_is_not_running_is_refused_by_cancel_running(
+    state: RunState,
+) -> None:
+    with pytest.raises(InvalidRunTransition):
+        cancel_running(make_run("r1", state=state), NOW)

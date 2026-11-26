@@ -7,15 +7,23 @@ goes and what may import what. Decisions and their reasons are in
 ## The system
 
 ```
- browser ──► web (static files) ──► /api ──► api (FastAPI) ──► PostgreSQL
-                                              │
-                                              ├──► pricing package (sum_nsm_dynamic_pricing, unmodified, Gurobi)
-                                              └──► OpenTripPlanner (routes)
+ browser ──► web (static files) ──► /api ──► api (FastAPI) ──► PostgreSQL ◄── worker ──┬──► pricing package (sum_nsm_dynamic_pricing, unmodified, Gurobi)
+                                                                              │         └──► OpenTripPlanner (routes)
+                                                                              └──► var/data (working directories, artefacts)
 ```
 
 - The web app is a static build. It reaches the API on the same origin under `/api`: the dev
   server proxies it, and in Docker the web container's nginx does. There is no CORS set-up.
-- The API is the only component that touches the database, the package and the trip planner.
+- The API touches only the database. The worker is the process that runs the package and
+  reaches the trip planner: it claims queued runs from PostgreSQL, one at a time, and executes
+  their steps ([D-12](decisions.md)). The API and the worker share only PostgreSQL, so the API
+  starts and serves stored results with no licence, no trip planner and no package import.
+  (The foundation's readiness probes, with real adapters, still check the package, the solver
+  and the trip planner from the API; story 1-3 changes them.)
+- The worker runs on the host for live runs (`make worker`, also started by `make dev`),
+  because a named-user Gurobi licence does not work inside a container
+  ([D-10](decisions.md)); in `make up` it is a container, and in the e2e stack a container
+  with fake adapters. Its working files are under `var/data` (`PRICING_DEMO_DATA_DIR`).
 - `contracts/openapi.json` is generated from the API and the web's API types are generated
   from it, so a mismatch between the two is a build failure, not a runtime surprise.
 
@@ -55,6 +63,7 @@ api/
     application/
       ports/                   one Protocol per module
       use_cases/               one use case per module: a class with execute()
+      step_registry.py         the executor of each step, filled by the worker's composition root
     infrastructure/
       config/                  settings read from the environment
       persistence/             engine, the shared metadata, repositories, migrations/
@@ -66,6 +75,7 @@ api/
         routers/               one module per feature: a factory that takes its use case
     bootstrap.py               composition root: adapters → use cases → routers → app
     asgi.py                    the ASGI entry point: create the app from bootstrap
+    worker/                    the worker's entry point (pricing-demo-worker) and composition root
   tests/
     unit/                      domain and use cases, with fakes; mirrors src/
     contract/                  one suite per port, run against the fake and the real adapter
@@ -82,7 +92,7 @@ api/
 | `application` | `domain`, the standard library | `infrastructure`, `interface`, `fastapi`, `sqlalchemy`, `pydantic`, `httpx`, `sum_nsm_dynamic_pricing`, `gurobipy` |
 | `infrastructure` | `application`, `domain`, its libraries | `interface` |
 | `interface` | `application`, `domain`, `fastapi`, `pydantic` | `infrastructure`, `sqlalchemy`, `sum_nsm_dynamic_pricing` |
-| `bootstrap`, `asgi` | everything | — |
+| `bootstrap`, `asgi`, `worker` | everything | — |
 
 `sum_nsm_dynamic_pricing` and `gurobipy` are imported only inside
 `infrastructure/pricing_model/`. These rules are `import-linter` contracts in
@@ -174,14 +184,16 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
 
 ## Configuration
 
-Every setting of the API is an environment variable prefixed `PRICING_DEMO_`, read once in
-`api/.../infrastructure/config/`, where its default is. A person sets ports and options in
+Every setting of the API and of the worker is an environment variable prefixed
+`PRICING_DEMO_`, read once in `api/.../infrastructure/config/`, where its default is. The
+worker reads the same settings as the API and chooses its adapters the same way. A person sets ports and options in
 `.env` (documented in `.env.example`); the Makefile and the Compose files derive the API's
 settings from them. The web build takes none: it calls `/api`.
 
 ## What is deliberately not decided here
 
 The skeleton proves the layers, the tooling and one request from the screen to the
-database. The data model of city instances and pricing versions, how long runs are queued
-and executed, the map and how the solver's licence reaches a container belong to the
-initiative's architecture step, which builds on this document.
+database. How runs are queued and executed, and where the worker runs, are settled by
+[D-12 and D-10](decisions.md). The data model of city instances and pricing versions, the
+map and the artefact store belong to the initiative's architecture step, which builds on this
+document.

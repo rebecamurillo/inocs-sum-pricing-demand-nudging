@@ -40,7 +40,8 @@ Run from this folder; `make help` lists them.
 | `make e2e` | builds the e2e stack, runs the Playwright scenarios, removes the stack |
 | `make contract` | regenerates `contracts/openapi.json` and the web API types |
 | `make format` | applies ruff format and prettier |
-| `make dev` | PostgreSQL in Docker; API and web dev server on the host, with reload. Ctrl-C stops the API and the web server; PostgreSQL keeps running until `make down` |
+| `make dev` | PostgreSQL in Docker (and OpenTripPlanner when `otp/data/graph.obj` exists); API (with reload), worker and web dev server on the host. Ctrl-C stops those three; the containers keep running until `make down` |
+| `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it |
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
 | `make live-smoke` | checks the real package, solver and trip planner |
 

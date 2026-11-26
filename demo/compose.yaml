@@ -43,6 +43,24 @@ services:
       retries: 30
       start_period: 5s
 
+  # The worker claims queued runs and executes them (D-12). Live runs with a named-user Gurobi
+  # licence cannot run in a container: use `make worker` on the host instead (D-10).
+  worker:
+    build:
+      context: ..
+      dockerfile: demo/api/Dockerfile
+    command: ['pricing-demo-worker']
+    environment:
+      PRICING_DEMO_DATABASE_URL: postgresql+psycopg://pricing_demo:pricing_demo@db:5432/pricing_demo
+      PRICING_DEMO_ADAPTERS: ${ADAPTERS:-real}
+      PRICING_DEMO_OTP_URL: http://otp:8080/otp/gtfs/v1
+    volumes:
+      - worker-data:/app/demo/api/var/data
+    # The API's start applies the migrations the worker's queries need.
+    depends_on:
+      api:
+        condition: service_healthy
+
   web:
     build:
       context: ./web
@@ -85,3 +103,4 @@ services:
 
 volumes:
   db-data:
+  worker-data:

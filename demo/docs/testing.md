@@ -10,7 +10,7 @@ The rules that bind every change are in `AGENTS.md` (rules 3, 4 and 7).
 | Unit | a rule, a calculation, a use case, a component, in isolation with fakes | `api/tests/unit/`, `web/src/**/*.test.ts(x)` | `make check`, `make test` | nothing |
 | Contract | a fake and its real adapter behave the same way behind a port | `api/tests/contract/` | the fake, and the real adapters' unreachable cases: `make check`; the rest: `make test-integration` or `make live-smoke` | in `make check`: nothing |
 | Architecture | the rules a linter cannot express (which routes exist in which mode) | `api/tests/architecture/` | `make check` | nothing |
-| Integration | repositories and migrations against a real PostgreSQL | `api/tests/integration/` | `make test-integration` | Docker |
+| Integration | repositories, migrations and the worker's claim, lease and cancellation against a real PostgreSQL | `api/tests/integration/` | `make test-integration` | Docker |
 | End-to-end | a user's scenario through the browser, the API and the database | `e2e/tests/` | `make e2e` | Docker |
 | Live smoke | the real package, solver and trip planner answer | `api/tests/live/` | `make live-smoke` | licence, OpenTripPlanner |
 
@@ -48,6 +48,11 @@ without it: they drop and recreate the schema, so they never use the application
 database. `make test-integration` starts a throwaway PostgreSQL, sets the variable and
 removes the container afterwards.
 
+The worker's integration tests (`test_worker_claim.py`, `test_worker_lease.py`,
+`test_worker_cancellation.py`) run the real repository and registry with a fixed clock and a
+fake waiter, so the 1 s poll, the 5 s heartbeat, the 2 s cancellation check and the 60 s lease
+are driven by the test and never slept. Concurrency is tested with threads and a barrier.
+
 ## End-to-end tests
 
 ```
@@ -62,8 +67,8 @@ e2e/
 - **One worker.** What the fakes answer is one shared state in the API, so scenarios run one
   after the other.
 
-- **The stack.** `compose.e2e.yaml` starts PostgreSQL, the API with the fake adapters and
-  the web container, on its own project name and port (14400), so it runs beside `make dev`.
+- **The stack.** `compose.e2e.yaml` starts PostgreSQL, the API with the fake adapters, the
+  worker with the fake adapters and the web container, on its own project name and port (14400), so it runs beside `make dev`.
   `make e2e` builds it, waits for it, runs Playwright from the host and removes it.
 - **A scenario** is written from what the user does and reads, and its title carries the
   requirement or screen it covers: `test('L-1 · saving an edited instance creates a new
