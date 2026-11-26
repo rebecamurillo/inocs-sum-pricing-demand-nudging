@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime
 
@@ -13,13 +14,19 @@ class InMemoryComponentReports:
         # The `workers.heartbeat_at` values, set by the test.
         self.worker_heartbeats: dict[str, datetime] = {}
 
-    def write(self, status: ComponentStatus, worker_id: str, at: datetime) -> None:
+    def write(
+        self,
+        status: ComponentStatus,
+        worker_id: str,
+        at: datetime,
+        details: Mapping[str, object] | None = None,
+    ) -> None:
         self._reports[status.name.value] = ComponentReport(
             status=status,
             reported_at=at,
             worker_id=worker_id,
             worker_heartbeat_at=None,
-            details={},
+            details=dict(details or {}),
         )
 
     def read(self) -> ReportedComponents:

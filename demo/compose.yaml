@@ -56,6 +56,8 @@ services:
       PRICING_DEMO_OTP_URL: http://otp:8080/otp/gtfs/v1
     volumes:
       - worker-data:/app/demo/api/var/data
+      # The graph's manifest and graph.obj, which the worker reports under the trip planner.
+      - ./otp/data:/app/demo/otp/data:ro
     # The API's start applies the migrations the worker's queries need.
     depends_on:
       api:
@@ -80,7 +82,7 @@ services:
 
   # OpenTripPlanner is optional: it needs data that is not in the repository (otp/README.md).
   # `make up` starts it when otp/data/graph.obj exists. The graph is built with
-  # `docker compose --profile otp run --rm otp-build`, which no other command starts.
+  # `make otp-graph` (which runs `docker compose --profile otp run --rm otp-build`).
   otp:
     profiles: [otp]
     image: opentripplanner/opentripplanner:2.10.0

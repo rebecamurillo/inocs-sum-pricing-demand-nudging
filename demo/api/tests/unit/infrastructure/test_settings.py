@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from pricing_demo.infrastructure.config.settings import DEFAULT_SHAPE_TOOL_IMAGE, Settings
+from pricing_demo.infrastructure.config.settings import (
+    DEFAULT_OTP_GRAPH_DIR,
+    DEFAULT_SHAPE_TOOL_IMAGE,
+    DEMO_DIR,
+    Settings,
+)
 
 
 def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -14,6 +19,7 @@ def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) 
         "WORKER_ID",
         "COMPONENT_REPORT_INTERVAL_S",
         "SHAPE_TOOL_IMAGE",
+        "OTP_GRAPH_DIR",
     ):
         monkeypatch.delenv(f"PRICING_DEMO_{name}", raising=False)
 
@@ -28,6 +34,8 @@ def test_the_defaults_point_at_the_local_stack(monkeypatch: pytest.MonkeyPatch) 
     assert settings.worker_id is None
     assert settings.component_report_interval_s == 30
     assert settings.shape_tool_image == DEFAULT_SHAPE_TOOL_IMAGE
+    assert settings.otp_graph_dir == DEFAULT_OTP_GRAPH_DIR == DEMO_DIR / "otp/data"
+    assert settings.otp_graph_dir.is_absolute()
 
 
 def test_settings_come_from_prefixed_environment_variables(
@@ -42,6 +50,14 @@ def test_settings_come_from_prefixed_environment_variables(
     assert settings.adapters == "fake"
     assert settings.otp_url == "http://otp:8080/otp/gtfs/v1"
     assert settings.database_url == "postgresql+psycopg://u:p@db:5432/x"
+
+
+def test_the_graph_folder_comes_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PRICING_DEMO_OTP_GRAPH_DIR", str(tmp_path))
+
+    assert Settings().otp_graph_dir == tmp_path
 
 
 def test_an_unknown_adapter_set_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:

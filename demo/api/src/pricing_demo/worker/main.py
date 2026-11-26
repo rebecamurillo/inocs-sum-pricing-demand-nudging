@@ -21,17 +21,21 @@ from sqlalchemy import Engine
 
 from pricing_demo.application.errors import (
     BikeStationFetchFailed,
+    GraphBuildFailed,
     GtfsCopyChanged,
     InvalidStreetExtract,
     InvalidTimetable,
     NoCityDataYet,
+    OtherTimetableInGraphFolder,
     StreetExtractNotFound,
+    UnknownCityDataset,
 )
 from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
 from pricing_demo.application.ports.bus_shape_matcher import BusShapeMatcher
 from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
+from pricing_demo.application.use_cases.build_trip_planner_graph import BuildTripPlannerGraph
 from pricing_demo.application.use_cases.import_city_data import ImportCityData
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
@@ -44,7 +48,12 @@ from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
 from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader, ZipTimetableShapes
 from pricing_demo.infrastructure.city_data.osm import PbfStreetExtract
 from pricing_demo.infrastructure.clock import SystemClock
-from pricing_demo.infrastructure.config.settings import DEFAULT_GTFS, DEFAULT_OSM_DIR, Settings
+from pricing_demo.infrastructure.config.settings import (
+    DEFAULT_GTFS,
+    DEFAULT_OSM_DIR,
+    DEMO_DIR,
+    Settings,
+)
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
@@ -58,6 +67,9 @@ from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageB
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
 from pricing_demo.infrastructure.pricing_model.solver_probe import SolverProbe
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
+from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphBuilder
+from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
+from pricing_demo.infrastructure.trip_planner.graph_folder import LocalGraphFolder
 from pricing_demo.infrastructure.trip_planner.otp_probe import OtpProbe
 from pricing_demo.infrastructure.waiter import SystemWaiter
 
@@ -105,7 +117,11 @@ def build_worker(settings: Settings) -> BuiltWorker:
         RecoverInterruptedRuns(repository, clock),
         ProcessNextRun(repository, registry, workers, identity, clock, waiter),
         ReportComponents(
-            build_probes(settings, engine), PostgresComponentReports(engine), identity.id, clock
+            build_probes(settings, engine),
+            PostgresComponentReports(engine),
+            identity.id,
+            clock,
+            trip_planner_graph=FileGraphFingerprints(settings.otp_graph_dir),
         ),
         timedelta(seconds=settings.component_report_interval_s),
         clock,
@@ -139,11 +155,14 @@ def run_loop() -> None:
 COMMAND_ERRORS = (
     BikeStationFetchFailed,
     DisjointAreas,
+    GraphBuildFailed,
     GtfsCopyChanged,
     InvalidStreetExtract,
     InvalidTimetable,
     NoCityDataYet,
+    OtherTimetableInGraphFolder,
     StreetExtractNotFound,
+    UnknownCityDataset,
 )
 
 
@@ -183,6 +202,16 @@ def build_refresh_bike_stations(settings: Settings, engine: Engine) -> RefreshBi
     )
 
 
+def build_build_trip_planner_graph(settings: Settings, engine: Engine) -> BuildTripPlannerGraph:
+    """The graph build is the maintainer's command: both adapter sets run the real Compose build."""
+    return BuildTripPlannerGraph(
+        PostgresCityDatasets(engine),
+        LocalDatasetFiles(settings.data_dir),
+        LocalGraphFolder(settings.otp_graph_dir),
+        ComposeGraphBuilder(DEMO_DIR, graph_dir=settings.otp_graph_dir),
+    )
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="pricing-demo-worker")
     commands = root.add_subparsers(dest="command")
@@ -194,15 +223,24 @@ def parser() -> argparse.ArgumentParser:
     commands.add_parser(
         "refresh-bike-stations", help="a new data set with the latest timetable and new stations"
     )
+    graph = commands.add_parser(
+        "otp-graph", help="build OpenTripPlanner's graph from a city data set"
+    )
+    graph.add_argument("--dataset", default=None, help="default: the most recent data set")
     return root
 
 
 def run_command(args: argparse.Namespace, settings: Settings) -> int:
-    """Run one city data command; prints the new id, or the reason on stderr (exit 1)."""
+    """Run one city data command; prints the new id (the manifest's path for `otp-graph`), or
+    the reason on stderr (exit 1)."""
     engine = create_db_engine(settings.database_url)
     try:
         if args.command == "import-city-data":
             created = build_import_city_data(settings, engine).execute(args.gtfs, args.osm_dir)
+        elif args.command == "otp-graph":
+            manifest = build_build_trip_planner_graph(settings, engine).execute(args.dataset)
+            print(manifest)
+            return 0
         else:
             created = build_refresh_bike_stations(settings, engine).execute()
     except COMMAND_ERRORS as error:

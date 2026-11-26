@@ -4,6 +4,7 @@ from pricing_demo.application.errors import InvalidProbeSet
 from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.domain.system_status import ComponentName, ComponentStatus
+from pricing_demo.domain.trip_planner_graph import GraphFingerprint
 from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import fixed_probe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
@@ -65,3 +66,30 @@ def test_a_probe_of_a_component_the_worker_does_not_probe_is_refused() -> None:
             "w",
             FixedClock(T0),
         )
+
+
+def test_the_graph_fingerprint_is_reported_with_the_trip_planner_only_and_read_each_time() -> None:
+    class Fingerprints:
+        def __init__(self) -> None:
+            self.hash: str | None = "h1"
+
+        def read(self) -> GraphFingerprint:
+            return GraphFingerprint({"dataset_id": "d"}, self.hash)
+
+    reports = InMemoryComponentReports()
+    fingerprints = Fingerprints()
+    use_case = ReportComponents(
+        ready_probes(), reports, "w-1", FixedClock(T0), trip_planner_graph=fingerprints
+    )
+
+    use_case.execute()
+    fingerprints.hash = "h2"
+    use_case.execute()
+
+    written = {item.status.name: item for item in reports.read().reports}
+    assert written[ComponentName.TRIP_PLANNER].details == {
+        "graph_manifest": {"dataset_id": "d"},
+        "graph_sha256": "h2",
+    }
+    assert written[ComponentName.SOLVER].details == {}
+    assert written[ComponentName.PACKAGE].details == {}

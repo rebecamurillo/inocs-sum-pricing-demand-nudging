@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from pricing_demo.application.errors import NoCityDataYet
+from pricing_demo.application.errors import NoCityDataYet, OtherTimetableInGraphFolder
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.config.settings import (
     DEFAULT_GTFS,
@@ -15,8 +15,11 @@ from pricing_demo.infrastructure.config.settings import (
 )
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
+from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
+from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphBuilder
+from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
 from pricing_demo.worker import main as worker_main
 from pricing_demo.worker.main import build_probes, build_worker, worker_id_for
 
@@ -215,3 +218,75 @@ def test_main_returns_the_exit_code_of_a_subcommand(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(worker_main, "run_command", lambda args, settings: 1)
 
     assert worker_main.main(["refresh-bike-stations"]) == 1
+
+
+# -- the graph command and the graph fingerprint ------------------------------------------
+
+
+def test_otp_graph_parses_with_and_without_a_data_set() -> None:
+    assert worker_main.parser().parse_args(["otp-graph"]).dataset is None
+    args = worker_main.parser().parse_args(["otp-graph", "--dataset", "geneva-2026-11-26"])
+
+    assert (args.command, args.dataset) == ("otp-graph", "geneva-2026-11-26")
+
+
+def test_otp_graph_prints_the_manifest_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    asked: list[str | None] = []
+
+    class FakeBuild:
+        def execute(self, dataset_id: str | None) -> Path:
+            asked.append(dataset_id)
+            return tmp_path / "graph-manifest.json"
+
+    monkeypatch.setattr(worker_main, "build_build_trip_planner_graph", lambda s, e: FakeBuild())
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["otp-graph", "--dataset", "d1"]), settings_for(tmp_path)
+    )
+
+    assert (code, asked) == (0, ["d1"])
+    assert capsys.readouterr().out == f"{tmp_path / 'graph-manifest.json'}\n"
+
+
+def test_otp_graph_exits_one_with_the_reason_on_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class Refusing:
+        def execute(self, dataset_id: str | None) -> Path:
+            raise OtherTimetableInGraphFolder(["tpg_gtfs.zip"])
+
+    monkeypatch.setattr(worker_main, "build_build_trip_planner_graph", lambda s, e: Refusing())
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["otp-graph"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert (code, captured.out) == (1, "")
+    assert "tpg_gtfs.zip" in captured.err
+
+
+@pytest.mark.parametrize("adapters", ["fake", "real"])
+def test_the_graph_is_built_by_compose_in_both_adapter_sets(tmp_path: Path, adapters: str) -> None:
+    settings = settings_for(tmp_path, adapters=adapters, otp_graph_dir=tmp_path / "graph")
+    engine = create_db_engine(settings.database_url)
+    try:
+        use_case = worker_main.build_build_trip_planner_graph(settings, engine)
+    finally:
+        engine.dispose()
+
+    assert isinstance(use_case._builder, ComposeGraphBuilder)
+    assert use_case._folder._path == tmp_path / "graph"  # type: ignore[attr-defined]
+
+
+def test_the_worker_reports_the_graph_in_the_graph_folder(tmp_path: Path) -> None:
+    for adapters in ("real", "fake"):
+        settings = settings_for(tmp_path, adapters=adapters, otp_graph_dir=tmp_path / "g")
+        built = build_worker(settings)
+        built.engine.dispose()
+
+        fingerprints = built.worker._report._graph
+        assert isinstance(fingerprints, FileGraphFingerprints)
+        assert fingerprints._path == tmp_path / "g"

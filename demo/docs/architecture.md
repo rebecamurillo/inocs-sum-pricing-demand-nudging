@@ -161,6 +161,21 @@ package's Donkey Republic provider in a child process, the fake copies a committ
 The timetable and the street extract are read by `infrastructure/city_data/` (`zipfile` and
 `csv` for GTFS, `osmium` for the PBF header). `GET /api/v1/city-datasets` lists the data sets.
 
+A third worker command, `pricing-demo-worker otp-graph` (`make otp-graph`, optional `--dataset
+{id}`, default the latest), builds the trip planner's graph from a data set. The use case
+`BuildTripPlannerGraph` refuses before it writes anything (no data set, unknown id, another
+`*gtfs*.zip` in the graph folder, not exactly one `.osm.pbf`), removes a stale
+`graph-manifest.json`, copies the data set's GTFS copy to `gtfs.zip`, writes
+`build-config.json` with the feed's first and last valid dates as the service window, runs the
+build and only then writes the manifest (OTP image, data set id, hashes of `gtfs.zip` and of the
+`.osm.pbf`, the build config). The ports are `GraphFolder` (`LocalGraphFolder`, the files in
+`PRICING_DEMO_OTP_GRAPH_DIR`, default `otp/data/`), `GraphBuilder` (`ComposeGraphBuilder` runs
+`docker compose --profile otp run --rm otp-build`; `FakeGraphBuilder` in the unit tests) and
+`GraphFingerprints` (`FileGraphFingerprints`). At start and at each report the worker adds
+`graph_manifest` and `graph_sha256` (the hash of `graph.obj`, recomputed only when its size or
+modification time changed; both null without a manifest) to the `trip_planner` component's
+`details`; the solver and package reports keep `details = {}`. No route exposes `details`.
+
 The GTFS copy is shaped: after copying, the import hands the copy and the `.osm.pbf` to the
 `BusShapeMatcher` port, and `ZipTimetableShapes` writes the tool's `shapes.txt` and the
 `shape_id` of the bus trips (route types 3 and 700-799) into the copy; every other entry stays

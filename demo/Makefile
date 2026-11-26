@@ -24,14 +24,15 @@ E2E_LOG = e2e/test-results/stack.log
 WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_DATA_DIR)) \
 	$(if $(PRICING_DEMO_WORKER_ID),PRICING_DEMO_WORKER_ID=$(PRICING_DEMO_WORKER_ID)) \
 	$(if $(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S),PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S=$(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S)) \
-	$(if $(PRICING_DEMO_SHAPE_TOOL_IMAGE),PRICING_DEMO_SHAPE_TOOL_IMAGE=$(PRICING_DEMO_SHAPE_TOOL_IMAGE))
+	$(if $(PRICING_DEMO_SHAPE_TOOL_IMAGE),PRICING_DEMO_SHAPE_TOOL_IMAGE=$(PRICING_DEMO_SHAPE_TOOL_IMAGE)) \
+	$(if $(PRICING_DEMO_OTP_GRAPH_DIR),PRICING_DEMO_OTP_GRAPH_DIR=$(PRICING_DEMO_OTP_GRAPH_DIR))
 
 # A shell ended by Ctrl-C or a termination signal runs its EXIT trap only if the signal makes
 # it exit (dash does not otherwise), so every recipe that cleans up in an EXIT trap starts
 # with this.
 ON_SIGNAL = trap 'exit 130' INT; trap 'exit 143' TERM
 
-.PHONY: help install check test test-integration e2e contract format dev worker city-data up down live-smoke
+.PHONY: help install check test test-integration e2e contract format dev worker city-data otp-graph up down live-smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -140,6 +141,13 @@ city-data: ## Import the Geneva timetable, the bus legs drawn on the streets and
 	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
 	uv --directory api run alembic upgrade head; \
 	env $(WORKER_ENV) uv --directory api run pricing-demo-worker import-city-data
+
+otp-graph: ## Build OpenTripPlanner's graph from the latest city data set (DATASET=<id> for another; Docker, the .osm.pbf in otp/data/)
+	@set -e; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
+	uv --directory api run alembic upgrade head; \
+	env $(WORKER_ENV) uv --directory api run pricing-demo-worker otp-graph $(if $(DATASET),--dataset $(DATASET))
 
 up: ## The whole stack in Docker; OpenTripPlanner too when otp/data/graph.obj exists
 	@set -e; \

@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 from pricing_demo.domain.errors import DomainError
 
 
@@ -40,6 +42,28 @@ class InvalidStreetExtract(DomainError):
 
 
 class BusShapeMatchingFailed(DomainError):
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(reason)
+
+
+class UnknownCityDataset(DomainError):
+    def __init__(self, dataset_id: str) -> None:
+        self.dataset_id = dataset_id
+        super().__init__(f"There is no city data set {dataset_id}.")
+
+
+class OtherTimetableInGraphFolder(DomainError):
+    def __init__(self, names: Sequence[str]) -> None:
+        self.names = list(names)
+        super().__init__(
+            f"The graph folder holds other timetables: {', '.join(self.names)}. "
+            "OpenTripPlanner would read them next to gtfs.zip: "
+            "the folder must hold only gtfs.zip."
+        )
+
+
+class GraphBuildFailed(DomainError):
     def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(reason)

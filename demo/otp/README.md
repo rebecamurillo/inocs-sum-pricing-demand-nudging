@@ -13,13 +13,16 @@ Tests and the end-to-end suite never need it.
 
 | File | Content | Source |
 | --- | --- | --- |
-| `tpg_gtfs.zip` | the Geneva public transport timetable (GTFS) | copy of `Geneva_Complete_Link_Instances_and_Optimization/OTP2_Geneva_Instances/tpg_gtfs.zip` in this repository |
-| `<name>.osm.pbf` | an OpenStreetMap extract that covers Geneva | download, see below |
-| `graph.obj` | the street and transit graph | built by the step below; never copied |
+| `<name>.osm.pbf` | an OpenStreetMap extract that covers Geneva; exactly one | download, see below |
+| `gtfs.zip` | the data set's GTFS copy, with the bus shapes | written by `make otp-graph`; never copied by hand |
+| `build-config.json` | the service window, see below | written by `make otp-graph` |
+| `graph.obj` | the street and transit graph | built by `make otp-graph`; never copied |
+| `graph-manifest.json` | what the graph was built from | written by `make otp-graph` after a successful build |
 
-The GTFS file in the repository is a real zip archive (7.5 MB; `trips.txt`, `stop_times.txt`,
-`stops.txt` and seven other files), not a Git LFS pointer. OTP finds the files in the folder by
-their extensions and names (`.osm.pbf`, a `.zip` with `gtfs` in its name).
+OTP finds the files in the folder by their extensions and names (`.osm.pbf`, a `.zip` with
+`gtfs` in its name). `make otp-graph` therefore refuses to run when another `*gtfs*.zip` (for
+example a hand-copied `tpg_gtfs.zip`) is in the folder: OTP would read it next to `gtfs.zip`.
+The folder must hold only `gtfs.zip`.
 
 OpenStreetMap extract, either of:
 
@@ -30,16 +33,40 @@ OpenStreetMap extract, either of:
 - A smaller extract of the Geneva area, drawn on a map at <https://extract.bbbike.org/>
   (format "Protocolbuffer (PBF)").
 
+## Service window
+
+The Geneva feed is valid from 2024-12-15 to 2025-12-13. OTP 2 by default keeps the services of
+a window around the build date (from about one year before it), so a feed whose dates lie in
+the past can be dropped entirely and routing on the period's date finds no trip.
+`make otp-graph` writes `build-config.json` with the feed's own first and last valid dates:
+
+```json
+{"transitServiceStart": "2024-12-15", "transitServiceEnd": "2025-12-13"}
+```
+
+Whether routing on the period's date then finds the timetable's trips is checked by the
+first graph build on a real machine (M-2).
+
 ## Build the graph and start the service
 
 Run from `demo/`:
 
 ```sh
-cp ../Geneva_Complete_Link_Instances_and_Optimization/OTP2_Geneva_Instances/tpg_gtfs.zip otp/data/
-# put the .osm.pbf file in otp/data/ as well
-docker compose --profile otp run --rm otp-build   # reads otp/data/, writes otp/data/graph.obj
-make up                                           # starts OTP too, because graph.obj exists
+# put the .osm.pbf file in otp/data/
+make city-data     # imports the timetable (once, or when it changes)
+make otp-graph     # DATASET=<id> for a data set other than the latest
+make up            # starts OTP too, because graph.obj exists
 ```
+
+`make otp-graph` copies the data set's GTFS copy to `otp/data/gtfs.zip`, writes
+`build-config.json`, runs `docker compose --profile otp run --rm otp-build` (reads `otp/data/`,
+writes `graph.obj`) and prints the path of `graph-manifest.json`. A stale manifest is removed
+before the build, and a new one is written only when the build succeeded. Its fields:
+`otp_image`, `dataset_id`, `gtfs_sha256` (of `gtfs.zip`), `osm_file`, `osm_sha256` and
+`build_config`. The worker reads the manifest and hashes `graph.obj` and reports both under
+the trip planner's `details` (`graph_manifest`, `graph_sha256`; null without a manifest).
+`PRICING_DEMO_OTP_GRAPH_DIR` changes the folder the worker reads (default `otp/data/`);
+`make otp-graph` refuses any folder but `otp/data/`, the one the `otp-build` service mounts.
 
 Check that it answers:
 

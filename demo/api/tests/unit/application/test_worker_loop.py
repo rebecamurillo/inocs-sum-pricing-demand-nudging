@@ -1,4 +1,5 @@
 import threading
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 
 import pytest
@@ -529,11 +530,17 @@ def test_a_failing_report_does_not_end_the_loop_and_is_tried_at_the_next_tick() 
             super().__init__()
             self.failures_left = 3
 
-        def write(self, status: ComponentStatus, worker_id: str, at: datetime) -> None:
+        def write(
+            self,
+            status: ComponentStatus,
+            worker_id: str,
+            at: datetime,
+            details: Mapping[str, object] | None = None,
+        ) -> None:
             if self.failures_left:
                 self.failures_left -= 1
                 raise ConnectionError("the database is restarting")
-            super().write(status, worker_id, at)
+            super().write(status, worker_id, at, details)
 
     rig = Rig()
     reports = FlakyReports()

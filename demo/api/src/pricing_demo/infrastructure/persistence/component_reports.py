@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import datetime
 
 from sqlalchemy import Engine, func, select
@@ -18,12 +19,18 @@ class PostgresComponentReports:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
 
-    def write(self, status: ComponentStatus, worker_id: str, at: datetime) -> None:
+    def write(
+        self,
+        status: ComponentStatus,
+        worker_id: str,
+        at: datetime,
+        details: Mapping[str, object] | None = None,
+    ) -> None:
         statement = insert(component_reports).values(
             component=status.name.value,
             state=status.state.value,
             reason=status.reason,
-            details={},
+            details=dict(details or {}),
             reported_at=at,
             worker_id=worker_id,
         )

@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -14,8 +15,14 @@ class ReportedComponents:
 class ComponentReports(Protocol):
     """The `component_reports` rows: the worker writes them, the API reads them."""
 
-    def write(self, status: ComponentStatus, worker_id: str, at: datetime) -> None:
-        """Replace the report of `status.name`."""
+    def write(
+        self,
+        status: ComponentStatus,
+        worker_id: str,
+        at: datetime,
+        details: Mapping[str, object] | None = None,
+    ) -> None:
+        """Replace the report of `status.name`; `details` is stored as `{}` when None."""
         ...
 
     def read(self) -> ReportedComponents:

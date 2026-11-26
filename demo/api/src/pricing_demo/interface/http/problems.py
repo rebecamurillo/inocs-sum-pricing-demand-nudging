@@ -13,12 +13,15 @@ from pricing_demo.application.errors import (
     BikeStationFetchFailed,
     BusShapeMatchingFailed,
     ComponentNotControllable,
+    GraphBuildFailed,
     GtfsCopyChanged,
     InvalidProbeSet,
     InvalidStreetExtract,
     InvalidTimetable,
     NoCityDataYet,
+    OtherTimetableInGraphFolder,
     StreetExtractNotFound,
+    UnknownCityDataset,
 )
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.errors import DomainError
@@ -76,6 +79,9 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     GtfsCopyChanged: INTERNAL_ERROR,
     DisjointAreas: INTERNAL_ERROR,
     BusShapeMatchingFailed: INTERNAL_ERROR,
+    UnknownCityDataset: INTERNAL_ERROR,
+    OtherTimetableInGraphFolder: INTERNAL_ERROR,
+    GraphBuildFailed: INTERNAL_ERROR,
 }
 
 

@@ -143,3 +143,15 @@ def test_a_component_the_worker_does_not_probe_is_ignored(reports: Reports) -> N
     reports.port.write(ComponentStatus.ready(ComponentName.SOLVER), "w-1", T0)
 
     assert [item.status.name for item in reports.port.read().reports] == [ComponentName.SOLVER]
+
+
+def test_the_details_given_to_a_write_are_read_back(reports: Reports) -> None:
+    reports.beat("w-1", T0)
+    details = {"graph_manifest": {"dataset_id": "d"}, "graph_sha256": None}
+
+    reports.port.write(ComponentStatus.ready(ComponentName.TRIP_PLANNER), "w-1", T0, details)
+    reports.port.write(ComponentStatus.ready(ComponentName.SOLVER), "w-1", T0)
+
+    read = {item.status.name: item for item in reports.port.read().reports}
+    assert read[ComponentName.TRIP_PLANNER].details == details
+    assert read[ComponentName.SOLVER].details == {}
