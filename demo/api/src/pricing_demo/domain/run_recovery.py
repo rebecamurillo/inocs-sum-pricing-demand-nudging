@@ -8,6 +8,7 @@ from pricing_demo.domain.runs import (
     RunFailure,
     RunState,
     StepState,
+    cancel_running,
     fail,
     requeue_after_interruption,
     transition_step,
@@ -30,7 +31,13 @@ def is_stale(run: Run, now: datetime) -> bool:
 
 
 def recover_interrupted(run: Run, now: datetime) -> Run:
-    """Queue a stale run again for its second attempt; fail it when it is already on its second."""
+    """Queue a stale run again for its second attempt; fail it when it is already on its second.
+
+    A stale run the person asked to cancel is not queued again: it is cancelled, as a worker
+    that saw the request would have done (done steps kept, the others cancelled).
+    """
+    if run.cancel_requested_at is not None:
+        return cancel_running(run, now)
     if run.attempt < MAX_ATTEMPTS:
         return requeue_after_interruption(run)
     failed_step: str | None = None

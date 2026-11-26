@@ -49,9 +49,9 @@ database. `make test-integration` starts a throwaway PostgreSQL, sets the variab
 removes the container afterwards.
 
 The worker's integration tests (`test_worker_claim.py`, `test_worker_lease.py`,
-`test_worker_cancellation.py`) run the real repository and registry with a fixed clock and a
-fake waiter, so the 1 s poll, the 5 s heartbeat, the 2 s cancellation check and the 60 s lease
-are driven by the test and never slept. Concurrency is tested with threads and a barrier.
+`test_worker_cancellation.py`, `test_worker_recovery.py`) run the real repository and registry
+with a fixed clock and a fake waiter, so the 1 s poll, the 5 s heartbeat, the 2 s cancellation
+check, the 10 s recovery pass and the 60 s lease are driven by the test and never slept. Concurrency is tested with threads and a barrier.
 
 ## End-to-end tests
 

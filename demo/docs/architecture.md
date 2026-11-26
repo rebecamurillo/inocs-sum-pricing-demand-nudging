@@ -24,6 +24,16 @@ goes and what may import what. Decisions and their reasons are in
   because a named-user Gurobi licence does not work inside a container
   ([D-10](decisions.md)); in `make up` it is a container, and in the e2e stack a container
   with fake adapters. Its working files are under `var/data` (`PRICING_DEMO_DATA_DIR`).
+- **Worker restart.** A worker that stops (Ctrl-C, a container restart, a crash, a kill)
+  leaves its run `running`. Every worker looks for interrupted runs when it starts and again
+  every 10 s of its loop (`RECOVERY_EVERY`, on the injected clock), idle or while it executes
+  a run: a `running` run whose heartbeat is more than 60 s old is queued again once
+  (`attempt` + 1, `queued_at` kept), failed with the code `interrupted` when it is found stale
+  on its second attempt, and cancelled when a cancellation was requested. A pass never
+  recovers the run its own worker has in hand (compared by run id). So a worker restarted
+  within 60 s picks up its predecessor's run on a later pass, and a run abandoned after a
+  failed end-of-step write (the worker logs the step and the error and polls again) is
+  recovered the same way.
 - `contracts/openapi.json` is generated from the API and the web's API types are generated
   from it, so a mismatch between the two is a build failure, not a runtime surprise.
 

@@ -88,9 +88,10 @@ of mind is a new entry that names the one it replaces.
   step stops the run and later steps stay `pending`. It heartbeats its `workers` row and the
   claimed run every 5 s and checks every 2 s whether a cancellation was requested, in which
   case it asks the executor to stop and marks the step and the run `cancelled`. When a worker
-  starts, every `running` run whose heartbeat is more than 60 s old is queued again once
-  (`attempt` 2, `queued_at` kept) and failed with the code `interrupted` when it is found
-  stale a second time. Every write to an existing run, by the worker and by the API's
+  starts, and every 10 s of its loop after that, every `running` run whose heartbeat is more
+  than 60 s old (except the run that worker has in hand) is queued again once (`attempt` 2,
+  `queued_at` kept), failed with the code `interrupted` when it is found stale a second time,
+  and cancelled when a cancellation was requested. Every write to an existing run, by the worker and by the API's
   cancellation, is a read-modify-write under `SELECT … FOR UPDATE` in one transaction, so a
   cancellation cannot overwrite a claim, a heartbeat or a step state.
 - **Why:** a run must go on when the person leaves the page or the API restarts. One run at a

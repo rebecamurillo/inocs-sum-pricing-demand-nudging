@@ -1,5 +1,6 @@
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from functools import partial
@@ -34,10 +35,15 @@ CANCELLATION_CHECK_EVERY = timedelta(seconds=2)
 
 @dataclass
 class _Pulse:
-    """When the running run was last heartbeated and last checked for a cancellation."""
+    """When the running run was last heartbeated and last checked for a cancellation.
+
+    `on_tick` is called with the run's id at every tick while a step runs: the worker's loop
+    uses it to run its periodic recovery of the other runs.
+    """
 
     heartbeat: datetime
     cancellation_check: datetime
+    on_tick: Callable[[str], None] | None = None
 
 
 class ProcessNextRun:
@@ -64,14 +70,21 @@ class ProcessNextRun:
         self._clock = clock
         self._waiter = waiter
 
-    def execute(self, shutdown: threading.Event | None = None) -> bool:
-        """False when no run was queued. `shutdown` set: stop the step, leave the run as it is."""
+    def execute(
+        self,
+        shutdown: threading.Event | None = None,
+        on_tick: Callable[[str], None] | None = None,
+    ) -> bool:
+        """False when no run was queued. `shutdown` set: stop the step, leave the run as it is.
+
+        `on_tick(run_id)` is called at every tick while a step of the claimed run runs.
+        """
         claimed = self._queue.claim_next(self._identity.id, self._clock.now())
         if claimed is None:
             return False
         logger.info("Run %s claimed by %s", claimed.id, self._identity.id)
         now = self._clock.now()
-        pulse = _Pulse(heartbeat=now, cancellation_check=now)
+        pulse = _Pulse(heartbeat=now, cancellation_check=now, on_tick=on_tick)
         self._process(claimed, pulse, shutdown or threading.Event())
         return True
 
@@ -90,9 +103,22 @@ class ProcessNextRun:
             if shutdown.is_set() and outcome.stopped:
                 # Stopped by the worker's own stop: the run stays running for the next start.
                 return
-            run = self._queue.update(
-                claimed.id, partial(self._end, position=planned.position, outcome=outcome)
-            )
+            try:
+                run = self._queue.update(
+                    claimed.id, partial(self._end, position=planned.position, outcome=outcome)
+                )
+            except Exception as error:
+                # The run is abandoned: its heartbeat stops here, and the periodic recovery
+                # treats it as interrupted once the heartbeat is more than 60 s old.
+                logger.exception(
+                    "The end of step %s of run %s could not be written (%s: %s); "
+                    "the run is abandoned to the recovery",
+                    planned.step.value,
+                    claimed.id,
+                    type(error).__name__,
+                    error,
+                )
+                return
             if run.state is not RunState.RUNNING:
                 return
         self._queue.update(claimed.id, self._finish)
@@ -164,6 +190,11 @@ class ProcessNextRun:
                     # A failed heartbeat or check must not abandon a step that is still
                     # running: its thread would outlive the run and overlap the next one.
                     logger.exception("The heartbeat of run %s failed; the step goes on", run.id)
+                if pulse.on_tick is not None:
+                    try:
+                        pulse.on_tick(run.id)
+                    except Exception:
+                        logger.exception("The tick of run %s failed; the step goes on", run.id)
         finally:
             if thread.is_alive():
                 stop.set()
