@@ -11,6 +11,7 @@ from pricing_demo.domain.run_recovery import STAGE_ERROR
 
 TRIP_PLANNER_UNREACHABLE = "trip_planner_unreachable"
 NO_PUBLIC_TRANSPORT = "no_public_transport"
+TIMETABLE_MISMATCH = "timetable_mismatch"
 INSTANCE_UNBALANCED = "instance_unbalanced"
 SOLVER_SIZE_LIMITED = "solver_size_limited"
 SOLVER_NO_SOLUTION = "solver_no_solution"
@@ -24,6 +25,7 @@ REASON_PATTERNS: Mapping[str, str] = {
         "the trip planner found no public transport route; "
         "the routing date {d} may be outside its timetable"
     ),
+    TIMETABLE_MISMATCH: "the trip planner's timetable is not the city data's timetable",
     INSTANCE_UNBALANCED: ("the instance still has unbalanced bike options after the package's fix"),
     SOLVER_SIZE_LIMITED: "the Gurobi licence is size-limited and cannot solve this instance",
     SOLVER_NO_SOLUTION: "the solver found no solution (status {name})",

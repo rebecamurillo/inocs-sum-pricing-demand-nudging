@@ -15,8 +15,8 @@ PROGRESS_FILE = "progress.jsonl"
 STDOUT_FILE = "stdout.log"
 STDERR_FILE = "stderr.log"
 
-StageStep = Literal["area", "hubs", "travellers_and_bikes"]
-STAGE_STEPS: tuple[StageStep, ...] = ("area", "hubs", "travellers_and_bikes")
+StageStep = Literal["area", "hubs", "routes", "travellers_and_bikes"]
+STAGE_STEPS: tuple[StageStep, ...] = ("area", "hubs", "routes", "travellers_and_bikes")
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,8 @@ class StageSpec:
     parent_pid: int
     pipeline: Mapping[str, Any] = field(default_factory=dict)
     instance: Mapping[str, Any] = field(default_factory=dict)
+    # The routes step's own settings: `retries`, `retry_wait_s` and `routing_date`.
+    routes: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
         return json.dumps(
@@ -38,6 +40,7 @@ class StageSpec:
                 "parent_pid": self.parent_pid,
                 "pipeline": dict(self.pipeline),
                 "instance": dict(self.instance),
+                "routes": dict(self.routes),
             },
             sort_keys=True,
             indent=2,
@@ -55,4 +58,5 @@ class StageSpec:
             int(data["parent_pid"]),
             dict(data.get("pipeline", {})),
             dict(data.get("instance", {})),
+            dict(data.get("routes", {})),
         )

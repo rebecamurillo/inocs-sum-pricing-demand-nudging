@@ -62,3 +62,8 @@ class GraphFingerprint:
 
     def details(self) -> dict[str, object]:
         return {"graph_manifest": self.manifest, "graph_sha256": self.graph_sha256}
+
+
+def timetable_matches(manifest: Mapping[str, object], gtfs: GtfsSnapshot) -> bool:
+    """True when the graph was built from the data set's own timetable (its copy's hash)."""
+    return manifest.get("gtfs_sha256") == gtfs.sha256

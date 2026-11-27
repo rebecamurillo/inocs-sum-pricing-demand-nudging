@@ -170,6 +170,12 @@ def version_id(instance_id: str, number: int) -> str:
     return f"{instance_id}.v{number}"
 
 
+def otp_timestamp(routing_date: date, routing_time: time) -> str:
+    """The package's own timestamp format (`PipelineConfig.otp_timestamp`): the local wall
+    clock of the routing moment with a `Z` suffix, as the package reads it (model-notes 6)."""
+    return f"{routing_date.isoformat()}T{routing_time.strftime('%H:%M:%S')}.000000Z"
+
+
 def first_period(version: str, dataset: CityDataset) -> InstancePeriod:
     moment: RoutingMoment = dataset.routing_moment
     return InstancePeriod(

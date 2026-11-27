@@ -1,0 +1,394 @@
+{
+ "hubs": {
+  "0": [
+   46.2032,
+   6.1533
+  ],
+  "1": [
+   46.20815,
+   6.1453
+  ]
+ },
+ "pairs": {
+  "0|1": {
+   "car": {
+    "itineraries": [
+     {
+      "legs": [
+       {
+        "distance": 800.0,
+        "duration": 90.0,
+        "from": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        },
+        "legGeometry": {
+         "points": "_a_yGcypd@}]~p@"
+        },
+        "mode": "CAR",
+        "rentedBike": false,
+        "route": null,
+        "to": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "pt": {
+    "itineraries": [
+     {
+      "legs": [
+       {
+        "distance": 100.0,
+        "duration": 30.0,
+        "from": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        },
+        "legGeometry": {
+         "points": "_a_yGcypd@eE~H"
+        },
+        "mode": "BICYCLE",
+        "rentedBike": true,
+        "route": null,
+        "to": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        }
+       },
+       {
+        "distance": 600.0,
+        "duration": 120.0,
+        "from": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        },
+        "legGeometry": {
+         "points": "eg_yGcopd@qQ~\\"
+        },
+        "mode": "BUS",
+        "rentedBike": false,
+        "route": {
+         "shortName": "1"
+        },
+        "to": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        }
+       },
+       {
+        "distance": 80.0,
+        "duration": 20.0,
+        "from": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        },
+        "legGeometry": {
+         "points": "wy_yGcqod@eE~H"
+        },
+        "mode": "BICYCLE",
+        "rentedBike": true,
+        "route": null,
+        "to": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        }
+       }
+      ]
+     },
+     {
+      "legs": [
+       {
+        "distance": 90.0,
+        "duration": 60.0,
+        "from": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        },
+        "legGeometry": {
+         "points": "_a_yGcypd@eE~H"
+        },
+        "mode": "WALK",
+        "rentedBike": false,
+        "route": null,
+        "to": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        }
+       },
+       {
+        "distance": 600.0,
+        "duration": 150.0,
+        "from": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        },
+        "legGeometry": {
+         "points": "eg_yGcopd@qQ~\\"
+        },
+        "mode": "TRAM",
+        "rentedBike": false,
+        "route": {
+         "shortName": "12"
+        },
+        "to": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        }
+       },
+       {
+        "distance": 70.0,
+        "duration": 40.0,
+        "from": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        },
+        "legGeometry": {
+         "points": "wy_yGcqod@eE~H"
+        },
+        "mode": "WALK",
+        "rentedBike": false,
+        "route": null,
+        "to": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        }
+       }
+      ]
+     },
+     {
+      "legs": [
+       {
+        "distance": 750.0,
+        "duration": 300.0,
+        "from": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        },
+        "legGeometry": {
+         "points": "_a_yGcypd@}]~p@"
+        },
+        "mode": "BICYCLE",
+        "rentedBike": true,
+        "route": null,
+        "to": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "1|0": {
+   "car": {
+    "itineraries": [
+     {
+      "legs": [
+       {
+        "distance": 800.0,
+        "duration": 90.0,
+        "from": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        },
+        "legGeometry": {
+         "points": "}_`yGcgod@|]_q@"
+        },
+        "mode": "CAR",
+        "rentedBike": false,
+        "route": null,
+        "to": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "pt": {
+    "itineraries": [
+     {
+      "legs": [
+       {
+        "distance": 100.0,
+        "duration": 30.0,
+        "from": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        },
+        "legGeometry": {
+         "points": "}_`yGcgod@dE_I"
+        },
+        "mode": "BICYCLE",
+        "rentedBike": true,
+        "route": null,
+        "to": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        }
+       },
+       {
+        "distance": 600.0,
+        "duration": 120.0,
+        "from": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        },
+        "legGeometry": {
+         "points": "wy_yGcqod@pQ_]"
+        },
+        "mode": "BUS",
+        "rentedBike": false,
+        "route": {
+         "shortName": "1"
+        },
+        "to": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        }
+       },
+       {
+        "distance": 80.0,
+        "duration": 20.0,
+        "from": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        },
+        "legGeometry": {
+         "points": "eg_yGcopd@dE_I"
+        },
+        "mode": "BICYCLE",
+        "rentedBike": true,
+        "route": null,
+        "to": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        }
+       }
+      ]
+     },
+     {
+      "legs": [
+       {
+        "distance": 90.0,
+        "duration": 60.0,
+        "from": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        },
+        "legGeometry": {
+         "points": "}_`yGcgod@dE_I"
+        },
+        "mode": "WALK",
+        "rentedBike": false,
+        "route": null,
+        "to": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        }
+       },
+       {
+        "distance": 600.0,
+        "duration": 150.0,
+        "from": {
+         "lat": 46.20716,
+         "lon": 6.1469,
+         "name": "Stop in 1"
+        },
+        "legGeometry": {
+         "points": "wy_yGcqod@pQ_]"
+        },
+        "mode": "TRAM",
+        "rentedBike": false,
+        "route": {
+         "shortName": "12"
+        },
+        "to": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        }
+       },
+       {
+        "distance": 70.0,
+        "duration": 40.0,
+        "from": {
+         "lat": 46.204190000000004,
+         "lon": 6.1517,
+         "name": "Stop in 0"
+        },
+        "legGeometry": {
+         "points": "eg_yGcopd@dE_I"
+        },
+        "mode": "WALK",
+        "rentedBike": false,
+        "route": null,
+        "to": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        }
+       }
+      ]
+     },
+     {
+      "legs": [
+       {
+        "distance": 750.0,
+        "duration": 300.0,
+        "from": {
+         "lat": 46.20815,
+         "lon": 6.1453,
+         "name": "Hub 1"
+        },
+        "legGeometry": {
+         "points": "}_`yGcgod@|]_q@"
+        },
+        "mode": "BICYCLE",
+        "rentedBike": true,
+        "route": null,
+        "to": {
+         "lat": 46.2032,
+         "lon": 6.1533,
+         "name": "Hub 0"
+        }
+       }
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

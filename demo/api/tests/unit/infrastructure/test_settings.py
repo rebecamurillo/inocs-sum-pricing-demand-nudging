@@ -110,3 +110,19 @@ def test_the_shape_tool_image_is_pinned_by_digest_and_can_be_overridden(
     monkeypatch.setenv("PRICING_DEMO_SHAPE_TOOL_IMAGE", "example/pfaedle:2")
 
     assert Settings().shape_tool_image == "example/pfaedle:2"
+
+
+def test_the_trip_planner_retries_and_workers_default_and_come_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in ("OTP_RETRIES", "OTP_RETRY_WAIT_S", "OTP_WORKERS"):
+        monkeypatch.delenv(f"PRICING_DEMO_{name}", raising=False)
+
+    settings = Settings()
+    assert (settings.otp_retries, settings.otp_retry_wait_s, settings.otp_workers) == (3, 2.0, 4)
+
+    monkeypatch.setenv("PRICING_DEMO_OTP_RETRIES", "0")
+    monkeypatch.setenv("PRICING_DEMO_OTP_RETRY_WAIT_S", "0.5")
+    monkeypatch.setenv("PRICING_DEMO_OTP_WORKERS", "8")
+    settings = Settings()
+    assert (settings.otp_retries, settings.otp_retry_wait_s, settings.otp_workers) == (0, 0.5, 8)

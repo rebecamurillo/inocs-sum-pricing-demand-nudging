@@ -69,3 +69,14 @@ def test_a_spec_round_trips_through_json() -> None:
     spec = StageSpec("hubs", "/w", 7, {"radius_m": 500, "gtfs_path": "/g.zip"}, {"min_demand": 1})
 
     assert StageSpec.from_json(spec.to_json()) == spec
+
+
+def test_a_routes_spec_round_trips_and_a_spec_without_routes_reads_as_empty() -> None:
+    spec = StageSpec(
+        "routes", "/w", 7, {"otp_url": "http://x"}, {}, {"retries": 3, "retry_wait_s": 2.0}
+    )
+
+    assert StageSpec.from_json(spec.to_json()) == spec
+    assert StageSpec.from_json(StageSpec("area", "/w", 1).to_json()).routes == {}
+    legacy = '{"step": "area", "working_dir": "/w", "parent_pid": 1}'
+    assert StageSpec.from_json(legacy).routes == {}

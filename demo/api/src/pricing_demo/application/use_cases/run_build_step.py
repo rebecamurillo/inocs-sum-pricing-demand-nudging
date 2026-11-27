@@ -25,8 +25,10 @@ from pricing_demo.domain.build_plan import (
 )
 from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import InstanceVersion, InstanceVersionNotFound
+from pricing_demo.domain.failure_codes import TIMETABLE_MISMATCH, failure_reason
 from pricing_demo.domain.run_recovery import STAGE_ERROR
 from pricing_demo.domain.runs import Run, RunStep, StepName
+from pricing_demo.domain.trip_planner_graph import timetable_matches
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +97,11 @@ class BuildStepExecutor:
             # The files are stored and the ingestion failed before: ingest them, nothing else.
             return self._ingest(run, step, existing, dataset, plan, version, planned)
         if step.step is StepName.ROUTES:
+            # Cleared first: a refused attempt does not show an earlier attempt's failures.
             self._route_failures.clear(run.id, step.position)
+            manifest = self._sources.graph_manifest()
+            if manifest is not None and not timetable_matches(manifest, dataset.gtfs):
+                return StepOutcome.failed(TIMETABLE_MISMATCH, failure_reason(TIMETABLE_MISMATCH))
         working = self._files.working_dir(run.id, step.step)
         wanted = STEP_UPSTREAM_FILES[step.step]
         for upstream in STEP_UPSTREAM[step.step]:

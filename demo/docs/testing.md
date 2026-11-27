@@ -10,10 +10,10 @@ The rules that bind every change are in `AGENTS.md` (rules 3, 4 and 7).
 | Unit | a rule, a calculation, a use case, a component, in isolation with fakes | `api/tests/unit/`, `web/src/**/*.test.ts(x)` | `make check`, `make test` | nothing |
 | Contract | a fake and its real adapter behave the same way behind a port | `api/tests/contract/` | the fake, and the real adapters' unreachable cases: `make check`; the rest: `make test-integration` or `make live-smoke` | in `make check`: nothing |
 | Architecture | the rules a linter cannot express (which routes exist in which mode, that the API process never loads the package) | `api/tests/architecture/` | `make check` | nothing |
-| Characterisation | what the unmodified package writes and the adapter depends on: the files and fields of steps 1, 2 and 4, integer demand, the sign of `delta_ia`, the bike-leg count, the Geneva stop, station and hub counts | `api/tests/characterisation/` | `make test-model`; the CI job `model` | the package's dependencies; no licence, trip planner or internet |
+| Characterisation | what the unmodified package writes and the adapter depends on: the files and fields of the four steps, the routes step's log templates, retries, dropped pairs and sorted file against a local trip-planner stub, integer demand, the sign of `delta_ia`, the bike-leg count, the Geneva stop, station and hub counts | `api/tests/characterisation/` | `make test-model`; the CI job `model` | the package's dependencies; no licence, trip planner or internet |
 | Integration | repositories, migrations and the worker's claim, lease and cancellation against a real PostgreSQL | `api/tests/integration/` | `make test-integration` | Docker |
 | End-to-end | a user's scenario through the browser, the API and the database | `e2e/tests/` | `make e2e` | Docker |
-| Live smoke | the real package, solver and trip planner answer | `api/tests/live/` | `make live-smoke` | licence, OpenTripPlanner |
+| Live smoke | the real package, solver and trip planner answer; OpenTripPlanner answers a Monday (2025-03-10, arrive by 08:30) query with a transit leg, its graph was built from the latest data set's timetable, and a 500 m instance builds steps 1 to 4 on the real adapters | `api/tests/live/` | `make live-smoke` | licence, OpenTripPlanner |
 
 Most tests are unit tests: the domain and the use cases hold the behaviour and need no
 set-up. End-to-end tests are few and each covers one thing a user does.
@@ -55,9 +55,14 @@ place. They carry the marker `characterisation`: `make check` collects them and 
 and in the CI job `model`.
 
 They pin what the demonstrator depends on, so that a change of the package that breaks it fails
-here (ARCHITECTURE.md § 11.2): tests 1 and 8 now (the files and fields of steps 1, 2 and 4; the
-bike-leg count; integer demand; the sign of `delta_ia`: -1 where a bike is taken), tests 2 to 4
-with story 2-8 (the routes step). The golden numbers (the stop, bike-station and hub counts of the
+here (ARCHITECTURE.md § 11.2): tests 1 to 4 and 8 (the files and fields of steps 1, 2 and 4; the
+bike-leg count; integer demand; the sign of `delta_ia`: -1 where a bike is taken; for the routes
+step, the log templates, the retry policy, the dropped itineraries and pairs, the repeated option
+ids of a resumed build and the sort). The routes tests (`test_routes.py`) run against a local
+OpenTripPlanner stub (`otp_stub.py`: an HTTP server in the test process answering the committed
+`fixtures/otp_answers.json`, with scripted failures and recorded requests); the facts that need a
+fresh interpreter (the resumed build, one seed on two orders of the same pairs) run the package
+in a subprocess, the pytest process never imports it. The golden numbers (the stop, bike-station and hub counts of the
 Geneva feed at 500 m) are fixed at the first run and change only with a change of the package or
 the feed, the reason in the commit. The real `CityPreparation` joins the port's contract suite
 under this marker (the `port` fixture of `contract/test_city_preparation.py`).

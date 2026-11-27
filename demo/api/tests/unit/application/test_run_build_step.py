@@ -10,6 +10,7 @@ from pricing_demo.domain.build_plan import STEP_OUTPUTS, PlannedStep
 from pricing_demo.domain.city_instances import InstanceVersion
 from pricing_demo.domain.read_model import RouteFailure
 from pricing_demo.domain.runs import Run, RunStep, StepName
+from pricing_demo.infrastructure.fakes.build_sources import InMemoryBuildSources
 from tests.support.builds import FINGERPRINT, MemoryBuilds, RecordingFiles, ScriptedPreparation
 from tests.support.runs import T0
 
@@ -443,3 +444,27 @@ def test_a_failed_ingestion_keeps_the_log_excerpt_and_peak_memory_of_the_prepara
         "the log",
         2048,
     )
+
+
+def test_a_graph_built_from_another_timetable_is_refused_before_anything_runs() -> None:
+    rig = Rig()
+    rig.builds.sources = InMemoryBuildSources(FINGERPRINT, {"gtfs_sha256": "1" * 64})
+    rig.executor = rig.builds.executor(rig.preparation, rig.files)
+    run = queued(rig)
+
+    outcome = rig.execute(run, ROUTES)
+
+    assert outcome.failure_code == "timetable_mismatch"
+    assert outcome.failure_reason == "the trip planner's timetable is not the city data's timetable"
+    assert rig.preparation.requests == []
+    assert rig.files.named("working_dir") == []
+
+
+def test_a_graph_built_from_the_datasets_timetable_runs_the_routes_step() -> None:
+    rig = Rig()
+    run = queued(rig)
+
+    outcome = rig.execute(run, ROUTES)
+
+    assert outcome.failure_code is None
+    assert [request.step for request in rig.preparation.requests] == [ROUTES]

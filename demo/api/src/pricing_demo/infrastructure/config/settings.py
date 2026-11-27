@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     shape_tool_image: str = DEFAULT_SHAPE_TOOL_IMAGE
     # The folder `otp-graph` builds the graph in and the worker reads its manifest from.
     otp_graph_dir: Path = DEFAULT_OTP_GRAPH_DIR
+    # The routes step: retries of a failed trip-planner query, the fixed wait between them
+    # (seconds) and the number of parallel queries.
+    otp_retries: int = Field(default=3, ge=0)
+    otp_retry_wait_s: float = Field(default=2.0, ge=0)
+    otp_workers: int = Field(default=4, ge=1)
     # How often the worker probes the solver, the package and the trip planner and reports them.
     component_report_interval_s: float = Field(default=30.0, gt=0)
 

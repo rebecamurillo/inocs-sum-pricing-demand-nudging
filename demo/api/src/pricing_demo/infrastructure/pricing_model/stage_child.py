@@ -32,6 +32,8 @@ from pricing_demo.infrastructure.pricing_model.stage_spec import (
 
 GRACE_S = 10.0
 TICK_S = 0.2
+# How often the worker reads what the child logged while it runs.
+PROGRESS_EVERY_S = 0.5
 
 
 class ProcessGroup(Protocol):
@@ -143,7 +145,12 @@ class StageChild:
         self._grace_s = grace_s
         self._clock = clock
 
-    def run(self, spec: StageSpec, stop: StopSignal) -> StepOutcome:
+    def run(
+        self,
+        spec: StageSpec,
+        stop: StopSignal,
+        on_progress: Callable[[], None] | None = None,
+    ) -> StepOutcome:
         # Absolute: the child starts in `folder`, where a relative path would not resolve.
         folder = Path(spec.working_dir).absolute()
         spec_path = folder / SPEC_FILE
@@ -151,13 +158,24 @@ class StageChild:
         group = self._start(spec_path, folder)
         sent_by_worker = False
         ended = group.poll()
+        last_progress = self._clock()
         while ended is None:
+            if on_progress is not None and self._clock() - last_progress >= PROGRESS_EVERY_S:
+                try:
+                    on_progress()
+                except BaseException:
+                    # The worker cannot follow the step any more: no child is left running.
+                    end_group(group, self._wait, self._grace_s, self._tick_s, self._clock)
+                    raise
+                last_progress = self._clock()
             if stop.is_set():
                 sent_by_worker = True
                 ended = end_group(group, self._wait, self._grace_s, self._tick_s, self._clock)
                 break
             self._wait(self._tick_s)
             ended = group.poll()
+        if on_progress is not None:
+            on_progress()  # once more: no line the child wrote last is lost
         exit_status, rss = ended
         return outcome_of(
             self._read_outcome(folder),

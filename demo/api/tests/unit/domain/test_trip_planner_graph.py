@@ -3,7 +3,12 @@ from datetime import date
 import pytest
 
 from pricing_demo.domain.city_datasets import GtfsSnapshot
-from pricing_demo.domain.trip_planner_graph import GraphFingerprint, GraphManifest, ServiceWindow
+from pricing_demo.domain.trip_planner_graph import (
+    GraphFingerprint,
+    GraphManifest,
+    ServiceWindow,
+    timetable_matches,
+)
 
 
 def snapshot(valid_from: date, valid_to: date) -> GtfsSnapshot:
@@ -62,3 +67,11 @@ def test_the_details_without_a_manifest_are_null() -> None:
         "graph_manifest": None,
         "graph_sha256": None,
     }
+
+
+def test_a_graph_built_from_the_datasets_timetable_matches() -> None:
+    gtfs = GtfsSnapshot("f.zip", "abc", "b", date(2025, 1, 1), date(2025, 2, 1), "Europe/Zurich")
+
+    assert timetable_matches({"gtfs_sha256": "abc"}, gtfs) is True
+    assert timetable_matches({"gtfs_sha256": "other"}, gtfs) is False
+    assert timetable_matches({}, gtfs) is False

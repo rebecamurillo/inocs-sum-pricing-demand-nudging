@@ -89,7 +89,9 @@ api/
       persistence/             engine, the shared metadata, repositories, component reports,
                                the fake settings, migrations/
       pricing_model/           the package gateway: the probes, the city preparation and its
-                               stage child (stage_runner.py is the child's entry; worker only)
+                               stage child (stage_runner.py is the child's entry; worker only),
+                               the routes step's progress reader (routes_progress.py), sort
+                               (routes_file.py) and retry policy (retry_policy.py)
       trip_planner/            the OpenTripPlanner client
       fakes/                   every fake adapter, one module per kind
     interface/
@@ -145,7 +147,7 @@ objects. A fake adapter (in `infrastructure/fakes/`, like every fake) returns de
 data and is what every test and the e2e stack use; `PRICING_DEMO_ADAPTERS=fake|real` selects
 the set in the composition root. Storage is the real PostgreSQL in both sets.
 
-Steps 1, 2 and 4 run in a stage child. The worker writes a spec file (`stage-spec.json`: the
+The four steps run in a stage child. The worker writes a spec file (`stage-spec.json`: the
 step, the working directory, the worker's pid, the package's settings) and starts
 `python -m pricing_demo.infrastructure.pricing_model.stage_runner {spec.json}` in its own
 session and process group, with the step's working directory as current directory and its output
@@ -159,8 +161,21 @@ exception ("{type}: {message}", the traceback only in the log), `killed` for a s
 did not send. A cancel sends SIGTERM to the process group, SIGKILL after 10 s, and the working
 directory is deleted. The run step stores `log_excerpt` (the whole log up to 256 KiB, else the
 first and last 128 KiB) and `peak_rss_bytes`. Step 4 also writes `option_bike_legs.json`, the
-bike-leg count of each option from the package's own parser. The routes step has no real adapter
-yet.
+bike-leg count of each option from the package's own parser.
+
+Step 3 (routes) runs in the same child. The worker writes `otp_timestamp` (the period's routing
+date and time, local wall clock with a `Z` suffix), `otp_url`, `otp_workers` and the version's
+minimum trip distance into the spec; the child sets the route builder's logger to DEBUG and the
+client's to INFO, deletes any `od_cache.json` before and after (a resumed build repeats option ids), and mounts the
+demonstrator's retry policy (`PRICING_DEMO_OTP_RETRIES` retries, a fixed wait of
+`PRICING_DEMO_OTP_RETRY_WAIT_S` seconds, also on `POST`) on every `OTPClient` the step creates,
+restoring the package's own `__post_init__` afterwards; then it sorts `od_results` by (`from_id`,
+`to_id`) so that one seed gives one set of travellers. While it runs the worker reads
+`progress.jsonl` every 500 ms (and once after the child ended): the total, one query done per
+pair line, and each failed query as a `route_failures` row. An unreachable trip planner ends the
+step `trip_planner_unreachable`, no pair left `no_public_transport`. Before any child starts, a
+graph manifest whose `gtfs_sha256` differs from the data set's timetable fails the step
+`timetable_mismatch` (`BuildStepExecutor`).
 
 What the package cannot do as it stands is recorded in [`model-notes.md`](model-notes.md)
 and worked around in the adapter, never in the package.
@@ -277,8 +292,7 @@ null.
 `ProcessNextRun` asks a step's keeper (`StepKeeper`, implemented by `BuildStepExecutor` with
 the executor) before it starts the step; a step whose key has an ingested artefact moves
 `pending` to `kept` at once and costs nothing. The city is prepared through the `CityPreparation` port;
-only its fake exists so far (the real adapter is built on the pricing-model adapter later), so
-a real-adapter build fails at its first step with `stage_error`.
+its fake and the pricing-model adapter implement it.
 
 ### Read model
 

@@ -112,3 +112,36 @@ def test_peak_memory_is_in_bytes_whatever_the_platform(monkeypatch: pytest.Monke
     assert peak_rss_bytes(10) == 10240
     monkeypatch.setattr(sys, "platform", "darwin")
     assert peak_rss_bytes(10) == 10
+
+
+def test_a_failure_the_child_reports_with_a_known_code_keeps_its_code_and_reason() -> None:
+    reported = {
+        "status": "failed",
+        "failure_code": "trip_planner_unreachable",
+        "values": {"url": "http://otp"},
+    }
+
+    outcome = outcome_of(reported, DONE, False, "log", 5)
+
+    assert outcome.failure_code == "trip_planner_unreachable"
+    assert outcome.failure_reason == "the trip planner is not reachable at http://otp"
+    assert (outcome.log_excerpt, outcome.peak_rss_bytes) == ("log", 5)
+
+
+def test_a_failure_with_an_unknown_code_is_a_stage_error() -> None:
+    outcome = outcome_of({"status": "failed", "failure_code": "nope"}, DONE, False, "log", 5)
+
+    assert outcome.failure_code == "stage_error"
+    assert outcome.failure_reason == "the stage child reported an unknown failure nope"
+
+
+def test_a_failure_missing_a_value_of_its_reason_is_a_stage_error() -> None:
+    outcome = outcome_of(
+        {"status": "failed", "failure_code": "no_public_transport", "values": {}},
+        DONE,
+        False,
+        "log",
+        5,
+    )
+
+    assert outcome.failure_code == "stage_error"

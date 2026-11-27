@@ -18,6 +18,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from pricing_demo.infrastructure.pricing_model.retry_policy import mounted_on_otp_clients
+from pricing_demo.infrastructure.pricing_model.routes_file import sorted_routes
 from pricing_demo.infrastructure.pricing_model.stage_spec import (
     OUTCOME_FILE,
     PROGRESS_FILE,
@@ -30,6 +32,12 @@ WATCH_EVERY_S = 2.0
 # The name the store expects for the file the package names after its pair count.
 INSTANCE_FILE = "Instance_1.json"
 BIKE_LEGS_FILE = "option_bike_legs.json"
+ROUTES_FILE = "od_routes.json"
+CACHE_FILE = "od_cache.json"
+# The routes step logs each query at DEBUG in the route builder and its totals at INFO in the
+# client (model-notes entry 11).
+ROUTE_BUILDER_LOGGER = "sum_nsm_dynamic_pricing.routing.route_builder"
+OTP_CLIENT_LOGGER = "sum_nsm_dynamic_pricing.routing.otp_client"
 
 
 class ProgressHandler(logging.Handler):
@@ -126,6 +134,8 @@ def run(spec: StageSpec) -> dict[str, Any]:
         pipeline.prepare_stations()
     elif spec.step == "hubs":
         pipeline.build_hubs()
+    elif spec.step == "routes":
+        return run_routes(pipeline, spec, folder)
     else:
         written = pipeline.generate_instance(InstanceParams(**spec.instance))
         target = folder / INSTANCE_FILE
@@ -134,6 +144,42 @@ def run(spec: StageSpec) -> dict[str, Any]:
         parsed = parse_json_instance(target)
         bike_legs = {str(arc_id): legs for (_, _, arc_id), legs in parsed["k_bike_legs"].items()}
         (folder / BIKE_LEGS_FILE).write_text(json.dumps(bike_legs, sort_keys=True), "utf-8")
+    return {"status": "done", "counts": {}}
+
+
+def run_routes(pipeline: Any, spec: StageSpec, folder: Path) -> dict[str, Any]:
+    """Step 3: the package's route building with the demonstrator's retry policy on its client,
+    no cache of an earlier run (model-notes entries 6, 10, 11, 12, 20), and the pairs sorted."""
+    from sum_nsm_dynamic_pricing.routing.otp_client import OTPClient, OTPUnavailableError
+
+    logging.getLogger(ROUTE_BUILDER_LOGGER).setLevel(logging.DEBUG)
+    logging.getLogger(OTP_CLIENT_LOGGER).setLevel(logging.INFO)
+    cache = folder / CACHE_FILE
+    routes = folder / ROUTES_FILE
+    # A cache would repeat the answers (and the option ids) of an earlier, other build.
+    cache.unlink(missing_ok=True)
+    retries = int(spec.routes["retries"])
+    wait_s = float(spec.routes["retry_wait_s"])
+    try:
+        with mounted_on_otp_clients(OTPClient, retries, wait_s):
+            routes = pipeline.compute_routes()
+            pipeline.quality_routes(routes)
+    except OTPUnavailableError:
+        return {
+            "status": "failed",
+            "failure_code": "trip_planner_unreachable",
+            "values": {"url": pipeline.config.otp_url},
+        }
+    finally:
+        cache.unlink(missing_ok=True)
+    payload = sorted_routes(json.loads(routes.read_text(encoding="utf-8")))
+    routes.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    if not payload["od_results"]:
+        return {
+            "status": "failed",
+            "failure_code": "no_public_transport",
+            "values": {"d": spec.routes["routing_date"]},
+        }
     return {"status": "done", "counts": {}}
 
 

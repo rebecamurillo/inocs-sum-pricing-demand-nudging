@@ -10,7 +10,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from pricing_demo.application.ports.step_executor import StepOutcome
-from pricing_demo.domain.failure_codes import INSTANCE_UNBALANCED, KILLED, failure_reason
+from pricing_demo.domain.failure_codes import (
+    FAILURE_CODES,
+    INSTANCE_UNBALANCED,
+    KILLED,
+    failure_reason,
+)
 from pricing_demo.domain.run_recovery import STAGE_ERROR
 
 LOG_LIMIT = 128 * 1024
@@ -69,6 +74,8 @@ def outcome_of(
         return StepOutcome(
             counts=dict(outcome.get("counts") or {}), log_excerpt=log, peak_rss_bytes=peak_rss
         )
+    if outcome.get("status") == "failed":
+        return _reported_failure(outcome, log, peak_rss)
     kind, message = str(outcome.get("exception_type", "Exception")), str(outcome.get("message", ""))
     if kind == "ValueError" and message.startswith(UNBALANCED_MESSAGE_START):
         return _failed(INSTANCE_UNBALANCED, failure_reason(INSTANCE_UNBALANCED), log, peak_rss)
@@ -77,6 +84,21 @@ def outcome_of(
         failure_reason(STAGE_ERROR, exception_type=kind, message=message),
         log,
         peak_rss,
+    )
+
+
+def _reported_failure(outcome: Mapping[str, Any], log: str, peak_rss: int) -> StepOutcome:
+    """A known failure the child reports itself (the trip planner is down, no route found)."""
+    code = str(outcome.get("failure_code", ""))
+    if code in FAILURE_CODES:
+        try:
+            reason = failure_reason(code, **dict(outcome.get("values") or {}))
+        except (KeyError, IndexError):
+            reason = None
+        if reason is not None:
+            return _failed(code, reason, log, peak_rss)
+    return _failed(
+        STAGE_ERROR, f"the stage child reported an unknown failure {code}", log, peak_rss
     )
 
 

@@ -4,7 +4,7 @@ on `port` run against the fake and against the real adapter (marker `characteris
 import json
 import shutil
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -24,6 +24,7 @@ from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparati
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from pricing_demo.infrastructure.waiter import SystemWaiter
+from tests.characterisation.otp_stub import OtpStub
 from tests.characterisation.rig import FIXTURES, make_city
 from tests.support.runs import T0
 
@@ -462,8 +463,15 @@ class FakePortRig(PortRig):
 
 
 class RealPortRig(PortRig):
-    def __init__(self, tmp_path: Path) -> None:
-        self._city = make_city(tmp_path / "data", None, FIXTURES / "gbfs_station_information.json")
+    def __init__(self, tmp_path: Path, otp_url: str) -> None:
+        self._city = make_city(
+            tmp_path / "data",
+            None,
+            FIXTURES / "gbfs_station_information.json",
+            otp_url=otp_url,
+            retries=1,
+            retry_wait_s=0.1,
+        )
         super().__init__(self._city.port, self._city.request)
 
     def routes(self, folder: Path) -> None:
@@ -477,8 +485,16 @@ class RealPortRig(PortRig):
         pytest.param("real", id="real", marks=pytest.mark.characterisation),
     ]
 )
-def port(request: pytest.FixtureRequest, tmp_path: Path) -> PortRig:
-    return FakePortRig() if request.param == "fake" else RealPortRig(tmp_path)
+def port(request: pytest.FixtureRequest, tmp_path: Path) -> Iterator[PortRig]:
+    if request.param == "fake":
+        yield FakePortRig()
+        return
+    stub = OtpStub()
+    stub.start()
+    try:
+        yield RealPortRig(tmp_path, stub.url)
+    finally:
+        stub.stop()
 
 
 def test_steps_1_2_and_4_write_their_outputs_with_the_fields_of_the_package(
@@ -518,3 +534,18 @@ def test_a_stop_set_before_the_step_ends_it_stopped_with_no_output(
 
     assert outcome.stopped is True
     assert not (tmp_path / "w" / "stations.json").exists()
+
+
+def test_the_routes_step_writes_its_outputs_and_reports_the_three_counts(
+    port: PortRig, tmp_path: Path
+) -> None:
+    folder = tmp_path / "w"
+    for step in (StepName.AREA, StepName.HUBS):
+        assert port.prepare(folder, step).failure_code is None
+
+    outcome = port.prepare(folder, StepName.ROUTES)
+
+    assert outcome.failure_code is None, outcome.failure_reason
+    for name in STEP_OUTPUTS[StepName.ROUTES]:
+        assert read(folder, name), name
+    assert {"hub_pairs_requested", "hub_pairs_removed", "retries"} <= set(outcome.counts)

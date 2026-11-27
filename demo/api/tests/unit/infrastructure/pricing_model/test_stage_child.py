@@ -156,3 +156,32 @@ def test_a_relative_working_directory_is_made_absolute_before_the_child_starts(
     StageChild(start, clock.wait, clock=clock).run(StageSpec("area", "w", 1), threading.Event())
 
     assert started == [(tmp_path / "w" / SPEC_FILE, tmp_path / "w")]
+
+
+def test_the_progress_callback_is_called_every_half_second_and_once_after_the_end(
+    tmp_path: Path,
+) -> None:
+    clock = Clock()
+    group = FakeGroup(clock, 1.3)
+    (tmp_path / OUTCOME_FILE).write_text(json.dumps({"status": "done"}))
+    calls: list[float] = []
+
+    def start(spec_path: Path, folder: Path) -> FakeGroup:
+        return group
+
+    child = StageChild(start, clock.wait, clock=clock)
+    child.run(
+        StageSpec("routes", str(tmp_path), 1), threading.Event(), lambda: calls.append(clock.now)
+    )
+
+    assert len(calls) == 3
+    assert calls[1] - calls[0] >= 0.5
+    assert calls[-1] >= 1.3
+
+
+def test_a_run_without_a_callback_does_not_need_one(tmp_path: Path) -> None:
+    clock = Clock()
+    (tmp_path / OUTCOME_FILE).write_text(json.dumps({"status": "done"}))
+    child = StageChild(lambda spec, folder: FakeGroup(clock, 0.5), clock.wait, clock=clock)
+
+    assert child.run(StageSpec("area", str(tmp_path), 1), threading.Event()).failure_code is None

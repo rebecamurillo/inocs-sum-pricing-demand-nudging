@@ -157,8 +157,7 @@ def register_build_steps(
     fake_settings: PostgresFakeSettings | None,
 ) -> None:
     """The executor and keeper of the four build steps. The real city preparation runs steps
-    1, 2 and 4 of the package in a child process; its routes step is story 2-8 and ends
-    `stage_error` until then."""
+    1 to 4 of the package, each in a child process."""
     files = LocalArtifactStore(settings.data_dir)
     read_model = PostgresReadModel(engine)
     route_failures = PostgresRouteFailures(engine)
@@ -169,7 +168,14 @@ def register_build_steps(
         preparation = FakeCityPreparation(fake_settings, waiter)
         feed_shapes = FakeFeedShapes(frozenset({"1"}))
     else:
-        preparation = PackageCityPreparation(settings.data_dir, StageChild())
+        preparation = PackageCityPreparation(
+            settings.data_dir,
+            StageChild(),
+            settings.otp_url,
+            settings.otp_workers,
+            settings.otp_retries,
+            settings.otp_retry_wait_s,
+        )
         feed_shapes = GtfsFeedShapes(settings.data_dir)
     executor = BuildStepExecutor(
         preparation,

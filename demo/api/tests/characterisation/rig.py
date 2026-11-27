@@ -62,7 +62,14 @@ class City:
         return self.port.prepare(self.request(folder, step, **changes), lambda d, t: None, stop)
 
 
-def make_city(data_dir: Path, gtfs: Path | None, gbfs: Path, name: str = "synthetic") -> City:
+def make_city(
+    data_dir: Path,
+    gtfs: Path | None,
+    gbfs: Path,
+    name: str = "synthetic",
+    otp_url: str = "http://127.0.0.1:9/otp/gtfs/v1",
+    **settings: float,
+) -> City:
     """`gtfs` is a zip to use in place (`None`: zip the synthetic feed into the data set)."""
     folder = data_dir / "datasets" / name
     folder.mkdir(parents=True)
@@ -80,4 +87,5 @@ def make_city(data_dir: Path, gtfs: Path | None, gbfs: Path, name: str = "synthe
         gtfs=replace(base.gtfs, file=file),
         gbfs=replace(base.gbfs, file=str(gbfs_copy.relative_to(data_dir))),
     )
-    return City(data_dir, dataset, PackageCityPreparation(data_dir, StageChild()))
+    port = PackageCityPreparation(data_dir, StageChild(), otp_url, **settings)  # type: ignore[arg-type]
+    return City(data_dir, dataset, port)

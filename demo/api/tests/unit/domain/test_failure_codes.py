@@ -48,6 +48,11 @@ from pricing_demo.domain.run_recovery import STAGE_ERROR
             "ValueError: bad",
         ),
         (
+            "timetable_mismatch",
+            {},
+            "the trip planner's timetable is not the city data's timetable",
+        ),
+        (
             "killed",
             {"n": 9},
             "the process was stopped by the system (signal 9); the machine may be out of memory",
@@ -60,8 +65,8 @@ def test_each_code_has_the_reason_of_the_architecture(
     assert failure_reason(code, **values) == reason
 
 
-def test_the_codes_are_the_eight_a_step_can_fail_with() -> None:
-    assert len(FAILURE_CODES) == 8
+def test_the_codes_are_the_nine_a_step_can_fail_with() -> None:
+    assert len(FAILURE_CODES) == 9
     assert STAGE_ERROR in FAILURE_CODES
 
 

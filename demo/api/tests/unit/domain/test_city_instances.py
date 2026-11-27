@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import time
+from datetime import date, time
 
 import pytest
 
@@ -9,6 +9,7 @@ from pricing_demo.domain.city_instances import (
     ParameterChange,
     first_period,
     instance_slug,
+    otp_timestamp,
     parameters_from_defaults,
     version_id,
     version_state,
@@ -148,3 +149,7 @@ def test_the_state_of_a_version_reads_its_latest_build(
     status: str, latest: RunState | None, state: str
 ) -> None:
     assert version_state(status, latest) == state  # type: ignore[arg-type]
+
+
+def test_the_trip_planner_timestamp_is_the_local_wall_clock_with_a_z_suffix() -> None:
+    assert otp_timestamp(date(2025, 3, 10), time(8, 30)) == "2025-03-10T08:30:00.000000Z"
