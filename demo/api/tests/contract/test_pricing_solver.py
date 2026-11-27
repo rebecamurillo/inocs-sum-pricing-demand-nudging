@@ -6,7 +6,7 @@ import json
 import shutil
 import threading
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import pytest
@@ -31,6 +31,8 @@ class Rig:
     folder: Path
     instance: Mapping[str, object]
     output_file: str
+    # What the adapter stores besides the solution: the package's own summary of it.
+    extra_files: tuple[str, ...] = field(default=(), kw_only=True)
 
     def solve(
         self, goals: Mapping[str, float] | None = None, stop: threading.Event | None = None
@@ -88,6 +90,7 @@ def rig(request: pytest.FixtureRequest, tmp_path: Path) -> Rig:
         folder,
         instance,
         "optimization_instance_results.json",
+        extra_files=("package_summary.json",),
     )
 
 
@@ -118,7 +121,9 @@ def test_the_same_inputs_give_the_same_solve(rig: Rig) -> None:
 def test_the_solve_names_the_file_it_wrote_into_the_working_directory(rig: Rig) -> None:
     outcome = rig.solve()
 
-    assert list(outcome.output_files) == [rig.output_file]
+    assert list(outcome.output_files) == [rig.output_file, *rig.extra_files]
+    for name in rig.extra_files:
+        assert (rig.folder / name).is_file()
     assert (rig.folder / rig.output_file).is_file()
 
 
