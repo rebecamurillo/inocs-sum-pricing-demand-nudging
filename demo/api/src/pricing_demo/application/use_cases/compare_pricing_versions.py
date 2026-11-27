@@ -103,7 +103,7 @@ class ComparePricingVersions:
                 raise NoResult(version.id) from error
         compared = [self._compared(item) for item in results]
         references = flat_references(compared)
-        by_letter = {item.letter: item.flat_key for item in compared}
+        by_letter = {item.letter: item.flat_reference_id for item in compared}
         views = tuple(
             ComparedVersionView(
                 item.version,

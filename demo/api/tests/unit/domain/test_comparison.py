@@ -218,9 +218,10 @@ def test_flat_columns_never_win_and_carry_their_own_values() -> None:
     b = version("B", flat=summary("flat-2", bike_revenue_chf=1.0))
     references = flat_references([a, b])
     simulated = group(comparison_groups([a, b], references), "simulated")
-    assert set(simulated["profit"].flats) == {"flat-1", "flat-2"}
+    assert set(simulated["profit"].flats) == {item.id for item in references}
+    assert [item.simulation_key for item in references] == ["flat-1", "flat-2"]
     assert set(simulated["profit"].best) <= {"A", "B"}
-    assert simulated["profit"].flats["flat-2"] is not None
+    assert simulated["profit"].flats[references[1].id] is not None
 
 
 def test_changes_are_the_model_prices_minus_the_flat_simulation_in_points_for_shares() -> None:
@@ -241,8 +242,12 @@ def test_versions_with_the_same_flat_simulation_share_one_reference() -> None:
     references = flat_references([version("A"), version("B")])
     assert len(references) == 1
     assert references[0].letters == ("A", "B")
-    assert references[0].id == "flat-1"
+    assert references[0].simulation_key == "flat-1"
+    assert references[0].id.startswith("flat-1")
     assert references[0].rule_current is True
+    assert references[0].cost_bike_chf == Number(
+        float(new_draft_goals(None).cost_bike_chf), "chf", "input", "headline"
+    )
     assert set(references[0].values) == {
         "flat_price_per_ride_chf",
         "pt_fare_chf",
@@ -265,6 +270,45 @@ def test_a_different_flat_price_fare_or_parking_fee_gives_its_own_reference(chan
     assert references[1].values["flat_price_per_ride_chf"].value == float(
         other.flat_price_per_ride_chf
     )
+
+
+def test_a_different_cost_of_one_ride_gives_its_own_reference_on_the_same_simulation() -> None:
+    # The probe of the review of 2026-11-27: A at the default cost, B at 0.9 CHF, one stored
+    # flat simulation (10 rides, 10 CHF revenue). B's model-prices simulation earns 20 CHF.
+    a = version("A")
+    b = version(
+        "B",
+        goals=new_draft_goals(None).replacing({"cost_bike_chf": 0.9}),
+        model_prices=summary("model-B", price_scheme="model_prices", bike_revenue_chf=20.0),
+    )
+    references = flat_references([a, b])
+    assert [item.letters for item in references] == [("A",), ("B",)]
+    assert [item.simulation_key for item in references] == ["flat-1", "flat-1"]
+    assert len({item.id for item in references}) == 2
+    assert references == flat_references([a, b])
+    assert [item.cost_bike_chf.value for item in references] == [
+        float(new_draft_goals(None).cost_bike_chf),
+        0.9,
+    ]
+    assert references[1].cost_bike_chf.unit == "chf"
+    assert references[1].cost_bike_chf.source == "input"
+    assert references[1].cost_bike_chf.group == "headline"
+
+    simulated = group(comparison_groups([a, b], references), "simulated")
+    profit = simulated["profit"]
+    reference_a, reference_b = (item.id for item in references)
+    cost_a = float(new_draft_goals(None).cost_bike_chf)
+    assert profit.flats[reference_a].value == pytest.approx(10.0 - cost_a * 10)
+    assert profit.flats[reference_b].value == pytest.approx(10.0 - 0.9 * 10)
+    assert profit.values["B"].value == pytest.approx(20.0 - 0.9 * 10)
+    assert profit.changes["B"].value == pytest.approx(
+        profit.values["B"].value - profit.flats[reference_b].value
+    )
+    assert profit.changes["A"].value == pytest.approx(
+        profit.values["A"].value - profit.flats[reference_a].value
+    )
+    # The other flat cells read the same stored simulation in both columns.
+    assert simulated["ridership"].flats[reference_a] == simulated["ridership"].flats[reference_b]
 
 
 def test_a_flat_simulation_under_an_older_rule_gets_its_own_reference() -> None:

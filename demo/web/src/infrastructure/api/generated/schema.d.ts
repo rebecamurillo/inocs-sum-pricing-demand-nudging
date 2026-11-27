@@ -757,14 +757,16 @@ export interface components {
         };
         /** FlatReferenceResource */
         FlatReferenceResource: {
+            /** @description The cost of one ride its simulated profit is computed with. */
+            cost_bike_chf: components["schemas"]["NumberResource"];
             /**
              * Id
-             * @description The flat simulation's key.
+             * @description The flat column's id: its flat simulation's key and its cost of one ride.
              */
             id: string;
             /**
              * Letters
-             * @description The versions this flat simulation serves.
+             * @description The versions this flat column serves.
              */
             letters: string[];
             /** Rule Current */
@@ -777,6 +779,11 @@ export interface components {
             };
             /** Rule Version */
             rule_version: number;
+            /**
+             * Simulation Key
+             * @description The stored flat simulation it reads; two references may share one.
+             */
+            simulation_key: string;
             /** Values */
             values: {
                 [key: string]: components["schemas"]["NumberResource"];

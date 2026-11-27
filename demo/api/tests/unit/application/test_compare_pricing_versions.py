@@ -68,7 +68,7 @@ def test_versions_differing_only_by_the_flat_price_share_their_solve(rig: Result
 def test_versions_with_the_same_flat_price_share_one_reference_and_no_solve(
     rig: ResultRig,
 ) -> None:
-    a, b = rig.finished(), rig.finished(cost_bike_chf=0.9)
+    a, b = rig.finished(), rig.finished(ridership_weight=9.0)
 
     comparison = rig.compare.execute([a, b], None)
 
@@ -78,6 +78,27 @@ def test_versions_with_the_same_flat_price_share_one_reference_and_no_solve(
         comparison.flat_references[0].id
     }
     assert comparison.identical_solves == ()
+
+
+def test_a_different_cost_of_one_ride_gives_its_own_reference_on_the_same_simulation(
+    rig: ResultRig,
+) -> None:
+    a, b = rig.finished(), rig.finished(cost_bike_chf=0.9)
+
+    comparison = rig.compare.execute([a, b], None)
+
+    references = comparison.flat_references
+    assert [item.letters for item in references] == [("A",), ("B",)]
+    assert references[0].simulation_key == references[1].simulation_key
+    assert references[0].id != references[1].id
+    assert [item.flat_reference for item in comparison.versions] == [item.id for item in references]
+    assert [item.cost_bike_chf.value for item in references] == [0.6, 0.9]
+    profit = next(row for row in comparison.groups[0].rows if row.key == "profit")
+    flat_b = profit.flats[references[1].id]
+    assert flat_b is not None
+    assert profit.values["B"] is not None
+    assert profit.changes["B"] is not None
+    assert profit.changes["B"].value == pytest.approx(profit.values["B"].value - flat_b.value)
 
 
 def test_a_version_simulated_under_an_older_rule_has_its_own_flat_reference(

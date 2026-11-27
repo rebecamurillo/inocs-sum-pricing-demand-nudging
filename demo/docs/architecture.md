@@ -407,7 +407,9 @@ four finished versions of one instance version side by side. It checks, in this 
 the versions share an instance version (`DifferentInstances`, `409 different_instances`), and that
 each has a result (`409 no_result`: `ResultNotFound` from `GetPricingResult`, which reuses
 `ResultLookup`, becomes `NoResult`; the result routes keep their `404`). Nothing is stored: the
-rows, the best values, the flat references (one per flat simulation key), the identical-solve
+rows, the best values, the flat references (one per flat simulation key and cost of one ride:
+two references may read the same stored flat simulation, each with its profit computed from its
+own cost), the identical-solve
 groups and the per-pair and per-hub differences are computed in `domain/comparison.py` from the
 stored results on each request.
 

@@ -62,7 +62,18 @@ def test_two_versions_answer_200_with_the_top_level_facts_and_every_number_sourc
     assert body["pair_differences"]["a"] == "A"
     assert body["pair_differences"]["b"] == "B"
     assert body["identical_solves"] == []
-    assert len(body["flat_references"]) == 1
+    # A and B share one stored flat simulation but not the cost of one ride: two references.
+    references = body["flat_references"]
+    assert [item["letters"] for item in references] == [["A"], ["B"]]
+    assert references[0]["simulation_key"] == references[1]["simulation_key"]
+    assert references[0]["id"] != references[1]["id"]
+    assert [item["cost_bike_chf"] for item in references] == [
+        {"value": 0.6, "unit": "chf", "source": "input", "group": "headline"},
+        {"value": 0.7, "unit": "chf", "source": "input", "group": "headline"},
+    ]
+    assert [item["flat_reference"] for item in body["versions"]] == [
+        item["id"] for item in references
+    ]
     row = body["groups"][0]["rows"][0]
     assert set(row) == {"key", "values", "changes", "flats", "best"}
 

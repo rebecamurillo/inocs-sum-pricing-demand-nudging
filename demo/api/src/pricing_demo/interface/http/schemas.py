@@ -1530,9 +1530,17 @@ class ComparedVersionResource(BaseModel):
 
 
 class FlatReferenceResource(BaseModel):
-    id: str = Field(description="The flat simulation's key.")
-    letters: list[str] = Field(description="The versions this flat simulation serves.")
+    id: str = Field(
+        description="The flat column's id: its flat simulation's key and its cost of one ride."
+    )
+    simulation_key: str = Field(
+        description="The stored flat simulation it reads; two references may share one."
+    )
+    letters: list[str] = Field(description="The versions this flat column serves.")
     values: dict[str, NumberResource]
+    cost_bike_chf: NumberResource = Field(
+        description="The cost of one ride its simulated profit is computed with."
+    )
     rule_id: str
     rule_version: int
     rule_parameters: dict[str, float]
@@ -1542,8 +1550,10 @@ class FlatReferenceResource(BaseModel):
     def from_domain(cls, item: FlatReference) -> "FlatReferenceResource":
         return cls(
             id=item.id,
+            simulation_key=item.simulation_key,
             letters=list(item.letters),
             values=_numbers(item.values),
+            cost_bike_chf=NumberResource.from_domain(item.cost_bike_chf),
             rule_id=item.rule_id,
             rule_version=item.rule_version,
             rule_parameters=dict(item.rule_parameters),

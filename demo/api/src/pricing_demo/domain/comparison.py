@@ -87,6 +87,18 @@ class ComparedVersion:
     def flat_key(self) -> str:
         return self.flat.key
 
+    @property
+    def cost_bike(self) -> float:
+        return float(self.goals.cost_bike_chf)
+
+    @property
+    def flat_reference_id(self) -> str:
+        """The id of the version's flat reference: the flat simulation key and the cost of one
+        ride. The cost is not in the storage key (§ 6.3) but the flat profit depends on it, so
+        two versions sharing a stored flat simulation with different costs get two references
+        (the operator's answer of 2026-11-27)."""
+        return f"{self.flat_key}:cost_bike_chf={self.cost_bike!r}"
+
 
 @dataclass(frozen=True)
 class ComparisonRow:
@@ -108,12 +120,15 @@ class ComparisonGroup:
 
 @dataclass(frozen=True)
 class FlatReference:
-    """One flat simulation, shared by every version whose flat price, fare, parking fee and
-    rule are the same (the storage key of § 6.3)."""
+    """One flat column: a stored flat simulation (the storage key of § 6.3: flat price, fare,
+    parking fee and rule) read with one cost of one ride. Two references may read the same
+    stored simulation; their `simulation_key` is then the same and their profit differs."""
 
     id: str
+    simulation_key: str
     letters: tuple[str, ...]
     values: Mapping[str, Number]
+    cost_bike_chf: Number
     rule_id: str
     rule_version: int
     rule_parameters: Mapping[str, float]
@@ -176,22 +191,25 @@ def best_letters(values: Mapping[str, Number | None], direction: Direction) -> t
 
 
 def flat_references(versions: Sequence[ComparedVersion]) -> tuple[FlatReference, ...]:
-    """One reference per flat simulation key, in the order of the first version it serves."""
+    """One reference per (flat simulation key, cost of one ride), in the order of the first
+    version it serves."""
     served: dict[str, list[ComparedVersion]] = {}
     for version in versions:
-        served.setdefault(version.flat_key, []).append(version)
+        served.setdefault(version.flat_reference_id, []).append(version)
     found = []
-    for key, group in served.items():
+    for reference_id, group in served.items():
         first = group[0]
         goals = goal_numbers(first.goals)
         found.append(
             FlatReference(
-                key,
+                reference_id,
+                first.flat_key,
                 tuple(item.letter for item in group),
                 {
                     name: goals[name]
                     for name in ("flat_price_per_ride_chf", "pt_fare_chf", "car_parking_fee_chf")
                 },
+                goals["cost_bike_chf"],
                 first.flat.rule_id,
                 first.flat.rule_version,
                 dict(first.flat.rule_parameters),
@@ -330,30 +348,27 @@ def _row(
 def _simulated_group(
     versions: Sequence[ComparedVersion], references: Sequence[FlatReference]
 ) -> ComparisonGroup:
-    own = {
-        item.letter: _simulated_values(item.model_prices, float(item.goals.cost_bike_chf))
-        for item in versions
-    }
-    own_flat = {
-        item.letter: _simulated_values(item.flat, float(item.goals.cost_bike_chf))
-        for item in versions
-    }
+    own = {item.letter: _simulated_values(item.model_prices, item.cost_bike) for item in versions}
     by_letter = {item.letter: item for item in versions}
-    # A shared reference shows the figures with the cost of the first version it serves.
+    # Every version a reference serves has the reference's flat simulation and cost, so the
+    # column is the same whichever served version it is read from.
     shown = {
         reference.id: _simulated_values(
-            by_letter[reference.letters[0]].flat,
-            float(by_letter[reference.letters[0]].goals.cost_bike_chf),
+            by_letter[reference.letters[0]].flat, float(reference.cost_bike_chf.value)
         )
         for reference in references
     }
+    reference_of = {item.letter: item.flat_reference_id for item in versions}
     rows = []
     for key in next(iter(own.values())):
         rows.append(
             _row(
                 key,
                 {letter: values[key] for letter, values in own.items()},
-                {letter: _change(own[letter][key], own_flat[letter][key], key) for letter in own},
+                {
+                    letter: _change(own[letter][key], shown[reference_of[letter]][key], key)
+                    for letter in own
+                },
                 {reference: values[key] for reference, values in shown.items()},
             )
         )

@@ -724,13 +724,17 @@
       },
       "FlatReferenceResource": {
         "properties": {
+          "cost_bike_chf": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "The cost of one ride its simulated profit is computed with."
+          },
           "id": {
-            "description": "The flat simulation's key.",
+            "description": "The flat column's id: its flat simulation's key and its cost of one ride.",
             "title": "Id",
             "type": "string"
           },
           "letters": {
-            "description": "The versions this flat simulation serves.",
+            "description": "The versions this flat column serves.",
             "items": {
               "type": "string"
             },
@@ -756,6 +760,11 @@
             "title": "Rule Version",
             "type": "integer"
           },
+          "simulation_key": {
+            "description": "The stored flat simulation it reads; two references may share one.",
+            "title": "Simulation Key",
+            "type": "string"
+          },
           "values": {
             "additionalProperties": {
               "$ref": "#/components/schemas/NumberResource"
@@ -766,8 +775,10 @@
         },
         "required": [
           "id",
+          "simulation_key",
           "letters",
           "values",
+          "cost_bike_chf",
           "rule_id",
           "rule_version",
           "rule_parameters",
