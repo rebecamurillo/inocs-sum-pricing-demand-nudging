@@ -224,6 +224,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/place-names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The stop and bike-station names of an instance version that match a text
+         * @description Case and accent do not matter. A parent station and its platforms are one line. A text of fewer than two characters matches nothing.
+         */
+        get: operations["listPlaceNames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pricing-versions/{pricing_version_id}": {
         parameters: {
             query?: never;
@@ -323,6 +343,26 @@ export interface paths {
         put?: never;
         /** Queue a simulation run: the stored solve, simulated again with the current rule */
         post: operations["simulatePricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/route-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The stored options of one hub pair, with legs and geometry
+         * @description Each leg says whether its line follows a street path, a timetable shape or a straight line.
+         */
+        get: operations["listRouteOptions"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -444,6 +484,26 @@ export interface paths {
         };
         /** Which components work now and which actions they allow */
         get: operations["getSystemStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trip-quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A trip between two points, quoted hub to hub from stored data
+         * @description Reads the stored build and result only: no trip planner is called. Without a price the answer is 200 with the reason in `status`.
+         */
+        get: operations["quoteTrip"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1075,6 +1135,19 @@ export interface components {
              */
             status: "draft" | "sealed";
         };
+        /** LineStringResource */
+        LineStringResource: {
+            /**
+             * Coordinates
+             * @description `[lon, lat]` positions.
+             */
+            coordinates: number[][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "LineString";
+        };
         /** MenuVersion */
         MenuVersion: {
             /** Id */
@@ -1188,6 +1261,30 @@ export interface components {
             before: number;
             /** Parameter */
             parameter: string;
+        };
+        /** PlaceNameLine */
+        PlaceNameLine: {
+            /** Hub Id */
+            hub_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "stop" | "bike_station";
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name: string;
+        };
+        /** PlaceNameList */
+        PlaceNameList: {
+            /**
+             * Items
+             * @description At most 10; names that start with the text first, then alphabetical.
+             */
+            items: components["schemas"]["PlaceNameLine"][];
         };
         /** PlannedStepResource */
         PlannedStepResource: {
@@ -1568,6 +1665,83 @@ export interface components {
             /** Timetable Valid To */
             timetable_valid_to: string | null;
         };
+        /** QuotedHubResource */
+        QuotedHubResource: {
+            /** Hub Id */
+            hub_id: string;
+            /** Hub Name */
+            hub_name: string;
+        };
+        /** QuotedLegResource */
+        QuotedLegResource: {
+            duration_s: components["schemas"]["NumberResource"];
+            /** From Name */
+            from_name: string | null;
+            /** Line */
+            line: string | null;
+            /** Mode */
+            mode: string;
+            /** To Name */
+            to_name: string | null;
+        };
+        /** QuotedOptionResource */
+        QuotedOptionResource: {
+            /** Arc Id */
+            arc_id: string;
+            bike_legs: components["schemas"]["NumberResource"];
+            /** @description Per bike ride; PT + bike only. */
+            bike_price: components["schemas"]["NumberResource"] | null;
+            car_cost: components["schemas"]["NumberResource"] | null;
+            car_parking_fee: components["schemas"]["NumberResource"] | null;
+            duration_s: components["schemas"]["NumberResource"];
+            /** @description The model's flow on the option. */
+            flow: components["schemas"]["NumberResource"] | null;
+            /** Legs */
+            legs: components["schemas"]["QuotedLegResource"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "pt_bike" | "pt_only" | "car";
+            /**
+             * Most Taken
+             * @description The option with the largest flow within its mode.
+             */
+            most_taken: boolean;
+            /** @description The total, from the one price function. */
+            price: components["schemas"]["NumberResource"];
+            pt_fare: components["schemas"]["NumberResource"] | null;
+            transfers: components["schemas"]["NumberResource"];
+        };
+        /** QuotedPointResource */
+        QuotedPointResource: {
+            /** @description Set on `no_hub_here`. */
+            distance_from_outline_m: components["schemas"]["NumberResource"] | null;
+            distance_to_hub_centre_m: components["schemas"]["NumberResource"] | null;
+            /**
+             * Hub Id
+             * @description The hub with the nearest centre; set when matched.
+             */
+            hub_id: string | null;
+            /** Hub Name */
+            hub_name: string | null;
+            /**
+             * Nearest Hub Id
+             * @description The hub with the nearest outline; set on `no_hub_here`.
+             */
+            nearest_hub_id: string | null;
+            /**
+             * Nearest Stop Name
+             * @description The stop nearest to the point.
+             */
+            nearest_stop_name: string | null;
+            /**
+             * Status
+             * @description `matched` to a hub, `outside_zone` of the study circle, or `no_hub_here`: farther than 300 m from every hub outline.
+             * @enum {string}
+             */
+            status: "matched" | "outside_zone" | "no_hub_here";
+        };
         /** RouteFailureList */
         RouteFailureList: {
             /** Items */
@@ -1627,6 +1801,53 @@ export interface components {
              * @description Where the leg ends; null when the trip planner gave no name and for a leg stored before the names were kept.
              */
             to_place: string | null;
+        };
+        /** RouteOptionItem */
+        RouteOptionItem: {
+            /** Arc Id */
+            arc_id: string;
+            bike_legs: components["schemas"]["NumberResource"];
+            duration_s: components["schemas"]["NumberResource"];
+            /** Legs */
+            legs: components["schemas"]["RouteOptionLegResource"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "pt_bike" | "pt_only" | "car";
+            transfers: components["schemas"]["NumberResource"];
+        };
+        /** RouteOptionLegResource */
+        RouteOptionLegResource: {
+            duration_s: components["schemas"]["NumberResource"];
+            /** From Name */
+            from_name: string | null;
+            /** @description Null when the leg has none stored. */
+            geometry: components["schemas"]["LineStringResource"] | null;
+            /** Line */
+            line: string | null;
+            /**
+             * Line Kind
+             * @enum {string}
+             */
+            line_kind: "street_path" | "timetable_shape" | "straight_line";
+            /** Mode */
+            mode: string;
+            /** To Name */
+            to_name: string | null;
+        };
+        /** RouteOptionList */
+        RouteOptionList: {
+            /**
+             * Bus Shapes
+             * @description False when the city data set recorded `bus_shapes = none`.
+             */
+            bus_shapes: boolean;
+            /**
+             * Items
+             * @description Ordered by arc id.
+             */
+            items: components["schemas"]["RouteOptionItem"][];
         };
         /** RoutePairList */
         RoutePairList: {
@@ -1984,6 +2205,33 @@ export interface components {
             components: components["schemas"]["ComponentStatusResponse"][];
             /** @description The traveller simulation rule of the worker with the latest live heartbeat; null when no worker is live. */
             simulation_rule: components["schemas"]["SimulationRuleResource"] | null;
+        };
+        /** TripQuoteResponse */
+        TripQuoteResponse: {
+            destination_hub: components["schemas"]["QuotedHubResource"] | null;
+            /** @description Point A; null when not given. */
+            from_point: components["schemas"]["QuotedPointResource"] | null;
+            /** @description Set on `under_minimum_distance`. */
+            min_trip_distance_m: components["schemas"]["NumberResource"] | null;
+            /**
+             * No Car Option
+             * @description True when the pair has no car option; set on `priced` and `no_bike_option`.
+             */
+            no_car_option: boolean | null;
+            /**
+             * Options
+             * @description On `priced` and `no_bike_option`: by mode (PT + bike, PT alone, car), then arc id.
+             */
+            options: components["schemas"]["QuotedOptionResource"][];
+            origin_hub: components["schemas"]["QuotedHubResource"] | null;
+            /**
+             * Status
+             * @description The first that applies, in this order.
+             * @enum {string}
+             */
+            status: "one_point" | "outside_zone" | "no_hub_here" | "same_hub" | "under_minimum_distance" | "no_route" | "removed_by_quality_check" | "no_bike_option" | "priced";
+            /** @description Point B; null when not given. */
+            to_point: components["schemas"]["QuotedPointResource"] | null;
         };
         /** VerdictResponse */
         VerdictResponse: {
@@ -2845,6 +3093,58 @@ export interface operations {
             };
         };
     };
+    listPlaceNames: {
+        parameters: {
+            query: {
+                /** @description The instance version's id. */
+                instance_version: string;
+                /** @description The text typed. */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceNameList"];
+                };
+            };
+            /** @description `instance_version_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     getPricingVersion: {
         parameters: {
             query?: never;
@@ -3355,6 +3655,62 @@ export interface operations {
             };
         };
     };
+    listRouteOptions: {
+        parameters: {
+            query: {
+                /** @description The instance version's id. */
+                instance_version: string;
+                /** @description The origin hub's id. */
+                origin_hub: string;
+                /** @description The destination hub's id. */
+                destination_hub: string;
+                /** @description The period's key; checked against the version. */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteOptionList"];
+                };
+            };
+            /** @description `instance_version_not_found`, or `hub_pair_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `unknown_period`, or the request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     listRuns: {
         parameters: {
             query?: {
@@ -3726,6 +4082,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatusResponse"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    quoteTrip: {
+        parameters: {
+            query: {
+                /** @description The pricing version's id. */
+                pricing_version: string;
+                /** @description The period's key; the version's only period when absent. */
+                period?: string | null;
+                /** @description Point A as `lat,lon`. */
+                from?: string | null;
+                /** @description Point B as `lat,lon`. */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripQuoteResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version has no finished result */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `no_point`, `malformed_point`, `period_not_priced`, or the request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unexpected error */

@@ -59,6 +59,15 @@ class InMemoryReadModel:
         batch = self._batch(key)
         return sorted(batch.route_options, key=lambda row: row.arc_id) if batch else []
 
+    def route_options_of_pair(
+        self, key: str, origin_hub: str, destination_hub: str
+    ) -> list[RouteOptionRow]:
+        return [
+            row
+            for row in self.route_options(key)
+            if (row.origin_hub, row.destination_hub) == (origin_hub, destination_hub)
+        ]
+
     def station_bikes(self, key: str) -> list[StationBikesRow]:
         batch = self._batch(key)
         return sorted(batch.station_bikes, key=lambda row: row.station_id) if batch else []

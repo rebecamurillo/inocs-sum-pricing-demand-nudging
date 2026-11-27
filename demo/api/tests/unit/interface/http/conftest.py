@@ -57,14 +57,18 @@ from pricing_demo.interface.http.app import create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
 from pricing_demo.interface.http.routers.comparisons import build_comparisons_router
+from pricing_demo.interface.http.routers.place_names import build_place_names_router
 from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
+from pricing_demo.interface.http.routers.route_options import build_route_options_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.showcase import build_showcase_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
+from pricing_demo.interface.http.routers.trip_quotes import build_trip_quotes_router
 from tests.support.builds import FINGERPRINT, MemoryBuilds
 from tests.support.results import ResultRig
 from tests.support.runs import later
+from tests.support.trips import INSTANCE_CHANGES, ROUTE_FAILURES
 
 API_VERSION = "0.1.0"
 SERVER_TIME = later(100)
@@ -313,7 +317,9 @@ class ResultsApp:
     pricing versions the worker's two steps have run."""
 
     def __init__(self, folder: Path) -> None:
-        self.results = ResultRig(folder)
+        self.results = ResultRig(
+            folder, route_failures=ROUTE_FAILURES, instance_changes=INSTANCE_CHANGES
+        )
         rig = self.results.rig
         clock = rig.clock
         self.client = TestClient(
@@ -336,6 +342,9 @@ class ResultsApp:
                     ),
                     build_comparisons_router(self.results.compare),
                     build_showcase_router(self.results.mark, self.results.get_showcase),
+                    build_trip_quotes_router(self.results.quote),
+                    build_place_names_router(self.results.place_names),
+                    build_route_options_router(self.results.route_options),
                 ],
             ),
             raise_server_exceptions=False,

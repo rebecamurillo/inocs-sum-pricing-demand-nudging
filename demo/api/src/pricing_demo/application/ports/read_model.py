@@ -66,6 +66,12 @@ class ReadModel(Protocol):
         """The options of an instance artefact, ordered by arc id."""
         ...
 
+    def route_options_of_pair(
+        self, key: str, origin_hub: str, destination_hub: str
+    ) -> list[RouteOptionRow]:
+        """The options of one hub pair of an instance artefact, ordered by arc id."""
+        ...
+
     def station_bikes(self, key: str) -> list[StationBikesRow]:
         """The bike stations of an instance artefact, ordered by station id."""
         ...

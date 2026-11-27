@@ -24,3 +24,15 @@ def option_price(
     if mode == "pt_only":
         return pt_fare_chf
     return car_cost_chf + car_parking_fee_chf
+
+
+def option_travel_time_s(
+    mode: RouteMode,
+    total_travel_time_s: float,
+    total_transfer_time_s: float,
+    parking_time_min: float | None,
+) -> float:
+    """The time of an option: the trip planner's travel and transfer time, plus the search for
+    a parking space for a car (the one rule behind the simulation and the traveller view)."""
+    extra = (parking_time_min or 0.0) * 60 if mode == "car" else 0.0
+    return total_travel_time_s + total_transfer_time_s + extra

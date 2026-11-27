@@ -35,6 +35,34 @@ def _insert_all(connection: Connection, table: Table, values: Sequence[dict[str,
         connection.execute(insert(table), list(values[start : start + BATCH_SIZE]))
 
 
+def _route_option(row: Any) -> RouteOptionRow:
+    return RouteOptionRow(
+        row.arc_id,
+        row.origin_hub,
+        row.destination_hub,
+        row.mode,
+        row.total_travel_time_s,
+        row.total_transfer_time_s,
+        row.total_distance_m,
+        tuple(
+            RouteLeg(
+                leg["mode"],
+                leg["duration_s"],
+                leg["distance_m"],
+                leg["line_kind"],
+                leg.get("line"),
+                leg.get("from_place"),
+                leg.get("to_place"),
+            )
+            for leg in row.legs
+        ),
+        row.geometry,
+        row.bike_legs,
+        row.car_cost_chf,
+        row.parking_time_min,
+    )
+
+
 class PostgresReadModel:
     """The read-model tables. The ingestion is one transaction: a failure in any table, or in
     the update of the artefact, leaves none of the rows and no `ingested_at`."""
@@ -248,34 +276,21 @@ class PostgresReadModel:
             .where(route_options.c.instance_key == key)
             .order_by(route_options.c.arc_id)
         )
-        return [
-            RouteOptionRow(
-                row.arc_id,
-                row.origin_hub,
-                row.destination_hub,
-                row.mode,
-                row.total_travel_time_s,
-                row.total_transfer_time_s,
-                row.total_distance_m,
-                tuple(
-                    RouteLeg(
-                        leg["mode"],
-                        leg["duration_s"],
-                        leg["distance_m"],
-                        leg["line_kind"],
-                        leg.get("line"),
-                        leg.get("from_place"),
-                        leg.get("to_place"),
-                    )
-                    for leg in row.legs
-                ),
-                row.geometry,
-                row.bike_legs,
-                row.car_cost_chf,
-                row.parking_time_min,
+        return [_route_option(row) for row in self._rows(query)]
+
+    def route_options_of_pair(
+        self, key: str, origin_hub: str, destination_hub: str
+    ) -> list[RouteOptionRow]:
+        query = (
+            select(route_options)
+            .where(
+                route_options.c.instance_key == key,
+                route_options.c.origin_hub == origin_hub,
+                route_options.c.destination_hub == destination_hub,
             )
-            for row in self._rows(query)
-        ]
+            .order_by(route_options.c.arc_id)
+        )
+        return [_route_option(row) for row in self._rows(query)]
 
     def station_bikes(self, key: str) -> list[StationBikesRow]:
         query = (

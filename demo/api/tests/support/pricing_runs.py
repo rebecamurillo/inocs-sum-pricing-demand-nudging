@@ -1,7 +1,7 @@
 """A pricing rig: a built fake city in memory, and the worker's two pricing steps on the
 in-memory adapters, run through the real `ProcessNextRun`."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
@@ -33,10 +33,16 @@ PERIOD = f"{INSTANCE_VERSION}.mon-08"
 class PricingRig:
     """The rig's built instance `geneva-3km.v1`, its pricing versions and the worker's steps."""
 
-    def __init__(self, folder: Path, rule: TravellerSimulation | None = None) -> None:
+    def __init__(
+        self,
+        folder: Path,
+        rule: TravellerSimulation | None = None,
+        route_failures: Sequence[Mapping[str, str]] = (),
+        instance_changes: Sequence[tuple[str, float]] = (),
+    ) -> None:
         self.rig = MemoryBuilds()
-        self.rig.add_draft()
-        build = build_fake_city(self.rig, folder)
+        self.rig.add_draft(*instance_changes)
+        build = build_fake_city(self.rig, folder, route_failures)
         self.rig.runs.update(build, lambda run: replace(run, state=RunState.SUCCEEDED))
         self.files = LocalArtifactStore(folder)
         self.settings = InMemoryFakeSettings()

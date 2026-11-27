@@ -1733,6 +1733,32 @@
         "title": "InstanceVersionResource",
         "type": "object"
       },
+      "LineStringResource": {
+        "properties": {
+          "coordinates": {
+            "description": "`[lon, lat]` positions.",
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Coordinates",
+            "type": "array"
+          },
+          "type": {
+            "const": "LineString",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "LineStringResource",
+        "type": "object"
+      },
       "MenuVersion": {
         "properties": {
           "id": {
@@ -2021,6 +2047,60 @@
           "after"
         ],
         "title": "ParameterChangeResource",
+        "type": "object"
+      },
+      "PlaceNameLine": {
+        "properties": {
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "stop",
+              "bike_station"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "hub_id",
+          "lat",
+          "lon"
+        ],
+        "title": "PlaceNameLine",
+        "type": "object"
+      },
+      "PlaceNameList": {
+        "properties": {
+          "items": {
+            "description": "At most 10; names that start with the text first, then alphabetical.",
+            "items": {
+              "$ref": "#/components/schemas/PlaceNameLine"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PlaceNameList",
         "type": "object"
       },
       "PlannedStepResource": {
@@ -3100,6 +3180,281 @@
         "title": "ProvenanceResource",
         "type": "object"
       },
+      "QuotedHubResource": {
+        "properties": {
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "hub_name": {
+            "title": "Hub Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hub_id",
+          "hub_name"
+        ],
+        "title": "QuotedHubResource",
+        "type": "object"
+      },
+      "QuotedLegResource": {
+        "properties": {
+          "duration_s": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "from_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Name"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Name"
+          }
+        },
+        "required": [
+          "mode",
+          "line",
+          "from_name",
+          "to_name",
+          "duration_s"
+        ],
+        "title": "QuotedLegResource",
+        "type": "object"
+      },
+      "QuotedOptionResource": {
+        "properties": {
+          "arc_id": {
+            "title": "Arc Id",
+            "type": "string"
+          },
+          "bike_legs": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "bike_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Per bike ride; PT + bike only."
+          },
+          "car_cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "car_parking_fee": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "duration_s": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "flow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model's flow on the option."
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/QuotedLegResource"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "pt_bike",
+              "pt_only",
+              "car"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "most_taken": {
+            "description": "The option with the largest flow within its mode.",
+            "title": "Most Taken",
+            "type": "boolean"
+          },
+          "price": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "The total, from the one price function."
+          },
+          "pt_fare": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transfers": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "arc_id",
+          "mode",
+          "bike_legs",
+          "bike_price",
+          "pt_fare",
+          "car_parking_fee",
+          "car_cost",
+          "price",
+          "duration_s",
+          "transfers",
+          "legs",
+          "flow",
+          "most_taken"
+        ],
+        "title": "QuotedOptionResource",
+        "type": "object"
+      },
+      "QuotedPointResource": {
+        "properties": {
+          "distance_from_outline_m": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on `no_hub_here`."
+          },
+          "distance_to_hub_centre_m": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hub_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hub with the nearest centre; set when matched.",
+            "title": "Hub Id"
+          },
+          "hub_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hub Name"
+          },
+          "nearest_hub_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hub with the nearest outline; set on `no_hub_here`.",
+            "title": "Nearest Hub Id"
+          },
+          "nearest_stop_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The stop nearest to the point.",
+            "title": "Nearest Stop Name"
+          },
+          "status": {
+            "description": "`matched` to a hub, `outside_zone` of the study circle, or `no_hub_here`: farther than 300 m from every hub outline.",
+            "enum": [
+              "matched",
+              "outside_zone",
+              "no_hub_here"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "hub_id",
+          "hub_name",
+          "nearest_stop_name",
+          "distance_to_hub_centre_m",
+          "nearest_hub_id",
+          "distance_from_outline_m"
+        ],
+        "title": "QuotedPointResource",
+        "type": "object"
+      },
       "RouteFailureList": {
         "properties": {
           "items": {
@@ -3245,6 +3600,147 @@
           "to_place"
         ],
         "title": "RouteLegResource",
+        "type": "object"
+      },
+      "RouteOptionItem": {
+        "properties": {
+          "arc_id": {
+            "title": "Arc Id",
+            "type": "string"
+          },
+          "bike_legs": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "duration_s": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/RouteOptionLegResource"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "pt_bike",
+              "pt_only",
+              "car"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "transfers": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "arc_id",
+          "mode",
+          "duration_s",
+          "transfers",
+          "bike_legs",
+          "legs"
+        ],
+        "title": "RouteOptionItem",
+        "type": "object"
+      },
+      "RouteOptionLegResource": {
+        "properties": {
+          "duration_s": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "from_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Name"
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineStringResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the leg has none stored."
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "line_kind": {
+            "enum": [
+              "street_path",
+              "timetable_shape",
+              "straight_line"
+            ],
+            "title": "Line Kind",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          },
+          "to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Name"
+          }
+        },
+        "required": [
+          "mode",
+          "line",
+          "from_name",
+          "to_name",
+          "duration_s",
+          "line_kind",
+          "geometry"
+        ],
+        "title": "RouteOptionLegResource",
+        "type": "object"
+      },
+      "RouteOptionList": {
+        "properties": {
+          "bus_shapes": {
+            "description": "False when the city data set recorded `bus_shapes = none`.",
+            "title": "Bus Shapes",
+            "type": "boolean"
+          },
+          "items": {
+            "description": "Ordered by arc id.",
+            "items": {
+              "$ref": "#/components/schemas/RouteOptionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items",
+          "bus_shapes"
+        ],
+        "title": "RouteOptionList",
         "type": "object"
       },
       "RoutePairList": {
@@ -4171,6 +4667,111 @@
           "simulation_rule"
         ],
         "title": "SystemStatusResponse",
+        "type": "object"
+      },
+      "TripQuoteResponse": {
+        "properties": {
+          "destination_hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuotedHubResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "from_point": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuotedPointResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Point A; null when not given."
+          },
+          "min_trip_distance_m": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set on `under_minimum_distance`."
+          },
+          "no_car_option": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "True when the pair has no car option; set on `priced` and `no_bike_option`.",
+            "title": "No Car Option"
+          },
+          "options": {
+            "description": "On `priced` and `no_bike_option`: by mode (PT + bike, PT alone, car), then arc id.",
+            "items": {
+              "$ref": "#/components/schemas/QuotedOptionResource"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "origin_hub": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuotedHubResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "description": "The first that applies, in this order.",
+            "enum": [
+              "one_point",
+              "outside_zone",
+              "no_hub_here",
+              "same_hub",
+              "under_minimum_distance",
+              "no_route",
+              "removed_by_quality_check",
+              "no_bike_option",
+              "priced"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "to_point": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuotedPointResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Point B; null when not given."
+          }
+        },
+        "required": [
+          "status",
+          "from_point",
+          "to_point",
+          "origin_hub",
+          "destination_hub",
+          "min_trip_distance_m",
+          "no_car_option",
+          "options"
+        ],
+        "title": "TripQuoteResponse",
         "type": "object"
       },
       "VerdictResponse": {
@@ -5313,6 +5914,82 @@
         ]
       }
     },
+    "/api/v1/place-names": {
+      "get": {
+        "description": "Case and accent do not matter. A parent station and its platforms are one line. A text of fewer than two characters matches nothing.",
+        "operationId": "listPlaceNames",
+        "parameters": [
+          {
+            "description": "The instance version's id.",
+            "in": "query",
+            "name": "instance_version",
+            "required": true,
+            "schema": {
+              "description": "The instance version's id.",
+              "title": "Instance Version",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The text typed.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "The text typed.",
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaceNameList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`instance_version_not_found`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The stop and bike-station names of an instance version that match a text",
+        "tags": [
+          "place-names"
+        ]
+      }
+    },
     "/api/v1/pricing-versions/{pricing_version_id}": {
       "delete": {
         "operationId": "deletePricingVersion",
@@ -5998,6 +6675,111 @@
         ]
       }
     },
+    "/api/v1/route-options": {
+      "get": {
+        "description": "Each leg says whether its line follows a street path, a timetable shape or a straight line.",
+        "operationId": "listRouteOptions",
+        "parameters": [
+          {
+            "description": "The instance version's id.",
+            "in": "query",
+            "name": "instance_version",
+            "required": true,
+            "schema": {
+              "description": "The instance version's id.",
+              "title": "Instance Version",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The origin hub's id.",
+            "in": "query",
+            "name": "origin_hub",
+            "required": true,
+            "schema": {
+              "description": "The origin hub's id.",
+              "title": "Origin Hub",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The destination hub's id.",
+            "in": "query",
+            "name": "destination_hub",
+            "required": true,
+            "schema": {
+              "description": "The destination hub's id.",
+              "title": "Destination Hub",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period's key; checked against the version.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's key; checked against the version.",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteOptionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`instance_version_not_found`, or `hub_pair_not_found`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`unknown_period`, or the request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The stored options of one hub pair, with legs and geometry",
+        "tags": [
+          "route-options"
+        ]
+      }
+    },
     "/api/v1/runs": {
       "get": {
         "operationId": "listRuns",
@@ -6474,6 +7256,125 @@
         "summary": "Which components work now and which actions they allow",
         "tags": [
           "system"
+        ]
+      }
+    },
+    "/api/v1/trip-quotes": {
+      "get": {
+        "description": "Reads the stored build and result only: no trip planner is called. Without a price the answer is 200 with the reason in `status`.",
+        "operationId": "quoteTrip",
+        "parameters": [
+          {
+            "description": "The pricing version's id.",
+            "in": "query",
+            "name": "pricing_version",
+            "required": true,
+            "schema": {
+              "description": "The pricing version's id.",
+              "title": "Pricing Version",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period's key; the version's only period when absent.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's key; the version's only period when absent.",
+              "title": "Period"
+            }
+          },
+          {
+            "description": "Point A as `lat,lon`.",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Point A as `lat,lon`.",
+              "title": "From"
+            }
+          },
+          {
+            "description": "Point B as `lat,lon`.",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Point B as `lat,lon`.",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripQuoteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`pricing_version_not_found`, or `no_result`: the version has no finished result"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`no_point`, `malformed_point`, `period_not_priced`, or the request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "A trip between two points, quoted hub to hub from stored data",
+        "tags": [
+          "trip-quotes"
         ]
       }
     }

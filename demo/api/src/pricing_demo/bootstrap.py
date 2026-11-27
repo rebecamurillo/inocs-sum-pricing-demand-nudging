@@ -38,15 +38,18 @@ from pricing_demo.application.use_cases.list_hub_pair_results import ListHubPair
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hub_results import ListHubResults
 from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_place_names import ListPlaceNames
 from pricing_demo.application.use_cases.list_pricing_version_simulations import (
     ListPricingVersionSimulations,
 )
 from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
+from pricing_demo.application.use_cases.list_route_options import ListRouteOptions
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.mark_showcase import MarkShowcase
+from pricing_demo.application.use_cases.quote_trip import QuoteTrip
 from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
 from pricing_demo.application.use_cases.simulate_pricing_version import SimulatePricingVersion
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
@@ -82,16 +85,20 @@ from pricing_demo.infrastructure.persistence.showcase import PostgresShowcase
 from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
 from pricing_demo.infrastructure.persistence.solves import PostgresSolves
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
+from pricing_demo.infrastructure.persistence.trip_reads import PostgresTripReads
 from pricing_demo.infrastructure.persistence.truncate import truncate_all
 from pricing_demo.interface.http.app import Lifespan, create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
 from pricing_demo.interface.http.routers.comparisons import build_comparisons_router
+from pricing_demo.interface.http.routers.place_names import build_place_names_router
 from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
+from pricing_demo.interface.http.routers.route_options import build_route_options_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.showcase import build_showcase_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
+from pricing_demo.interface.http.routers.trip_quotes import build_trip_quotes_router
 
 
 class _E2ESeam:
@@ -188,6 +195,7 @@ def create_application(settings: Settings) -> FastAPI:
     solves = PostgresSolves(engine)
     lookup = ResultLookup(pricing_versions, solves, simulations)
     showcase = PostgresShowcase(engine)
+    trips = PostgresTripReads(engine)
     get_result = GetPricingResult(
         lookup,
         simulations,
@@ -254,6 +262,9 @@ def create_application(settings: Settings) -> FastAPI:
             build_comparisons_router(
                 ComparePricingVersions(pricing_versions, get_result, solves, instances)
             ),
+            build_trip_quotes_router(QuoteTrip(lookup, pricing_versions, solves, trips)),
+            build_place_names_router(ListPlaceNames(instances, trips)),
+            build_route_options_router(ListRouteOptions(instances, trips)),
             build_showcase_router(
                 MarkShowcase(lookup, showcase, clock), GetShowcase(showcase, lookup, instances)
             ),

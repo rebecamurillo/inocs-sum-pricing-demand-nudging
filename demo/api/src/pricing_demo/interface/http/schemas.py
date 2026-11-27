@@ -25,6 +25,16 @@ from pricing_demo.application.use_cases.list_hub_results import HubResult
 from pricing_demo.application.use_cases.list_pricing_version_simulations import (
     VersionSimulation,
 )
+from pricing_demo.application.use_cases.list_route_options import (
+    RouteOptionLeg,
+    RouteOptions,
+    RouteOptionView,
+)
+from pricing_demo.application.use_cases.quote_trip import (
+    QuotedHub,
+    QuotedPoint,
+    TripQuote,
+)
 from pricing_demo.domain.build_plan import BUILD_STEPS, BuildPlan, Cause, PlannedStep
 from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import (
@@ -43,6 +53,7 @@ from pricing_demo.domain.comparison import (
 from pricing_demo.domain.failure_codes import FAILURE_CODES
 from pricing_demo.domain.instance_rules import RuleResult, RuleValue
 from pricing_demo.domain.numbers import Number as DomainNumber
+from pricing_demo.domain.place_names import PlaceLine
 from pricing_demo.domain.pricing_rules import PricingRuleResult
 from pricing_demo.domain.pricing_versions import GOAL_NAMES
 from pricing_demo.domain.read_model import (
@@ -73,6 +84,7 @@ from pricing_demo.domain.system_status import (
     Verdict,
 )
 from pricing_demo.domain.traveller_simulation import SimulationRule
+from pricing_demo.domain.trip_quotes import QuotedLeg, QuotedOption
 
 
 class ComponentStatusResponse(BaseModel):
@@ -1694,4 +1706,222 @@ class ComparisonResponse(BaseModel):
                 HubDifferenceResource.from_domain(hub) for hub in item.hub_differences
             ],
             identical_solves=[list(letters) for letters in item.identical_solves],
+        )
+
+
+class QuotedPointResource(BaseModel):
+    status: Literal["matched", "outside_zone", "no_hub_here"] = Field(
+        description="`matched` to a hub, `outside_zone` of the study circle, or `no_hub_here`: "
+        "farther than 300 m from every hub outline."
+    )
+    hub_id: str | None = Field(description="The hub with the nearest centre; set when matched.")
+    hub_name: str | None
+    nearest_stop_name: str | None = Field(description="The stop nearest to the point.")
+    distance_to_hub_centre_m: NumberResource | None
+    nearest_hub_id: str | None = Field(
+        description="The hub with the nearest outline; set on `no_hub_here`."
+    )
+    distance_from_outline_m: NumberResource | None = Field(description="Set on `no_hub_here`.")
+
+    @classmethod
+    def from_domain(cls, item: QuotedPoint) -> "QuotedPointResource":
+        return cls(
+            status=item.status,
+            hub_id=item.hub_id,
+            hub_name=item.hub_name,
+            nearest_stop_name=item.nearest_stop_name,
+            distance_to_hub_centre_m=_number(item.distance_to_hub_centre_m),
+            nearest_hub_id=item.nearest_hub_id,
+            distance_from_outline_m=_number(item.distance_from_outline_m),
+        )
+
+
+class QuotedHubResource(BaseModel):
+    hub_id: str
+    hub_name: str
+
+    @classmethod
+    def from_domain(cls, item: QuotedHub) -> "QuotedHubResource":
+        return cls(hub_id=item.hub_id, hub_name=item.hub_name)
+
+
+class QuotedLegResource(BaseModel):
+    mode: str
+    line: str | None
+    from_name: str | None
+    to_name: str | None
+    duration_s: NumberResource
+
+    @classmethod
+    def from_domain(cls, item: QuotedLeg) -> "QuotedLegResource":
+        return cls(
+            mode=item.mode,
+            line=item.line,
+            from_name=item.from_name,
+            to_name=item.to_name,
+            duration_s=NumberResource.from_domain(item.duration_s),
+        )
+
+
+class QuotedOptionResource(BaseModel):
+    arc_id: str
+    mode: Literal["pt_bike", "pt_only", "car"]
+    bike_legs: NumberResource
+    bike_price: NumberResource | None = Field(description="Per bike ride; PT + bike only.")
+    pt_fare: NumberResource | None
+    car_parking_fee: NumberResource | None
+    car_cost: NumberResource | None
+    price: NumberResource = Field(description="The total, from the one price function.")
+    duration_s: NumberResource
+    transfers: NumberResource
+    legs: list[QuotedLegResource]
+    flow: NumberResource | None = Field(description="The model's flow on the option.")
+    most_taken: bool = Field(description="The option with the largest flow within its mode.")
+
+    @classmethod
+    def from_domain(cls, item: QuotedOption) -> "QuotedOptionResource":
+        return cls(
+            arc_id=item.arc_id,
+            mode=item.mode,
+            bike_legs=NumberResource.from_domain(item.bike_legs),
+            bike_price=_number(item.bike_price),
+            pt_fare=_number(item.pt_fare),
+            car_parking_fee=_number(item.car_parking_fee),
+            car_cost=_number(item.car_cost),
+            price=NumberResource.from_domain(item.price),
+            duration_s=NumberResource.from_domain(item.duration_s),
+            transfers=NumberResource.from_domain(item.transfers),
+            legs=[QuotedLegResource.from_domain(leg) for leg in item.legs],
+            flow=_number(item.flow),
+            most_taken=item.most_taken,
+        )
+
+
+class TripQuoteResponse(BaseModel):
+    status: Literal[
+        "one_point",
+        "outside_zone",
+        "no_hub_here",
+        "same_hub",
+        "under_minimum_distance",
+        "no_route",
+        "removed_by_quality_check",
+        "no_bike_option",
+        "priced",
+    ] = Field(description="The first that applies, in this order.")
+    from_point: QuotedPointResource | None = Field(description="Point A; null when not given.")
+    to_point: QuotedPointResource | None = Field(description="Point B; null when not given.")
+    origin_hub: QuotedHubResource | None
+    destination_hub: QuotedHubResource | None
+    min_trip_distance_m: NumberResource | None = Field(
+        description="Set on `under_minimum_distance`."
+    )
+    no_car_option: bool | None = Field(
+        description="True when the pair has no car option; set on `priced` and `no_bike_option`."
+    )
+    options: list[QuotedOptionResource] = Field(
+        description="On `priced` and `no_bike_option`: by mode (PT + bike, PT alone, car), then "
+        "arc id."
+    )
+
+    @classmethod
+    def from_domain(cls, item: TripQuote) -> "TripQuoteResponse":
+        return cls(
+            status=item.status,
+            from_point=None
+            if item.from_point is None
+            else QuotedPointResource.from_domain(item.from_point),
+            to_point=None
+            if item.to_point is None
+            else QuotedPointResource.from_domain(item.to_point),
+            origin_hub=None
+            if item.origin_hub is None
+            else QuotedHubResource.from_domain(item.origin_hub),
+            destination_hub=None
+            if item.destination_hub is None
+            else QuotedHubResource.from_domain(item.destination_hub),
+            min_trip_distance_m=_number(item.min_trip_distance_m),
+            no_car_option=item.no_car_option,
+            options=[QuotedOptionResource.from_domain(option) for option in item.options],
+        )
+
+
+class PlaceNameLine(BaseModel):
+    name: str
+    kind: Literal["stop", "bike_station"]
+    hub_id: str
+    lat: float
+    lon: float
+
+    @classmethod
+    def from_domain(cls, item: PlaceLine) -> "PlaceNameLine":
+        return cls(name=item.name, kind=item.kind, hub_id=item.hub_id, lat=item.lat, lon=item.lon)
+
+
+class PlaceNameList(BaseModel):
+    items: list[PlaceNameLine] = Field(
+        description="At most 10; names that start with the text first, then alphabetical."
+    )
+
+
+class LineStringResource(BaseModel):
+    type: Literal["LineString"]
+    coordinates: list[list[float]] = Field(description="`[lon, lat]` positions.")
+
+
+class RouteOptionLegResource(BaseModel):
+    mode: str
+    line: str | None
+    from_name: str | None
+    to_name: str | None
+    duration_s: NumberResource
+    line_kind: Literal["street_path", "timetable_shape", "straight_line"]
+    geometry: LineStringResource | None = Field(description="Null when the leg has none stored.")
+
+    @classmethod
+    def from_domain(cls, item: RouteOptionLeg) -> "RouteOptionLegResource":
+        return cls(
+            mode=item.mode,
+            line=item.line,
+            from_name=item.from_name,
+            to_name=item.to_name,
+            duration_s=NumberResource.from_domain(item.duration_s),
+            line_kind=item.line_kind,
+            geometry=None
+            if item.geometry is None
+            else LineStringResource.model_validate(item.geometry),
+        )
+
+
+class RouteOptionItem(BaseModel):
+    arc_id: str
+    mode: Literal["pt_bike", "pt_only", "car"]
+    duration_s: NumberResource
+    transfers: NumberResource
+    bike_legs: NumberResource
+    legs: list[RouteOptionLegResource]
+
+    @classmethod
+    def from_domain(cls, item: RouteOptionView) -> "RouteOptionItem":
+        return cls(
+            arc_id=item.arc_id,
+            mode=item.mode,
+            duration_s=NumberResource.from_domain(item.duration_s),
+            transfers=NumberResource.from_domain(item.transfers),
+            bike_legs=NumberResource.from_domain(item.bike_legs),
+            legs=[RouteOptionLegResource.from_domain(leg) for leg in item.legs],
+        )
+
+
+class RouteOptionList(BaseModel):
+    items: list[RouteOptionItem] = Field(description="Ordered by arc id.")
+    bus_shapes: bool = Field(
+        description="False when the city data set recorded `bus_shapes = none`."
+    )
+
+    @classmethod
+    def from_domain(cls, item: RouteOptions) -> "RouteOptionList":
+        return cls(
+            items=[RouteOptionItem.from_domain(option) for option in item.items],
+            bus_shapes=item.bus_shapes,
         )

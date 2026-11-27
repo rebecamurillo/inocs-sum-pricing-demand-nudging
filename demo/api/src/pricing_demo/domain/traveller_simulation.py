@@ -12,7 +12,7 @@ from typing import ClassVar, Literal, Protocol
 
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.failure_codes import SIMULATION_CHECK_FAILED, failure_reason
-from pricing_demo.domain.option_prices import option_price
+from pricing_demo.domain.option_prices import option_price, option_travel_time_s
 from pricing_demo.domain.read_model import OptionStationDeltaRow, RouteMode, StationBikesRow
 
 RULE_ID = "balanced-score"
@@ -45,8 +45,9 @@ class SimulationOption:
 
     @property
     def travel_time_s(self) -> float:
-        extra = (self.parking_time_min or 0.0) * 60 if self.mode == "car" else 0.0
-        return self.total_travel_time_s + self.total_transfer_time_s + extra
+        return option_travel_time_s(
+            self.mode, self.total_travel_time_s, self.total_transfer_time_s, self.parking_time_min
+        )
 
 
 @dataclass(frozen=True)

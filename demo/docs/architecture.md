@@ -413,6 +413,50 @@ own cost), the identical-solve
 groups and the per-pair and per-hub differences are computed in `domain/comparison.py` from the
 stored results on each request.
 
+### The traveller view's reads
+
+Three routes answer the traveller view from PostgreSQL alone, so it works when the trip planner
+is down (NFR-2): none of their use cases has a trip-planner, solver or worker port. They read
+through one port, `TripReads` (`area`, `pair_options`, `pair_failures`), implemented by
+`StoredTripReads` over the stored ports (instances, artefacts, read model, route failures);
+`PostgresTripReads` and the in-memory fake `InMemoryTripReads` only wire it, and
+`tests/contract/test_trip_reads.py` runs one suite against both. `ReadModel.route_options_of_pair`
+reads the options of one pair without loading the instance's options. The failures of a pair are
+those the routes step of the run that produced the version's `routes` artefact (`artifacts.run_id`)
+recorded, as `BuiltCounts` reads them. They are not filtered by period: a version links one
+`routes` artefact, the artefact of its period's routing moment, and a version that kept another
+version's artefact finds its failures recorded under that other version's period.
+
+`GET /api/v1/trip-quotes?pricing_version=&period=&from=lat,lon&to=lat,lon` (`QuoteTrip`) quotes a
+trip hub to hub. `period` is a period key (the version's only period when absent); `from` and `to`
+are each optional, one at least. It checks, in this order, the points (`NoPoint`, `MalformedPoint`:
+`422 no_point`, `422 malformed_point`), the version (`404 pricing_version_not_found`), the period
+(`PeriodNotPriced`, `422 period_not_priced`) and the result (`404 no_result`). Per point,
+`domain/trip_quotes.py` decides in this order: farther than the instance version's radius from its
+centre, `outside_zone`; farther than `NO_HUB_MARGIN_M` (300 m) from every hub outline (0 inside,
+metres in a local equirectangular projection centred on the point), `no_hub_here` with the hub of
+the nearest outline and the distance from it; else `matched` to the hub with the nearest centre
+(haversine). A hub has no place name in the package: its `hub_name` is its stop nearest to its
+centre, or its nearest bike station when it has no stop. The quote's `status` is the first that
+applies: `one_point`, `outside_zone`, `no_hub_here`, `same_hub`, `under_minimum_distance` (the
+distance between the two centres is under the instance version's `min_od_distance_m`, the package's
+rule), `no_route` (a `pt_bike` row in `route_failures`), `removed_by_quality_check` (the pair is not
+in `hub_pairs`), `no_bike_option` (no PT + bike option has a solve row with a bike price: the
+PT-only and car options are still returned) and `priced`. Every status answers 200. Options are the
+offered PT + bike options and the pair's PT-only and car options; the price is `option_price`, the
+duration `option_travel_time_s` (the simulation uses the same function), the flow and the bike
+price come from the solve rows, and `most_taken` marks the largest flow of each mode (a tie goes
+to the lower arc id). `no_car_option` is true on a `car` route failure or without a stored car
+option. Every number is `{value, unit, source, group}` with group `headline`.
+
+`GET /api/v1/place-names?instance_version=&q=` lists the stop and bike-station names of the
+instance version that belong to a hub and match `q` (case and accents ignored; at least two
+characters; a parent station and its platforms are one line; names that start with `q` first; at
+most 10). `GET /api/v1/route-options?instance_version=&period=&origin_hub=&destination_hub=` lists
+the stored options of a pair of the instance with their legs (`line_kind` `street_path` |
+`timetable_shape` | `straight_line`, and a GeoJSON `LineString` of `[lon, lat]` positions) and the
+data set's `bus_shapes` flag; the stored leg geometry is `[lat, lon]` pairs.
+
 ### Builds and the artefact store
 
 `POST /api/v1/instance-versions/{id}/builds` (`BuildInstanceVersion`) checks, in this order,

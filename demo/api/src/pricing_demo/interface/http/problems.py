@@ -70,6 +70,13 @@ from pricing_demo.domain.runs import (
 )
 from pricing_demo.domain.system_status import IncompleteSystemStatus, InvalidComponentStatus
 from pricing_demo.domain.traveller_simulation import SimulationCheckFailed
+from pricing_demo.domain.trip_quotes import (
+    HubPairNotFound,
+    MalformedPoint,
+    NoPoint,
+    PeriodNotPriced,
+    UnknownPeriodKey,
+)
 from pricing_demo.interface.http.schemas import (
     BlockingReasonResponse,
     FieldError,
@@ -165,6 +172,13 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     VersionCountOutOfRange: Problem(
         422, "version_count_out_of_range", "A comparison takes two to four pricing versions"
     ),
+    NoPoint: Problem(422, "no_point", "A trip quote needs at least one point"),
+    MalformedPoint: Problem(422, "malformed_point", "The point is not a latitude and longitude"),
+    PeriodNotPriced: Problem(
+        422, "period_not_priced", "The pricing version did not price the period"
+    ),
+    UnknownPeriodKey: Problem(422, "unknown_period", "The instance version has no such period"),
+    HubPairNotFound: Problem(404, "hub_pair_not_found", "The instance has no such hub pair"),
     IsShowcase: Problem(409, "is_showcase", "The pricing version is the showcase"),
     NoShowcase: Problem(404, "no_showcase", "No pricing version is the showcase"),
     SimulationCurrent: Problem(

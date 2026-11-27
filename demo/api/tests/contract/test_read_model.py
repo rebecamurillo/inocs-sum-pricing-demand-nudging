@@ -289,3 +289,29 @@ def test_the_options_the_bikes_and_the_deltas_are_read_back_in_order(
     assert store.read_model.route_options("other") == []
     assert store.read_model.station_bikes("other") == []
     assert store.read_model.option_station_deltas("other") == []
+
+
+def test_the_options_of_one_pair_are_read_back_in_arc_order(store: Store, city: FakeCity) -> None:
+    store.add_artifact("k-instance", StepName.TRAVELLERS_AND_BIKES)
+    instance = city.files["Instance_1.json"]
+    options = rows.route_options_from(
+        city.files["od_routes.json"], city.files["od_geometry.json"], instance, {"1"}
+    )
+    store.read_model.ingest(
+        IngestionBatch(
+            "k-instance",
+            StepName.TRAVELLERS_AND_BIKES,
+            rows.instance_counts(instance),
+            route_options=options,
+        )
+    )
+
+    found = store.read_model.route_options_of_pair("k-instance", "H1", "H3")
+
+    assert found == sorted(
+        (item for item in options if (item.origin_hub, item.destination_hub) == ("H1", "H3")),
+        key=lambda item: item.arc_id,
+    )
+    assert len(found) == 3
+    assert store.read_model.route_options_of_pair("k-instance", "H3", "H4") == []
+    assert store.read_model.route_options_of_pair("other", "H1", "H3") == []
