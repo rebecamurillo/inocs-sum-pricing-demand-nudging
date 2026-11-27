@@ -9,6 +9,8 @@ import type {
   Comparison,
   ComparisonGroup,
   ComparisonRow,
+  HubDifference,
+  PairDifference,
   FlatReference,
 } from '../../domain/comparison';
 import {
@@ -151,6 +153,32 @@ function toComparisonRow(wire: Schemas['ComparisonRowResource']): ComparisonRow 
   };
 }
 
+function toPairDifference(wire: Schemas['PairDifferenceResource']): PairDifference {
+  return {
+    originHub: wire.origin_hub,
+    destinationHub: wire.destination_hub,
+    meanPriceA: toNumber(wire.mean_price_a),
+    meanPriceB: toNumber(wire.mean_price_b),
+    priceDifference: toNumber(wire.price_difference),
+    travellersA: toNumber(wire.travellers_a),
+    travellersB: toNumber(wire.travellers_b),
+    travellersDifference: toNumber(wire.travellers_difference),
+  };
+}
+
+function toHubDifference(wire: Schemas['HubDifferenceResource']): HubDifference {
+  return {
+    hubId: wire.hub_id,
+    meanPriceA: optional(wire.mean_price_a),
+    meanPriceB: optional(wire.mean_price_b),
+    priceDifference: optional(wire.price_difference),
+    priceBMinusFlat: optional(wire.price_b_minus_flat),
+    ridesStartingA: optional(wire.rides_starting_a),
+    ridesStartingB: optional(wire.rides_starting_b),
+    ridesStartingDifference: optional(wire.rides_starting_difference),
+  };
+}
+
 function toComparison(wire: Schemas['ComparisonResponse']): Comparison {
   return {
     instanceVersion: { id: wire.instance_version.id, name: wire.instance_version.name },
@@ -162,6 +190,12 @@ function toComparison(wire: Schemas['ComparisonResponse']): Comparison {
       rows: group.rows.map(toComparisonRow),
     })),
     identicalSolves: wire.identical_solves,
+    pairDifferences: {
+      a: wire.pair_differences.a,
+      b: wire.pair_differences.b,
+      pairs: wire.pair_differences.pairs.map(toPairDifference),
+    },
+    hubDifferences: wire.hub_differences.map(toHubDifference),
   };
 }
 

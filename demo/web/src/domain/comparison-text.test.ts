@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DIFFERENCES_CAPTION,
   buildsNotice,
   changePoints,
+  compareLegendAnchors,
+  compareMeasureLabel,
+  compareMeasureValue,
+  differenceHeaders,
+  differenceRow,
+  differencesHeading,
+  identicalInsightTitle,
+  identicalResultSentence,
   flatColumnHeader,
   flatPill,
   insightTitle,
@@ -9,7 +18,13 @@ import {
   pillLabel,
   tableGroups,
 } from './comparison-text';
-import { comparisonColumns, type Comparison, type FlatReference } from './comparison';
+import {
+  comparisonColumns,
+  type Comparison,
+  type FlatReference,
+  type HubDifference,
+  type PairDifference,
+} from './comparison';
 import type { ResultNumber } from './pricing-result';
 
 const sim = (value: number, unit = 'share'): ResultNumber => ({
@@ -37,6 +52,8 @@ function comparisonOf(figures: Figures): Comparison {
     versions: [],
     flatReferences: [],
     identicalSolves: [],
+    pairDifferences: { a: 'B', b: 'C', pairs: [] },
+    hubDifferences: [],
     groups: [
       {
         name: 'simulated',
@@ -266,5 +283,161 @@ describe('the solver rows', () => {
       'interrupted',
       'unknown',
     ]);
+  });
+});
+
+/** B and D: one solve, flat columns of 1.00 and 1.50; their car share against each flat column. */
+function identicalOf(changes: { B: number; D: number }, groups: string[][]): Comparison {
+  const base = comparisonOf({ A: [0.5, 100, 9], B: [0.3, 90, 8], D: [0.3, 90, 8] });
+  const version = (letter: string, flatReference: string) => ({
+    id: `geneva-3km.v1.${letter}`,
+    letter,
+    name: `Version ${letter}`,
+    goals: {},
+    flatReference,
+    packageCommit: null,
+    packageFingerprint: 'fp',
+    simulations: [],
+    solveKey: 'same',
+  });
+  const [simulated] = base.groups;
+  return {
+    ...base,
+    versions: [version('B', 'f1'), version('D', 'f2')],
+    flatReferences: [
+      { ...reference('f1', { letters: ['B'] }), flatPrice: 1 },
+      { ...reference('f2', { letters: ['D'] }), flatPrice: 1.5 },
+    ],
+    pairDifferences: { a: 'B', b: 'D', pairs: [] },
+    identicalSolves: groups,
+    groups: [
+      {
+        name: 'simulated',
+        rows: (simulated?.rows ?? []).map((row) =>
+          row.key === 'share_car'
+            ? {
+                ...row,
+                changes: { B: sim(changes.B, 'share_points'), D: sim(changes.D, 'share_points') },
+              }
+            : row,
+        ),
+      },
+    ],
+  };
+}
+
+describe('the insight title of versions with the same result', () => {
+  it('says what the flat price moves', () => {
+    const title = insightTitle(identicalOf({ B: -4, D: -6 }, [['B', 'D']]));
+    expect(title).toBe(
+      'Versions B and D have the same prices; against a flat price of 1.50 instead of 1.00, their simulated car share is 6 pts lower instead of 4',
+    );
+  });
+
+  it('says higher by the sign and names the earlier direction when it differs', () => {
+    expect(identicalInsightTitle(identicalOf({ B: -4, D: 2 }, [['B', 'D']]), 'B', 'D')).toBe(
+      'Versions B and D have the same prices; against a flat price of 1.50 instead of 1.00, their simulated car share is 2 pts higher instead of 4 lower',
+    );
+    expect(identicalInsightTitle(identicalOf({ B: 3, D: 1 }, [['B', 'D']]), 'B', 'D')).toBe(
+      'Versions B and D have the same prices; against a flat price of 1.50 instead of 1.00, their simulated car share is 1 pt higher instead of 3',
+    );
+  });
+
+  it('uses the first two letters of the first group when it does not hold both compared versions', () => {
+    const found = identicalOf({ B: -4, D: -6 }, [['B', 'D']]);
+    const title = insightTitle({ ...found, pairDifferences: { a: 'A', b: 'B', pairs: [] } });
+    expect(title.startsWith('Versions B and D have the same prices;')).toBe(true);
+  });
+
+  it('leaves the other title unchanged without a group', () => {
+    expect(insightTitle(identicalOf({ B: -4, D: -6 }, []))).toMatch(/^In the simulation, /);
+  });
+});
+
+const money = (value: number): ResultNumber => ({
+  value,
+  unit: 'chf_per_bike_leg',
+  source: 'derived',
+  group: 'headline',
+});
+const pair = (over: Partial<PairDifference> = {}): PairDifference => ({
+  originHub: 'H4',
+  destinationHub: 'H9',
+  meanPriceA: money(0.95),
+  meanPriceB: money(1.1),
+  priceDifference: money(0.15),
+  travellersA: money(1234.4),
+  travellersB: money(2100),
+  travellersDifference: money(865.6),
+  ...over,
+});
+
+describe('where prices differ', () => {
+  it('words the heading, the caption and the sentence of an identical result', () => {
+    expect(differencesHeading('B', 'C')).toBe(
+      'Hub pairs where the mean bike price differs most: Version C \u2212 Version B',
+    );
+    expect(DIFFERENCES_CAPTION).toBe(
+      "Mean price per bike ride on the pair, weighted by the model's bike rides: a difference mixes a change of price with a change of who rides. Computed from the model's flows.",
+    );
+    expect(identicalResultSentence('B', 'D')).toBe(
+      'Versions B and D have the same pricing model result: no hub pair price differs.',
+    );
+    expect(differenceHeaders('B', 'C').priceB).toBe('Mean bike price in C (CHF per ride)');
+  });
+
+  it('reads a row with hub names, an arrow by the sign and grouped travellers', () => {
+    const labels = new Map([['H4', 'H4 Plainpalais']]);
+    expect(differenceRow(pair(), labels)).toEqual({
+      key: 'H4>H9',
+      fromTo: 'H4 Plainpalais → H9',
+      priceA: '0.95',
+      priceB: '1.10',
+      difference: '▲ 0.15',
+      travellers: '1 234 → 2 100',
+    });
+    expect(differenceRow(pair({ priceDifference: money(-0.2) }), labels).difference).toBe('▼ 0.20');
+    expect(differenceRow(pair({ priceDifference: money(0) }), labels).difference).toBe('0.00');
+  });
+
+  it('labels the three measures with letters only', () => {
+    expect(compareMeasureLabel('priceDifference', 'B', 'C')).toBe('Mean bike price: C \u2212 B');
+    expect(compareMeasureLabel('priceBMinusFlat', 'B', 'C')).toBe(
+      'Mean bike price: C \u2212 flat price',
+    );
+    expect(compareMeasureLabel('ridesStartingDifference', 'B', 'C')).toBe(
+      'Bike rides starting: C \u2212 B',
+    );
+  });
+
+  it('reads a hub value of a measure, null where the hub has none', () => {
+    const hub: HubDifference = {
+      hubId: 'H4',
+      meanPriceA: null,
+      meanPriceB: null,
+      priceDifference: money(0.1),
+      priceBMinusFlat: null,
+      ridesStartingA: null,
+      ridesStartingB: null,
+      ridesStartingDifference: money(-12),
+    };
+    expect(compareMeasureValue(hub, 'priceDifference')).toBe(0.1);
+    expect(compareMeasureValue(hub, 'priceBMinusFlat')).toBeNull();
+    expect(compareMeasureValue(hub, 'ridesStartingDifference')).toBe(-12);
+  });
+
+  it('words the legend anchors with the unit of the measure', () => {
+    expect(compareLegendAnchors('priceDifference', 0.4)).toEqual({
+      lower: '\u22120.40 CHF per ride',
+      none: '0 CHF per ride',
+      higher: '+0.40 CHF per ride',
+    });
+    expect(compareLegendAnchors('ridesStartingDifference', 1234)).toEqual({
+      lower: '\u22121 234 rides',
+      none: '0 rides',
+      higher: '+1 234 rides',
+    });
+    expect(compareLegendAnchors('priceBMinusFlat', 0).lower).toBe('\u22120.00 CHF per ride');
+    expect(compareLegendAnchors('ridesStartingDifference', 0).higher).toBe('+0 rides');
   });
 });

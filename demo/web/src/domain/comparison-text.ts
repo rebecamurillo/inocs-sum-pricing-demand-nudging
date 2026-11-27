@@ -1,5 +1,6 @@
 /** Every wording of L-4 (compare versions), verbatim from UX-SPEC.md § L-4, and the table behind it. */
 import {
+  identicalPair,
   olderRuleOf,
   type Comparison,
   type ComparisonColumn,
@@ -7,7 +8,11 @@ import {
   type ComparisonRow,
   type FlatReference,
   type GroupName,
+  type HubDifference,
+  type PairDifference,
 } from './comparison';
+import { COLUMN_HEADINGS } from './hub-pair-table';
+import { groupThousands } from './l1-text';
 import { solverStatusText } from './advanced-text';
 import { MODES, type ModeCounts, type ResultNumber } from './pricing-result';
 import {
@@ -129,8 +134,39 @@ function winners(
   return found.filter(([, value]) => close(value, best)).map(([letter]) => letter);
 }
 
+const MINUS = '\u2212';
+
+/** "Versions B and D have the same prices; against a flat price of 1.50 instead of 1.00, their simulated car share is 6 pts lower instead of 4". */
+export function identicalInsightTitle(comparison: Comparison, x: string, y: string): string {
+  const flatOf = (letter: string): number | null => {
+    const reference = comparison.versions.find((item) => item.letter === letter)?.flatReference;
+    return comparison.flatReferences.find((item) => item.id === reference)?.flatPrice ?? null;
+  };
+  const changeOf = (letter: string): number | null => {
+    const row = comparison.groups
+      .find((group) => group.name === 'simulated')
+      ?.rows.find((item) => item.key === 'share_car');
+    const change = row?.changes[letter] ?? null;
+    return change === null ? null : Math.round(change.value);
+  };
+  const price = (letter: string): string => formatAmount(flatOf(letter) ?? 0, 2);
+  const head = `Versions ${x} and ${y} have the same prices; against a flat price of ${price(y)} instead of ${price(x)}`;
+  const first = changeOf(x);
+  const second = changeOf(y);
+  if (first === null || second === null) return head;
+  const direction = (points: number): string => (points < 0 ? 'lower' : 'higher');
+  const pts = Math.abs(second);
+  const earlier =
+    direction(first) === direction(second)
+      ? String(Math.abs(first))
+      : `${String(Math.abs(first))} ${direction(first)}`;
+  return `${head}, their simulated car share is ${String(pts)} ${pts === 1 ? 'pt' : 'pts'} ${direction(second)} instead of ${earlier}`;
+}
+
 /** "In the simulation, Version B has the lowest car share; Version C has the highest profit and …". */
 export function insightTitle(comparison: Comparison): string {
+  const identical = identicalPair(comparison);
+  if (identical !== null) return identicalInsightTitle(comparison, ...identical.letters);
   const simulated = comparison.groups.find((group) => group.name === 'simulated');
   const subjects: { letters: readonly string[]; texts: string[] }[] = [];
   for (const clause of CLAUSES) {
@@ -470,4 +506,87 @@ export function tableGroups(
       rows,
     };
   });
+}
+
+// ---- where prices differ: the table and the map ----------------------------------------------
+
+export const differencesHeading = (a: string, b: string): string =>
+  `Hub pairs where the mean bike price differs most: Version ${b} ${MINUS} Version ${a}`;
+export const DIFFERENCES_CAPTION =
+  "Mean price per bike ride on the pair, weighted by the model's bike rides: a difference mixes a change of price with a change of who rides. Computed from the model's flows.";
+export const identicalResultSentence = (x: string, y: string): string =>
+  `Versions ${x} and ${y} have the same pricing model result: no hub pair price differs.`;
+
+export const differenceHeaders = (a: string, b: string) =>
+  ({
+    fromTo: COLUMN_HEADINGS.fromTo,
+    priceA: `Mean bike price in ${a} (CHF per ride)`,
+    priceB: `Mean bike price in ${b} (CHF per ride)`,
+    difference: 'Difference',
+    travellers: 'Travellers on bike options',
+  }) as const;
+
+export interface DifferenceRow {
+  readonly key: string;
+  readonly fromTo: string;
+  readonly priceA: string;
+  readonly priceB: string;
+  /** "▲ 0.12", "▼ 0.12" or "0.12". */
+  readonly difference: string;
+  readonly travellers: string;
+}
+
+const whole = (value: number): string => groupThousands(Math.round(value));
+
+export function differenceRow(
+  pair: PairDifference,
+  hubLabels: ReadonlyMap<string, string>,
+): DifferenceRow {
+  const label = (hub: string): string => hubLabels.get(hub) ?? hub;
+  const change = pair.priceDifference.value;
+  const amount = formatAmount(Math.abs(change), 2);
+  return {
+    key: `${pair.originHub}>${pair.destinationHub}`,
+    fromTo: `${label(pair.originHub)} → ${label(pair.destinationHub)}`,
+    priceA: formatAmount(pair.meanPriceA.value, 2),
+    priceB: formatAmount(pair.meanPriceB.value, 2),
+    difference: change > 0 ? `▲ ${amount}` : change < 0 ? `▼ ${amount}` : amount,
+    travellers: `${whole(pair.travellersA.value)} → ${whole(pair.travellersB.value)}`,
+  };
+}
+
+export type CompareMeasure = 'priceDifference' | 'priceBMinusFlat' | 'ridesStartingDifference';
+export const COMPARE_MAP_MEASURES: readonly CompareMeasure[] = [
+  'priceDifference',
+  'priceBMinusFlat',
+  'ridesStartingDifference',
+];
+
+/** "Mean bike price: C − B"; the letters only. */
+export function compareMeasureLabel(key: CompareMeasure, a: string, b: string): string {
+  if (key === 'priceDifference') return `Mean bike price: ${b} ${MINUS} ${a}`;
+  if (key === 'priceBMinusFlat') return `Mean bike price: ${b} ${MINUS} flat price`;
+  return `Bike rides starting: ${b} ${MINUS} ${a}`;
+}
+
+export function compareMeasureValue(hub: HubDifference, key: CompareMeasure): number | null {
+  return hub[key]?.value ?? null;
+}
+
+export interface LegendAnchors {
+  readonly lower: string;
+  readonly none: string;
+  readonly higher: string;
+}
+
+/** The three anchor values of the legend: −m, 0 and +m with the unit of the measure. */
+export function compareLegendAnchors(key: CompareMeasure, m: number): LegendAnchors {
+  const rides = key === 'ridesStartingDifference';
+  const unit = rides ? 'rides' : 'CHF per ride';
+  const figure = rides ? whole(m) : formatAmount(m, 2);
+  return {
+    lower: `${MINUS}${figure} ${unit}`,
+    none: `0 ${unit}`,
+    higher: `+${figure} ${unit}`,
+  };
 }

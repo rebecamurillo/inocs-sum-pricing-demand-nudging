@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeCityInstances, sampleMenu } from '../../application/ports/fake-city-instance-gateway';
 import {
   fakePricing,
+  samplePairDifference,
   samplePricingDraft,
   sampleSealedPricing,
 } from '../../application/ports/fake-pricing-gateway';
@@ -13,6 +14,9 @@ import type { Gateways } from '../../application/ports/gateways';
 import type { LabRoute } from '../../domain/route';
 import type { SystemStatus, Verdict } from '../../domain/system-status';
 import { GatewaysProvider } from '../hooks/gateways';
+import { fakeMapFactory, installBrowserStubs } from '../map/fake-map';
+import { MapFactoryProvider, MapProvider } from '../map/MapContext';
+import { MapPane } from '../map/MapPane';
 import { CompareView } from './CompareView';
 
 const finished = (letter: string, goals: Parameters<typeof sampleSealedPricing>[0] = {}) =>
@@ -32,12 +36,23 @@ const status: SystemStatus = {
   simulationRule: { id: 'balanced-score', version: 2 },
 };
 
+let stubs: ReturnType<typeof installBrowserStubs>;
+beforeEach(() => {
+  stubs = installBrowserStubs(false);
+});
+afterEach(() => {
+  // Unmount first: the map's last effects still read `matchMedia`.
+  cleanup();
+  stubs.restore();
+});
+
 function mount(
   options: {
     versions?: ReturnType<typeof sampleSealedPricing>[];
     letters?: readonly string[] | null;
     details?: Parameters<typeof fakePricing>[2];
     advancedView?: boolean;
+    hubs?: { id: string; label: string; lat: number; lon: number }[];
   } = {},
 ) {
   const fake = fakePricing(
@@ -53,33 +68,54 @@ function mount(
     layoutPreferences: { load: vi.fn(), save: vi.fn() },
     cityDatasets: { list: () => Promise.resolve([]) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
-    cityInstances: fakeCityInstances({ menu: () => Promise.resolve(sampleMenu) }),
+    cityInstances: fakeCityInstances({
+      menu: () => Promise.resolve(sampleMenu),
+      ...(options.hubs === undefined
+        ? {}
+        : {
+            hubs: () =>
+              Promise.resolve(options.hubs?.map((hub) => ({ ...hub, outline: null })) ?? []),
+          }),
+    }),
     runs: fakeRunGateway(),
     pricing: fake.gateway,
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const { factory, maps } = fakeMapFactory();
   const view = (letters: readonly string[] | null) => (
     <QueryClientProvider client={client}>
       <GatewaysProvider gateways={gateways}>
-        <CompareView
-          instanceVersionId="geneva-3km.v1"
-          instanceId="geneva-3km"
-          number={1}
-          letters={letters}
-          period={null}
-          advancedView={options.advancedView ?? false}
-          onAdvancedView={onAdvancedView}
-          onNavigate={onNavigate}
-          onReplace={onReplace}
-        />
+        <MapFactoryProvider factory={factory}>
+          <MapProvider>
+            <MapPane shown datasetId={null} />
+            <CompareView
+              instanceVersionId="geneva-3km.v1"
+              instanceId="geneva-3km"
+              number={1}
+              letters={letters}
+              period={null}
+              advancedView={options.advancedView ?? false}
+              onAdvancedView={onAdvancedView}
+              onNavigate={onNavigate}
+              onReplace={onReplace}
+            />
+          </MapProvider>
+        </MapFactoryProvider>
       </GatewaysProvider>
     </QueryClientProvider>
   );
   const { rerender } = render(
     view(options.letters === undefined ? ['A', 'B', 'C'] : options.letters),
   );
+  const map = maps[0];
+  if (map !== undefined) {
+    act(() => {
+      map.emitStyleReady();
+    });
+  }
   return {
     fake,
+    map,
     onNavigate,
     onReplace,
     onAdvancedView,
@@ -393,6 +429,153 @@ describe('CompareView', () => {
           'Nothing at this link: Geneva 3 km v1 has no Version Z. It may have been deleted.',
         ),
       ).toBeVisible();
+    });
+  });
+
+  describe('where prices differ', () => {
+    const twelve = Array.from({ length: 12 }, (_, at) =>
+      samplePairDifference(
+        `H${String(at + 1)}`,
+        'H20',
+        1,
+        at === 1 ? 0.7 : at === 2 ? 1 : 1.25 + at / 100,
+        3000,
+        4500,
+      ),
+    );
+    const hubs = [...twelve.map((pair) => pair.originHub), 'H20'].map((id, at) => ({
+      id,
+      label: id === 'H1' ? 'H1 Plainpalais' : id,
+      lat: 46.2 + at / 1000,
+      lon: 6.14,
+    }));
+    const sampleHubs = ['H4', 'H9', 'H12'].map((id, at) => ({
+      id,
+      label: id,
+      lat: 46.2,
+      lon: 6.14 + at / 100,
+    }));
+    const differences = () => screen.getByTestId('compare-differences');
+    const optionTexts = () => screen.getAllByRole('option').map((option) => option.textContent);
+
+    it('lists the first ten pairs under the table with the heading, the arrows, the names and the caption', async () => {
+      mount({ details: { comparison: { pairDifferences: twelve } }, hubs });
+      await table();
+      const block = within(await screen.findByTestId('compare-differences'));
+
+      expect(block.getByRole('heading')).toHaveTextContent(
+        'Hub pairs where the mean bike price differs most: Version C \u2212 Version B',
+      );
+      const rows = block.getAllByRole('row').slice(1);
+      expect(rows).toHaveLength(10);
+      expect(
+        within(present(rows[0]))
+          .getAllByRole('cell')
+          .map((c) => c.textContent),
+      ).toEqual(['H1 Plainpalais → H20', '1.00', '1.25', '▲ 0.25', '3 000 → 4 500', 'Show on map']);
+      expect(within(present(rows[1])).getAllByRole('cell')[3]).toHaveTextContent('▼ 0.30');
+      expect(within(present(rows[2])).getAllByRole('cell')[3]).toHaveTextContent(/^0\.00$/);
+      expect(within(present(rows[2])).getAllByRole('cell')[0]).toHaveTextContent('H3 → H20');
+      expect(
+        block.getByRole('columnheader', { name: 'Mean bike price in B (CHF per ride)' }),
+      ).toBeVisible();
+      expect(block.getByText(/^Mean price per bike ride on the pair, weighted/)).toHaveTextContent(
+        "Mean price per bike ride on the pair, weighted by the model's bike rides: a difference mixes a change of price with a change of who rides. Computed from the model's flows.",
+      );
+      expect(
+        screen.getByText(/^Small figures: change against/).compareDocumentPosition(differences()) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it('draws one pair on the map at a time and removes it on a second click', async () => {
+      const { map } = mount({ details: { comparison: { pairDifferences: twelve } }, hubs });
+      await table();
+      const user = userEvent.setup();
+      const buttons = () => within(differences()).getAllByRole('button', { name: 'Show on map' });
+      const ids = () => map?.layers.map((layer) => layer.id) ?? [];
+
+      await screen.findByTestId('compare-differences');
+      expect(ids()).toEqual(['l4-study-circle', 'l4-hub-outlines', 'l4-hub-discs']);
+      await user.click(present(buttons()[0]));
+      expect(buttons()[0]).toHaveAttribute('aria-pressed', 'true');
+      expect(ids()).toContain('l3-selected-pair');
+      expect(map?.layers.find((l) => l.id === 'l4-hub-discs')?.paint['circle-opacity']).toBe(0.35);
+
+      await user.click(present(buttons()[1]));
+      expect(buttons()[0]).toHaveAttribute('aria-pressed', 'false');
+      expect(buttons()[1]).toHaveAttribute('aria-pressed', 'true');
+
+      await user.click(present(buttons()[1]));
+      expect(buttons()[1]).toHaveAttribute('aria-pressed', 'false');
+      expect(ids()).not.toContain('l3-selected-pair');
+    });
+
+    it('replaces the table by the sentence and titles the card with the flat price when B and C share a solve', async () => {
+      mount({ details: { comparison: { identicalSolves: [['B', 'C']] } } });
+      await table();
+
+      expect(
+        await screen.findByText(
+          'Versions B and C have the same pricing model result: no hub pair price differs.',
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText(/Hub pairs where the mean bike price differs most/)).toBeNull();
+      expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(
+        /^Versions B and C have the same prices; against a flat price of 1\.00 instead of 1\.00, their simulated car share is /,
+      );
+    });
+
+    it('offers the three measures, the legend and a redraw when the measure changes', async () => {
+      mount({ hubs: sampleHubs });
+      await table();
+      const user = userEvent.setup();
+      const legend = () => screen.getByRole('group', { name: 'Map legend' });
+
+      expect(await screen.findByLabelText('Map shows')).toHaveValue('priceDifference');
+      expect(optionTexts()).toEqual([
+        'Mean bike price: C \u2212 B',
+        'Mean bike price: C \u2212 flat price',
+        'Bike rides starting: C \u2212 B',
+      ]);
+      expect(legend()).toHaveTextContent('Mean bike price: C \u2212 B');
+      expect(legend()).toHaveTextContent("computed from the model's flows");
+      expect(legend()).toHaveTextContent('+0.15 CHF per ride');
+
+      await user.selectOptions(screen.getByLabelText('Map shows'), 'ridesStartingDifference');
+      expect(legend()).toHaveTextContent('Bike rides starting: C \u2212 B');
+      expect(legend()).toHaveTextContent('+5 rides');
+    });
+
+    it('keeps the measure and the pair shown across a re-read, and drops the pair for other versions', async () => {
+      const { map, rerender } = mount({
+        details: { comparison: { pairDifferences: twelve } },
+        hubs,
+      });
+      await table();
+      const user = userEvent.setup();
+      const ids = () => map?.layers.map((layer) => layer.id) ?? [];
+      // Found once the re-read has settled: the earlier render under the skeleton is hidden.
+      const first = async () =>
+        present((await screen.findAllByRole('button', { name: 'Show on map' }))[0]);
+
+      await user.selectOptions(screen.getByLabelText('Map shows'), 'ridesStartingDifference');
+      await user.click(await first());
+      expect(ids()).toContain('l3-selected-pair');
+
+      // B and C again: the same two versions, read anew.
+      rerender(['B', 'C']);
+      expect(await first()).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByLabelText('Map shows')).toHaveValue('ridesStartingDifference');
+      expect(ids()).toContain('l3-selected-pair');
+
+      // A and B: another pair of versions, so no pair is shown.
+      rerender(['A', 'B']);
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /Version B − Version A$/ })).toBeVisible();
+      });
+      expect(await first()).toHaveAttribute('aria-pressed', 'false');
+      expect(ids()).not.toContain('l3-selected-pair');
     });
   });
 });

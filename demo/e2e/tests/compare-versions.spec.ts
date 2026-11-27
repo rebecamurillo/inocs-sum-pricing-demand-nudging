@@ -4,6 +4,7 @@ import { finishVersion } from '../support/pricing';
 
 // Its own distance, so no other scenario's build finds this one's routes already computed.
 const COMPARE_DISTANCE_M = 925;
+const SAME_RESULT_DISTANCE_M = 930;
 
 const THREE_MODES =
   'The pricing model prices a shared bike only together with a public transport trip: trips by shared bike alone are not part of these results.';
@@ -125,6 +126,22 @@ test.describe('Compare versions', () => {
     }
     await expect(title).toHaveText('In the simulation, Version C has the lowest car share');
 
+    // Where prices differ: the heading, the caption and the map's selector and legend.
+    await expect(
+      main.getByRole('heading', {
+        name: 'Hub pairs where the mean bike price differs most: Version C \u2212 Version B',
+      }),
+    ).toBeVisible();
+    await expect(
+      main.getByText(
+        "Mean price per bike ride on the pair, weighted by the model's bike rides: a difference mixes a change of price with a change of who rides. Computed from the model's flows.",
+      ),
+    ).toBeVisible();
+    const legend = page.getByRole('group', { name: 'Map legend' });
+    await expect(legend).toContainText('Mean bike price: C \u2212 B');
+    await expect(legend).toContainText("computed from the model's flows");
+    await expect(legend).toContainText('CHF per ride');
+
     // Unticking a version rewrites the route in place and the columns follow.
     const history = await page.evaluate(() => window.history.length);
     await picker.getByRole('button', { name: '✓ B · Heavier ridership' }).click();
@@ -162,5 +179,51 @@ test.describe('Compare versions', () => {
         'Nothing at this link: Geneva 3 km v1 has no Version Z. It may have been deleted.',
       ),
     ).toBeVisible();
+  });
+
+  test('L-4 · two versions with the same pricing model result say that no hub pair price differs', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, SAME_RESULT_DISTANCE_M);
+    await finishVersion(request, built.version, 'Baseline');
+    await finishVersion(request, built.version, 'Heavier ridership', { ridership_weight: 20 });
+    await finishVersion(request, built.version, 'Higher floor', { lowest_price_chf: 0.9 });
+    // B's goals with another flat price: the flat price is not read by the solve, so B and D
+    // share one stored solve and differ only in the flat column they are simulated against.
+    await finishVersion(request, built.version, 'Dearer flat price', {
+      ridership_weight: 20,
+      flat_price_per_ride_chf: 1.5,
+    });
+
+    await page.goto(`/#/lab/${built.version}/compare/B,D`);
+    await page.reload();
+    const main = page.getByRole('main');
+
+    await expect(
+      main.getByText(
+        'Versions B and D have the same pricing model result: no hub pair price differs.',
+      ),
+    ).toBeVisible();
+    await expect(main.getByText(/^Hub pairs where the mean bike price differs most/)).toHaveCount(
+      0,
+    );
+    await expect(main.getByRole('heading', { level: 2 })).toHaveText(
+      /^Versions B and D have the same prices; against a flat price of 1\.50 instead of 1\.00, their simulated car share is /,
+    );
+    const table = main.getByTestId('compare-table');
+    await expect(table.getByRole('columnheader')).toHaveText([
+      'Row',
+      'Flat price 1.00 CHF · for B',
+      'Version B · Heavier ridership',
+      'Flat price 1.50 CHF · for D',
+      'Version D · Dearer flat price',
+    ]);
+    await expect(page.getByLabel('Map shows').getByRole('option')).toHaveText([
+      'Mean bike price: D \u2212 B',
+      'Mean bike price: D \u2212 flat price',
+      'Bike rides starting: D \u2212 B',
+    ]);
   });
 });

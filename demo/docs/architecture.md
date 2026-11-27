@@ -748,7 +748,15 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   pill rewrites the hash in place (`useHashRoute().replace`, no history entry). `LabShell` keeps
   the off state (fewer than two finished versions) in state keyed by the instance version, as it
   does for `creating`, and gives L-4 its own map share (`COMPARE_VIEW`, 34 %). The stacked bars
-  and their legend are shared with L-3 in `StackedBars.tsx`.
+  and their legend are shared with L-3 in `StackedBars.tsx`. Where prices differ: the comparison
+  carries `pairDifferences` and `hubDifferences` (read from the answer, never recomputed), and
+  `CompareDifferences` lists the ten hub pairs with the largest price difference under the table
+  (or, when the two last versions share one solve, the sentence that no hub pair price differs,
+  with the insight title naming what the flat price moves). `CompareMap` renders nothing in the
+  card: through the map context it declares `l4-layers.ts` (the study circle, the hubs' outlines
+  and one disc per hub, coloured and sized by `domain/diverging-scale.ts`, symmetric around 0)
+  and, over the map, the "Map shows" selector and the legend; "Show on map" draws one pair with
+  L-3's `pairLineLayer`.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

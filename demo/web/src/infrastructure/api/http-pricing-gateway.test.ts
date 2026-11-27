@@ -587,9 +587,45 @@ describe('HttpPricingGateway', () => {
           ],
         },
       ],
-      hub_differences: [],
+      hub_differences: [
+        {
+          hub_id: 'H4',
+          mean_price_a: number(0.9, 'chf_per_bike_leg', 'derived'),
+          mean_price_b: number(1.1, 'chf_per_bike_leg', 'derived'),
+          price_b_minus_flat: number(0.1, 'chf_per_bike_leg', 'derived'),
+          price_difference: number(0.2, 'chf_per_bike_leg', 'derived'),
+          rides_starting_a: number(8, 'bike_rides', 'derived'),
+          rides_starting_b: number(10, 'bike_rides', 'derived'),
+          rides_starting_difference: number(2, 'bike_rides', 'derived'),
+        },
+        {
+          hub_id: 'H12',
+          mean_price_a: null,
+          mean_price_b: null,
+          price_b_minus_flat: null,
+          price_difference: null,
+          rides_starting_a: number(0, 'bike_rides', 'derived'),
+          rides_starting_b: number(0, 'bike_rides', 'derived'),
+          rides_starting_difference: number(0, 'bike_rides', 'derived'),
+        },
+      ],
       identical_solves: [['A', 'B']],
-      pair_differences: { pairs: [] },
+      pair_differences: {
+        a: 'A',
+        b: 'B',
+        pairs: [
+          {
+            origin_hub: 'H4',
+            destination_hub: 'H9',
+            mean_price_a: number(0.9, 'chf_per_bike_leg', 'derived'),
+            mean_price_b: number(1.1, 'chf_per_bike_leg', 'derived'),
+            price_difference: number(0.2, 'chf_per_bike_leg', 'derived'),
+            travellers_a: number(100, 'travellers', 'model'),
+            travellers_b: number(120, 'travellers', 'model'),
+            travellers_difference: number(20, 'travellers', 'model'),
+          },
+        ],
+      },
     };
 
     it('reads the ids and the period and maps columns, groups and numbers', async () => {
@@ -627,6 +663,25 @@ describe('HttpPricingGateway', () => {
       expect(row?.changes.A?.unit).toBe('share_points');
       expect(row?.flats['flat-1']?.value).toBe(0.45);
       expect(found.identicalSolves).toEqual([['A', 'B']]);
+      expect(found.pairDifferences).toMatchObject({ a: 'A', b: 'B' });
+      expect(found.pairDifferences.pairs[0]).toMatchObject({
+        originHub: 'H4',
+        destinationHub: 'H9',
+        priceDifference: { value: 0.2 },
+        travellersA: { value: 100 },
+        travellersB: { value: 120 },
+        travellersDifference: { value: 20 },
+      });
+      expect(found.hubDifferences[0]).toMatchObject({
+        hubId: 'H4',
+        priceBMinusFlat: { value: 0.1 },
+        ridesStartingDifference: { value: 2 },
+      });
+      expect(found.hubDifferences[1]).toMatchObject({
+        meanPriceA: null,
+        priceDifference: null,
+        priceBMinusFlat: null,
+      });
     });
 
     it('leaves the period out when none is given and throws the API problem otherwise', async () => {

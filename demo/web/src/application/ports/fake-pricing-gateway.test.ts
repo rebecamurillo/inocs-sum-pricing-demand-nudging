@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   fakeComparison,
+  samplePairDifference,
   fakePricing,
   pricingRulesOf,
   samplePricingDraft,
@@ -238,5 +239,33 @@ describe('the in-memory comparison', () => {
     ]);
     expect(found.versions[2]?.simulations.every((item) => !item.ruleCurrent)).toBe(true);
     expect(found.flatReferences.map((reference) => reference.ruleCurrent)).toEqual([true, false]);
+  });
+
+  it('carries the pair and hub differences of the last two versions and settable identical solves', async () => {
+    const found = fakeComparison(finished);
+    expect(found.pairDifferences.a).toBe('B');
+    expect(found.pairDifferences.b).toBe('C');
+    expect(found.pairDifferences.pairs.length).toBeGreaterThan(1);
+    expect(found.hubDifferences.map((hub) => hub.hubId)).toEqual(['H4', 'H9', 'H12']);
+    expect(found.hubDifferences[2]?.priceDifference).toBeNull();
+    expect(found.identicalSolves).toEqual([]);
+
+    const { gateway } = fakePricing(
+      finished,
+      {},
+      {
+        comparison: {
+          identicalSolves: [['B', 'C']],
+          pairDifferences: [samplePairDifference('H4', 'H9', 1, 2)],
+        },
+      },
+    );
+    const set = await gateway.compare(
+      finished.map((version) => version.id),
+      null,
+    );
+    expect(set.identicalSolves).toEqual([['B', 'C']]);
+    expect(set.pairDifferences.pairs).toHaveLength(1);
+    expect(set.pairDifferences.pairs[0]?.priceDifference.value).toBe(1);
   });
 });

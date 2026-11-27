@@ -293,6 +293,29 @@ test.describe('Lab', () => {
     await expect(main.getByTestId('compare-table').getByRole('columnheader')).toHaveCount(5);
     await holdsAtEverySize(page, main);
 
+    // Two versions with the same pricing model result: the sentence takes the table's place.
+    await finishVersion(request, version, 'Dearer flat price', {
+      ridership_weight: 20,
+      flat_price_per_ride_chf: 1.5,
+    });
+    await page.goto(`/#/lab/${version}/compare/B,D`);
+    await page.reload();
+    await expect(
+      main.getByText(
+        'Versions B and D have the same pricing model result: no hub pair price differs.',
+      ),
+    ).toBeVisible();
+    await holdsAtEverySize(page, main);
+
+    // Three versions again, with the difference table and the map's panel.
+    await page.goto(`/#/lab/${version}/compare/A,B,C`);
+    await page.reload();
+    await expect(
+      main.getByRole('heading', { name: /^Hub pairs where the mean bike price differs most/ }),
+    ).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Map legend' })).toBeVisible();
+    await holdsAtEverySize(page, main);
+
     // Advanced view on: the solver's rows join the table; the page still does not scroll.
     const advanced = main.getByRole('switch', { name: 'Advanced view' });
     await advanced.click();
@@ -303,7 +326,6 @@ test.describe('Lab', () => {
 
     // Four versions with two flat columns: the table scrolls sideways inside the card, the bars
     // wrap, the page does not scroll.
-    await finishVersion(request, version, 'Dearer flat price', { flat_price_per_ride_chf: 1.5 });
     await page.goto(`/#/lab/${version}/compare/A,B,C,D`);
     await page.reload();
     const table = main.getByTestId('compare-table');

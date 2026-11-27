@@ -2,6 +2,8 @@ import type {
   Comparison,
   ComparisonGroup,
   ComparisonRow,
+  HubDifference,
+  PairDifference,
   FlatReference,
 } from '../../domain/comparison';
 import {
@@ -397,6 +399,33 @@ export interface FakeComparisonDetails {
   readonly commits?: Readonly<Record<string, string | null>>;
   /** Versions whose simulations used an older rule, with its version number. */
   readonly olderRule?: Readonly<Record<string, number>>;
+  /** The hub pairs of the difference table, largest first; a few over the sample hubs by default. */
+  readonly pairDifferences?: readonly PairDifference[];
+  /** Letters of versions sharing one stored solve; none by default. */
+  readonly identicalSolves?: readonly (readonly string[])[];
+}
+
+/** A hub pair's figures in the two compared versions: `a` at `priceA`, `b` at `priceB`. */
+export function samplePairDifference(
+  originHub: string,
+  destinationHub: string,
+  priceA: number,
+  priceB: number,
+  travellersA = 100,
+  travellersB = 120,
+): PairDifference {
+  const money = (value: number) => n(value, 'derived', 'chf_per_bike_leg');
+  const people = (value: number) => n(value, 'model', 'travellers');
+  return {
+    originHub,
+    destinationHub,
+    meanPriceA: money(priceA),
+    meanPriceB: money(priceB),
+    priceDifference: money(priceB - priceA),
+    travellersA: people(travellersA),
+    travellersB: people(travellersB),
+    travellersDifference: people(travellersB - travellersA),
+  };
 }
 
 const sim = (value: number, unit: string): ResultNumber => n(value, 'simulation', unit);
@@ -578,7 +607,31 @@ export function fakeComparison(
     })),
     flatReferences,
     groups,
-    identicalSolves: [],
+    identicalSolves: details.identicalSolves ?? [],
+    pairDifferences: {
+      a: letters.at(-2) ?? '',
+      b: letters.at(-1) ?? '',
+      pairs: details.pairDifferences ?? [
+        samplePairDifference('H4', 'H9', 0.95, 1.25, 1234, 2100),
+        samplePairDifference('H9', 'H4', 1.1, 0.9),
+        samplePairDifference('H4', 'H12', 1, 1),
+      ],
+    },
+    hubDifferences: sampleHubResults().map((hub, at): HubDifference => {
+      const price = (value: number) => n(value, 'derived', 'chf_per_bike_leg');
+      const rides = (value: number) => n(value, 'derived', 'bike_rides');
+      const priced = hub.meanBikePrice !== null;
+      return {
+        hubId: hub.hubId,
+        meanPriceA: priced ? price(0.9) : null,
+        meanPriceB: priced ? price(1.05) : null,
+        priceDifference: priced ? price(0.15) : null,
+        priceBMinusFlat: priced ? price(0.05) : null,
+        ridesStartingA: rides(hub.ridesStarting.value),
+        ridesStartingB: rides(hub.ridesStarting.value + 5 * (at - 1)),
+        ridesStartingDifference: rides(5 * (at - 1)),
+      };
+    }),
   };
 }
 

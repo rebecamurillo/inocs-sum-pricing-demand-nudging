@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   comparisonColumns,
   initialLetters,
@@ -28,8 +28,10 @@ import {
   sharesSummary,
   simulateLetterAgain,
   tableGroups,
+  type CompareMeasure,
   type TableCell,
 } from '../../domain/comparison-text';
+import type { GeoPoint } from '../../domain/map';
 import { versionTag } from '../../domain/l1-text';
 import {
   simulatingLine,
@@ -41,7 +43,8 @@ import { compareRoute, type LabRoute } from '../../domain/route';
 import { elapsedSeconds, queuedSentence, subjectName } from '../../domain/run-text';
 import { PLACEHOLDER_SENTENCE, THREE_MODES_SENTENCE } from '../../domain/result-text';
 import { missingPricingVersionLabel, nothingAtThisLink } from '../../domain/unknown-link';
-import { useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
+import type { InstanceHub } from '../../application/ports/city-instance-gateway';
+import { useInstanceGeometry, useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
 import { useNewPricingVersion } from '../hooks/useNewPricingVersion';
 import {
   useComparison,
@@ -51,10 +54,14 @@ import {
 } from '../hooks/usePricingVersions';
 import { useActiveRuns, useNow } from '../hooks/useRuns';
 import { useSystemStatus } from '../hooks/useSystemStatus';
+import { CompareDifferences } from './CompareDifferences';
+import { CompareMap } from './CompareMap';
 import { LoadingCard } from './LoadingCard';
 import { Legend, BarList, StackedBar } from './StackedBars';
 import { SourceTag } from './SourceTag';
 import styles from './CompareView.module.css';
+
+const NO_HUBS: readonly InstanceHub[] = [];
 
 interface CompareViewProps {
   readonly instanceVersionId: string;
@@ -172,6 +179,15 @@ interface CardProps {
   readonly advancedView: boolean;
   readonly onAdvancedView: (on: boolean) => void;
   readonly onToggle: (letter: string) => void;
+  /** The instance version's study circle and hubs, which the map and the difference table read. */
+  /** Null when the instance version could not be read: the map then draws nothing. */
+  readonly circle: { readonly centre: GeoPoint; readonly radiusM: number } | null;
+  readonly hubs: readonly InstanceHub[];
+  /** Held by the view, not the card: a re-read remounts the card under the loading skeleton. */
+  readonly measure: CompareMeasure;
+  readonly onMeasure: (measure: CompareMeasure) => void;
+  readonly shownPair: string | null;
+  readonly onShowOnMap: (key: string | null) => void;
 }
 
 function CompareCard({
@@ -181,7 +197,22 @@ function CompareCard({
   advancedView,
   onAdvancedView,
   onToggle,
+  circle,
+  hubs,
+  measure,
+  onMeasure: setMeasure,
+  shownPair,
+  onShowOnMap: setShownPair,
 }: CardProps) {
+  const hubLabels = useMemo(() => new Map(hubs.map((hub) => [hub.id, hub.label])), [hubs]);
+  const shown = useMemo(() => {
+    const found = comparison.pairDifferences.pairs.find(
+      (item) => `${item.originHub}>${item.destinationHub}` === shownPair,
+    );
+    return found === undefined
+      ? null
+      : { originHub: found.originHub, destinationHub: found.destinationHub };
+  }, [comparison, shownPair]);
   const columns = comparisonColumns(comparison);
   const commits = packageCommits(comparison);
   const stale = columns.flatMap((column) => {
@@ -365,6 +396,25 @@ function CompareCard({
         </table>
       </div>
       <p className={styles.caption}>{TABLE_CAPTION}</p>
+      <CompareDifferences
+        comparison={comparison}
+        hubLabels={hubLabels}
+        shownPair={shownPair}
+        onShowOnMap={setShownPair}
+      />
+      {circle !== null && (
+        <CompareMap
+          centre={circle.centre}
+          radiusM={circle.radiusM}
+          hubs={hubs}
+          differences={comparison.hubDifferences}
+          a={comparison.pairDifferences.a}
+          b={comparison.pairDifferences.b}
+          measure={measure}
+          onMeasure={setMeasure}
+          shownPair={shown}
+        />
+      )}
       <div className={styles.actions}>
         <span className={styles.note}>{SAME_BASIS_NOTE}</span>
       </div>
@@ -377,6 +427,11 @@ export function CompareView(props: CompareViewProps) {
   const { instanceVersionId, instanceId, number, letters, period, onNavigate, onReplace } = props;
   const list = usePricingList(instanceVersionId);
   const view = useInstanceView(instanceVersionId);
+  const geometry = useInstanceGeometry(instanceVersionId);
+  const [measure, setMeasure] = useState<CompareMeasure>('priceDifference');
+  // The pair shown belongs to the two versions it was picked between: another pair of versions
+  // shows none, so no line stays on the map without its "Show on map" button.
+  const [picked, setPicked] = useState<{ readonly ab: string; readonly key: string } | null>(null);
   const creating = useNewPricingVersion({ id: instanceVersionId, instanceId, number }, onNavigate);
   const instance = { instanceId, version: number };
 
@@ -447,14 +502,33 @@ export function CompareView(props: CompareViewProps) {
       : [...sorted, letter];
     onReplace(compareRoute(instance, next, period));
   };
+  const ab = `${comparison.data.pairDifferences.a},${comparison.data.pairDifferences.b}`;
   const card = (
     <CompareCard
+      measure={measure}
+      onMeasure={setMeasure}
+      shownPair={picked?.ab === ab ? picked.key : null}
+      onShowOnMap={(key) => {
+        setPicked(key === null ? null : { ab, key });
+      }}
       comparison={comparison.data}
       versions={finished.map((item) => ({ letter: item.letter, name: pricingVersionName(item) }))}
       ticked={sorted}
       advancedView={props.advancedView}
       onAdvancedView={props.onAdvancedView}
       onToggle={toggle}
+      circle={
+        view.data === undefined || view.data === null
+          ? null
+          : {
+              centre: {
+                lat: view.data.version.parameters.centerLat,
+                lon: view.data.version.parameters.centerLon,
+              },
+              radiusM: view.data.version.parameters.radiusM,
+            }
+      }
+      hubs={geometry.data?.hubs ?? NO_HUBS}
     />
   );
   // A read in flight keeps the earlier render at 50 % opacity under the skeleton.

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  identicalPair,
+  topPairDifferences,
+  type PairDifference,
   comparisonColumns,
   initialLetters,
   olderRuleOf,
@@ -8,6 +11,7 @@ import {
   type ComparedVersion,
   type FlatReference,
 } from './comparison';
+import type { ResultNumber } from './pricing-result';
 
 const version = (letter: string, over: Partial<ComparedVersion> = {}): ComparedVersion => ({
   id: `geneva-3km.v1.${letter}`,
@@ -43,6 +47,8 @@ const comparison = (over: Partial<Comparison>): Comparison => ({
   flatReferences: [],
   groups: [],
   identicalSolves: [],
+  pairDifferences: { a: 'B', b: 'C', pairs: [] },
+  hubDifferences: [],
   ...over,
 });
 
@@ -103,5 +109,60 @@ describe('what the notices read', () => {
         }),
       ),
     ).toBe(1);
+  });
+});
+
+const num = (value: number): ResultNumber => ({
+  value,
+  unit: 'chf',
+  source: 'derived',
+  group: 'headline',
+});
+const pairOf = (at: number): PairDifference => ({
+  originHub: `H${String(at)}`,
+  destinationHub: 'H9',
+  meanPriceA: num(1),
+  meanPriceB: num(1.5),
+  priceDifference: num(0.5),
+  travellersA: num(10),
+  travellersB: num(12),
+  travellersDifference: num(2),
+});
+
+describe('the difference table', () => {
+  it('lists the first ten hub pairs in the API order', () => {
+    const pairs = Array.from({ length: 12 }, (_, at) => pairOf(at));
+    const found = topPairDifferences(comparison({ pairDifferences: { a: 'B', b: 'C', pairs } }));
+    expect(found.map((pair) => pair.originHub)).toEqual(pairs.slice(0, 10).map((p) => p.originHub));
+    expect(
+      topPairDifferences(comparison({ pairDifferences: { a: 'B', b: 'C', pairs } }), 3),
+    ).toHaveLength(3);
+  });
+});
+
+describe('versions with the same solve', () => {
+  it('takes the group holding both compared versions, in letter order', () => {
+    expect(
+      identicalPair(
+        comparison({
+          pairDifferences: { a: 'B', b: 'D', pairs: [] },
+          identicalSolves: [
+            ['A', 'C'],
+            ['B', 'D'],
+          ],
+        }),
+      ),
+    ).toEqual({ letters: ['B', 'D'], coversAB: true });
+  });
+
+  it('falls back to the first two letters of the first group when it does not hold both', () => {
+    expect(identicalPair(comparison({ identicalSolves: [['A', 'B', 'D']] }))).toEqual({
+      letters: ['A', 'B'],
+      coversAB: false,
+    });
+  });
+
+  it('is null when no versions share a solve', () => {
+    expect(identicalPair(comparison({}))).toBeNull();
   });
 });
