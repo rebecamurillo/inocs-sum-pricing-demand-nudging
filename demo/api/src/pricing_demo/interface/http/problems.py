@@ -39,6 +39,7 @@ from pricing_demo.domain.city_instances import (
     DraftExists,
     InstanceVersionNotFound,
     InvalidInstanceName,
+    PeriodNotFound,
     VersionSealed,
 )
 from pricing_demo.domain.errors import DomainError
@@ -118,6 +119,7 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     InstanceVersionNotFound: Problem(
         404, "instance_version_not_found", "The instance version does not exist"
     ),
+    PeriodNotFound: Problem(404, "period_not_found", "The version has no such period"),
     CityInstanceNotFound: Problem(
         404, "city_instance_not_found", "The city instance does not exist"
     ),

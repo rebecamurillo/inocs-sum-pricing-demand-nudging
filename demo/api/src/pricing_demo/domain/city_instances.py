@@ -58,6 +58,13 @@ class CityInstanceNotFound(DomainError):
         super().__init__(f"There is no city instance {instance_id}.")
 
 
+class PeriodNotFound(DomainError):
+    def __init__(self, version_id: str, period_id: str) -> None:
+        self.version_id = version_id
+        self.period_id = period_id
+        super().__init__(f"The instance version {version_id} has no period {period_id}.")
+
+
 WHOLE_NUMBER_PARAMETERS = ("seed", "fixed_capacity", "min_demand", "max_demand")
 
 

@@ -71,7 +71,9 @@ e2e/
 
 - **The stack.** `compose.e2e.yaml` starts PostgreSQL, the API with the fake adapters, the
   worker with the fake adapters and the web container, on its own project name and port (14400), so it runs beside `make dev`.
-  `make e2e` builds it, waits for it, runs Playwright from the host and removes it.
+  `make e2e` builds it, waits for it, runs Playwright from the host and removes it. It exports
+  `E2E_COMPOSE` (the compose command with an absolute file path) to the run, which
+  `e2e/support/stack.ts` uses to restart the `api` and `worker` services.
 - **A scenario** is written from what the user does and reads, and its title carries the
   requirement or screen it covers: `test('L-1 · saving an edited instance creates a new
   version', …)`.
@@ -84,7 +86,8 @@ e2e/
   Tests do not depend on each other's order.
 - **The test-control API** (`/api/test-control/…`) exists only when the API runs with the
   fake adapters. It resets stored data and sets what the fakes answer (a component
-  unavailable or, for the solver, limited; a run that fails at a named step). An
+  unavailable or, for the solver, limited; a run that fails at a named step; failed route
+  queries at named hub pairs). An
   architecture test asserts it is not mounted with the real adapters. It is the only test
   seam: a scenario never stubs the network in the browser.
 - **Fakes are set through `fake_settings`.** The API and the worker are two processes, so the

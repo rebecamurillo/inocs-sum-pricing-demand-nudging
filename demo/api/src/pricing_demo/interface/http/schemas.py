@@ -16,6 +16,14 @@ from pricing_demo.domain.city_instances import (
 )
 from pricing_demo.domain.failure_codes import FAILURE_CODES
 from pricing_demo.domain.instance_rules import RuleResult, RuleValue
+from pricing_demo.domain.numbers import Number as DomainNumber
+from pricing_demo.domain.read_model import (
+    HubPairRow,
+    HubRow,
+    RouteFailure,
+    RoutesSummary,
+    StationRow,
+)
 from pricing_demo.domain.runner_liveness import Runner
 from pricing_demo.domain.runs import (
     STEP_NUMBERS,
@@ -118,13 +126,25 @@ class FailAt(BaseModel):
         return value
 
 
+class FakeRouteFailure(BaseModel):
+    """One failed trip-planner query of the fake city: the pair, the query, how it failed."""
+
+    origin_hub: str
+    destination_hub: str
+    query: Literal["pt_bike", "car"]
+    kind: Literal["technical", "no_route"]
+    message: str
+
+
 class PricingModelSettings(BaseModel):
     """What the fake pricing model does: fail a step with a code, hold a step until it is
-    released, and pace the routes step. The defaults are no failure, no hold and no pace."""
+    released, pace the routes step, and fail trip-planner queries at named pairs. The defaults
+    are no failure, no hold, no pace and no failed query."""
 
     fail_at: FailAt | None = None
     hold_at: StepName | None = None
     routes_pace_ms: int = Field(default=0, ge=0)
+    route_failures: list[FakeRouteFailure] = Field(default_factory=list)
 
     _hold_is_a_build_step = field_validator("hold_at")(_a_build_step)
 
@@ -529,6 +549,56 @@ class BuildPlanResource(BaseModel):
         )
 
 
+class NumberResource(BaseModel):
+    """A number with its unit and where it comes from."""
+
+    value: float
+    unit: str
+    source: Literal["model", "package_summary", "input", "trip_planner", "derived", "simulation"]
+    group: Literal["headline", "advanced"]
+
+    @classmethod
+    def from_domain(cls, number: DomainNumber) -> "NumberResource":
+        return cls(value=number.value, unit=number.unit, source=number.source, group=number.group)
+
+
+class InstanceCounts(BaseModel):
+    """The five headline counts of a built version."""
+
+    stops: NumberResource
+    bike_stations: NumberResource
+    hubs: NumberResource
+    hub_pairs_with_routes: NumberResource
+    travellers: NumberResource
+
+
+class RoutesSummaryResource(BaseModel):
+    """What the trip planner answered for the routes of the build."""
+
+    queries: int
+    queries_failed: int
+    failure_pct: float
+    pairs_without_public_transport: int
+    pairs_without_car: int
+    retries: int
+    run_id: str | None = Field(
+        description="The run whose routes step produced the routes the version links; "
+        "`GET /runs/{run_id}/route-failures` lists the failed queries."
+    )
+
+    @classmethod
+    def from_domain(cls, summary: RoutesSummary) -> "RoutesSummaryResource":
+        return cls(
+            queries=summary.queries,
+            queries_failed=summary.queries_failed,
+            failure_pct=summary.failure_pct,
+            pairs_without_public_transport=summary.pairs_without_public_transport,
+            pairs_without_car=summary.pairs_without_car,
+            retries=summary.retries,
+            run_id=summary.run_id,
+        )
+
+
 class InstanceVersionResource(BaseModel):
     id: str
     instance_id: str
@@ -545,7 +615,8 @@ class InstanceVersionResource(BaseModel):
     changes: list[ParameterChangeResource] = Field(
         description="The parameters that differ from `based_on_id`, in column order."
     )
-    counts: dict[str, int] | None = Field(description="Null until the counts exist.")
+    counts: InstanceCounts | None = Field(description="Null until the version is built.")
+    routes: RoutesSummaryResource | None = Field(description="Null until the version is built.")
     build_plan: BuildPlanResource
 
     @classmethod
@@ -562,7 +633,14 @@ class InstanceVersionResource(BaseModel):
             periods=[InstancePeriodResource.from_domain(item) for item in view.periods],
             rules=[RuleResultResource.from_domain(item) for item in view.rules],
             changes=[ParameterChangeResource.from_domain(item) for item in view.changes],
-            counts=None,
+            counts=InstanceCounts(
+                **{name: NumberResource.from_domain(item) for name, item in view.counts.items()}
+            )
+            if view.counts is not None
+            else None,
+            routes=RoutesSummaryResource.from_domain(view.routes)
+            if view.routes is not None
+            else None,
             build_plan=BuildPlanResource.from_domain(view.plan, view.build_verdict),
         )
 
@@ -605,3 +683,97 @@ class CityInstanceMenuItem(BaseModel):
 
 class CityInstanceMenu(BaseModel):
     items: list[CityInstanceMenuItem]
+
+
+class StationResource(BaseModel):
+    station_id: str
+    kind: Literal["pt", "bs"] = Field(
+        description="`pt` a public transport stop, `bs` a bike station."
+    )
+    name: str
+    lat: float
+    lon: float
+
+    @classmethod
+    def from_domain(cls, row: StationRow) -> "StationResource":
+        return cls(
+            station_id=row.station_id, kind=row.kind, name=row.name, lat=row.lat, lon=row.lon
+        )
+
+
+class StationList(BaseModel):
+    items: list[StationResource]
+
+
+class HubResource(BaseModel):
+    hub_id: str
+    label: str
+    lat: float
+    lon: float
+    outline: dict[str, Any] | None = Field(description="A GeoJSON polygon, or null.")
+    pt_station_ids: list[str]
+    bike_station_ids: list[str]
+    lines: list[str]
+
+    @classmethod
+    def from_domain(cls, row: HubRow) -> "HubResource":
+        return cls(
+            hub_id=row.hub_id,
+            label=row.label,
+            lat=row.lat,
+            lon=row.lon,
+            outline=dict(row.outline) if row.outline is not None else None,
+            pt_station_ids=list(row.pt_station_ids),
+            bike_station_ids=list(row.bike_station_ids),
+            lines=list(row.lines),
+        )
+
+
+class HubList(BaseModel):
+    items: list[HubResource]
+
+
+class HubPairResource(BaseModel):
+    origin_hub: str
+    destination_hub: str
+    demand: float
+    euclid_dist_m: float
+
+    @classmethod
+    def from_domain(cls, row: HubPairRow) -> "HubPairResource":
+        return cls(
+            origin_hub=row.origin_hub,
+            destination_hub=row.destination_hub,
+            demand=row.demand,
+            euclid_dist_m=row.euclid_dist_m,
+        )
+
+
+class HubPairList(BaseModel):
+    items: list[HubPairResource]
+
+
+class RouteFailureResource(BaseModel):
+    origin_hub: str
+    destination_hub: str
+    query: Literal["pt_bike", "car"]
+    kind: Literal["technical", "no_route"]
+    message: str
+    attempts: int
+    period: str | None = Field(description="The id of the period the query was made for.")
+
+    @classmethod
+    def from_domain(cls, failure: RouteFailure, period: str | None) -> "RouteFailureResource":
+        return cls(
+            origin_hub=failure.origin_hub,
+            destination_hub=failure.destination_hub,
+            query=failure.query,
+            kind=failure.kind,
+            message=failure.message,
+            attempts=failure.attempts,
+            period=period,
+        )
+
+
+class RouteFailureList(BaseModel):
+    items: list[RouteFailureResource]

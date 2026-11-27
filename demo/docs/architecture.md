@@ -248,17 +248,60 @@ folder is ever visible; the files are made `0444` and the folder `0555`. One `ar
 holds the key, the step, the canonical inputs, each file's name, sha256 and size, the path
 (relative to the data directory) and the package fingerprint; the folder is never changed. A
 key whose folder exists is reused: same key, same content. The working directory is deleted on
-success and on a stop, and kept on a failure. As each step ends `done` or `kept` the worker
-writes its `instance_version_steps` row (version, step, period, key), so the steps already
-done are readable while the run goes on. That table's key is a unique constraint with
+success and on a stop, and kept on a failure. Once the outputs are stored the worker ingests them
+into the read model (§ Read model) and only then writes the step's `instance_version_steps` row
+(version, step, period, key), so the steps already done are readable while the run goes on and
+a link always names an ingested artefact. That table's key is a unique constraint with
 `NULLS NOT DISTINCT`, because steps 1 and 2 have no period and a primary key cannot hold a
 null.
 
 `ProcessNextRun` asks a step's keeper (`StepKeeper`, implemented by `BuildStepExecutor` with
-the executor) before it starts the step; a step whose key has an artefact moves `pending` to
-`kept` at once and costs nothing. The city is prepared through the `CityPreparation` port;
+the executor) before it starts the step; a step whose key has an ingested artefact moves
+`pending` to `kept` at once and costs nothing. The city is prepared through the `CityPreparation` port;
 only its fake exists so far (the real adapter is built on the pricing-model adapter later), so
 a real-adapter build fails at its first step with `stage_error`.
+
+### Read model
+
+The tables every screen reads, none of which needs a file: `stations`, `hubs` and
+`station_hubs` (keyed by the `area` and `hubs` artefacts), `hub_pairs`, `route_options`,
+`station_bikes` and `option_station_deltas` (keyed by the `travellers_and_bikes` artefact), each
+with a foreign key `ON DELETE CASCADE` to `artifacts.input_key`, and `route_failures`. The API
+reads PostgreSQL only; it never opens an artefact folder.
+
+**Ingestion.** After a step's outputs are stored, `StepIngestion` reads the artefact's files
+through `ArtifactFiles.read_json` (the last step also reads the routes artefact's
+`od_routes.json` and `od_geometry.json`), builds the rows and the step's counts with the pure
+readers of `domain/read_model.py`, and `ReadModel.ingest` writes them in one transaction: the
+key's rows are replaced, then `artifacts.counts` and `artifacts.ingested_at` are set. The link
+is written after it. A failure (a file that is missing or malformed, a database error) rolls
+the transaction back, fails the step with `stage_error` and leaves the artefact row and folder
+where they are. `ingested_at` decides `kept`: the next build of the version finds the artefact
+without it, runs the step as an ingest-only rerun (no working directory, no call to the
+preparation) and counts and rows are those a fresh build would write.
+
+**Counts.** The step's counts are stored on its `artifacts` row and on its run step: `area`
+`stops` and `bike_stations`; `hubs` `hubs`; `routes` `hub_pairs_requested`,
+`hub_pairs_with_routes`, `hub_pairs_removed`, `queries` (two per pair requested),
+`queries_failed`, `failure_pct` (`queries_failed` / `queries` × 100) and `retries`;
+`travellers_and_bikes` `hub_pairs`, `travellers`, `bike_stations` and `options` per mode. The
+artefact also keeps the run that produced it (`run_id`) and the counts that run's step reported
+(`reported_counts`): an ingest-only rerun, which has no preparation to ask, reads them back.
+`GET /instance-versions/{id}` derives its five headline numbers and its routes summary from
+these, and both are null until every step of the version is linked to an ingested artefact.
+
+**Route failures.** `CityPreparation.prepare` calls `route_failed` once per failed
+trip-planner query as it happens; the executor writes one `route_failures` row for each (run,
+run step, period, pair, query `pt_bike` | `car`, kind `technical` | `no_route`, message,
+attempts) and clears the step's rows before a routes step starts. The run's `failure_pct` is set
+when the routes step is done or kept. A kept routes step has no failures of its own: its
+summary and `GET /runs/{run_id}/route-failures` name the run that produced the routes
+(`artifacts.run_id`).
+
+**`line_kind`.** Each leg of a `route_options` row records `street` for a street mode
+(`BICYCLE`, `CAR`, `FOOT`, `WALK`), and for a transit leg `shape` when its public code is in the
+set of routes that have a shape in the data set's timetable (`FeedShapes`), `straight`
+otherwise.
 
 ### Persistence
 

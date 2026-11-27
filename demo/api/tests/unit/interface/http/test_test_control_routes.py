@@ -133,6 +133,32 @@ def test_the_pricing_model_settings_are_written_as_sent(faked: Faked) -> None:
     }
 
 
+ROUTE_FAILURE = {
+    "origin_hub": "H1",
+    "destination_hub": "H2",
+    "query": "pt_bike",
+    "kind": "technical",
+    "message": "timeout",
+}
+
+
+def test_failed_route_queries_are_written_as_sent(faked: Faked) -> None:
+    response = faked.client.put(PRICING_MODEL, json={"route_failures": [ROUTE_FAILURE]})
+
+    assert response.status_code == 204
+    assert faked.settings.read()["pricing_model"]["route_failures"] == [ROUTE_FAILURE]  # type: ignore[index]
+
+
+@pytest.mark.parametrize("field", ["query", "kind"])
+def test_a_failed_route_query_of_an_unknown_kind_is_refused(faked: Faked, field: str) -> None:
+    response = faked.client.put(
+        PRICING_MODEL, json={"route_failures": [{**ROUTE_FAILURE, field: "other"}]}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"].startswith(f"route_failures.0.{field}")
+
+
 def test_an_empty_body_sets_the_defaults_of_the_pricing_model(faked: Faked) -> None:
     faked.client.put(PRICING_MODEL, json={"hold_at": "area"})
 

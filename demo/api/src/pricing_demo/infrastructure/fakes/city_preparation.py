@@ -17,11 +17,17 @@ from functools import cache
 from pathlib import Path
 from typing import Any, Protocol
 
-from pricing_demo.application.ports.city_preparation import PreparationRequest, Progress
+from pricing_demo.application.ports.city_preparation import (
+    PreparationRequest,
+    Progress,
+    RouteFailed,
+    ignore_route_failure,
+)
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.domain.city_datasets import GENEVA_PRESET
 from pricing_demo.domain.failure_codes import failure_reason
+from pricing_demo.domain.read_model import RouteFailure
 from pricing_demo.domain.runs import StepName
 
 METRES_PER_DEGREE_LATITUDE = 111_320.0
@@ -45,6 +51,11 @@ NOT_REQUESTED = frozenset(
 NO_BIKE_PAIR = ("H5", "H1")
 STOPS_PER_HUB = 5
 BIKE_STATIONS_PER_HUB = 2
+# The public code of the fake bus and tram routes: the worker's fake feed has a shape for the bus
+# route only, so the fake city draws both a timetable shape and a straight line.
+TRANSIT_CODES = {"BUS": "1", "TRAM": "T2"}
+# The retries the fake trip planner client makes before it reports a technical failure.
+FAKE_RETRIES = 3
 # The fake values a failure's reason is written with.
 FAKE_TRIP_PLANNER_URL = "http://trip-planner.fake/otp"
 FAKE_SOLVER_STATUS = "INFEASIBLE"
@@ -209,7 +220,7 @@ def _leg(mode: str, origin: str, destination: str, metres: float, **extra: Any) 
         "mode": mode,
         "duration_s": round(metres / (4.5 if mode == "BICYCLE" else 6.0), 1),
         "distance_m": round(metres, 1),
-        "line_publicCode": {"publicCode": "1"} if mode in ("BUS", "TRAM") else {},
+        "line_publicCode": {"publicCode": TRANSIT_CODES[mode]} if mode in TRANSIT_CODES else {},
         "from_place": origin,
         "to_place": destination,
         "rented_bike": mode == "BICYCLE",
@@ -286,6 +297,30 @@ def _routes() -> tuple[dict[str, Any], dict[str, Any]]:
     return {"od_results": results}, {"geometries": geometries}
 
 
+def _without_failed(
+    routes: dict[str, Any], geometry: dict[str, Any], failures: Sequence[RouteFailure]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """A failed `pt_bike` query drops the pair, a failed `car` query empties its car option."""
+    dropped = {
+        (item.origin_hub, item.destination_hub) for item in failures if item.query == "pt_bike"
+    }
+    no_car = {(item.origin_hub, item.destination_hub) for item in failures if item.query == "car"}
+    kept: list[dict[str, Any]] = []
+    removed_arcs: set[str] = set()
+    for result in routes["od_results"]:
+        pair = (result["from_id"], result["to_id"])
+        arcs = (*result["arc_pt_bike"], *result["arc_pt_only"], *result["arc_car"])
+        if pair in dropped:
+            removed_arcs.update(arc["arc_id"] for arc in arcs)
+            continue
+        if pair in no_car:
+            removed_arcs.update(arc["arc_id"] for arc in result["arc_car"])
+            result = {**result, "arc_car": []}
+        kept.append(result)
+    geometries = [item for item in geometry["geometries"] if item["arc_id"] not in removed_arcs]
+    return {"od_results": kept}, {"geometries": geometries}
+
+
 def _instance(
     request: PreparationRequest, routes: Mapping[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -304,11 +339,19 @@ def _instance(
         inventory[station] = 0
     for station in bike_ids[2:4]:
         inventory[station] = capacity
+    positions = hub_positions()
     pairs, bike_arcs, public_arcs, car_arcs = [], [], [], []
     for result in routes["od_results"]:
         demand = rng.randint(int(parameters.min_demand), int(parameters.max_demand))
         pairs.append(
-            {"origin": result["from_id"], "destination": result["to_id"], "demand": demand}
+            {
+                "origin": result["from_id"],
+                "destination": result["to_id"],
+                "demand": demand,
+                "euclid_dist": round(
+                    haversine_m(positions[result["from_id"]], positions[result["to_id"]])
+                ),
+            }
         )
         bike_arcs += result["arc_pt_bike"]
         public_arcs += result["arc_pt_only"]
@@ -354,7 +397,11 @@ class FakeCityPreparation:
         self._waiter = waiter
 
     def prepare(
-        self, request: PreparationRequest, progress: Progress, stop: StopSignal
+        self,
+        request: PreparationRequest,
+        progress: Progress,
+        stop: StopSignal,
+        route_failed: RouteFailed = ignore_route_failure,
     ) -> StepOutcome:
         step = request.step
         if self._config().get("hold_at") == step.value and not self._hold(request.run_id, stop):
@@ -371,20 +418,29 @@ class FakeCityPreparation:
             for name, content in _hubs_files().items():
                 _write(request.working_dir, name, content)
             return StepOutcome.done({"hubs": len(HUB_METRES)})
-        routes, geometry = _routes()
         if step is StepName.ROUTES:
             if not self._pace(progress, stop):
                 return StepOutcome.stopped_on_signal()
+            failures = self._route_failures()
+            for failure in failures:
+                route_failed(failure)
+            routes, geometry = _without_failed(*_routes(), failures)
             _write(request.working_dir, "od_routes.json", routes)
             _write(request.working_dir, "od_geometry.json", geometry)
-            requested = len(hub_pairs())
             return StepOutcome.done(
                 {
-                    "hub_pairs_requested": requested,
-                    "hub_pairs_with_routes": requested,
+                    "hub_pairs_requested": len(hub_pairs()),
+                    "hub_pairs_with_routes": len(routes["od_results"]),
                     "hub_pairs_removed": 0,
+                    "retries": FAKE_RETRIES,
                 }
             )
+        # The routes the travellers step reads are the routes step's own file, which a failed
+        # query may have thinned.
+        stored = request.working_dir / "od_routes.json"
+        routes = (
+            json.loads(stored.read_text(encoding="utf-8")) if stored.is_file() else _routes()[0]
+        )
         instance, counts = _instance(request, routes)
         _write(request.working_dir, "Instance_1.json", instance)
         return StepOutcome.done(counts)
@@ -392,6 +448,21 @@ class FakeCityPreparation:
     def _config(self) -> Mapping[str, Any]:
         config = self._settings.read().get("pricing_model")
         return config if isinstance(config, dict) else {}
+
+    def _route_failures(self) -> list[RouteFailure]:
+        """The listed failures whose pair the fake city requests; a pair and query once."""
+        listed = self._config().get("route_failures")
+        found: dict[tuple[str, str, str], RouteFailure] = {}
+        for item in listed if isinstance(listed, list) else []:
+            pair = (item["origin_hub"], item["destination_hub"])
+            if pair not in hub_pairs():
+                continue
+            attempts = 1 + FAKE_RETRIES if item["kind"] == "technical" else 1
+            found.setdefault(
+                (*pair, item["query"]),
+                RouteFailure(*pair, item["query"], item["kind"], item["message"], attempts),
+            )
+        return list(found.values())
 
     def _hold(self, run_id: str, stop: StopSignal) -> bool:
         """Wait until the run is released; False when the step was stopped first."""

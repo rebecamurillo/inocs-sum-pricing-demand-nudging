@@ -1,9 +1,11 @@
 import hashlib
+import json
 import os
 import shutil
 import uuid
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from pricing_demo.application.ports.artifacts import StoredFile
 from pricing_demo.domain.runs import StepName
@@ -75,6 +77,9 @@ class LocalArtifactStore:
             if temporary.exists():
                 shutil.rmtree(temporary, ignore_errors=True)
         return relative, self._describe(final, names)
+
+    def read_json(self, path: str, name: str) -> Any:
+        return json.loads((self._data_dir / path / name).read_text(encoding="utf-8"))
 
     def discard(self, working_dir: Path) -> None:
         shutil.rmtree(working_dir, ignore_errors=True)

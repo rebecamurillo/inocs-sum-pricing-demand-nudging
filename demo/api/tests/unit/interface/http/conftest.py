@@ -14,7 +14,11 @@ from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
+from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
+from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_runs import ListRuns
+from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
@@ -33,6 +37,7 @@ from pricing_demo.infrastructure.fakes.package_fingerprints import (
     FAKE_FINGERPRINT,
     InMemoryPackageFingerprints,
 )
+from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.interface.http.app import create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
@@ -159,6 +164,7 @@ class RunsApp:
 
     def __init__(self) -> None:
         self.repository = InMemoryRunRepository()
+        self.route_failures = InMemoryRouteFailures()
         self.clock = FixedClock(SERVER_TIME)
         self.client = TestClient(
             create_app(
@@ -169,6 +175,7 @@ class RunsApp:
                         GetRun(self.repository, self.clock),
                         GetRunLog(self.repository),
                         CancelRun(self.repository, self.clock),
+                        ListRouteFailures(self.repository, self.route_failures),
                     )
                 ],
             ),
@@ -200,21 +207,32 @@ class CityInstancesApp:
         if with_fingerprint:
             self.fingerprints.record(FAKE_FINGERPRINT, SERVER_TIME)
         planning = self.rig.planning
+        built = self.rig.built
         self.client = TestClient(
             create_app(
                 api_version=API_VERSION,
                 routers=[
                     build_city_instances_router(
                         CreateCityInstance(
-                            self.instances, self.datasets, self.fingerprints, self.clock, planning
+                            self.instances,
+                            self.datasets,
+                            self.fingerprints,
+                            self.clock,
+                            planning,
+                            built,
                         ),
                         ListCityInstances(self.instances, self.rig.builds),
-                        CreateInstanceVersion(self.instances, self.datasets, self.clock, planning),
-                        GetInstanceVersion(self.instances, self.datasets, planning),
-                        UpdateInstanceVersion(self.instances, self.datasets, planning),
+                        CreateInstanceVersion(
+                            self.instances, self.datasets, self.clock, planning, built
+                        ),
+                        GetInstanceVersion(self.instances, self.datasets, planning, built),
+                        UpdateInstanceVersion(self.instances, self.datasets, planning, built),
                         DeleteInstanceVersion(self.instances),
                         self.rig.build,
                         GetRun(self.runs, self.clock),
+                        ListStations(self.instances, self.rig.artifacts, self.rig.read_model),
+                        ListHubs(self.instances, self.rig.artifacts, self.rig.read_model),
+                        ListHubPairs(self.instances, self.rig.artifacts, self.rig.read_model),
                     )
                 ],
             ),

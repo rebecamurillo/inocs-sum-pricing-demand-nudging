@@ -34,6 +34,8 @@ class PostgresArtifacts:
             path=row.path,
             package_fingerprint=row.package_fingerprint,
             created_at=row.created_at,
+            run_id=row.run_id,
+            reported_counts=row.reported_counts,
         )
 
     def add(self, artifact: Artifact) -> None:
@@ -50,6 +52,8 @@ class PostgresArtifacts:
                 path=artifact.path,
                 package_fingerprint=artifact.package_fingerprint,
                 created_at=artifact.created_at,
+                run_id=artifact.run_id,
+                reported_counts=dict(artifact.reported_counts),
             )
             .on_conflict_do_nothing(index_elements=["input_key"])
         )

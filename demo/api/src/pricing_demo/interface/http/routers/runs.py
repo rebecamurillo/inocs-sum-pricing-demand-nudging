@@ -7,9 +7,16 @@ from fastapi.responses import PlainTextResponse
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
+from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.domain.runs import RunState
-from pricing_demo.interface.http.schemas import ProblemDetails, RunList, RunResource
+from pricing_demo.interface.http.schemas import (
+    ProblemDetails,
+    RouteFailureList,
+    RouteFailureResource,
+    RunList,
+    RunResource,
+)
 
 Responses = dict[int | str, dict[str, Any]]
 
@@ -18,7 +25,11 @@ UNEXPECTED: Responses = {500: {"model": ProblemDetails, "description": "Unexpect
 
 
 def build_runs_router(
-    list_runs: ListRuns, get_run: GetRun, get_run_log: GetRunLog, cancel_run: CancelRun
+    list_runs: ListRuns,
+    get_run: GetRun,
+    get_run_log: GetRunLog,
+    cancel_run: CancelRun,
+    list_route_failures: ListRouteFailures,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["runs"])
 
@@ -75,6 +86,21 @@ def build_runs_router(
     )
     def read_run_log(run_id: str) -> PlainTextResponse:
         return PlainTextResponse(get_run_log.execute(run_id))
+
+    @router.get(
+        "/runs/{run_id}/route-failures",
+        operation_id="listRouteFailures",
+        summary="The trip-planner queries that failed during the run's routes step",
+        response_model=RouteFailureList,
+        responses={**NOT_FOUND, **UNEXPECTED},
+    )
+    def read_route_failures(run_id: str) -> RouteFailureList:
+        return RouteFailureList(
+            items=[
+                RouteFailureResource.from_domain(failure, period)
+                for failure, period in list_route_failures.execute(run_id)
+            ]
+        )
 
     @router.put(
         "/runs/{run_id}/cancellation",

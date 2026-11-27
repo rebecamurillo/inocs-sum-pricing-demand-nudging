@@ -3,6 +3,7 @@ from dataclasses import replace
 import pytest
 
 from pricing_demo.application.build_planning import BuildPlanning
+from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.errors import (
     PackageDefaultsMissing,
     UnknownCityDataset,
@@ -38,6 +39,8 @@ from pricing_demo.infrastructure.fakes.package_fingerprints import (
     FAKE_FINGERPRINT,
     InMemoryPackageFingerprints,
 )
+from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
+from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from tests.support.builds import all_available
 from tests.support.runs import T0
@@ -55,22 +58,24 @@ class Rig:
         if with_fingerprint:
             self.fingerprints.record(FAKE_FINGERPRINT, T0)
         builds = InMemoryBuilds(InMemoryRunRepository(), self.instances)
+        artifacts = InMemoryArtifacts()
+        built = BuiltCounts(artifacts, InMemoryReadModel(), InMemoryRouteFailures())
         planning = BuildPlanning(
             self.instances,
             self.datasets,
-            InMemoryArtifacts(),
+            artifacts,
             InMemoryBuildSources(),
             builds,
             all_available,
         )
         self.create = CreateCityInstance(
-            self.instances, self.datasets, self.fingerprints, self.clock, planning
+            self.instances, self.datasets, self.fingerprints, self.clock, planning, built
         )
         self.create_version = CreateInstanceVersion(
-            self.instances, self.datasets, self.clock, planning
+            self.instances, self.datasets, self.clock, planning, built
         )
-        self.update = UpdateInstanceVersion(self.instances, self.datasets, planning)
-        self.get = GetInstanceVersion(self.instances, self.datasets, planning)
+        self.update = UpdateInstanceVersion(self.instances, self.datasets, planning, built)
+        self.get = GetInstanceVersion(self.instances, self.datasets, planning, built)
         self.delete = DeleteInstanceVersion(self.instances)
         self.menu = ListCityInstances(self.instances, builds)
 

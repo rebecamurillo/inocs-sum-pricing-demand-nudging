@@ -1,6 +1,6 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Query, Response
 
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.create_city_instance import (
@@ -14,6 +14,9 @@ from pricing_demo.application.use_cases.delete_instance_version import DeleteIns
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
+from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
+from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.interface.http.schemas import (
     CityInstanceMenu,
@@ -21,10 +24,16 @@ from pricing_demo.interface.http.schemas import (
     CopyStart,
     CreateCityInstanceRequest,
     CreateInstanceVersionRequest,
+    HubList,
+    HubPairList,
+    HubPairResource,
+    HubResource,
     InstanceVersionPatch,
     InstanceVersionResource,
     ProblemDetails,
     RunResource,
+    StationList,
+    StationResource,
 )
 
 Responses = dict[int | str, dict[str, Any]]
@@ -55,6 +64,9 @@ def build_city_instances_router(
     delete_version: DeleteInstanceVersion,
     build_version: BuildInstanceVersion,
     get_run: GetRun,
+    list_stations: ListStations,
+    list_hubs: ListHubs,
+    list_hub_pairs: ListHubPairs,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["city-instances"])
 
@@ -137,6 +149,57 @@ def build_city_instances_router(
     )
     def read_version(version_id: str) -> InstanceVersionResource:
         return InstanceVersionResource.from_view(get_version.execute(version_id))
+
+    @router.get(
+        "/instance-versions/{version_id}/stations",
+        operation_id="listStations",
+        summary="The public transport stops and bike stations of a built version",
+        response_model=StationList,
+        responses={**VERSION_NOT_FOUND, **UNEXPECTED},
+    )
+    def read_stations(version_id: str) -> StationList:
+        return StationList(
+            items=[StationResource.from_domain(row) for row in list_stations.execute(version_id)]
+        )
+
+    @router.get(
+        "/instance-versions/{version_id}/hubs",
+        operation_id="listHubs",
+        summary="The hubs of a built version, with their stations and lines",
+        response_model=HubList,
+        responses={**VERSION_NOT_FOUND, **UNEXPECTED},
+    )
+    def read_hubs(version_id: str) -> HubList:
+        return HubList(
+            items=[HubResource.from_domain(row) for row in list_hubs.execute(version_id)]
+        )
+
+    @router.get(
+        "/instance-versions/{version_id}/hub-pairs",
+        operation_id="listHubPairs",
+        summary="The hub pairs of one period of a built version",
+        response_model=HubPairList,
+        responses={
+            404: _problem(
+                "`instance_version_not_found`, or `period_not_found` (the period is not one "
+                "of the version's)"
+            ),
+            **UNEXPECTED,
+        },
+    )
+    def read_hub_pairs(
+        version_id: str,
+        period: Annotated[
+            str | None,
+            Query(description="The id of a period of the version; the only period by default."),
+        ] = None,
+    ) -> HubPairList:
+        return HubPairList(
+            items=[
+                HubPairResource.from_domain(row)
+                for row in list_hub_pairs.execute(version_id, period)
+            ]
+        )
 
     @router.patch(
         "/instance-versions/{version_id}",

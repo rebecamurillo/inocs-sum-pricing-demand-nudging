@@ -1,4 +1,5 @@
 from pricing_demo.application.build_planning import BuildPlanning
+from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.errors import UnknownStartVersion
 from pricing_demo.application.instance_version_view import InstanceVersionView, build_view
 from pricing_demo.application.ports.city_datasets import CityDatasets
@@ -14,11 +15,13 @@ class CreateInstanceVersion:
         datasets: CityDatasets,
         clock: Clock,
         planning: BuildPlanning,
+        built: BuiltCounts,
     ) -> None:
         self._instances = instances
         self._datasets = datasets
         self._clock = clock
         self._planning = planning
+        self._built = built
 
     def execute(self, instance_id: str, based_on_id: str) -> InstanceVersionView:
         instance = self._instances.get_instance(instance_id)
@@ -36,4 +39,4 @@ class CreateInstanceVersion:
             self._clock.now(),
             lambda version: first_period(version, dataset),
         )
-        return build_view(draft, self._instances, self._datasets, self._planning)
+        return build_view(draft, self._instances, self._datasets, self._planning, self._built)

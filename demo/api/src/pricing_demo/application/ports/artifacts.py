@@ -1,5 +1,5 @@
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -25,6 +25,10 @@ class Artifact:
     path: str
     package_fingerprint: str
     created_at: datetime
+    # The run that produced it, and the counts that run's step reported (the ingestion adds to
+    # them what only the stored files tell).
+    run_id: str | None = None
+    reported_counts: Mapping[str, Any] = field(default_factory=dict)
 
 
 class Artifacts(Protocol):

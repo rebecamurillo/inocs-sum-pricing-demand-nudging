@@ -1,7 +1,10 @@
 import logging
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 
 from pricing_demo.application.build_planning import plan_for
+from pricing_demo.application.ingest_step import StepIngestion
 from pricing_demo.application.ports.artifact_files import ArtifactFiles
 from pricing_demo.application.ports.artifacts import Artifact, Artifacts
 from pricing_demo.application.ports.build_sources import BuildSources
@@ -9,6 +12,8 @@ from pricing_demo.application.ports.city_datasets import CityDatasets
 from pricing_demo.application.ports.city_instances import CityInstances
 from pricing_demo.application.ports.city_preparation import CityPreparation, PreparationRequest
 from pricing_demo.application.ports.clock import Clock
+from pricing_demo.application.ports.read_model import ReadModel
+from pricing_demo.application.ports.route_failures import RouteFailures
 from pricing_demo.application.ports.run_queue import RunQueue
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.domain.build_plan import (
@@ -18,9 +23,10 @@ from pricing_demo.domain.build_plan import (
     BuildPlan,
     PlannedStep,
 )
+from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import InstanceVersion, InstanceVersionNotFound
 from pricing_demo.domain.run_recovery import STAGE_ERROR
-from pricing_demo.domain.runs import Run, RunStep
+from pricing_demo.domain.runs import Run, RunStep, StepName
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +54,9 @@ class BuildStepExecutor:
         datasets: CityDatasets,
         sources: BuildSources,
         clock: Clock,
+        ingestion: StepIngestion,
+        read_model: ReadModel,
+        route_failures: RouteFailures,
     ) -> None:
         self._preparation = preparation
         self._files = files
@@ -57,12 +66,19 @@ class BuildStepExecutor:
         self._datasets = datasets
         self._sources = sources
         self._clock = clock
+        self._ingestion = ingestion
+        self._read_model = read_model
+        self._route_failures = route_failures
 
     def keep(self, run: Run, step: RunStep) -> bool:
         _, _, planned = self._plan(run, step)
-        if planned.input_key is None or self._artifacts.get(planned.input_key) is None:
+        key = planned.input_key
+        # An artefact whose ingestion failed is not kept: the step runs and only ingests it.
+        if key is None or self._artifacts.get(key) is None or not self._read_model.is_ingested(key):
             return False
-        self._artifacts.link(run.subject.id, step.step, planned.period_id, planned.input_key)
+        self._artifacts.link(run.subject.id, step.step, planned.period_id, key)
+        if step.step is StepName.ROUTES:
+            self._set_failure_pct(run.id, self._read_model.counts_of([key])[key])
         return True
 
     def execute(self, run: Run, step: RunStep, stop: StopSignal) -> StepOutcome:
@@ -74,6 +90,12 @@ class BuildStepExecutor:
         dataset = self._datasets.get(instance.dataset_id) if instance else None
         period = self._instances.periods_of(version.id)[0]
         assert dataset is not None  # the instance's foreign key
+        existing = self._artifacts.get(key)
+        if existing is not None:
+            # The files are stored and the ingestion failed before: ingest them, nothing else.
+            return self._ingest(run, step, existing, dataset, plan, version, planned)
+        if step.step is StepName.ROUTES:
+            self._route_failures.clear(run.id, step.position)
         working = self._files.working_dir(run.id, step.step)
         wanted = STEP_UPSTREAM_FILES[step.step]
         for upstream in STEP_UPSTREAM[step.step]:
@@ -85,6 +107,9 @@ class BuildStepExecutor:
             PreparationRequest(run.id, step.step, working, version.parameters, dataset, period),
             lambda done, total: self._progress(run.id, step, done, total),
             stop,
+            lambda failure: self._route_failures.add(
+                run.id, step.position, period.id, failure, self._clock.now()
+            ),
         )
         if outcome.stopped:
             # A step that was stopped leaves nothing to resume from (ARCHITECTURE.md § 4.5).
@@ -96,12 +121,52 @@ class BuildStepExecutor:
         path, stored = self._files.store(step.step, key, working, STEP_OUTPUTS[step.step])
         fingerprint = self._sources.package_fingerprint()
         assert fingerprint is not None  # the key was computed from it
-        self._artifacts.add(
-            Artifact(key, step.step, inputs, stored, str(path), fingerprint, self._clock.now())
+        artifact = Artifact(
+            key,
+            step.step,
+            inputs,
+            stored,
+            str(path),
+            fingerprint,
+            self._clock.now(),
+            run.id,
+            dict(outcome.counts),
         )
-        self._artifacts.link(version.id, step.step, planned.period_id, key)
+        self._artifacts.add(artifact)
         self._files.discard(working)
-        return outcome
+        return self._ingest(run, step, artifact, dataset, plan, version, planned)
+
+    def _ingest(
+        self,
+        run: Run,
+        step: RunStep,
+        artifact: Artifact,
+        dataset: CityDataset,
+        plan: BuildPlan,
+        version: InstanceVersion,
+        planned: PlannedStep,
+    ) -> StepOutcome:
+        """Ingest the stored artefact, then link it: the link exists only for an ingested
+        artefact. A failure here fails the step and leaves the artefact where it is."""
+        try:
+            upstream = {
+                name: found
+                for name in STEP_UPSTREAM[step.step]
+                if (key := plan.step(name).input_key) is not None
+                and (found := self._artifacts.get(key)) is not None
+            }
+            counts = self._ingestion.ingest(artifact, dataset, upstream)
+        except Exception as error:
+            logger.exception("The ingestion of step %s of run %s failed", step.step.value, run.id)
+            return StepOutcome.failed(STAGE_ERROR, f"{type(error).__name__}: {error}")
+        self._artifacts.link(version.id, step.step, planned.period_id, artifact.input_key)
+        if step.step is StepName.ROUTES:
+            self._set_failure_pct(run.id, counts)
+        return StepOutcome.done(counts)
+
+    def _set_failure_pct(self, run_id: str, counts: Mapping[str, Any]) -> None:
+        pct = counts["failure_pct"]
+        self._queue.update(run_id, lambda run: replace(run, failure_pct=pct))
 
     def _plan(self, run: Run, step: RunStep) -> tuple[InstanceVersion, BuildPlan, PlannedStep]:
         """The version's plan, recomputed now, and the step's place in it; its key is written

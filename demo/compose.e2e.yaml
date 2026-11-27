@@ -50,8 +50,9 @@ services:
       PRICING_DEMO_ADAPTERS: fake
       # A test-control change reaches the system status within the e2e polling time.
       PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S: 1
+    # The image's user `app` is not the owner of a tmpfs: the folder is open to every user.
     tmpfs:
-      - /app/demo/api/var/data
+      - /app/demo/api/var/data:mode=1777
     # The API's start applies the migrations the worker's queries need.
     depends_on:
       api:

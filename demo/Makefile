@@ -95,7 +95,7 @@ e2e: ## Build the e2e stack, run the Playwright scenarios, remove the stack (its
 	$(ON_SIGNAL); \
 	trap 'mkdir -p e2e/test-results; $(E2E) logs --no-color --timestamps > $(E2E_LOG) 2>&1 || true; $(E2E) down --volumes --remove-orphans' EXIT; \
 	$(E2E) up --build --detach --wait --wait-timeout 300; \
-	E2E_BASE_URL=http://localhost:$(E2E_WEB_PORT) npm --prefix e2e test
+	E2E_BASE_URL=http://localhost:$(E2E_WEB_PORT) E2E_COMPOSE="docker compose -f $(CURDIR)/compose.e2e.yaml" npm --prefix e2e test
 
 contract: ## Regenerate contracts/openapi.json and the web API types
 	uv --directory api run python -m pricing_demo.export_openapi ../contracts/openapi.json

@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from sqlalchemy import Engine
 
 from pricing_demo.application.build_planning import BuildPlanning
+from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
@@ -24,7 +25,11 @@ from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
+from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
+from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_runs import ListRuns
+from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
 from pricing_demo.domain.system_status import (
@@ -49,6 +54,8 @@ from pricing_demo.infrastructure.persistence.metadata import metadata
 from pricing_demo.infrastructure.persistence.package_fingerprints import (
     PostgresPackageFingerprints,
 )
+from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
+from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
 from pricing_demo.infrastructure.persistence.truncate import truncate_all
@@ -134,10 +141,14 @@ def create_application(settings: Settings) -> FastAPI:
     run_repository = PostgresRunRepository(engine)
     instances = PostgresCityInstances(engine)
     builds = PostgresBuilds(engine)
+    artifacts = PostgresArtifacts(engine)
+    read_model = PostgresReadModel(engine)
+    route_failures = PostgresRouteFailures(engine)
+    built = BuiltCounts(artifacts, read_model, route_failures)
     planning = BuildPlanning(
         instances,
         datasets,
-        PostgresArtifacts(engine),
+        artifacts,
         PostgresBuildSources(engine),
         builds,
         get_system_status.execute,
@@ -150,21 +161,30 @@ def create_application(settings: Settings) -> FastAPI:
             build_city_datasets_router(ListCityDatasets(datasets)),
             build_city_instances_router(
                 CreateCityInstance(
-                    instances, datasets, PostgresPackageFingerprints(engine), clock, planning
+                    instances,
+                    datasets,
+                    PostgresPackageFingerprints(engine),
+                    clock,
+                    planning,
+                    built,
                 ),
                 ListCityInstances(instances, builds),
-                CreateInstanceVersion(instances, datasets, clock, planning),
-                GetInstanceVersion(instances, datasets, planning),
-                UpdateInstanceVersion(instances, datasets, planning),
+                CreateInstanceVersion(instances, datasets, clock, planning, built),
+                GetInstanceVersion(instances, datasets, planning, built),
+                UpdateInstanceVersion(instances, datasets, planning, built),
                 DeleteInstanceVersion(instances),
                 BuildInstanceVersion(instances, datasets, builds, planning, UuidV7Source(), clock),
                 GetRun(run_repository, clock),
+                ListStations(instances, artifacts, read_model),
+                ListHubs(instances, artifacts, read_model),
+                ListHubPairs(instances, artifacts, read_model),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),
                 GetRun(run_repository, clock),
                 GetRunLog(run_repository),
                 CancelRun(run_repository, clock),
+                ListRouteFailures(run_repository, route_failures),
             ),
         ],
         test_control=test_control,

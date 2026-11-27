@@ -12,6 +12,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     Table,
     Text,
     Time,
@@ -285,6 +286,12 @@ artifacts = Table(
         nullable=False,
     ),
     Column("created_at", DateTime(timezone=True), nullable=False),
+    # The run that produced it and the counts that run's step reported; `counts` and
+    # `ingested_at` are written by the ingestion, in the transaction that stores the rows.
+    Column("run_id", Text, ForeignKey("runs.id", ondelete="SET NULL")),
+    Column("reported_counts", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+    Column("counts", JSONB),
+    Column("ingested_at", DateTime(timezone=True)),
     CheckConstraint(one_of("step", BUILD_STEP_NAMES), name="step"),
 )
 
@@ -311,4 +318,126 @@ instance_version_steps = Table(
         postgresql_nulls_not_distinct=True,
     ),
     CheckConstraint(one_of("step", BUILD_STEP_NAMES), name="step"),
+)
+
+
+def _artifact_key(name: str) -> Column[str]:
+    return Column(name, Text, ForeignKey("artifacts.input_key", ondelete="CASCADE"), nullable=False)
+
+
+# The read model: every row names the artefact it was ingested from, so a rebuilt step replaces
+# its own rows and an unchanged one is read again without recomputation.
+stations = Table(
+    "stations",
+    metadata,
+    _artifact_key("stations_key"),
+    Column("station_id", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("lat", Double, nullable=False),
+    Column("lon", Double, nullable=False),
+    PrimaryKeyConstraint("stations_key", "station_id", name="pk_stations"),
+    CheckConstraint(one_of("kind", ("pt", "bs")), name="kind"),
+)
+
+hubs = Table(
+    "hubs",
+    metadata,
+    _artifact_key("hubs_key"),
+    Column("hub_id", Text, nullable=False),
+    Column("label", Text, nullable=False),
+    Column("lat", Double, nullable=False),
+    Column("lon", Double, nullable=False),
+    Column("outline", JSONB),
+    Column("pt_station_ids", JSONB, nullable=False),
+    Column("bike_station_ids", JSONB, nullable=False),
+    Column("lines", JSONB, nullable=False),
+    PrimaryKeyConstraint("hubs_key", "hub_id", name="pk_hubs"),
+)
+
+station_hubs = Table(
+    "station_hubs",
+    metadata,
+    _artifact_key("hubs_key"),
+    Column("station_id", Text, nullable=False),
+    Column("hub_id", Text, nullable=False),
+    PrimaryKeyConstraint("hubs_key", "station_id", name="pk_station_hubs"),
+)
+
+hub_pairs = Table(
+    "hub_pairs",
+    metadata,
+    _artifact_key("instance_key"),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("demand", Double, nullable=False),
+    Column("euclid_dist_m", Double, nullable=False),
+    PrimaryKeyConstraint("instance_key", "origin_hub", "destination_hub", name="pk_hub_pairs"),
+)
+
+# The six parser columns stay null until the package's parser fills them (story 2-7).
+route_options = Table(
+    "route_options",
+    metadata,
+    _artifact_key("instance_key"),
+    Column("arc_id", Text, nullable=False),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("mode", Text, nullable=False),
+    Column("total_travel_time_s", Double, nullable=False),
+    Column("total_transfer_time_s", Double, nullable=False),
+    Column("total_distance_m", Double, nullable=False),
+    Column("legs", JSONB, nullable=False),
+    Column("geometry", JSONB, nullable=False),
+    Column("bike_legs", Integer),
+    Column("bike_time_min", Double),
+    Column("pt_time_min", Double),
+    Column("transfer_time_min", Double),
+    Column("parking_time_min", Double),
+    Column("car_cost_chf", Double),
+    PrimaryKeyConstraint("instance_key", "arc_id", name="pk_route_options"),
+    CheckConstraint(one_of("mode", ("pt_bike", "pt_only", "car")), name="mode"),
+)
+
+station_bikes = Table(
+    "station_bikes",
+    metadata,
+    _artifact_key("instance_key"),
+    Column("station_id", Text, nullable=False),
+    Column("capacity", Double, nullable=False),
+    Column("inventory_start", Double, nullable=False),
+    PrimaryKeyConstraint("instance_key", "station_id", name="pk_station_bikes"),
+)
+
+option_station_deltas = Table(
+    "option_station_deltas",
+    metadata,
+    _artifact_key("instance_key"),
+    Column("arc_id", Text, nullable=False),
+    Column("station_id", Text, nullable=False),
+    Column("delta", Double, nullable=False),
+    PrimaryKeyConstraint("instance_key", "arc_id", "station_id", name="pk_option_station_deltas"),
+)
+
+# One row per failed trip-planner query, written as the routes step reports it.
+route_failures = Table(
+    "route_failures",
+    metadata,
+    Column("id", BigInteger, Identity(), primary_key=True),
+    Column("run_id", Text, ForeignKey("runs.id", ondelete="CASCADE"), nullable=False),
+    Column(
+        "run_step_id", BigInteger, ForeignKey("run_steps.id", ondelete="CASCADE"), nullable=False
+    ),
+    Column("instance_period_id", Text, ForeignKey("instance_periods.id", ondelete="CASCADE")),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("query", Text, nullable=False),
+    Column("kind", Text, nullable=False),
+    Column("message", Text, nullable=False),
+    Column("attempts", Integer, nullable=False),
+    Column("occurred_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(one_of("query", ("pt_bike", "car")), name="query"),
+    CheckConstraint(one_of("kind", ("technical", "no_route")), name="kind"),
+    CheckConstraint("attempts >= 1", name="attempts"),
+    Index("ix_route_failures_run_id", "run_id"),
 )

@@ -1,6 +1,7 @@
 import json
 from dataclasses import replace
 from functools import partial
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -9,7 +10,7 @@ from pricing_demo.domain.instance_rules import RULE_IDS
 from pricing_demo.domain.runs import RunState
 from pricing_demo.domain.system_status import ComponentName
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
-from tests.support.builds import unavailable
+from tests.support.builds import build_fake_city, unavailable
 from tests.unit.interface.http.conftest import SERVER_TIME, CityInstancesApp
 
 CREATE = {
@@ -500,3 +501,74 @@ def test_building_an_unknown_version_answers_404(instances_app: CityInstancesApp
 
     assert response.status_code == 404
     assert response.json()["code"] == "instance_version_not_found"
+
+
+def build_with_failures(app: CityInstancesApp, folder: Path, failures: list[dict[str, str]]) -> str:
+    create(app)
+    app.client.patch("/api/v1/instance-versions/geneva-3km.v1", json={"min_od_distance_m": 900})
+    return build_fake_city(app.rig, folder, failures)
+
+
+def test_a_built_version_reports_five_headline_counts_and_the_routes_summary(
+    instances_app: CityInstancesApp, tmp_path: Path
+) -> None:
+    run_id = build_with_failures(
+        instances_app,
+        tmp_path,
+        [
+            {
+                "origin_hub": "H1",
+                "destination_hub": "H2",
+                "query": "pt_bike",
+                "kind": "technical",
+                "message": "timeout",
+            },
+            {
+                "origin_hub": "H1",
+                "destination_hub": "H6",
+                "query": "car",
+                "kind": "no_route",
+                "message": "no car route",
+            },
+        ],
+    )
+
+    body = instances_app.client.get("/api/v1/instance-versions/geneva-3km.v1").json()
+
+    assert list(body["counts"]) == [
+        "stops",
+        "bike_stations",
+        "hubs",
+        "hub_pairs_with_routes",
+        "travellers",
+    ]
+    assert body["counts"]["stops"] == {
+        "value": 30,
+        "unit": "stops",
+        "source": "input",
+        "group": "headline",
+    }
+    assert body["counts"]["hub_pairs_with_routes"]["value"] == 23
+    assert all(
+        (item["source"], item["group"]) == ("input", "headline") for item in body["counts"].values()
+    )
+    assert body["routes"] == {
+        "queries": 48,
+        "queries_failed": 2,
+        "failure_pct": pytest.approx(100 * 2 / 48),
+        "pairs_without_public_transport": 1,
+        "pairs_without_car": 1,
+        "retries": 3,
+        "run_id": run_id,
+    }
+
+
+def test_a_version_that_is_not_built_has_no_counts_and_no_routes(
+    instances_app: CityInstancesApp,
+) -> None:
+    create(instances_app)
+
+    body = instances_app.client.get("/api/v1/instance-versions/geneva-3km.v1").json()
+
+    assert body["counts"] is None
+    assert body["routes"] is None

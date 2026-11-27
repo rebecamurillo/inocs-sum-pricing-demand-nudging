@@ -2,10 +2,13 @@ import threading
 from dataclasses import replace
 from pathlib import Path
 
+from pricing_demo.application.ports.artifacts import Artifact
+from pricing_demo.application.ports.read_model import IngestionBatch
 from pricing_demo.application.ports.step_executor import StepOutcome
 from pricing_demo.application.use_cases.run_build_step import NO_KEY_REASON, BuildStepExecutor
 from pricing_demo.domain.build_plan import STEP_OUTPUTS, PlannedStep
 from pricing_demo.domain.city_instances import InstanceVersion
+from pricing_demo.domain.read_model import RouteFailure
 from pricing_demo.domain.runs import Run, RunStep, StepName
 from tests.support.builds import FINGERPRINT, MemoryBuilds, RecordingFiles, ScriptedPreparation
 from tests.support.runs import T0
@@ -221,3 +224,176 @@ def test_the_progress_of_the_step_is_written_to_the_run() -> None:
 
     step = rig.step_of(run, ROUTES)
     assert (step.progress_done, step.progress_total) == (3, 24)
+
+
+class SpyIngestion:
+    """Records what the world looked like when it was called, and can be told to fail."""
+
+    def __init__(self, rig: Rig) -> None:
+        self.rig = rig
+        self.failing = False
+        self.seen: list[tuple[bool, dict[StepName, str]]] = []
+        self.inner = rig.builds.ingestion(rig.files)
+
+    def ingest(self, artifact, dataset, upstream):  # type: ignore[no-untyped-def]
+        self.seen.append(
+            (
+                self.rig.builds.artifacts.get(artifact.input_key) is not None,
+                dict(self.rig.builds.artifacts.links_of("geneva-3km.v1")),
+            )
+        )
+        if self.failing:
+            raise RuntimeError("the database is gone")
+        self.rig.builds.read_model.ingest(
+            IngestionBatch(artifact.input_key, artifact.step, {"ingested": 1, "failure_pct": 2.5})
+        )
+        return {"ingested": 1, "failure_pct": 2.5}
+
+
+def with_spy() -> tuple[Rig, SpyIngestion]:
+    rig = Rig()
+    spy = SpyIngestion(rig)
+    rig.executor = rig.builds.executor(rig.preparation, rig.files, spy)
+    return rig, spy
+
+
+def test_the_outputs_are_ingested_after_they_are_stored_and_before_the_step_is_linked() -> None:
+    rig, spy = with_spy()
+    run = queued(rig)
+
+    outcome = rig.execute(run, AREA)
+
+    assert spy.seen == [(True, {})]
+    assert outcome.counts == {"ingested": 1, "failure_pct": 2.5}
+    assert rig.builds.artifacts.links_of("geneva-3km.v1") == {AREA: rig.planned(AREA).input_key}
+
+
+def test_the_artefact_carries_its_run_and_the_counts_the_step_reported() -> None:
+    rig = Rig()
+    run = queued(rig)
+    key = rig.planned(AREA).input_key
+    assert key is not None
+
+    rig.execute(run, AREA)
+
+    artifact = rig.builds.artifacts.get(key)
+    assert artifact is not None
+    assert (artifact.run_id, artifact.reported_counts) == (run.id, {"rows": 1})
+
+
+def test_a_failed_ingestion_fails_the_step_keeps_the_artefact_and_links_nothing() -> None:
+    rig, spy = with_spy()
+    run = queued(rig)
+    spy.failing = True
+    key = rig.planned(AREA).input_key
+    assert key is not None
+
+    outcome = rig.execute(run, AREA)
+
+    assert outcome.failure_code == "stage_error"
+    assert outcome.failure_reason == "RuntimeError: the database is gone"
+    assert rig.builds.artifacts.get(key) is not None
+    assert rig.builds.artifacts.links_of("geneva-3km.v1") == {}
+
+
+def test_the_next_execution_of_a_stored_step_only_ingests_it() -> None:
+    rig, spy = with_spy()
+    run = queued(rig)
+    spy.failing = True
+    rig.execute(run, AREA)
+    requests, spy.failing = len(rig.preparation.requests), False
+    calls = len(rig.files.calls)
+
+    outcome = rig.execute(run, AREA)
+
+    assert outcome.failure_code is None
+    assert outcome.counts == {"ingested": 1, "failure_pct": 2.5}
+    assert len(rig.preparation.requests) == requests
+    assert len(rig.files.calls) == calls
+    assert rig.builds.artifacts.links_of("geneva-3km.v1") == {AREA: rig.planned(AREA).input_key}
+
+
+def test_a_step_whose_artefact_is_not_ingested_is_not_kept() -> None:
+    rig, spy = with_spy()
+    run = queued(rig)
+    spy.failing = True
+    rig.execute(run, AREA)
+
+    assert rig.keep(run, AREA) is False
+    assert rig.builds.artifacts.links_of("geneva-3km.v1") == {}
+
+    spy.failing = False
+    rig.execute(run, AREA)
+
+    assert rig.keep(run, AREA) is True
+
+
+def failure(origin: str, query: str) -> RouteFailure:
+    return RouteFailure(origin, "H2", query, "no_route", "none", 1)  # type: ignore[arg-type]
+
+
+def test_the_failed_queries_are_recorded_for_the_routes_step_with_its_period() -> None:
+    rig = Rig()
+    run = queued(rig)
+    rig.preparation.route_failures = [failure("H1", "pt_bike"), failure("H3", "car")]
+
+    rig.execute(run, ROUTES)
+
+    assert rig.builds.route_failures.of_run(run.id) == [
+        (failure("H1", "pt_bike"), "geneva-3km.v1.mon-08"),
+        (failure("H3", "car"), "geneva-3km.v1.mon-08"),
+    ]
+    assert len(rig.builds.route_failures.of_step(run.id, 3)) == 2
+
+
+def test_a_re_executed_routes_step_starts_with_no_failure_of_the_earlier_attempt() -> None:
+    rig = Rig()
+    run = queued(rig)
+    rig.builds.route_failures.add(run.id, 3, "p", failure("H9", "car"), T0)
+    rig.builds.route_failures.add(run.id, 1, "p", failure("H8", "car"), T0)
+    rig.preparation.outcomes = {ROUTES: StepOutcome.failed("trip_planner_unreachable", "down")}
+
+    rig.execute(run, ROUTES)
+
+    assert rig.builds.route_failures.of_step(run.id, 3) == []
+    assert rig.builds.route_failures.of_step(run.id, 1) == [failure("H8", "car")]
+
+
+def test_the_run_keeps_the_failure_rate_of_a_routes_step_that_is_done() -> None:
+    rig, _ = with_spy()
+    run = queued(rig)
+
+    rig.execute(run, ROUTES)
+
+    stored = rig.builds.runs.get(run.id)
+    assert stored is not None
+    assert stored.failure_pct == 2.5
+
+
+def test_the_run_keeps_the_failure_rate_of_a_routes_step_that_is_kept() -> None:
+    rig = Rig()
+    first = queued(rig)
+    rig.builds.read_model.ingest(
+        IngestionBatch(
+            rig.planned(ROUTES).input_key or "",
+            ROUTES,
+            {"failure_pct": 8.0},
+        )
+    )
+    rig.builds.artifacts.add(
+        Artifact(
+            rig.planned(ROUTES).input_key or "",
+            ROUTES,
+            {},
+            (),
+            "p",
+            FINGERPRINT,
+            T0,
+        )
+    )
+
+    assert rig.keep(first, ROUTES) is True
+
+    stored = rig.builds.runs.get(first.id)
+    assert stored is not None
+    assert stored.failure_pct == 8.0

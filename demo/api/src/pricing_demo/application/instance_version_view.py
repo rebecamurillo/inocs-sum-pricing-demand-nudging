@@ -1,6 +1,8 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from pricing_demo.application.build_planning import BuildPlanning
+from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.ports.city_datasets import CityDatasets
 from pricing_demo.application.ports.city_instances import CityInstances
 from pricing_demo.domain.build_plan import BuildPlan
@@ -12,6 +14,8 @@ from pricing_demo.domain.city_instances import (
     what_changes,
 )
 from pricing_demo.domain.instance_rules import RuleResult, check_rules
+from pricing_demo.domain.numbers import Number
+from pricing_demo.domain.read_model import RoutesSummary
 from pricing_demo.domain.system_status import Verdict
 
 
@@ -25,6 +29,9 @@ class InstanceVersionView:
     state: str
     plan: BuildPlan
     build_verdict: Verdict
+    # The five headline numbers and the routes summary: None until the version is built.
+    counts: Mapping[str, Number] | None = None
+    routes: RoutesSummary | None = None
 
 
 def build_view(
@@ -32,6 +39,7 @@ def build_view(
     instances: CityInstances,
     datasets: CityDatasets,
     planning: BuildPlanning,
+    built: BuiltCounts,
 ) -> InstanceVersionView:
     """The version with its periods, the rule results of its values, what differs from the
     version it is based on, its build plan and the verdict on that plan."""
@@ -45,6 +53,7 @@ def build_view(
     based_on = instances.get_version(version.based_on_id) if version.based_on_id else None
     changes = what_changes(based_on.parameters, version.parameters) if based_on else []
     plan = planning.plan(version)
+    counts, routes = built.of(version.id)
     return InstanceVersionView(
         version,
         periods,
@@ -53,4 +62,6 @@ def build_view(
         planning.state(version),
         plan,
         planning.verdict(plan),
+        counts,
+        routes,
     )

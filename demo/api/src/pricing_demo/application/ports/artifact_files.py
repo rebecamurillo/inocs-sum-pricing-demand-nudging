@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from pricing_demo.application.ports.artifacts import StoredFile
 from pricing_demo.domain.runs import StepName
@@ -26,6 +26,11 @@ class ArtifactFiles(Protocol):
         the data directory) with each file's sha256 and size. When the folder exists the
         working outputs are discarded and the existing files are described: the same key
         names the same content."""
+        ...
+
+    def read_json(self, path: str, name: str) -> Any:
+        """The parsed content of the file `name` of a stored artefact; `path` is the folder
+        relative to the data directory, as stored on the artefact."""
         ...
 
     def discard(self, working_dir: Path) -> None: ...

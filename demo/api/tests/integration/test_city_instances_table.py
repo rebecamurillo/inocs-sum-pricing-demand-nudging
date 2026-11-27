@@ -33,7 +33,7 @@ from pricing_demo.infrastructure.persistence.package_fingerprints import (
 from pricing_demo.infrastructure.persistence.tables import run_steps, runs
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.worker.main import build_worker
-from tests.support.builds import postgres_planning
+from tests.support.builds import postgres_built, postgres_planning
 from tests.support.instances import ensure_instance_versions
 from tests.support.runs import T0, later
 
@@ -271,6 +271,7 @@ def test_two_patches_of_different_parameters_sent_at_once_both_stay(
         store,
         PostgresCityDatasets(migrated_database),
         postgres_planning(migrated_database, InMemoryBuildSources()),
+        postgres_built(migrated_database),
     )
     errors: list[BaseException] = []
 

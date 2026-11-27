@@ -15,6 +15,7 @@ from pricing_demo.domain.build_plan import STEP_OUTPUTS
 from pricing_demo.domain.city_datasets import GENEVA_PRESET
 from pricing_demo.domain.city_instances import first_period, parameters_from_defaults
 from pricing_demo.domain.failure_codes import FAILURE_CODES, failure_reason
+from pricing_demo.domain.read_model import RouteFailure
 from pricing_demo.domain.runs import StepName
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation, haversine_m
@@ -91,7 +92,7 @@ def test_the_files_have_the_fields_of_the_package(rig: Rig, tmp_path: Path) -> N
     assert {"OD_pairs", "bike_stations", "arcs_pt_bike", "arcs_pt_only", "car_paths"} <= set(
         instance
     )
-    assert {"origin", "destination", "demand"} == set(instance["OD_pairs"][0])
+    assert {"origin", "destination", "demand", "euclid_dist"} == set(instance["OD_pairs"][0])
 
 
 def test_the_counts_describe_the_fixed_city(rig: Rig, tmp_path: Path) -> None:
@@ -103,6 +104,7 @@ def test_the_counts_describe_the_fixed_city(rig: Rig, tmp_path: Path) -> None:
         "hub_pairs_requested": 24,
         "hub_pairs_with_routes": 24,
         "hub_pairs_removed": 0,
+        "retries": 3,
     }
     counts = outcomes[StepName.TRAVELLERS_AND_BIKES].counts
     assert (counts["hub_pairs"], counts["bike_stations"]) == (24, 12)
@@ -301,3 +303,119 @@ def test_a_paced_routes_step_ends_stopped_when_the_stop_is_set(tmp_path: Path) -
     outcome = port.prepare(request, lambda done, total: None, stop)
 
     assert outcome.stopped is True
+
+
+def failure(origin: str, destination: str, query: str, kind: str) -> dict[str, str]:
+    return {
+        "origin_hub": origin,
+        "destination_hub": destination,
+        "query": query,
+        "kind": kind,
+        "message": f"{kind} at {origin}-{destination}",
+    }
+
+
+def routes_with_failures(
+    rig: Rig, folder: Path, failures: list[dict[str, str]]
+) -> tuple[StepOutcome, list[RouteFailure]]:
+    rig.settings.set_pricing_model({"route_failures": failures})
+    reported: list[RouteFailure] = []
+    outcome = rig.port.prepare(
+        rig.request(folder, StepName.ROUTES),
+        lambda done, total: None,
+        threading.Event(),
+        reported.append,
+    )
+    return outcome, reported
+
+
+def test_every_pair_carries_the_euclidean_distance_the_package_writes(
+    rig: Rig, tmp_path: Path
+) -> None:
+    run_all(rig, tmp_path)
+    where = {
+        item["properties"]["hub_id"]: tuple(reversed(item["geometry"]["coordinates"]))
+        for item in read(tmp_path, "hubs.geojson")["features"]
+    }
+
+    for pair in read(tmp_path, "Instance_1.json")["OD_pairs"]:
+        assert pair["euclid_dist"] == round(
+            haversine_m(where[pair["origin"]], where[pair["destination"]])
+        )
+
+
+def test_no_failed_query_is_reported_by_default(rig: Rig, tmp_path: Path) -> None:
+    reported: list[RouteFailure] = []
+
+    rig.port.prepare(
+        rig.request(tmp_path, StepName.ROUTES),
+        lambda done, total: None,
+        threading.Event(),
+        reported.append,
+    )
+
+    assert reported == []
+
+
+def test_a_failed_public_transport_query_drops_the_pair_and_a_failed_car_query_its_car_option(
+    rig: Rig, tmp_path: Path
+) -> None:
+    failures = [
+        failure("H1", "H2", "pt_bike", "technical"),
+        failure("H1", "H6", "car", "no_route"),
+    ]
+
+    outcome, reported = routes_with_failures(rig, tmp_path, failures)
+
+    assert [(item.origin_hub, item.query, item.kind, item.attempts) for item in reported] == [
+        ("H1", "pt_bike", "technical", 4),
+        ("H1", "car", "no_route", 1),
+    ]
+    results = {
+        (item["from_id"], item["to_id"]): item
+        for item in read(tmp_path, "od_routes.json")["od_results"]
+    }
+    assert ("H1", "H2") not in results
+    assert results[("H1", "H6")]["arc_car"] == []
+    assert results[("H1", "H6")]["arc_pt_only"]
+    assert outcome.counts == {
+        "hub_pairs_requested": 24,
+        "hub_pairs_with_routes": 23,
+        "hub_pairs_removed": 0,
+        "retries": 3,
+    }
+    whole = tmp_path / "whole"
+    rig.settings.set_pricing_model(None)
+    rig.prepare(whole, StepName.ROUTES)
+    full = {
+        (item["from_id"], item["to_id"]): item
+        for item in read(whole, "od_routes.json")["od_results"]
+    }
+    gone = {
+        arc["arc_id"]
+        for key in ("arc_pt_bike", "arc_pt_only", "arc_car")
+        for arc in full[("H1", "H2")][key]
+    } | {arc["arc_id"] for arc in full[("H1", "H6")]["arc_car"]}
+    kept = {item["arc_id"] for item in read(tmp_path, "od_geometry.json")["geometries"]}
+    assert gone
+    assert not gone & kept
+
+
+def test_the_travellers_step_reads_the_routes_the_routes_step_wrote(
+    rig: Rig, tmp_path: Path
+) -> None:
+    routes_with_failures(rig, tmp_path, [failure("H1", "H2", "pt_bike", "no_route")])
+    rig.settings.set_pricing_model(None)
+
+    outcome = rig.prepare(tmp_path, StepName.TRAVELLERS_AND_BIKES)
+
+    assert outcome.counts["hub_pairs"] == 23
+
+
+def test_a_failure_at_a_pair_the_city_does_not_request_is_ignored(rig: Rig, tmp_path: Path) -> None:
+    outcome, reported = routes_with_failures(
+        rig, tmp_path, [failure("H3", "H4", "car", "no_route")]
+    )
+
+    assert reported == []
+    assert outcome.counts["hub_pairs_with_routes"] == 24

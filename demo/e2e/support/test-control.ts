@@ -42,6 +42,13 @@ export class TestControl {
     return id;
   }
 
+  /** Set what the fake pricing model does (`fail_at`, `hold_at`, `routes_pace_ms`, `route_failures`). */
+  async setPricingModel(settings: Record<string, unknown>): Promise<void> {
+    await this.expectNoContent(
+      await this.request.put('/api/test-control/pricing-model', { data: settings }),
+    );
+  }
+
   async makeUnavailable(component: ComponentName, reason: string): Promise<void> {
     await this.setComponent(component, { state: 'unavailable', reason });
   }

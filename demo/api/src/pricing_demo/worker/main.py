@@ -30,6 +30,7 @@ from pricing_demo.application.errors import (
     StreetExtractNotFound,
     UnknownCityDataset,
 )
+from pricing_demo.application.ingest_step import StepIngestion
 from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
 from pricing_demo.application.ports.bus_shape_matcher import BusShapeMatcher
 from pricing_demo.application.ports.clock import Clock
@@ -53,6 +54,7 @@ from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
+from pricing_demo.infrastructure.city_data.feed_shapes import GtfsFeedShapes
 from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
 from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader, ZipTimetableShapes
 from pricing_demo.infrastructure.city_data.osm import PbfStreetExtract
@@ -67,6 +69,7 @@ from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStati
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.fakes.package_fingerprints import FakePackageFingerprintReader
 from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
@@ -78,6 +81,8 @@ from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSe
 from pricing_demo.infrastructure.persistence.package_fingerprints import (
     PostgresPackageFingerprints,
 )
+from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
+from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
@@ -152,15 +157,27 @@ def register_build_steps(
     step with `stage_error`."""
     if settings.adapters != "fake" or fake_settings is None:
         return
+    files = LocalArtifactStore(settings.data_dir)
+    read_model = PostgresReadModel(engine)
+    route_failures = PostgresRouteFailures(engine)
+    # The fake city has one route with a timetable shape and one without.
+    feed_shapes = (
+        FakeFeedShapes(frozenset({"1"}))
+        if settings.adapters == "fake"
+        else GtfsFeedShapes(settings.data_dir)
+    )
     executor = BuildStepExecutor(
         FakeCityPreparation(fake_settings, waiter),
-        LocalArtifactStore(settings.data_dir),
+        files,
         PostgresArtifacts(engine),
         repository,
         PostgresCityInstances(engine),
         PostgresCityDatasets(engine),
         WorkerBuildSources(fingerprint.current, graph),
         clock,
+        StepIngestion(files, read_model, route_failures, feed_shapes),
+        read_model,
+        route_failures,
     )
     for step in BUILD_STEPS:
         registry.register(step, executor, executor)

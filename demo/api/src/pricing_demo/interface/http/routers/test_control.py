@@ -31,7 +31,8 @@ class E2ETestSeam(Protocol):
         ...
 
     def set_pricing_model(self, settings: Mapping[str, object]) -> None:
-        """Set what the fake pricing model does: `fail_at`, `hold_at` and `routes_pace_ms`."""
+        """Set what the fake pricing model does: `fail_at`, `hold_at`, `routes_pace_ms` and
+        `route_failures`."""
         ...
 
     def release_run(self, run_id: str) -> None:
@@ -57,7 +58,12 @@ def build_test_control_router(seam: E2ETestSeam) -> APIRouter:
 
     @router.put("/pricing-model", status_code=204)
     def set_pricing_model(settings: PricingModelSettings) -> Response:
-        seam.set_pricing_model(settings.model_dump(mode="json"))
+        values = settings.model_dump(mode="json")
+        # An absent `route_failures` means none: the stored settings keep their earlier shape
+        # until a test names a failed query.
+        if not values["route_failures"]:
+            del values["route_failures"]
+        seam.set_pricing_model(values)
         return Response(status_code=204)
 
     @router.post("/runs/{run_id}/release", status_code=204)

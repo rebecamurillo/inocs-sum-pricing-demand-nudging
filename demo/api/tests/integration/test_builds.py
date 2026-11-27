@@ -4,16 +4,24 @@ it with the fake city preparation and the real artefact store on a temporary fol
 import hashlib
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.application.build_planning import BuildPlanning
-from pricing_demo.application.ports.city_preparation import PreparationRequest, Progress
+from pricing_demo.application.ingest_step import StepIngestion
+from pricing_demo.application.ports.artifacts import Artifact
+from pricing_demo.application.ports.city_preparation import (
+    PreparationRequest,
+    Progress,
+    RouteFailed,
+    ignore_route_failure,
+)
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
@@ -22,6 +30,7 @@ from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.domain.build_plan import BUILD_STEPS, STEP_OUTPUTS
 from pricing_demo.domain.builds import RunActive
+from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import (
     CityInstance,
     InstanceVersion,
@@ -34,6 +43,7 @@ from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.clock import FixedClock
+from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
 from pricing_demo.infrastructure.fakes.graph_fingerprints import (
     FAKE_GRAPH_MANIFEST,
     FakeGraphFingerprints,
@@ -51,6 +61,8 @@ from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSe
 from pricing_demo.infrastructure.persistence.package_fingerprints import (
     PostgresPackageFingerprints,
 )
+from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
+from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.infrastructure.worker_build_sources import WorkerBuildSources
@@ -72,10 +84,28 @@ class SpyPreparation:
         self.steps: list[StepName] = []
 
     def prepare(
-        self, request: PreparationRequest, progress: Progress, stop: StopSignal
+        self,
+        request: PreparationRequest,
+        progress: Progress,
+        stop: StopSignal,
+        route_failed: RouteFailed = ignore_route_failure,
     ) -> StepOutcome:
         self.steps.append(request.step)
-        return self._inner.prepare(request, progress, stop)
+        return self._inner.prepare(request, progress, stop, route_failed)
+
+
+class FlakyIngestion(StepIngestion):
+    """The real ingestion, which raises for the next `failures` calls when told to."""
+
+    failures = 0
+
+    def ingest(
+        self, artifact: Artifact, dataset: CityDataset, upstream: Mapping[StepName, Artifact]
+    ) -> Mapping[str, Any]:
+        if self.failures:
+            self.failures -= 1
+            raise RuntimeError("the database went away")
+        return super().ingest(artifact, dataset, upstream)
 
 
 @dataclass
@@ -91,6 +121,7 @@ class Rig:
     build: BuildInstanceVersion
     process: ProcessNextRun
     preparation: SpyPreparation
+    ingestion: FlakyIngestion
 
     def draft(self, number: int = 1, based_on: str | None = None) -> str:
         """The first draft of the instance, valid (the package defaults tie two distances)."""
@@ -151,15 +182,22 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
     )
     settings = PostgresFakeSettings(engine)
     preparation = SpyPreparation(FakeCityPreparation(settings, waiter))
+    files = LocalArtifactStore(tmp_path)
+    read_model = PostgresReadModel(engine)
+    route_failures = PostgresRouteFailures(engine)
+    ingestion = FlakyIngestion(files, read_model, route_failures, FakeFeedShapes(frozenset({"1"})))
     executor = BuildStepExecutor(
         preparation,
-        LocalArtifactStore(tmp_path),
+        files,
         artifacts,
         runs,
         instances,
         datasets,
         WorkerBuildSources(lambda: FINGERPRINT, FakeGraphFingerprints(tmp_path / "graph")),
         clock,
+        ingestion,
+        read_model,
+        route_failures,
     )
     registry = StepRegistry()
     for step in BUILD_STEPS:
@@ -178,6 +216,7 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
             runs, registry, workers, WorkerIdentity("w-1", "host", 1, T0), clock, waiter
         ),
         preparation,
+        ingestion,
     )
 
 
@@ -404,3 +443,47 @@ def test_a_paced_routes_step_reports_its_progress_in_the_run(rig: Rig) -> None:
 
     routes = rig.run_of(queued.id).steps[2]
     assert (routes.progress_done, routes.progress_total) == (24, 24)
+
+
+READ_MODEL_TABLES = (
+    "stations",
+    "hubs",
+    "station_hubs",
+    "hub_pairs",
+    "route_options",
+    "station_bikes",
+    "option_station_deltas",
+)
+
+
+def test_after_a_build_the_read_model_tables_hold_the_fake_city(rig: Rig) -> None:
+    rig.build.execute(rig.draft())
+
+    rig.process.execute()
+
+    assert {table: len(rig.rows(table)) for table in READ_MODEL_TABLES} == {
+        "stations": 42,
+        "hubs": 6,
+        "station_hubs": 42,
+        "hub_pairs": 24,
+        "route_options": 71,
+        "station_bikes": 12,
+        "option_station_deltas": 23,
+    }
+    assert rig.rows("route_failures") == []
+
+
+def test_a_second_build_of_an_unchanged_version_keeps_every_step_and_adds_no_row(
+    rig: Rig,
+) -> None:
+    first = rig.draft()
+    rig.build.execute(first)
+    rig.process.execute()
+    before = {table: rig.rows(table) for table in READ_MODEL_TABLES}
+    second = rig.draft(2, first)
+
+    queued = rig.build.execute(second)
+    rig.process.execute()
+
+    assert [item.state for item in rig.run_of(queued.id).steps] == [StepState.KEPT] * 4
+    assert {table: rig.rows(table) for table in READ_MODEL_TABLES} == before

@@ -92,6 +92,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instance-versions/{version_id}/hub-pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hub pairs of one period of a built version */
+        get: operations["listHubPairs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/hubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The hubs of a built version, with their stations and lines */
+        get: operations["listHubs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/stations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The public transport stops and bike stations of a built version */
+        get: operations["listStations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -152,6 +203,23 @@ export interface paths {
         };
         /** The log excerpts of the run's steps, in step order */
         get: operations["getRunLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/route-failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The trip-planner queries that failed during the run's routes step */
+        get: operations["listRouteFailures"];
         put?: never;
         post?: never;
         delete?: never;
@@ -316,6 +384,62 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** HubList */
+        HubList: {
+            /** Items */
+            items: components["schemas"]["HubResource"][];
+        };
+        /** HubPairList */
+        HubPairList: {
+            /** Items */
+            items: components["schemas"]["HubPairResource"][];
+        };
+        /** HubPairResource */
+        HubPairResource: {
+            /** Demand */
+            demand: number;
+            /** Destination Hub */
+            destination_hub: string;
+            /** Euclid Dist M */
+            euclid_dist_m: number;
+            /** Origin Hub */
+            origin_hub: string;
+        };
+        /** HubResource */
+        HubResource: {
+            /** Bike Station Ids */
+            bike_station_ids: string[];
+            /** Hub Id */
+            hub_id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number;
+            /** Lines */
+            lines: string[];
+            /** Lon */
+            lon: number;
+            /**
+             * Outline
+             * @description A GeoJSON polygon, or null.
+             */
+            outline: {
+                [key: string]: unknown;
+            } | null;
+            /** Pt Station Ids */
+            pt_station_ids: string[];
+        };
+        /**
+         * InstanceCounts
+         * @description The five headline counts of a built version.
+         */
+        InstanceCounts: {
+            bike_stations: components["schemas"]["NumberResource"];
+            hub_pairs_with_routes: components["schemas"]["NumberResource"];
+            hubs: components["schemas"]["NumberResource"];
+            stops: components["schemas"]["NumberResource"];
+            travellers: components["schemas"]["NumberResource"];
+        };
         /** InstanceParametersResource */
         InstanceParametersResource: {
             /** Center Lat */
@@ -427,13 +551,8 @@ export interface components {
              * @description The parameters that differ from `based_on_id`, in column order.
              */
             changes: components["schemas"]["ParameterChangeResource"][];
-            /**
-             * Counts
-             * @description Null until the counts exist.
-             */
-            counts: {
-                [key: string]: number;
-            } | null;
+            /** @description Null until the version is built. */
+            counts: components["schemas"]["InstanceCounts"] | null;
             /** Id */
             id: string;
             /** Instance Id */
@@ -443,6 +562,8 @@ export interface components {
             parameters: components["schemas"]["InstanceParametersResource"];
             /** Periods */
             periods: components["schemas"]["InstancePeriodResource"][];
+            /** @description Null until the version is built. */
+            routes: components["schemas"]["RoutesSummaryResource"] | null;
             /** Rules */
             rules: components["schemas"]["RuleResultResource"][];
             /**
@@ -474,6 +595,26 @@ export interface components {
              * @enum {string}
              */
             status: "draft" | "sealed";
+        };
+        /**
+         * NumberResource
+         * @description A number with its unit and where it comes from.
+         */
+        NumberResource: {
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "headline" | "advanced";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "model" | "package_summary" | "input" | "trip_planner" | "derived" | "simulation";
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
         };
         /** PackageDefaultsStart */
         PackageDefaultsStart: {
@@ -579,6 +720,60 @@ export interface components {
             title: string;
             /** Type */
             type: string;
+        };
+        /** RouteFailureList */
+        RouteFailureList: {
+            /** Items */
+            items: components["schemas"]["RouteFailureResource"][];
+        };
+        /** RouteFailureResource */
+        RouteFailureResource: {
+            /** Attempts */
+            attempts: number;
+            /** Destination Hub */
+            destination_hub: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "technical" | "no_route";
+            /** Message */
+            message: string;
+            /** Origin Hub */
+            origin_hub: string;
+            /**
+             * Period
+             * @description The id of the period the query was made for.
+             */
+            period: string | null;
+            /**
+             * Query
+             * @enum {string}
+             */
+            query: "pt_bike" | "car";
+        };
+        /**
+         * RoutesSummaryResource
+         * @description What the trip planner answered for the routes of the build.
+         */
+        RoutesSummaryResource: {
+            /** Failure Pct */
+            failure_pct: number;
+            /** Pairs Without Car */
+            pairs_without_car: number;
+            /** Pairs Without Public Transport */
+            pairs_without_public_transport: number;
+            /** Queries */
+            queries: number;
+            /** Queries Failed */
+            queries_failed: number;
+            /** Retries */
+            retries: number;
+            /**
+             * Run Id
+             * @description The run whose routes step produced the routes the version links; `GET /runs/{run_id}/route-failures` lists the failed queries.
+             */
+            run_id: string | null;
         };
         /** RoutingMomentResource */
         RoutingMomentResource: {
@@ -714,6 +909,28 @@ export interface components {
             alive: boolean;
             /** Last Heartbeat At */
             last_heartbeat_at: string | null;
+        };
+        /** StationList */
+        StationList: {
+            /** Items */
+            items: components["schemas"]["StationResource"][];
+        };
+        /** StationResource */
+        StationResource: {
+            /**
+             * Kind
+             * @description `pt` a public transport stop, `bs` a bike station.
+             * @enum {string}
+             */
+            kind: "pt" | "bs";
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name: string;
+            /** Station Id */
+            station_id: string;
         };
         /**
          * StepName
@@ -1172,6 +1389,156 @@ export interface operations {
             };
         };
     };
+    listHubPairs: {
+        parameters: {
+            query?: {
+                /** @description The id of a period of the version; the only period by default. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubPairList"];
+                };
+            };
+            /** @description `instance_version_not_found`, or `period_not_found` (the period is not one of the version's) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listStations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StationList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     listRuns: {
         parameters: {
             query?: {
@@ -1349,6 +1716,55 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listRouteFailures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteFailureList"];
                 };
             };
             /** @description No run has this id */
