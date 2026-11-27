@@ -311,6 +311,7 @@ def test_the_menu_lists_instances_and_their_versions(instances_app: CityInstance
                         "status": "draft",
                         "state": "draft",
                         "pricing_version_count": 0,
+                        "pricing_version_letters": [],
                     }
                 ],
             }

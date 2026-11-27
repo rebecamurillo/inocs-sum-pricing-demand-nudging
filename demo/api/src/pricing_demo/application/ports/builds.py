@@ -35,15 +35,18 @@ class Builds(Protocol):
         stored then."""
         ...
 
-    def delete_version(self, version_id: str) -> None:
+    def delete_version(self, version_id: str, including_pricing_versions: bool = False) -> None:
         """In one transaction, remove the version with its runs (their steps and route
         failures), step links and periods, and its instance when no version is left. Raises
-        `InstanceVersionNotFound`, and `RunActive` while a run of it is queued or running;
-        nothing is removed then. The instance's `next_number` is never decreased."""
+        `InstanceVersionNotFound`; `RunActive` while a run of it or of one of its pricing
+        versions is queued or running; then `HasPricingVersions` (every id, letter order) when
+        it has any and `including_pricing_versions` is false; nothing is removed then. With the
+        flag the pricing versions go too, with their periods, runs and steps. The instance's
+        `next_number` is never decreased."""
         ...
 
-    def delete_instance(self, instance_id: str) -> None:
+    def delete_instance(self, instance_id: str, including_pricing_versions: bool = False) -> None:
         """In one transaction, remove every version of the instance as `delete_version` does,
-        then the instance. Raises `CityInstanceNotFound`, and `RunActive` when a run of any
-        version is queued or running; nothing is removed then."""
+        then the instance. Raises `CityInstanceNotFound`, `RunActive` and `HasPricingVersions`
+        as `delete_version` does for any of its versions; nothing is removed then."""
         ...

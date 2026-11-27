@@ -149,6 +149,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instance-versions/{version_id}/pricing-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The pricing versions of an instance version, in letter order */
+        get: operations["listPricingVersions"];
+        put?: never;
+        /** Start a pricing version (a draft) on a built instance version */
+        post: operations["createPricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instance-versions/{version_id}/route-pairs": {
         parameters: {
             query?: never;
@@ -187,6 +205,25 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One pricing version: goals, periods, state and rule results */
+        get: operations["getPricingVersion"];
+        put?: never;
+        post?: never;
+        /** Delete a pricing version (a draft is discarded) */
+        delete: operations["deletePricingVersion"];
+        options?: never;
+        head?: never;
+        /** Change the goals of a draft; the answer reports every rule */
+        patch: operations["updatePricingVersion"];
         trace?: never;
     };
     "/api/v1/runs": {
@@ -426,6 +463,16 @@ export interface components {
             /** Based On Id */
             based_on_id: string;
         };
+        /** CreatePricingVersionRequest */
+        CreatePricingVersionRequest: {
+            /**
+             * Based On
+             * @description A pricing version of the same instance version to copy.
+             */
+            based_on?: string | null;
+            /** Name */
+            name?: string | null;
+        };
         /** FieldError */
         FieldError: {
             /** Field */
@@ -653,6 +700,11 @@ export interface components {
             /** Pricing Version Count */
             pricing_version_count: number;
             /**
+             * Pricing Version Letters
+             * @description The letters of the version's pricing versions, in letter order.
+             */
+            pricing_version_letters: string[];
+            /**
              * State
              * @description `draft`, or the state of the latest build: `queued`, `building`, `ready`, `failed`, `cancelled` (`sealed` while it has none).
              */
@@ -750,6 +802,122 @@ export interface components {
             /** Radius M */
             radius_m: number;
         };
+        /** PricingGoalsResource */
+        PricingGoalsResource: {
+            /** Car Parking Fee Chf */
+            car_parking_fee_chf: number;
+            /** Cost Bike Chf */
+            cost_bike_chf: number;
+            /**
+             * Flat Price Kind
+             * @constant
+             */
+            flat_price_kind: "per_ride";
+            /** Flat Price Per Ride Chf */
+            flat_price_per_ride_chf: number;
+            /** Lowest Price Chf */
+            lowest_price_chf: number;
+            /** Max Displayed Options */
+            max_displayed_options: number;
+            /** Pt Fare Chf */
+            pt_fare_chf: number;
+            /** Ridership Weight */
+            ridership_weight: number;
+            /** Station Balance Weight */
+            station_balance_weight: number;
+        };
+        /** PricingPeriodResource */
+        PricingPeriodResource: {
+            /** Id */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** PricingRuleResultResource */
+        PricingRuleResultResource: {
+            /**
+             * Field
+             * @description The goal the rule checks.
+             */
+            field: string;
+            /**
+             * Message
+             * @description Names the value, as a failure reads on the form.
+             */
+            message: string;
+            /** Passed */
+            passed: boolean;
+            /** Rule */
+            rule: string;
+            /** Value */
+            value: number;
+        };
+        /** PricingVersionList */
+        PricingVersionList: {
+            /** Items */
+            items: components["schemas"]["PricingVersionResource"][];
+        };
+        /**
+         * PricingVersionPatch
+         * @description Any subset of the eight goal values. A value is stored as sent: a rule it breaks is
+         *     reported in the answer, never corrected.
+         */
+        PricingVersionPatch: {
+            /** Car Parking Fee Chf */
+            car_parking_fee_chf?: number;
+            /** Cost Bike Chf */
+            cost_bike_chf?: number;
+            /** Flat Price Per Ride Chf */
+            flat_price_per_ride_chf?: number;
+            /** Lowest Price Chf */
+            lowest_price_chf?: number;
+            /** Max Displayed Options */
+            max_displayed_options?: number;
+            /** Pt Fare Chf */
+            pt_fare_chf?: number;
+            /** Ridership Weight */
+            ridership_weight?: number;
+            /** Station Balance Weight */
+            station_balance_weight?: number;
+        };
+        /** PricingVersionResource */
+        PricingVersionResource: {
+            /** Based On Id */
+            based_on_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            goals: components["schemas"]["PricingGoalsResource"];
+            /** Id */
+            id: string;
+            /** Instance Version Id */
+            instance_version_id: string;
+            /** Letter */
+            letter: string;
+            /** Name */
+            name: string;
+            /** Periods */
+            periods: components["schemas"]["PricingPeriodResource"][];
+            /** Rules */
+            rules: components["schemas"]["PricingRuleResultResource"][];
+            /** Sealed At */
+            sealed_at: string | null;
+            /**
+             * State
+             * @description Derived from the status and the version's last run.
+             * @enum {string}
+             */
+            state: "draft" | "queued" | "running" | "failed" | "cancelled" | "result";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sealed";
+        };
         /**
          * ProblemDetails
          * @description An error, as a problem document (RFC 9457).
@@ -771,6 +939,11 @@ export interface components {
              * @description The rules the draft breaks, on a rule_broken conflict.
              */
             failures?: components["schemas"]["RuleResultResource"][] | null;
+            /**
+             * Pricing Version Ids
+             * @description The pricing versions that block a deletion, in letter order, on a has_pricing_versions conflict.
+             */
+            pricing_version_ids?: string[] | null;
             /**
              * Reasons
              * @description The components that block the action, on a component_unavailable answer.
@@ -1170,7 +1343,9 @@ export interface operations {
     };
     deleteCityInstance: {
         parameters: {
-            query?: never;
+            query?: {
+                including_pricing_versions?: boolean;
+            };
             header?: never;
             path: {
                 instance_id: string;
@@ -1195,7 +1370,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A run of the version, or of a version of the instance, is queued or running: `run_active` */
+            /** @description `run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1339,7 +1514,9 @@ export interface operations {
     };
     deleteInstanceVersion: {
         parameters: {
-            query?: never;
+            query?: {
+                including_pricing_versions?: boolean;
+            };
             header?: never;
             path: {
                 version_id: string;
@@ -1364,7 +1541,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A run of the version, or of a version of the instance, is queued or running: `run_active` */
+            /** @description `run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -1625,6 +1802,119 @@ export interface operations {
             };
         };
     };
+    listPricingVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createPricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePricingVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft */
+            201: {
+                headers: {
+                    /** @description The draft */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The instance version is not built: `instance_not_built` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid, or `based_on` is not a version of this one */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     listRoutePairs: {
         parameters: {
             query?: never;
@@ -1704,6 +1994,173 @@ export interface operations {
                 };
             };
             /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getPricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deletePricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A run of the version is queued or running: `run_active` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    updatePricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingVersionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The version is saved: `version_sealed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A value is not a JSON number, or a name is not a goal */
             422: {
                 headers: {
                     [name: string]: unknown;

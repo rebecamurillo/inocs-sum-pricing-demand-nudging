@@ -8,6 +8,8 @@ export interface InstanceMenuVersion {
   /** `draft`, `ready`, or any other state exactly as the API writes it. */
   readonly state: string;
   readonly pricingVersionCount: number;
+  /** The letters of its pricing versions, in letter order. */
+  readonly pricingVersionLetters: readonly string[];
 }
 
 export interface InstanceMenuEntry {

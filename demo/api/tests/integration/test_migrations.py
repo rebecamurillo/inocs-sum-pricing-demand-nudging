@@ -49,6 +49,8 @@ def test_the_head_creates_the_tables_of_the_runs(migrated_database: Engine) -> N
         "option_station_deltas",
         "route_failures",
         "route_pairs",
+        "pricing_versions",
+        "pricing_version_periods",
     }
 
 
@@ -82,6 +84,8 @@ def test_the_migration_goes_down_and_up_again(migrated_database: Engine) -> None
         "option_station_deltas",
         "route_failures",
         "route_pairs",
+        "pricing_versions",
+        "pricing_version_periods",
     }
     assert StorageProbe(migrated_database).check().state is ComponentState.AVAILABLE
 

@@ -36,6 +36,16 @@ STEP_NAMES = (
 )
 BUILD_STEP_NAMES = ("area", "hubs", "routes", "travellers_and_bikes")
 VERSION_STATUSES = ("draft", "sealed")
+PRICING_GOAL_COLUMNS = (
+    "cost_bike_chf",
+    "lowest_price_chf",
+    "ridership_weight",
+    "station_balance_weight",
+    "pt_fare_chf",
+    "car_parking_fee_chf",
+    "max_displayed_options",
+)
+FLAT_PRICE_KINDS = ("per_ride",)
 PARAMETER_COLUMNS = (
     "center_lat",
     "center_lon",
@@ -84,7 +94,7 @@ runs = Table(
     Column("id", Text, primary_key=True),
     Column("kind", Text, nullable=False),
     Column("instance_version_id", Text, ForeignKey("instance_versions.id")),
-    Column("pricing_version_id", Text),
+    Column("pricing_version_id", Text, ForeignKey("pricing_versions.id")),
     Column("state", Text, nullable=False),
     Column("attempt", Integer, nullable=False, server_default=text("1")),
     Column("queued_at", DateTime(timezone=True), nullable=False),
@@ -236,6 +246,9 @@ instance_versions = Table(
     *(Column(name, Double, nullable=False) for name in PARAMETER_COLUMNS),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("sealed_at", DateTime(timezone=True)),
+    # The letter the next pricing version takes (0 = A); never decreased, so letters are not
+    # reused after a deletion.
+    Column("next_pricing_letter", Integer, nullable=False, server_default=text("0")),
     UniqueConstraint("instance_id", "number", name="uq_instance_versions_instance_id"),
     CheckConstraint(one_of("status", VERSION_STATUSES), name="status"),
     Index(
@@ -266,6 +279,41 @@ instance_periods = Table(
     Column("arrive_by", Boolean, nullable=False),
     Column("routing_date_provisional", Boolean, nullable=False),
     UniqueConstraint("instance_version_id", "key", name="uq_instance_periods_version_key"),
+)
+
+# The goals are doubles: a value is stored as sent. The trigger that refuses an UPDATE of a goal
+# once `status = 'sealed'` exists in the migration only.
+pricing_versions = Table(
+    "pricing_versions",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column("instance_version_id", Text, ForeignKey("instance_versions.id"), nullable=False),
+    Column("letter", Text, nullable=False),
+    Column("name", Text, nullable=False),
+    Column("status", Text, nullable=False),
+    Column("based_on_id", Text, ForeignKey("pricing_versions.id", ondelete="SET NULL")),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("sealed_at", DateTime(timezone=True)),
+    *(Column(name, Double, nullable=False) for name in PRICING_GOAL_COLUMNS),
+    Column("flat_price_kind", Text, nullable=False),
+    Column("flat_price_per_ride_chf", Double, nullable=False),
+    UniqueConstraint(
+        "instance_version_id", "letter", name="uq_pricing_versions_instance_version_id"
+    ),
+    CheckConstraint(one_of("status", VERSION_STATUSES), name="status"),
+    CheckConstraint(one_of("flat_price_kind", FLAT_PRICE_KINDS), name="flat_price_kind"),
+)
+
+pricing_version_periods = Table(
+    "pricing_version_periods",
+    metadata,
+    Column(
+        "pricing_version_id",
+        Text,
+        ForeignKey("pricing_versions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("period_id", Text, ForeignKey("instance_periods.id"), primary_key=True),
 )
 
 # The outputs of one build step, named by its input key. `inputs` is the canonical JSON the key

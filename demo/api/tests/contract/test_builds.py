@@ -9,6 +9,7 @@ from sqlalchemy import Engine
 
 from pricing_demo.application.ports.builds import Builds
 from pricing_demo.application.ports.city_instances import CityInstances
+from pricing_demo.application.ports.pricing_versions import PricingVersions
 from pricing_demo.application.ports.run_repository import RunRepository
 from pricing_demo.domain.builds import DraftChanged, RunActive
 from pricing_demo.domain.city_instances import (
@@ -19,11 +20,13 @@ from pricing_demo.domain.city_instances import (
     first_period,
     parameters_from_defaults,
 )
-from pricing_demo.domain.runs import Run, RunState, RunStep, StepName, StepState
+from pricing_demo.domain.pricing_versions import HasPricingVersions, new_draft_goals
+from pricing_demo.domain.runs import Run, RunKind, RunState, RunStep, StepName, StepState
 from pricing_demo.infrastructure.fakes.builds import InMemoryBuilds
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
+from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersions
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from tests.support.runs import T0, later, make_run, step
 
@@ -37,6 +40,7 @@ class Env:
     builds: Builds
     runs: RunRepository
     instances: CityInstances
+    pricing: PricingVersions
 
     def version(
         self, slug: str = "geneva-3km", radius: float = 3000.0, dataset: str | None = None
@@ -67,16 +71,25 @@ def env(request: pytest.FixtureRequest) -> Iterator[Env]:
     if request.param == "fake":
         runs = InMemoryRunRepository()
         instances = InMemoryCityInstances()
-        yield Env(InMemoryBuilds(runs, instances), runs, instances)
+        pricing = FakePricingVersions(runs)
+        yield Env(
+            InMemoryBuilds(runs, instances, pricing_versions=pricing), runs, instances, pricing
+        )
         return
     from pricing_demo.infrastructure.persistence.builds import PostgresBuilds
     from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
     from pricing_demo.infrastructure.persistence.city_instances import PostgresCityInstances
+    from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPricingVersions
     from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 
     engine: Engine = request.getfixturevalue("migrated_database")
     PostgresCityDatasets(engine).add(DATASET)
-    yield Env(PostgresBuilds(engine), PostgresRunRepository(engine), PostgresCityInstances(engine))
+    yield Env(
+        PostgresBuilds(engine),
+        PostgresRunRepository(engine),
+        PostgresCityInstances(engine),
+        PostgresPricingVersions(engine),
+    )
 
 
 def queued_run(run_id: str, version: str = "geneva-3km.v1", at: int = 0) -> Run:
@@ -422,3 +435,76 @@ def test_an_instance_with_an_active_run_on_any_version_is_not_deleted(env: Env) 
     assert env.instances.get_instance("geneva-3km") is not None
     assert env.instances.get_version(first) is not None
     assert env.runs.get("r-geneva-3km") is not None
+
+
+def pricing_run(env: Env, run_id: str, pricing_version: str, state: RunState) -> None:
+    env.runs.add(
+        make_run(
+            run_id,
+            kind=RunKind.PRICING,
+            subject_id=pricing_version,
+            state=state,
+            queued_at=later(3),
+        )
+    )
+
+
+def two_pricing_versions(env: Env, version: str) -> list[str]:
+    return [
+        env.pricing.create_draft(
+            version, None, new_draft_goals(None), f"{version}.mon-08", None, T0
+        ).id
+        for _ in range(2)
+    ]
+
+
+def test_a_version_with_pricing_versions_is_not_deleted_without_the_flag(env: Env) -> None:
+    version = sealed_with_failed_run(env)
+    ids = two_pricing_versions(env, version)
+
+    with pytest.raises(HasPricingVersions) as refusal:
+        env.builds.delete_version(version)
+
+    assert refusal.value.pricing_version_ids == tuple(ids)
+    assert env.instances.get_version(version) is not None
+    assert env.pricing.get(ids[0]) is not None
+
+
+def test_the_flag_removes_the_pricing_versions_with_their_runs(env: Env) -> None:
+    version = sealed_with_failed_run(env)
+    ids = two_pricing_versions(env, version)
+    pricing_run(env, "r-pricing", ids[0], RunState.SUCCEEDED)
+
+    env.builds.delete_version(version, including_pricing_versions=True)
+
+    assert env.instances.get_version(version) is None
+    assert [env.pricing.get(item) for item in ids] == [None, None]
+    assert env.runs.get("r-pricing") is None
+    assert env.runs.get("r-geneva-3km") is None
+
+
+def test_a_pricing_run_that_is_active_refuses_the_deletion_even_with_the_flag(env: Env) -> None:
+    version = sealed_with_failed_run(env)
+    ids = two_pricing_versions(env, version)
+    pricing_run(env, "r-pricing", ids[1], RunState.RUNNING)
+
+    for flag in (False, True):
+        with pytest.raises(RunActive) as refusal:
+            env.builds.delete_version(version, including_pricing_versions=flag)
+        assert refusal.value.run_id == "r-pricing"
+    assert env.instances.get_version(version) is not None
+    assert env.pricing.get(ids[0]) is not None
+
+
+def test_an_instance_with_pricing_versions_needs_the_flag_too(env: Env) -> None:
+    version = sealed_with_failed_run(env)
+    ids = two_pricing_versions(env, version)
+
+    with pytest.raises(HasPricingVersions):
+        env.builds.delete_instance("geneva-3km")
+    assert env.instances.get_instance("geneva-3km") is not None
+
+    env.builds.delete_instance("geneva-3km", including_pricing_versions=True)
+
+    assert env.instances.get_instance("geneva-3km") is None
+    assert env.pricing.get(ids[0]) is None

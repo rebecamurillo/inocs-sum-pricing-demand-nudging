@@ -42,6 +42,7 @@ from pricing_demo.infrastructure.fakes.package_fingerprints import (
     FAKE_FINGERPRINT,
     InMemoryPackageFingerprints,
 )
+from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersions
 from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
@@ -86,7 +87,7 @@ class Rig:
         )
         self.delete = DeleteInstanceVersion(builds)
         self.delete_instance = DeleteCityInstance(builds)
-        self.menu = ListCityInstances(self.instances, builds)
+        self.menu = ListCityInstances(self.instances, builds, FakePricingVersions(self.runs))
 
     def geneva(self) -> InstanceVersionView:
         return self.create.execute("Geneva 3 km", DATASET_ID, FromPackageDefaults())

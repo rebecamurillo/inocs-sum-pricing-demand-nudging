@@ -7,6 +7,7 @@ import {
   fakeCityInstances,
   sampleDraft,
   sampleFailedRoutes,
+  sampleMenu,
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
@@ -178,13 +179,26 @@ describe('InstanceView · the saved card', () => {
     const SENTENCE =
       'Delete Geneva 3 km v1? This removes the instance version. Other versions of Geneva 3 km stay. This cannot be undone.';
 
+    // Story 2.13's confirmation is the one of a version without pricing versions.
+    const menu = () =>
+      Promise.resolve(
+        sampleMenu.map((entry) => ({
+          ...entry,
+          versions: entry.versions.map((version) => ({
+            ...version,
+            pricingVersionCount: 0,
+            pricingVersionLetters: [],
+          })),
+        })),
+      );
+
     beforeEach(() => {
       window.location.hash = '#/lab/geneva-3km.v1';
     });
 
     it('asks in place what goes, and "Keep" closes it', async () => {
       const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
-      mount(fakeCityInstances({ deleteVersion }));
+      mount(fakeCityInstances({ deleteVersion, menu }));
       const user = userEvent.setup();
 
       await user.click(await screen.findByRole('button', { name: 'Delete…' }));
@@ -200,7 +214,7 @@ describe('InstanceView · the saved card', () => {
 
     it('sends the DELETE and opens #/lab', async () => {
       const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
-      mount(fakeCityInstances({ deleteVersion }));
+      mount(fakeCityInstances({ deleteVersion, menu }));
       const user = userEvent.setup();
 
       await user.click(await screen.findByRole('button', { name: 'Delete…' }));
@@ -209,11 +223,11 @@ describe('InstanceView · the saved card', () => {
       await waitFor(() => {
         expect(window.location.hash).toBe('#/lab');
       });
-      expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v1');
+      expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v1', false);
     });
 
     it('shows the refusal as the note of "Delete…" and deletes nothing', async () => {
-      mount(fakeCityInstances({}, new Set(['geneva-3km.v1'])));
+      mount(fakeCityInstances({ menu }, new Set(['geneva-3km.v1'])));
       const user = userEvent.setup();
 
       await user.click(await screen.findByRole('button', { name: 'Delete…' }));
@@ -225,8 +239,29 @@ describe('InstanceView · the saved card', () => {
       expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
     });
 
+    it('names the pricing versions that go with the version and sends the flag', async () => {
+      const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+      mount(fakeCityInstances({ deleteVersion }));
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+      expect(
+        screen.getByText(
+          'Delete Geneva 3 km v1? This removes the instance version and its 3 pricing versions with their results (A, B, C). Other versions of Geneva 3 km stay. This cannot be undone.',
+        ),
+      ).toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: 'Delete v1 and its 3 pricing versions' }),
+      );
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/lab');
+      });
+      expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v1', true);
+    });
+
     it('shows a failed DELETE in the confirmation and keeps it open', async () => {
-      mount(fakeCityInstances({ deleteVersion: () => Promise.reject(new Error('offline')) }));
+      mount(fakeCityInstances({ menu, deleteVersion: () => Promise.reject(new Error('offline')) }));
       const user = userEvent.setup();
 
       await user.click(await screen.findByRole('button', { name: 'Delete…' }));
@@ -251,6 +286,7 @@ describe('InstanceView · the saved card', () => {
               status: 'sealed' as const,
               state: 'ready',
               pricingVersionCount: 1,
+              pricingVersionLetters: ['A'],
             },
           ],
         },

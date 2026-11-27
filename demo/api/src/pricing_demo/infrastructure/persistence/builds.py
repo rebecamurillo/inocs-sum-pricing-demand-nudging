@@ -10,7 +10,13 @@ from pricing_demo.domain.city_instances import (
     InstanceParameters,
     InstanceVersionNotFound,
 )
+from pricing_demo.domain.pricing_versions import HasPricingVersions
 from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
+from pricing_demo.infrastructure.persistence.pricing_versions import (
+    LETTER_ORDER,
+    active_run_of,
+    remove_pricing_versions,
+)
 from pricing_demo.infrastructure.persistence.run_repository import (
     run_of,
     run_values,
@@ -21,6 +27,7 @@ from pricing_demo.infrastructure.persistence.run_repository import (
 from pricing_demo.infrastructure.persistence.tables import (
     city_instances,
     instance_versions,
+    pricing_versions,
     run_steps,
     runs,
 )
@@ -146,7 +153,7 @@ class PostgresBuilds:
         with self._engine.connect() as connection:
             return str(connection.execute(query).scalar() or "")
 
-    def delete_version(self, version_id: str) -> None:
+    def delete_version(self, version_id: str, including_pricing_versions: bool = False) -> None:
         with self._engine.begin() as connection:
             instance_id = connection.execute(
                 select(instance_versions.c.instance_id).where(instance_versions.c.id == version_id)
@@ -168,7 +175,7 @@ class PostgresBuilds:
             ).scalar()
             if locked is None:
                 raise InstanceVersionNotFound(version_id)
-            self._remove_versions(connection, [version_id])
+            self._remove_versions(connection, [version_id], including_pricing_versions)
             remaining = connection.execute(
                 select(func.count())
                 .select_from(instance_versions)
@@ -177,7 +184,7 @@ class PostgresBuilds:
             if remaining == 0:
                 connection.execute(delete(city_instances).where(city_instances.c.id == instance_id))
 
-    def delete_instance(self, instance_id: str) -> None:
+    def delete_instance(self, instance_id: str, including_pricing_versions: bool = False) -> None:
         with self._engine.begin() as connection:
             locked = connection.execute(
                 select(city_instances.c.id)
@@ -194,15 +201,27 @@ class PostgresBuilds:
                     .with_for_update()
                 ).scalars()
             )
-            self._remove_versions(connection, version_ids)
+            self._remove_versions(connection, version_ids, including_pricing_versions)
             connection.execute(delete(city_instances).where(city_instances.c.id == instance_id))
 
     @staticmethod
-    def _remove_versions(connection: Connection, version_ids: list[str]) -> None:
-        """Inside the transaction that holds the version rows: refuse while a run is active,
-        then remove the runs and the versions (periods and step links cascade)."""
+    def _remove_versions(
+        connection: Connection, version_ids: list[str], including_pricing_versions: bool
+    ) -> None:
+        """Inside the transaction that holds the version rows: refuse while a run of a version
+        or of its pricing versions is active, then while pricing versions remain unless they
+        are included; then remove the pricing versions with their runs, and the runs and the
+        versions (periods and step links cascade)."""
         if not version_ids:
             return
+        pricing_ids = list(
+            connection.execute(
+                select(pricing_versions.c.id)
+                .where(pricing_versions.c.instance_version_id.in_(version_ids))
+                .order_by(pricing_versions.c.instance_version_id, *LETTER_ORDER)
+                .with_for_update()
+            ).scalars()
+        )
         active = connection.execute(
             select(runs.c.id)
             .where(runs.c.instance_version_id.in_(version_ids))
@@ -210,8 +229,13 @@ class PostgresBuilds:
             .order_by(runs.c.queued_at, runs.c.id)
             .limit(1)
         ).scalar()
+        if active is None and pricing_ids:
+            active = active_run_of(connection, pricing_ids)
         if active is not None:
             raise RunActive(str(active))
+        if pricing_ids and not including_pricing_versions:
+            raise HasPricingVersions(pricing_ids)
+        remove_pricing_versions(connection, pricing_ids)
         run_ids = select(runs.c.id).where(runs.c.instance_version_id.in_(version_ids))
         connection.execute(delete(run_steps).where(run_steps.c.run_id.in_(run_ids)))
         connection.execute(delete(runs).where(runs.c.instance_version_id.in_(version_ids)))

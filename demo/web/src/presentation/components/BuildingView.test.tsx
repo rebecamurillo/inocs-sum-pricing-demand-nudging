@@ -58,6 +58,7 @@ const menu: InstanceMenuEntry[] = [
         status: 'sealed',
         state: 'building',
         pricingVersionCount: 0,
+        pricingVersionLetters: [],
       },
     ],
   },
@@ -641,6 +642,6 @@ describe('BuildingView · "Delete…"', () => {
     await waitFor(() => {
       expect(window.location.hash).toBe('#/lab');
     });
-    expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v2');
+    expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v2', false);
   });
 });

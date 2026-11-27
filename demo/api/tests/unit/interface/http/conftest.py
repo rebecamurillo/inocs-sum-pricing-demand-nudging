@@ -7,9 +7,12 @@ from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.create_pricing_version import CreatePricingVersion
 from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
+from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
+from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
@@ -17,12 +20,14 @@ from pricing_demo.application.use_cases.list_city_datasets import ListCityDatase
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
+from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
 from pricing_demo.domain.system_status import (
     PROBED_COMPONENTS,
@@ -44,6 +49,7 @@ from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunReposito
 from pricing_demo.interface.http.app import create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
+from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
@@ -223,7 +229,7 @@ class CityInstancesApp:
                             planning,
                             built,
                         ),
-                        ListCityInstances(self.instances, self.rig.builds),
+                        ListCityInstances(self.instances, self.rig.builds, self.rig.pricing),
                         CreateInstanceVersion(
                             self.instances,
                             self.datasets,
@@ -246,7 +252,16 @@ class CityInstancesApp:
                         ListHubs(self.instances, self.rig.artifacts, self.rig.read_model),
                         ListHubPairs(self.instances, self.rig.artifacts, self.rig.read_model),
                         ListRoutePairs(self.instances, self.rig.artifacts, self.rig.read_model),
-                    )
+                    ),
+                    build_pricing_versions_router(
+                        CreatePricingVersion(
+                            self.instances, self.rig.builds, self.rig.pricing, self.clock
+                        ),
+                        ListPricingVersions(self.instances, self.rig.pricing),
+                        GetPricingVersion(self.instances, self.rig.pricing),
+                        UpdatePricingVersion(self.instances, self.rig.pricing),
+                        DeletePricingVersion(self.rig.pricing),
+                    ),
                 ],
             ),
             raise_server_exceptions=False,

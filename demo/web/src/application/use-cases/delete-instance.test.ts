@@ -11,17 +11,21 @@ describe('delete-instance use cases', () => {
       deleteInstance: deleteInstanceCall,
     });
 
-    expect(await deleteVersion({ cityInstances }, 'geneva-3km.v1')).toEqual({ kind: 'deleted' });
-    expect(await deleteInstance({ cityInstances }, 'geneva-3km')).toEqual({ kind: 'deleted' });
+    expect(await deleteVersion({ cityInstances }, 'geneva-3km.v1', true)).toEqual({
+      kind: 'deleted',
+    });
+    expect(await deleteInstance({ cityInstances }, 'geneva-3km', false)).toEqual({
+      kind: 'deleted',
+    });
 
-    expect(deleteVersionCall).toHaveBeenCalledWith('geneva-3km.v1');
-    expect(deleteInstanceCall).toHaveBeenCalledWith('geneva-3km');
+    expect(deleteVersionCall).toHaveBeenCalledWith('geneva-3km.v1', true);
+    expect(deleteInstanceCall).toHaveBeenCalledWith('geneva-3km', false);
   });
 
   it('passes run_active on', async () => {
     const cityInstances = fakeCityInstances({}, new Set(['geneva-3km.v1']));
 
-    expect(await deleteVersion({ cityInstances }, 'geneva-3km.v1')).toEqual({
+    expect(await deleteVersion({ cityInstances }, 'geneva-3km.v1', false)).toEqual({
       kind: 'run_active',
     });
   });

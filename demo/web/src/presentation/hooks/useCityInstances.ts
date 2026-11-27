@@ -164,11 +164,13 @@ export function useDeleteActions() {
   const refetchMenu = () => client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
 
   const version = useMutation({
-    mutationFn: (id: string) => deleteVersion(gateways, id),
+    mutationFn: (call: { id: string; includingPricingVersions: boolean }) =>
+      deleteVersion(gateways, call.id, call.includingPricingVersions),
     onSuccess: (answer) => (answer.kind === 'deleted' ? refetchMenu() : undefined),
   });
   const instance = useMutation({
-    mutationFn: (id: string) => deleteInstance(gateways, id),
+    mutationFn: (call: { id: string; includingPricingVersions: boolean }) =>
+      deleteInstance(gateways, call.id, call.includingPricingVersions),
     onSuccess: (answer) => (answer.kind === 'deleted' ? refetchMenu() : undefined),
   });
 

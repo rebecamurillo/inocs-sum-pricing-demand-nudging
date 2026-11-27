@@ -26,6 +26,7 @@ const entries: InstanceMenuEntry[] = [
         status: 'sealed',
         state: 'building',
         pricingVersionCount: 0,
+        pricingVersionLetters: [],
       },
     ],
   },

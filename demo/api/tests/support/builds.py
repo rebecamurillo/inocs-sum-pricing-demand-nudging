@@ -46,6 +46,7 @@ from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
+from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersions
 from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
@@ -121,7 +122,10 @@ class MemoryBuilds:
         self.feed_shapes = FakeFeedShapes(frozenset({"1"}))
         self.built = BuiltCounts(self.artifacts, self.read_model, self.route_failures)
         self.runs = InMemoryRunRepository()
-        self.builds = InMemoryBuilds(self.runs, self.instances, self.artifacts, self.route_failures)
+        self.pricing = FakePricingVersions(self.runs)
+        self.builds = InMemoryBuilds(
+            self.runs, self.instances, self.artifacts, self.route_failures, self.pricing
+        )
         self.sources = InMemoryBuildSources(fingerprint, MANIFEST if manifest else None)
         self.status = Status()
         self.ids = SequentialIds()

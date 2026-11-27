@@ -7,9 +7,11 @@ from pricing_demo.domain.city_instances import (
     InstanceParameters,
     InstanceVersionNotFound,
 )
+from pricing_demo.domain.pricing_versions import HasPricingVersions
 from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
 from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
+from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersions
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 
@@ -26,11 +28,13 @@ class InMemoryBuilds:
         instances: InMemoryCityInstances,
         artifacts: InMemoryArtifacts | None = None,
         route_failures: InMemoryRouteFailures | None = None,
+        pricing_versions: FakePricingVersions | None = None,
     ) -> None:
         self._runs = runs
         self._instances = instances
         self._artifacts = artifacts
         self._route_failures = route_failures
+        self._pricing_versions = pricing_versions
 
     def _builds_of(self, version_id: str) -> list[Run]:
         return [
@@ -89,11 +93,21 @@ class InMemoryBuilds:
             self._instances.seal(run.subject.id, seal_version_at)
         self._runs.add(run)
 
-    def _refuse_active(self, version_ids: list[str]) -> None:
+    def _refuse(self, version_ids: list[str], including_pricing_versions: bool) -> list[str]:
+        """The active-run check, then the pricing versions check; returns the pricing versions
+        to remove with the versions."""
         for version_id in version_ids:
             active = [item for item in self._builds_of(version_id) if item.state in ACTIVE]
             if active:
                 raise RunActive(active[0].id)
+        pricing = self._pricing_versions.ids_for(version_ids) if self._pricing_versions else []
+        if self._pricing_versions is not None and pricing:
+            active_id = self._pricing_versions.active_run_id(pricing)
+            if active_id is not None:
+                raise RunActive(active_id)
+            if not including_pricing_versions:
+                raise HasPricingVersions(pricing)
+        return pricing
 
     def _drop(self, version_id: str) -> None:
         for run in self._runs.list_by_states(list(RunState)):
@@ -104,18 +118,22 @@ class InMemoryBuilds:
         if self._artifacts is not None:
             self._artifacts.drop_links(version_id)
 
-    def delete_version(self, version_id: str) -> None:
+    def delete_version(self, version_id: str, including_pricing_versions: bool = False) -> None:
         if self._instances.get_version(version_id) is None:
             raise InstanceVersionNotFound(version_id)
-        self._refuse_active([version_id])
+        pricing = self._refuse([version_id], including_pricing_versions)
+        if self._pricing_versions is not None:
+            self._pricing_versions.remove_all(pricing)
         self._drop(version_id)
         self._instances.remove_version(version_id)
 
-    def delete_instance(self, instance_id: str) -> None:
+    def delete_instance(self, instance_id: str, including_pricing_versions: bool = False) -> None:
         if self._instances.get_instance(instance_id) is None:
             raise CityInstanceNotFound(instance_id)
         ids = [item.id for item in self._instances.versions_of(instance_id)]
-        self._refuse_active(ids)
+        pricing = self._refuse(ids, including_pricing_versions)
+        if self._pricing_versions is not None:
+            self._pricing_versions.remove_all(pricing)
         for version_id in ids:
             self._drop(version_id)
         self._instances.remove_instance(instance_id)

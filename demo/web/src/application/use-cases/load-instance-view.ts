@@ -17,6 +17,8 @@ export interface InstanceView {
   readonly instanceName: string;
   readonly dataset: DatasetInfo;
   readonly pricingVersionCount: number;
+  /** The letters of its pricing versions, in letter order. */
+  readonly pricingVersionLetters: readonly string[];
 }
 
 /** The version, its instance's name and pricing versions, and its data set; null for no such version. */
@@ -39,6 +41,7 @@ export async function loadInstanceView(
     instanceName: entry.name,
     dataset,
     pricingVersionCount: listed?.pricingVersionCount ?? 0,
+    pricingVersionLetters: listed?.pricingVersionLetters ?? [],
   };
 }
 

@@ -262,6 +262,27 @@ truncates both tables). The API reads the latest row for "start from the package
 The fake adapter set records a fixed fingerprint whose defaults are constants copied from the
 package.
 
+### Pricing versions
+
+A pricing version holds the goals of one built instance version under a letter. Two tables hold
+it (`pricing_versions`, `pricing_version_periods`); `pricing_versions.id` is
+`{instance version}.{letter}`, and `instance_versions.next_pricing_letter` is taken and
+incremented under a row lock in the transaction that creates a draft (`PricingVersions` port,
+`PostgresPricingVersions` and `FakePricingVersions`, one contract suite), so a letter is never
+reused; letters past Z go on as AA, AB. `POST /api/v1/instance-versions/{id}/pricing-versions`
+(`CreatePricingVersion`) needs a built version (`instance_not_built` otherwise) and starts from
+the provisional goals, keeping the fare, parking fee, options shown and flat price of the last
+sealed pricing version, or copies `based_on`. The eight goals are `double precision` columns
+stored as sent; a `BEFORE UPDATE` trigger (in the migration only) raises when a sealed row has
+one of them changed. `PATCH` answers the rule results of `domain/pricing_rules.py` (every
+amount 0 or more, options shown at least 1), each failure naming its value. The state of a
+version (`draft`, `queued`, `running`, `failed`, `cancelled`, `result`) is derived from its
+status and its last run. `runs.pricing_version_id` is a foreign key to `pricing_versions.id`.
+Deleting a pricing version removes its periods, finished runs and their steps in one
+transaction (`run_active` while a run of it is queued or running). `DELETE` of an instance
+version or of a city instance answers 409 `has_pricing_versions` (with `pricing_version_ids`)
+while pricing versions exist, unless `?including_pricing_versions=true` is sent.
+
 ### Builds and the artefact store
 
 `POST /api/v1/instance-versions/{id}/builds` (`BuildInstanceVersion`) checks, in this order,
@@ -309,8 +330,10 @@ its fake and the pricing-model adapter implement it.
 `DELETE /api/v1/instance-versions/{id}` and `DELETE /api/v1/city-instances/{id}` answer 204
 (`Builds.delete_version`, `Builds.delete_instance`). In one transaction each locks the instance
 row and the version rows (the order `create_draft` and `queue_build` lock in), refuses with
-`run_active` (409, naming the run) while a build run of any of those versions is queued or
-running, then deletes the runs with their steps (route failures cascade), the versions (periods
+`run_active` (409, naming the run) while a build run of any of those versions, or a run of one
+of their pricing versions, is queued or running, then with `has_pricing_versions` (409, naming
+the pricing versions) unless `?including_pricing_versions=true` is sent, then deletes the pricing
+versions with their runs, then the runs with their steps (route failures cascade), the versions (periods
 and `instance_version_steps` cascade; `based_on_id` of a surviving version is set to null) and,
 when no version is left, the instance. A saved, failed or cancelled version goes the same way as
 a draft. `next_number` is never decreased, so a number is never reused.
@@ -516,5 +539,5 @@ The skeleton proves the layers, the tooling and one request from the screen to t
 database. How runs are queued and executed, and where the worker runs, are settled by
 [D-12 and D-10](decisions.md); the artefact store by [D-8](decisions.md) and the
 [Builds and the artefact store](#builds-and-the-artefact-store) section. The data model of
-pricing versions belongs to the initiative's architecture step, which builds on
-this document.
+pricing versions is described in [Pricing versions](#pricing-versions); the results of their runs
+belong to the initiative's architecture step, which builds on this document.

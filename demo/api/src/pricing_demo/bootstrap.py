@@ -18,9 +18,12 @@ from pricing_demo.application.use_cases.build_instance_version import BuildInsta
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.create_pricing_version import CreatePricingVersion
 from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
+from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
+from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
@@ -28,11 +31,13 @@ from pricing_demo.application.use_cases.list_city_datasets import ListCityDatase
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
+from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
 from pricing_demo.domain.system_status import (
     PROBED_COMPONENTS,
@@ -56,6 +61,7 @@ from pricing_demo.infrastructure.persistence.metadata import metadata
 from pricing_demo.infrastructure.persistence.package_fingerprints import (
     PostgresPackageFingerprints,
 )
+from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPricingVersions
 from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
 from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
@@ -64,6 +70,7 @@ from pricing_demo.infrastructure.persistence.truncate import truncate_all
 from pricing_demo.interface.http.app import Lifespan, create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
+from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
@@ -143,6 +150,7 @@ def create_application(settings: Settings) -> FastAPI:
     run_repository = PostgresRunRepository(engine)
     instances = PostgresCityInstances(engine)
     builds = PostgresBuilds(engine)
+    pricing_versions = PostgresPricingVersions(engine)
     artifacts = PostgresArtifacts(engine)
     read_model = PostgresReadModel(engine)
     route_failures = PostgresRouteFailures(engine)
@@ -171,7 +179,7 @@ def create_application(settings: Settings) -> FastAPI:
                     planning,
                     built,
                 ),
-                ListCityInstances(instances, builds),
+                ListCityInstances(instances, builds, pricing_versions),
                 CreateInstanceVersion(instances, datasets, clock, planning, built, fingerprints),
                 GetInstanceVersion(instances, datasets, planning, built, fingerprints),
                 UpdateInstanceVersion(instances, datasets, planning, built, fingerprints),
@@ -183,6 +191,13 @@ def create_application(settings: Settings) -> FastAPI:
                 ListHubs(instances, artifacts, read_model),
                 ListHubPairs(instances, artifacts, read_model),
                 ListRoutePairs(instances, artifacts, read_model),
+            ),
+            build_pricing_versions_router(
+                CreatePricingVersion(instances, builds, pricing_versions, clock),
+                ListPricingVersions(instances, pricing_versions),
+                GetPricingVersion(instances, pricing_versions),
+                UpdatePricingVersion(instances, pricing_versions),
+                DeletePricingVersion(pricing_versions),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),

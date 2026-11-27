@@ -139,7 +139,7 @@ function SavedInstance({
   advancedView: boolean;
   onOpenDraft?: (draft: OpenedDraft) => void;
 }) {
-  const { version, instanceName, dataset, pricingVersionCount } = view;
+  const { version, instanceName, dataset, pricingVersionCount, pricingVersionLetters } = view;
   const geometry = useInstanceGeometry(version.id).data ?? null;
   const [shown, setShown] = useState<ReadonlySet<number>>(new Set());
   const editing = useEditAsNewVersion(version, onOpenDraft);
@@ -244,7 +244,12 @@ function SavedInstance({
         >
           Edit as a new version
         </button>
-        <VersionDelete versionId={version.id} instanceName={instanceName} number={version.number} />
+        <VersionDelete
+          versionId={version.id}
+          instanceName={instanceName}
+          number={version.number}
+          pricingVersionLetters={pricingVersionLetters}
+        />
       </div>
       {editing.error !== null && <p className={styles.error}>{editing.error}</p>}
     </div>

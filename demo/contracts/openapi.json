@@ -338,6 +338,38 @@
         "title": "CreateInstanceVersionRequest",
         "type": "object"
       },
+      "CreatePricingVersionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "based_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A pricing version of the same instance version to copy.",
+            "title": "Based On"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "CreatePricingVersionRequest",
+        "type": "object"
+      },
       "FieldError": {
         "properties": {
           "field": {
@@ -1008,6 +1040,14 @@
             "title": "Pricing Version Count",
             "type": "integer"
           },
+          "pricing_version_letters": {
+            "description": "The letters of the version's pricing versions, in letter order.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Pricing Version Letters",
+            "type": "array"
+          },
           "state": {
             "description": "`draft`, or the state of the latest build: `queued`, `building`, `ready`, `failed`, `cancelled` (`sealed` while it has none).",
             "title": "State",
@@ -1027,7 +1067,8 @@
           "number",
           "status",
           "state",
-          "pricing_version_count"
+          "pricing_version_count",
+          "pricing_version_letters"
         ],
         "title": "MenuVersion",
         "type": "object"
@@ -1235,6 +1276,348 @@
         "title": "PresetResource",
         "type": "object"
       },
+      "PricingGoalsResource": {
+        "properties": {
+          "car_parking_fee_chf": {
+            "title": "Car Parking Fee Chf",
+            "type": "number"
+          },
+          "cost_bike_chf": {
+            "title": "Cost Bike Chf",
+            "type": "number"
+          },
+          "flat_price_kind": {
+            "const": "per_ride",
+            "title": "Flat Price Kind",
+            "type": "string"
+          },
+          "flat_price_per_ride_chf": {
+            "title": "Flat Price Per Ride Chf",
+            "type": "number"
+          },
+          "lowest_price_chf": {
+            "title": "Lowest Price Chf",
+            "type": "number"
+          },
+          "max_displayed_options": {
+            "title": "Max Displayed Options",
+            "type": "number"
+          },
+          "pt_fare_chf": {
+            "title": "Pt Fare Chf",
+            "type": "number"
+          },
+          "ridership_weight": {
+            "title": "Ridership Weight",
+            "type": "number"
+          },
+          "station_balance_weight": {
+            "title": "Station Balance Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cost_bike_chf",
+          "lowest_price_chf",
+          "ridership_weight",
+          "station_balance_weight",
+          "pt_fare_chf",
+          "car_parking_fee_chf",
+          "max_displayed_options",
+          "flat_price_kind",
+          "flat_price_per_ride_chf"
+        ],
+        "title": "PricingGoalsResource",
+        "type": "object"
+      },
+      "PricingPeriodResource": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label"
+        ],
+        "title": "PricingPeriodResource",
+        "type": "object"
+      },
+      "PricingRuleResultResource": {
+        "properties": {
+          "field": {
+            "description": "The goal the rule checks.",
+            "title": "Field",
+            "type": "string"
+          },
+          "message": {
+            "description": "Names the value, as a failure reads on the form.",
+            "title": "Message",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rule",
+          "passed",
+          "field",
+          "value",
+          "message"
+        ],
+        "title": "PricingRuleResultResource",
+        "type": "object"
+      },
+      "PricingVersionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PricingVersionResource"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PricingVersionList",
+        "type": "object"
+      },
+      "PricingVersionPatch": {
+        "additionalProperties": false,
+        "description": "Any subset of the eight goal values. A value is stored as sent: a rule it breaks is\nreported in the answer, never corrected.",
+        "properties": {
+          "car_parking_fee_chf": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Car Parking Fee Chf"
+          },
+          "cost_bike_chf": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Cost Bike Chf"
+          },
+          "flat_price_per_ride_chf": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Flat Price Per Ride Chf"
+          },
+          "lowest_price_chf": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Lowest Price Chf"
+          },
+          "max_displayed_options": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Max Displayed Options"
+          },
+          "pt_fare_chf": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Pt Fare Chf"
+          },
+          "ridership_weight": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Ridership Weight"
+          },
+          "station_balance_weight": {
+            "anyOf": [
+              {
+                "maximum": 9007199254740992.0,
+                "minimum": -9007199254740992.0,
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Station Balance Weight"
+          }
+        },
+        "title": "PricingVersionPatch",
+        "type": "object"
+      },
+      "PricingVersionResource": {
+        "properties": {
+          "based_on_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Based On Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "goals": {
+            "$ref": "#/components/schemas/PricingGoalsResource"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "instance_version_id": {
+            "title": "Instance Version Id",
+            "type": "string"
+          },
+          "letter": {
+            "title": "Letter",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/PricingPeriodResource"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/PricingRuleResultResource"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sealed At"
+          },
+          "state": {
+            "description": "Derived from the status and the version's last run.",
+            "enum": [
+              "draft",
+              "queued",
+              "running",
+              "failed",
+              "cancelled",
+              "result"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "sealed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "instance_version_id",
+          "letter",
+          "name",
+          "status",
+          "state",
+          "based_on_id",
+          "created_at",
+          "sealed_at",
+          "goals",
+          "periods",
+          "rules"
+        ],
+        "title": "PricingVersionResource",
+        "type": "object"
+      },
       "ProblemDetails": {
         "description": "An error, as a problem document (RFC 9457).",
         "properties": {
@@ -1286,6 +1669,21 @@
             ],
             "description": "The rules the draft breaks, on a rule_broken conflict.",
             "title": "Failures"
+          },
+          "pricing_version_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The pricing versions that block a deletion, in letter order, on a has_pricing_versions conflict.",
+            "title": "Pricing Version Ids"
           },
           "reasons": {
             "anyOf": [
@@ -2222,6 +2620,16 @@
               "title": "Instance Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "including_pricing_versions",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Including Pricing Versions",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -2246,7 +2654,7 @@
                 }
               }
             },
-            "description": "A run of the version, or of a version of the instance, is queued or running: `run_active`"
+            "description": "`run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too"
           },
           "422": {
             "content": {
@@ -2377,6 +2785,16 @@
               "title": "Version Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "including_pricing_versions",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Including Pricing Versions",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -2401,7 +2819,7 @@
                 }
               }
             },
-            "description": "A run of the version, or of a version of the instance, is queued or running: `run_active`"
+            "description": "`run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too"
           },
           "422": {
             "content": {
@@ -2804,6 +3222,156 @@
         ]
       }
     },
+    "/api/v1/instance-versions/{version_id}/pricing-versions": {
+      "get": {
+        "operationId": "listPricingVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingVersionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The pricing versions of an instance version, in letter order",
+        "tags": [
+          "pricing-versions"
+        ]
+      },
+      "post": {
+        "operationId": "createPricingVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePricingVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingVersionResource"
+                }
+              }
+            },
+            "description": "The draft",
+            "headers": {
+              "Location": {
+                "description": "The draft",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The instance version is not built: `instance_not_built`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid, or `based_on` is not a version of this one"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Start a pricing version (a draft) on a built instance version",
+        "tags": [
+          "pricing-versions"
+        ]
+      }
+    },
     "/api/v1/instance-versions/{version_id}/route-pairs": {
       "get": {
         "description": "Ordered by `origin_hub`, then `destination_hub`. Empty until the routes step is linked to the version, which is before the last step ends.",
@@ -2927,6 +3495,211 @@
         "summary": "The public transport stops and bike stations of a built version",
         "tags": [
           "city-instances"
+        ]
+      }
+    },
+    "/api/v1/pricing-versions/{pricing_version_id}": {
+      "delete": {
+        "operationId": "deletePricingVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No pricing version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "A run of the version is queued or running: `run_active`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Delete a pricing version (a draft is discarded)",
+        "tags": [
+          "pricing-versions"
+        ]
+      },
+      "get": {
+        "operationId": "getPricingVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingVersionResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No pricing version has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "One pricing version: goals, periods, state and rule results",
+        "tags": [
+          "pricing-versions"
+        ]
+      },
+      "patch": {
+        "operationId": "updatePricingVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PricingVersionPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingVersionResource"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No pricing version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The version is saved: `version_sealed`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "A value is not a JSON number, or a name is not a goal"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Change the goals of a draft; the answer reports every rule",
+        "tags": [
+          "pricing-versions"
         ]
       }
     },

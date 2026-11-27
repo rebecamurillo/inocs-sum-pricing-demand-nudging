@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
+import { createPricingVersion } from '../support/pricing';
 
 const viewports = [
   { width: 1440, height: 900 },
@@ -145,6 +146,20 @@ test.describe('Lab', () => {
     await menu.getByRole('button', { name: 'Delete…' }).click();
     await expect(
       page.getByText('Delete Geneva 4 km? This removes its 1 version (v1). This cannot be undone.'),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+    await page.getByRole('button', { name: 'Keep' }).click();
+
+    // The same confirmation on a version used by pricing versions.
+    await createPricingVersion(request, version);
+    await createPricingVersion(request, version);
+    await page.goto(`/#/lab/${version}`);
+    await page.reload();
+    await page.getByRole('main').getByRole('button', { name: 'Delete…' }).click();
+    await expect(
+      page.getByText(
+        /^Delete Geneva 3 km v1\? This removes the instance version and its 2 pricing versions with their results \(A, B\)\./,
+      ),
     ).toBeVisible();
     await holdsAtEverySize(page, page.getByRole('main'));
     await page.getByRole('button', { name: 'Keep' }).click();

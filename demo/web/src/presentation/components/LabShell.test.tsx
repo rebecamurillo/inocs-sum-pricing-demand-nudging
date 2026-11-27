@@ -607,6 +607,7 @@ describe('LabShell · creating and editing', () => {
                       status: 'draft',
                       state: 'draft',
                       pricingVersionCount: 0,
+                      pricingVersionLetters: [],
                     },
                   ],
                 },
@@ -650,6 +651,7 @@ describe('LabShell · creating and editing', () => {
                     status: 'draft' as const,
                     state: 'draft',
                     pricingVersionCount: 0,
+                    pricingVersionLetters: [],
                   },
                 ],
               },
@@ -729,6 +731,7 @@ describe('LabShell · run states in the menu', () => {
           status: 'sealed' as const,
           state,
           pricingVersionCount: 0,
+          pricingVersionLetters: [],
         })),
       },
     ]);
@@ -842,6 +845,7 @@ describe('LabShell · deleting an instance from its menu row', () => {
           status: 'sealed' as const,
           state,
           pricingVersionCount: 0,
+          pricingVersionLetters: [],
         })),
       },
     ]);
@@ -870,7 +874,25 @@ describe('LabShell · deleting an instance from its menu row', () => {
   });
 
   it('writes the singular for one version', async () => {
-    renderShell(DEFAULT_LAYOUT, fakeCityInstances());
+    const oneVersion = () =>
+      Promise.resolve([
+        {
+          id: 'geneva-3km',
+          name: 'Geneva 3 km',
+          datasetId: 'geneva-2026-11-26',
+          versions: [
+            {
+              id: 'geneva-3km.v1',
+              number: 1,
+              status: 'sealed' as const,
+              state: 'ready',
+              pricingVersionCount: 0,
+              pricingVersionLetters: [],
+            },
+          ],
+        },
+      ]);
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: oneVersion }));
     const user = userEvent.setup();
 
     await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
@@ -880,6 +902,25 @@ describe('LabShell · deleting an instance from its menu row', () => {
         'Delete Geneva 3 km? This removes its 1 version (v1). This cannot be undone.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('names the pricing versions that go with the instance and sends the flag', async () => {
+    const deleteInstance = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ deleteInstance }));
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+
+    expect(
+      screen.getByText(
+        'Delete Geneva 3 km? This removes its 1 version (v1) and their 3 pricing versions with their results. This cannot be undone.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Delete Geneva 3 km and its versions' }));
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab');
+    });
+    expect(deleteInstance).toHaveBeenCalledWith('geneva-3km', true);
   });
 
   it('deletes the instance and opens #/lab', async () => {
@@ -893,7 +934,7 @@ describe('LabShell · deleting an instance from its menu row', () => {
     await waitFor(() => {
       expect(window.location.hash).toBe('#/lab');
     });
-    expect(deleteInstance).toHaveBeenCalledWith('geneva-3km');
+    expect(deleteInstance).toHaveBeenCalledWith('geneva-3km', false);
   });
 
   it('shows the refusal as the note of the menu row\'s "Delete…" and deletes nothing', async () => {

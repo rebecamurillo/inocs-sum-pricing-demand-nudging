@@ -162,7 +162,14 @@ export const sampleMenu: InstanceMenuEntry[] = [
     name: 'Geneva 3 km',
     datasetId: 'geneva-2026-11-26',
     versions: [
-      { id: 'geneva-3km.v1', number: 1, status: 'sealed', state: 'ready', pricingVersionCount: 3 },
+      {
+        id: 'geneva-3km.v1',
+        number: 1,
+        status: 'sealed',
+        state: 'ready',
+        pricingVersionCount: 3,
+        pricingVersionLetters: ['A', 'B', 'C'],
+      },
     ],
   },
   {
@@ -170,7 +177,14 @@ export const sampleMenu: InstanceMenuEntry[] = [
     name: 'Geneva 2 km',
     datasetId: 'geneva-2026-11-26',
     versions: [
-      { id: 'geneva-2km.v1', number: 1, status: 'sealed', state: 'ready', pricingVersionCount: 0 },
+      {
+        id: 'geneva-2km.v1',
+        number: 1,
+        status: 'sealed',
+        state: 'ready',
+        pricingVersionCount: 0,
+        pricingVersionLetters: [],
+      },
     ],
   },
 ];

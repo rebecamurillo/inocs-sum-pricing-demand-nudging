@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from pricing_demo.infrastructure.persistence.metadata import metadata
 from pricing_demo.infrastructure.persistence.tables import run_steps, runs
 from tests.support.instances import ensure_instance_versions
+from tests.support.pricing_versions import insert_pricing_version
 from tests.support.runs import T0
 
 pytestmark = pytest.mark.integration
@@ -43,7 +44,12 @@ def test_one_queued_or_running_run_per_subject(
 
 
 def test_the_unique_index_covers_pricing_subjects_too(migrated_database: Engine) -> None:
-    pricing = {"kind": "pricing", "instance_version_id": None, "pricing_version_id": "g.v1.A"}
+    pricing_version = insert_pricing_version(migrated_database, "g.v1", "A")
+    pricing = {
+        "kind": "pricing",
+        "instance_version_id": None,
+        "pricing_version_id": pricing_version,
+    }
     insert_run(migrated_database, "r1", **pricing)
 
     with pytest.raises(IntegrityError):

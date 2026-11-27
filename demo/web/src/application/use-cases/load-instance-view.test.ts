@@ -23,6 +23,7 @@ describe('loadInstanceView', () => {
       instanceName: 'Geneva 3 km',
       dataset: sampleDataset,
       pricingVersionCount: 3,
+      pricingVersionLetters: ['A', 'B', 'C'],
     });
   });
 
@@ -182,7 +183,14 @@ describe('loadNewInstanceBasis', () => {
               name: 'A',
               datasetId: 'd',
               versions: [
-                { id: 'a.v1', number: 1, status: 'draft', state: 'draft', pricingVersionCount: 0 },
+                {
+                  id: 'a.v1',
+                  number: 1,
+                  status: 'draft',
+                  state: 'draft',
+                  pricingVersionCount: 0,
+                  pricingVersionLetters: [],
+                },
               ],
             },
           ]),

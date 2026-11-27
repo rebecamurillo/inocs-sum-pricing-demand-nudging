@@ -55,10 +55,16 @@ export interface CityInstanceGateway {
   patch(id: string, changes: ParameterChanges): Promise<InstanceVersion>;
   /** Removes a draft. */
   discard(id: string): Promise<void>;
-  /** Deletes a draft or a saved version with its runs; refused while a run of it is queued or running. */
-  deleteVersion(id: string): Promise<Deleted>;
-  /** Deletes an instance with all its versions; refused while a run of any of them is queued or running. */
-  deleteInstance(id: string): Promise<Deleted>;
+  /**
+   * Deletes a draft or a saved version with its runs; refused while a run of it is queued or
+   * running. `includingPricingVersions` removes its pricing versions with it.
+   */
+  deleteVersion(id: string, includingPricingVersions: boolean): Promise<Deleted>;
+  /**
+   * Deletes an instance with all its versions; refused while a run of any of them is queued or
+   * running. `includingPricingVersions` removes their pricing versions with it.
+   */
+  deleteInstance(id: string, includingPricingVersions: boolean): Promise<Deleted>;
   /** Seals the draft and queues its build. */
   build(id: string): Promise<BuildQueued>;
 }

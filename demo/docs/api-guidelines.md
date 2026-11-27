@@ -74,8 +74,9 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
 - A problem document may carry one named extension member that identifies what the request
   conflicts with or what blocks it: `draft_id` on `draft_exists` (the draft the instance
   already has), `run_id` on `run_active` (the run in progress), `failures` on `rule_broken`
-  (each broken rule with both values it compares) and `reasons` on `component_unavailable`
-  (each missing component with its reason).
+  (each broken rule with both values it compares), `reasons` on `component_unavailable`
+  (each missing component with its reason) and `pricing_version_ids` on `has_pricing_versions`
+  (the pricing versions that block a deletion, in letter order).
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

@@ -45,6 +45,13 @@ from pricing_demo.domain.city_instances import (
 )
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.failure_codes import UnknownFailureCode
+from pricing_demo.domain.pricing_versions import (
+    HasPricingVersions,
+    InstanceNotBuilt,
+    PricingVersionNotFound,
+    SealedWithoutRun,
+    UnknownBasedOn,
+)
 from pricing_demo.domain.runs import (
     InvalidRunTransition,
     InvalidStepTransition,
@@ -130,6 +137,20 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     RuleBroken: Problem(409, "rule_broken", "The draft breaks a rule"),
     RunActive: Problem(409, "run_active", "The version has a queued or running run"),
     AlreadyBuilt: Problem(409, "already_built", "The version is already built"),
+    PricingVersionNotFound: Problem(
+        404, "pricing_version_not_found", "The pricing version does not exist"
+    ),
+    InstanceNotBuilt: Problem(
+        409, "instance_not_built", "The instance version has no successful build"
+    ),
+    UnknownBasedOn: Problem(
+        422, "unknown_based_on", "The pricing version to copy does not exist on this version"
+    ),
+    HasPricingVersions: Problem(
+        409, "has_pricing_versions", "The version has pricing versions that go with it"
+    ),
+    # Sealing and queueing the run are one transaction: a sealed version without a run is a bug.
+    SealedWithoutRun: INTERNAL_ERROR,
     ComponentUnavailable: Problem(
         503, "component_unavailable", "A component the build needs is not available"
     ),
@@ -150,6 +171,7 @@ def problem_response(
     failures: list[RuleResultResource] | None = None,
     reasons: list[BlockingReasonResponse] | None = None,
     run_id: str | None = None,
+    pricing_version_ids: list[str] | None = None,
 ) -> JSONResponse:
     body = ProblemDetails(
         type=PROBLEM_TYPE_BASE + problem.code.replace("_", "-"),
@@ -162,6 +184,7 @@ def problem_response(
         failures=failures,
         reasons=reasons,
         run_id=run_id,
+        pricing_version_ids=pricing_version_ids,
     )
     return JSONResponse(
         status_code=problem.status,
@@ -189,6 +212,9 @@ def _domain_error(request: Request, error: Exception) -> JSONResponse:
         if isinstance(error, ComponentUnavailable)
         else None,
         run_id=error.run_id if isinstance(error, RunActive) else None,
+        pricing_version_ids=list(error.pricing_version_ids)
+        if isinstance(error, HasPricingVersions)
+        else None,
     )
 
 

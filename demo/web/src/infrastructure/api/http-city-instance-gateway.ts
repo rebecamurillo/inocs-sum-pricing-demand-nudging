@@ -25,6 +25,11 @@ type Schemas = components['schemas'];
 
 const apiRoot = '/api/v1';
 
+/** The query that makes a deletion take the pricing versions with it; none otherwise. */
+function including(includingPricingVersions: boolean): string {
+  return includingPricingVersions ? '?including_pricing_versions=true' : '';
+}
+
 const componentNames: Readonly<
   Record<Schemas['BlockingReasonResponse']['component'], ComponentName>
 > = {
@@ -192,6 +197,7 @@ export class HttpCityInstanceGateway implements CityInstanceGateway {
         status: version.status,
         state: version.state,
         pricingVersionCount: version.pricing_version_count,
+        pricingVersionLetters: version.pricing_version_letters,
       })),
     }));
   }
@@ -336,12 +342,16 @@ export class HttpCityInstanceGateway implements CityInstanceGateway {
     if (answer.status !== 204) throw unexpected(answer, path);
   }
 
-  async deleteVersion(id: string): Promise<Deleted> {
-    return this.delete(`${apiRoot}/instance-versions/${encodeURIComponent(id)}`);
+  async deleteVersion(id: string, includingPricingVersions: boolean): Promise<Deleted> {
+    return this.delete(
+      `${apiRoot}/instance-versions/${encodeURIComponent(id)}${including(includingPricingVersions)}`,
+    );
   }
 
-  async deleteInstance(id: string): Promise<Deleted> {
-    return this.delete(`${apiRoot}/city-instances/${encodeURIComponent(id)}`);
+  async deleteInstance(id: string, includingPricingVersions: boolean): Promise<Deleted> {
+    return this.delete(
+      `${apiRoot}/city-instances/${encodeURIComponent(id)}${including(includingPricingVersions)}`,
+    );
   }
 
   private async delete(path: string): Promise<Deleted> {

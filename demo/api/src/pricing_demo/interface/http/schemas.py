@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 
 from pricing_demo.application.instance_version_view import InstanceVersionView
+from pricing_demo.application.pricing_version_view import PricingVersionView
 from pricing_demo.application.run_view import RunView
 from pricing_demo.application.use_cases.list_city_instances import InstanceMenuEntry
 from pricing_demo.domain.build_plan import BUILD_STEPS, BuildPlan, Cause, PlannedStep
@@ -17,6 +18,8 @@ from pricing_demo.domain.city_instances import (
 from pricing_demo.domain.failure_codes import FAILURE_CODES
 from pricing_demo.domain.instance_rules import RuleResult, RuleValue
 from pricing_demo.domain.numbers import Number as DomainNumber
+from pricing_demo.domain.pricing_rules import PricingRuleResult
+from pricing_demo.domain.pricing_versions import GOAL_NAMES
 from pricing_demo.domain.read_model import (
     HubPairRow,
     HubRow,
@@ -457,6 +460,11 @@ class ProblemDetails(BaseModel):
     run_id: str | None = Field(
         default=None, description="The queued or running run, on a run_active conflict."
     )
+    pricing_version_ids: list[str] | None = Field(
+        default=None,
+        description="The pricing versions that block a deletion, in letter order, on a "
+        "has_pricing_versions conflict.",
+    )
 
 
 class ParameterChangeResource(BaseModel):
@@ -670,6 +678,9 @@ class MenuVersion(BaseModel):
         "`failed`, `cancelled` (`sealed` while it has none)."
     )
     pricing_version_count: int
+    pricing_version_letters: list[str] = Field(
+        description="The letters of the version's pricing versions, in letter order."
+    )
 
 
 class CityInstanceMenuItem(BaseModel):
@@ -690,7 +701,8 @@ class CityInstanceMenuItem(BaseModel):
                     number=version.number,
                     status=version.status,
                     state=entry.states[version.id],
-                    pricing_version_count=0,
+                    pricing_version_count=len(entry.pricing_letters[version.id]),
+                    pricing_version_letters=list(entry.pricing_letters[version.id]),
                 )
                 for version in entry.versions
             ],
@@ -806,3 +818,114 @@ class RouteFailureResource(BaseModel):
 
 class RouteFailureList(BaseModel):
     items: list[RouteFailureResource]
+
+
+class CreatePricingVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    based_on: str | None = Field(
+        default=None, description="A pricing version of the same instance version to copy."
+    )
+
+
+class PricingVersionPatch(BaseModel):
+    """Any subset of the eight goal values. A value is stored as sent: a rule it breaks is
+    reported in the answer, never corrected."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cost_bike_chf: ParameterNumber = _UNSET
+    lowest_price_chf: ParameterNumber = _UNSET
+    ridership_weight: ParameterNumber = _UNSET
+    station_balance_weight: ParameterNumber = _UNSET
+    pt_fare_chf: ParameterNumber = _UNSET
+    car_parking_fee_chf: ParameterNumber = _UNSET
+    max_displayed_options: ParameterNumber = _UNSET
+    flat_price_per_ride_chf: ParameterNumber = _UNSET
+
+    def changes(self) -> dict[str, Number]:
+        return {name: getattr(self, name) for name in self.model_fields_set}
+
+
+assert set(PricingVersionPatch.model_fields) == set(GOAL_NAMES)
+
+
+class PricingGoalsResource(BaseModel):
+    cost_bike_chf: float
+    lowest_price_chf: float
+    ridership_weight: float
+    station_balance_weight: float
+    pt_fare_chf: float
+    car_parking_fee_chf: float
+    max_displayed_options: float
+    flat_price_kind: Literal["per_ride"]
+    flat_price_per_ride_chf: float
+
+
+class PricingPeriodResource(BaseModel):
+    id: str
+    key: str
+    label: str
+
+
+class PricingRuleResultResource(BaseModel):
+    rule: str
+    passed: bool
+    field: str = Field(description="The goal the rule checks.")
+    value: float
+    message: str = Field(description="Names the value, as a failure reads on the form.")
+
+    @classmethod
+    def from_domain(cls, result: PricingRuleResult) -> "PricingRuleResultResource":
+        return cls(
+            rule=result.rule,
+            passed=result.passed,
+            field=result.field,
+            value=result.value,
+            message=result.message,
+        )
+
+
+class PricingVersionResource(BaseModel):
+    id: str
+    instance_version_id: str
+    letter: str
+    name: str
+    status: Literal["draft", "sealed"]
+    state: Literal["draft", "queued", "running", "failed", "cancelled", "result"] = Field(
+        description="Derived from the status and the version's last run."
+    )
+    based_on_id: str | None
+    created_at: datetime
+    sealed_at: datetime | None
+    goals: PricingGoalsResource
+    periods: list[PricingPeriodResource]
+    rules: list[PricingRuleResultResource]
+
+    @classmethod
+    def from_view(cls, view: PricingVersionView) -> "PricingVersionResource":
+        version = view.version
+        return cls(
+            id=version.id,
+            instance_version_id=version.instance_version_id,
+            letter=version.letter,
+            name=version.name,
+            status=version.status,
+            state=view.state,
+            based_on_id=version.based_on_id,
+            created_at=version.created_at,
+            sealed_at=version.sealed_at,
+            goals=PricingGoalsResource(
+                **version.goals.as_dict(), flat_price_kind=version.goals.flat_price_kind
+            ),
+            periods=[
+                PricingPeriodResource(id=item.id, key=item.key, label=item.label)
+                for item in view.periods
+            ],
+            rules=[PricingRuleResultResource.from_domain(item) for item in view.rules],
+        )
+
+
+class PricingVersionList(BaseModel):
+    items: list[PricingVersionResource]

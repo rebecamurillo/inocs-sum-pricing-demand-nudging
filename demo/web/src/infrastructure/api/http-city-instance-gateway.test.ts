@@ -149,7 +149,8 @@ describe('HttpCityInstanceGateway', () => {
                 number: 1,
                 status: 'sealed',
                 state: 'ready',
-                pricing_version_count: 0,
+                pricing_version_count: 2,
+                pricing_version_letters: ['A', 'B'],
               },
             ],
           },
@@ -168,7 +169,8 @@ describe('HttpCityInstanceGateway', () => {
             number: 1,
             status: 'sealed',
             state: 'ready',
-            pricingVersionCount: 0,
+            pricingVersionCount: 2,
+            pricingVersionLetters: ['A', 'B'],
           },
         ],
       },
@@ -511,36 +513,61 @@ describe('HttpCityInstanceGateway writes', () => {
 
   it('deletes a version or an instance, or reports run_active', async () => {
     const version = gatewayAnswering(new Response(null, { status: 204 }));
-    expect(await version.gateway.deleteVersion('geneva-3km.v1')).toEqual({ kind: 'deleted' });
+    expect(await version.gateway.deleteVersion('geneva-3km.v1', false)).toEqual({
+      kind: 'deleted',
+    });
     expect(version.fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/instance-versions/geneva-3km.v1');
     expect(version.fetchFake.mock.calls[0]?.[1]?.method).toBe('DELETE');
 
     const instance = gatewayAnswering(new Response(null, { status: 204 }));
-    expect(await instance.gateway.deleteInstance('geneva-3km')).toEqual({ kind: 'deleted' });
+    expect(await instance.gateway.deleteInstance('geneva-3km', false)).toEqual({ kind: 'deleted' });
     expect(instance.fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/city-instances/geneva-3km');
     expect(instance.fetchFake.mock.calls[0]?.[1]?.method).toBe('DELETE');
 
     const refused = problem(409, { code: 'run_active', title: 'Active', detail: 'A run.' });
-    expect(await gatewayAnswering(refused).gateway.deleteVersion('a.v1')).toEqual({
+    expect(await gatewayAnswering(refused).gateway.deleteVersion('a.v1', false)).toEqual({
       kind: 'run_active',
     });
     expect(
       await gatewayAnswering(
         problem(409, { code: 'run_active', title: 'Active', detail: 'A run.' }),
-      ).gateway.deleteInstance('a'),
+      ).gateway.deleteInstance('a', false),
     ).toEqual({ kind: 'run_active' });
 
     for (const answer of [
       new Response('x', { status: 500 }),
       problem(409, { code: 'version_sealed', title: 'Sealed', detail: 'No.' }),
     ]) {
-      const failure = await failureOf(gatewayAnswering(answer).gateway.deleteVersion('a.v1'));
+      const failure = await failureOf(
+        gatewayAnswering(answer).gateway.deleteVersion('a.v1', false),
+      );
       expect(failure.code).not.toBe('run_active');
     }
     const offline = await failureOf(
-      gatewayAnswering(new Error('offline')).gateway.deleteInstance('a'),
+      gatewayAnswering(new Error('offline')).gateway.deleteInstance('a', false),
     );
     expect(offline.code).toBe('api_unreachable');
+  });
+
+  it('asks for the pricing versions to go too, and throws on an out-of-date menu', async () => {
+    const version = gatewayAnswering(new Response(null, { status: 204 }));
+    expect(await version.gateway.deleteVersion('geneva-3km.v1', true)).toEqual({ kind: 'deleted' });
+    expect(version.fetchFake.mock.calls[0]?.[0]).toBe(
+      '/api/v1/instance-versions/geneva-3km.v1?including_pricing_versions=true',
+    );
+    const instance = gatewayAnswering(new Response(null, { status: 204 }));
+    expect(await instance.gateway.deleteInstance('geneva-3km', true)).toEqual({ kind: 'deleted' });
+    expect(instance.fetchFake.mock.calls[0]?.[0]).toBe(
+      '/api/v1/city-instances/geneva-3km?including_pricing_versions=true',
+    );
+
+    const stale = problem(409, {
+      code: 'has_pricing_versions',
+      title: 'Has pricing versions',
+      detail: 'Two pricing versions belong to it.',
+    });
+    const failure = await failureOf(gatewayAnswering(stale).gateway.deleteVersion('a.v1', false));
+    expect(failure.code).toBe('has_pricing_versions');
   });
 
   it('queues a build, or reports the refusal with its detail', async () => {

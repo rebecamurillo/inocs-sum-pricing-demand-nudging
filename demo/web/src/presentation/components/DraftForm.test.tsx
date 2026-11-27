@@ -73,6 +73,7 @@ function menuFor(version: InstanceVersion): InstanceMenuEntry[] {
           status: 'draft',
           state: 'draft',
           pricingVersionCount: 0,
+          pricingVersionLetters: [],
         },
       ],
     },

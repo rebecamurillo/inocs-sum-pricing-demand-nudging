@@ -386,6 +386,7 @@ describe('the menu and the run line', () => {
             status: 'sealed' as const,
             state: 'building',
             pricingVersionCount: 0,
+            pricingVersionLetters: [],
           },
         ],
       },

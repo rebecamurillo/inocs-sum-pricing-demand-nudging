@@ -55,6 +55,10 @@ RUN_ACTIVE: Responses = {
         "A run of the version, or of a version of the instance, is queued or running: `run_active`"
     )
 }
+HAS_PRICING_VERSIONS = (
+    "`has_pricing_versions` lists the pricing versions in `pricing_version_ids`; "
+    "send `including_pricing_versions=true` to delete them too"
+)
 VERSION_SEALED: Responses = {409: _problem("The version is saved: `version_sealed`")}
 
 
@@ -255,10 +259,16 @@ def build_city_instances_router(
         summary="Delete an instance version (a draft or a saved one)",
         status_code=204,
         response_class=Response,
-        responses={**VERSION_NOT_FOUND, **RUN_ACTIVE, **UNEXPECTED},
+        responses={
+            **VERSION_NOT_FOUND,
+            409: _problem(f"`run_active`, or {HAS_PRICING_VERSIONS}"),
+            **UNEXPECTED,
+        },
     )
-    def discard_version(version_id: str) -> Response:
-        delete_version.execute(version_id)
+    def discard_version(
+        version_id: str, including_pricing_versions: Annotated[bool, Query()] = False
+    ) -> Response:
+        delete_version.execute(version_id, including_pricing_versions)
         return Response(status_code=204)
 
     @router.delete(
@@ -267,10 +277,16 @@ def build_city_instances_router(
         summary="Delete a city instance with all its versions",
         status_code=204,
         response_class=Response,
-        responses={**INSTANCE_NOT_FOUND, **RUN_ACTIVE, **UNEXPECTED},
+        responses={
+            **INSTANCE_NOT_FOUND,
+            409: _problem(f"`run_active`, or {HAS_PRICING_VERSIONS}"),
+            **UNEXPECTED,
+        },
     )
-    def delete_city_instance_route(instance_id: str) -> Response:
-        delete_instance.execute(instance_id)
+    def delete_city_instance_route(
+        instance_id: str, including_pricing_versions: Annotated[bool, Query()] = False
+    ) -> Response:
+        delete_instance.execute(instance_id, including_pricing_versions)
         return Response(status_code=204)
 
     @router.post(

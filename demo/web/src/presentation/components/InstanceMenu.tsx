@@ -21,6 +21,11 @@ interface InstanceMenuProps {
   readonly onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }
 
+/** The pricing versions of every version of the instance: they go with it. */
+function pricingTotal(entry: InstanceMenuEntry): number {
+  return entry.versions.reduce((sum, version) => sum + version.pricingVersionCount, 0);
+}
+
 /** The instances under "City instances": the open one expanded, the others with a version count. */
 export function InstanceMenu({
   entries,
@@ -83,9 +88,15 @@ export function InstanceMenu({
                       question={instanceDeleteQuestion(
                         entry.name,
                         entry.versions.map((item) => item.number),
+                        pricingTotal(entry),
                       )}
                       action={instanceDeleteAction(entry.name)}
-                      remove={() => deletions.deleteInstance(entry.id)}
+                      remove={() =>
+                        deletions.deleteInstance({
+                          id: entry.id,
+                          includingPricingVersions: pricingTotal(entry) > 0,
+                        })
+                      }
                       onDeleted={() => {
                         const ids = entry.versions.map((item) => item.id);
                         onInstanceDeleted?.(entry.id, ids);

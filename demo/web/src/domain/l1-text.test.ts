@@ -269,6 +269,7 @@ describe('the menu and the top bar', () => {
       status: 'sealed' as const,
       state: 'ready',
       pricingVersionCount: 0,
+      pricingVersionLetters: [],
     });
     const entry = { id: 'x', name: 'X', datasetId: 'd', versions: [version(1), version(3)] };
 

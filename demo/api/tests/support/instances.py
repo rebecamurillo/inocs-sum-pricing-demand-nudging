@@ -85,4 +85,10 @@ class SeedingRunRepository(PostgresRunRepository):
         versions = [run.subject.id] if run.kind is RunKind.BUILD else []
         periods = [item.period for item in run.steps if item.period]
         ensure_instance_versions(self._seed_engine, versions, periods)
+        if run.kind is not RunKind.BUILD:
+            # A pricing run names a pricing version (`{instance version}.{letter}`): the
+            # foreign key needs the row.
+            from tests.support.pricing_versions import ensure_pricing_version
+
+            ensure_pricing_version(self._seed_engine, run.subject.id)
         super().add(run)
