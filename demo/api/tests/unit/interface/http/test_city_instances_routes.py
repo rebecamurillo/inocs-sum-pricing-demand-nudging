@@ -411,6 +411,19 @@ def test_a_build_seals_the_version_and_its_state_follows_the_run(
     ]
 
 
+def test_a_version_carries_the_id_of_its_latest_build_run(
+    instances_app: CityInstancesApp,
+) -> None:
+    created = valid_draft(instances_app)
+    assert created["build_run_id"] is None
+
+    instances_app.client.post(BUILDS)
+
+    assert instances_app.client.get(VERSION).json()["build_run_id"] == "run-1"
+    listed = instances_app.client.get("/api/v1/city-instances").json()["items"][0]["versions"]
+    assert "build_run_id" not in listed[0]
+
+
 @pytest.mark.parametrize(("state", "expected"), [("failed", "failed"), ("cancelled", "cancelled")])
 def test_the_state_of_a_version_is_its_failed_or_cancelled_build(
     instances_app: CityInstancesApp, state: str, expected: str

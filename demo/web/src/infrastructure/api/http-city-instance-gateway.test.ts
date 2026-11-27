@@ -14,6 +14,7 @@ const versionWire = {
   package_defaults: null,
   sealed_at: '2026-11-12T10:00:00Z',
   state: 'ready',
+  build_run_id: 'run-1',
   parameters: {
     center_lat: 46.2057,
     center_lon: 6.1489,
@@ -72,6 +73,7 @@ const draftWire = {
   based_on_id: 'geneva-3km.v1',
   status: 'draft',
   state: 'draft',
+  build_run_id: null,
   sealed_at: null,
   counts: null,
   routes: null,
@@ -188,6 +190,7 @@ describe('HttpCityInstanceGateway', () => {
       number: 1,
       status: 'sealed',
       state: 'ready',
+      buildRunId: 'run-1',
       parameters: { centerLat: 46.2057, clusteringThresholdM: 500, minParkTimeMin: 1, seed: 42 },
       periods: [
         {
@@ -319,6 +322,15 @@ describe('HttpCityInstanceGateway', () => {
     expect(await pairs.gateway.hubPairs('v.v1')).toEqual([
       { originHub: 'H1', destinationHub: 'H2' },
     ]);
+  });
+
+  it('maps the route pairs of a version', async () => {
+    const { gateway, fetchFake } = gatewayAnswering(
+      Response.json({ items: [{ origin_hub: 'H1', destination_hub: 'H2' }] }),
+    );
+
+    expect(await gateway.routePairs('v.v1')).toEqual([{ originHub: 'H1', destinationHub: 'H2' }]);
+    expect(fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/instance-versions/v.v1/route-pairs');
   });
 
   it('maps the route failures of a run', async () => {

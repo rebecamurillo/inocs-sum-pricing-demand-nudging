@@ -64,6 +64,7 @@ function toVersion(wire: Schemas['InstanceVersionResource']): InstanceVersion {
     basedOnId: wire.based_on_id,
     status: wire.status,
     state: wire.state,
+    buildRunId: wire.build_run_id,
     createdAt: new Date(wire.created_at),
     sealedAt: wire.sealed_at === null ? null : new Date(wire.sealed_at),
     parameters: toParameters(wire.parameters),
@@ -245,6 +246,17 @@ export class HttpCityInstanceGateway implements CityInstanceGateway {
   async hubPairs(versionId: string): Promise<MapHubPair[]> {
     const body = await this.read<Schemas['HubPairList']>(
       `${apiRoot}/instance-versions/${encodeURIComponent(versionId)}/hub-pairs`,
+      false,
+    );
+    return (body?.items ?? []).map((item) => ({
+      originHub: item.origin_hub,
+      destinationHub: item.destination_hub,
+    }));
+  }
+
+  async routePairs(versionId: string): Promise<MapHubPair[]> {
+    const body = await this.read<Schemas['RoutePairList']>(
+      `${apiRoot}/instance-versions/${encodeURIComponent(versionId)}/route-pairs`,
       false,
     );
     return (body?.items ?? []).map((item) => ({

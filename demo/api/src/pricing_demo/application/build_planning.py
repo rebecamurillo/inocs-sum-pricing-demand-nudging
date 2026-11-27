@@ -112,5 +112,9 @@ class BuildPlanning:
         )
 
     def state(self, version: InstanceVersion) -> str:
+        return self.state_and_run(version)[0]
+
+    def state_and_run(self, version: InstanceVersion) -> tuple[str, str | None]:
+        """The state of the version and the id of its latest build run (None when it has none)."""
         run = self._builds.latest_build_run(version.id)
-        return version_state(version.status, run.state if run else None)
+        return version_state(version.status, run.state if run else None), run.id if run else None

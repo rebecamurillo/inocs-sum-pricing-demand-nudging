@@ -76,7 +76,9 @@ export async function loadInstanceGeometry(
     cityInstances.hubs(versionId),
     cityInstances.hubPairs(versionId),
   ]);
-  return { stations, hubs, hubPairs };
+  // The hub pairs are stored with the last step; the routed pairs are there from step 3.
+  const pairs = hubPairs.length > 0 ? hubPairs : await cityInstances.routePairs(versionId);
+  return { stations, hubs, hubPairs: pairs };
 }
 
 /** What the new-instance form offers: the city data to build on and the saved versions to copy. */

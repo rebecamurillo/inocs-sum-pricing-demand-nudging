@@ -11,6 +11,7 @@ import {
   sampleMenu,
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import type {
   BuildPlan,
   InstanceMenuEntry,
@@ -111,6 +112,7 @@ function mount(
     },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances,
+    runs: fakeRunGateway(),
   };
   const { factory, maps } = fakeMapFactory();
   const { unmount } = render(

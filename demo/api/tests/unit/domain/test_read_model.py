@@ -70,6 +70,19 @@ def test_the_hub_pairs_come_with_the_packages_own_distance(city: FakeCity) -> No
     assert all(item.euclid_dist_m > 0 for item in pairs)
 
 
+def test_the_route_pairs_are_the_pairs_of_the_routes_file_in_order(city: FakeCity) -> None:
+    pairs = rows.route_pairs(city.files["od_routes.json"])
+
+    assert len(pairs) == 24
+    assert pairs == tuple(sorted(pairs, key=lambda item: (item.origin_hub, item.destination_hub)))
+    assert pairs[0] == rows.RoutePairRow("H1", "H2")
+
+
+def test_a_routes_file_without_pairs_has_no_route_pairs() -> None:
+    with pytest.raises(ValueError, match=r"od_routes\.json"):
+        rows.route_pairs({})
+
+
 @pytest.mark.parametrize("mode", ["BICYCLE", "CAR", "FOOT", "WALK"])
 def test_a_street_mode_follows_the_street(mode: str) -> None:
     assert rows.line_kind(mode, None, SHAPES) == "street"

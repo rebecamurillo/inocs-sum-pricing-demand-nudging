@@ -21,6 +21,7 @@ from pricing_demo.domain.read_model import (
     HubPairRow,
     HubRow,
     RouteFailure,
+    RoutePairRow,
     RoutesSummary,
     StationRow,
 )
@@ -620,6 +621,9 @@ class InstanceVersionResource(BaseModel):
     counts: InstanceCounts | None = Field(description="Null until the version is built.")
     routes: RoutesSummaryResource | None = Field(description="Null until the version is built.")
     build_plan: BuildPlanResource
+    build_run_id: str | None = Field(
+        description="The version's latest build run; null for a draft or a version never built."
+    )
     package_defaults: InstanceParametersResource | None = Field(
         description="The model package's default values with the data set's preset centre and "
         "radius, for a draft; null for a saved version or while the package is not known."
@@ -650,6 +654,7 @@ class InstanceVersionResource(BaseModel):
             if view.routes is not None
             else None,
             build_plan=BuildPlanResource.from_domain(view.plan, view.build_verdict),
+            build_run_id=view.build_run_id,
             package_defaults=InstanceParametersResource(**view.package_defaults.as_dict())
             if view.package_defaults is not None
             else None,
@@ -762,6 +767,19 @@ class HubPairResource(BaseModel):
 
 class HubPairList(BaseModel):
     items: list[HubPairResource]
+
+
+class RoutePairResource(BaseModel):
+    origin_hub: str
+    destination_hub: str
+
+    @classmethod
+    def from_domain(cls, row: RoutePairRow) -> "RoutePairResource":
+        return cls(origin_hub=row.origin_hub, destination_hub=row.destination_hub)
+
+
+class RoutePairList(BaseModel):
+    items: list[RoutePairResource]
 
 
 class RouteFailureResource(BaseModel):

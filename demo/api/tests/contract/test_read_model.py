@@ -131,6 +131,21 @@ def test_stations_and_hub_pairs_are_read_back_in_order(store: Store, city: FakeC
     assert store.read_model.hub_pairs("k-instance") == list(pairs)
 
 
+def test_route_pairs_are_read_back_in_order_and_replaced_with_their_key(
+    store: Store, city: FakeCity
+) -> None:
+    store.add_artifact("k-routes", StepName.ROUTES)
+    pairs = rows.route_pairs(city.files["od_routes.json"])
+    store.read_model.ingest(IngestionBatch("k-routes", StepName.ROUTES, {}, route_pairs=pairs))
+
+    assert store.read_model.route_pairs("k-routes") == list(pairs)
+    assert store.read_model.route_pairs("other") == []
+
+    store.read_model.ingest(IngestionBatch("k-routes", StepName.ROUTES, {}, route_pairs=pairs[:3]))
+
+    assert store.read_model.route_pairs("k-routes") == list(pairs[:3])
+
+
 def test_the_last_step_stores_every_table_of_its_instance(store: Store, city: FakeCity) -> None:
     store.add_artifact("k-instance", StepName.TRAVELLERS_AND_BIKES)
     instance = city.files["Instance_1.json"]

@@ -79,8 +79,11 @@ class BuildStepExecutor:
         if key is None or self._artifacts.get(key) is None or not self._read_model.is_ingested(key):
             return False
         self._artifacts.link(run.subject.id, step.step, planned.period_id, key)
+        counts = self._read_model.counts_of([key])[key]
+        # The kept step shows what the artefact counted, as a step that ran does.
+        self._write_counts(run.id, step, counts)
         if step.step is StepName.ROUTES:
-            self._set_failure_pct(run.id, self._read_model.counts_of([key])[key])
+            self._set_failure_pct(run.id, counts)
         return True
 
     def execute(self, run: Run, step: RunStep, stop: StopSignal) -> StepOutcome:
@@ -213,6 +216,16 @@ class BuildStepExecutor:
         def change(run: Run) -> Run:
             steps = tuple(
                 replace(item, input_key=key) if item.position == step.position else item
+                for item in run.steps
+            )
+            return replace(run, steps=steps)
+
+        self._queue.update(run_id, change)
+
+    def _write_counts(self, run_id: str, step: RunStep, counts: Mapping[str, Any]) -> None:
+        def change(run: Run) -> Run:
+            steps = tuple(
+                replace(item, counts=dict(counts)) if item.position == step.position else item
                 for item in run.steps
             )
             return replace(run, steps=steps)

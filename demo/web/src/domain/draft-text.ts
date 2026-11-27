@@ -9,7 +9,7 @@ import {
   type RuleResult,
   type RuleValue,
 } from './city-instance';
-import { formatDate, formatInstantDay, versionTag } from './l1-text';
+import { clockTime, formatDate, formatInstantDay, versionTag } from './l1-text';
 import type { ComponentName } from './system-status';
 
 export const STORED_STAY = 'Stored results stay available.';
@@ -45,8 +45,7 @@ export function draftHeading(name: string): string {
 
 /** "Draft saved · 10:42": the browser's time of the last answer. */
 export function draftSaved(time: Date): string {
-  const two = (n: number) => String(n).padStart(2, '0');
-  return `Draft saved · ${two(time.getHours())}:${two(time.getMinutes())}`;
+  return `Draft saved · ${clockTime(time)}`;
 }
 
 export function oneDraftMessage(basedNumber: number, createdAt: Date): string {

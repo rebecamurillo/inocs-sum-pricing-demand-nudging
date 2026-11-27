@@ -857,6 +857,18 @@
           "build_plan": {
             "$ref": "#/components/schemas/BuildPlanResource"
           },
+          "build_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The version's latest build run; null for a draft or a version never built.",
+            "title": "Build Run Id"
+          },
           "changes": {
             "description": "The parameters that differ from `based_on_id`, in column order.",
             "items": {
@@ -976,6 +988,7 @@
           "counts",
           "routes",
           "build_plan",
+          "build_run_id",
           "package_defaults"
         ],
         "title": "InstanceVersionResource",
@@ -1397,6 +1410,40 @@
           "period"
         ],
         "title": "RouteFailureResource",
+        "type": "object"
+      },
+      "RoutePairList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RoutePairResource"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RoutePairList",
+        "type": "object"
+      },
+      "RoutePairResource": {
+        "properties": {
+          "destination_hub": {
+            "title": "Destination Hub",
+            "type": "string"
+          },
+          "origin_hub": {
+            "title": "Origin Hub",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origin_hub",
+          "destination_hub"
+        ],
+        "title": "RoutePairResource",
         "type": "object"
       },
       "RoutesSummaryResource": {
@@ -2687,6 +2734,69 @@
           }
         },
         "summary": "The hubs of a built version, with their stations and lines",
+        "tags": [
+          "city-instances"
+        ]
+      }
+    },
+    "/api/v1/instance-versions/{version_id}/route-pairs": {
+      "get": {
+        "description": "Ordered by `origin_hub`, then `destination_hub`. Empty until the routes step is linked to the version, which is before the last step ends.",
+        "operationId": "listRoutePairs",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePairList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No instance version has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The hub pairs the routes step of a version routed",
         "tags": [
           "city-instances"
         ]

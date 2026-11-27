@@ -17,6 +17,7 @@ from pricing_demo.application.use_cases.list_city_instances import ListCityInsta
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hubs import ListHubs
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
+from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
@@ -242,6 +243,7 @@ class CityInstancesApp:
                         ListStations(self.instances, self.rig.artifacts, self.rig.read_model),
                         ListHubs(self.instances, self.rig.artifacts, self.rig.read_model),
                         ListHubPairs(self.instances, self.rig.artifacts, self.rig.read_model),
+                        ListRoutePairs(self.instances, self.rig.artifacts, self.rig.read_model),
                     )
                 ],
             ),

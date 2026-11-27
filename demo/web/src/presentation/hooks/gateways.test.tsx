@@ -1,6 +1,7 @@
 import { render, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
 import { GatewaysProvider, useGateways } from './gateways';
 
@@ -22,6 +23,7 @@ const gateways: Gateways = {
     },
   },
   cityInstances: emptyCityInstances,
+  runs: fakeRunGateway(),
 };
 
 describe('useGateways', () => {

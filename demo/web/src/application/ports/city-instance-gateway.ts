@@ -40,6 +40,8 @@ export interface CityInstanceGateway {
   stations(versionId: string): Promise<MapStation[]>;
   hubs(versionId: string): Promise<InstanceHub[]>;
   hubPairs(versionId: string): Promise<MapHubPair[]>;
+  /** The hub pairs the routes step routed: there from step 3 on, before `hubPairs` answers any. */
+  routePairs(versionId: string): Promise<MapHubPair[]>;
   /** The failed trip-planner queries of a run. */
   routeFailures(runId: string): Promise<RouteFailure[]>;
   /** Creates an instance and its first draft; a used name creates nothing. */

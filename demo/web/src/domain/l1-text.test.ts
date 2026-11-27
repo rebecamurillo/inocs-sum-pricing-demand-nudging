@@ -251,7 +251,15 @@ describe('the menu and the top bar', () => {
 
   it('writes a state as the API does', () => {
     expect(menuVersionState('ready')).toBe('ready');
-    expect(menuVersionState('building')).toBe('building');
+    expect(menuVersionState('building')).toBe('● building');
+  });
+
+  it('writes the other run states of a menu row', () => {
+    expect(menuVersionState('queued', 2)).toBe('◷ queued · 2nd');
+    expect(menuVersionState('queued')).toBe('◷ queued');
+    expect(menuVersionState('failed')).toBe('✕ failed');
+    expect(menuVersionState('cancelled')).toBe('cancelled');
+    expect(menuVersionState('draft')).toBe('draft');
   });
 
   it('finds the latest version of an entry', () => {

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { StartFrom } from '../../application/ports/city-instance-gateway';
 import {
   createInstance,
@@ -43,14 +43,19 @@ export function useInstanceView(versionId: string | null) {
   });
 }
 
-/** The stations, hubs and hub pairs the map draws for a version. */
-export function useInstanceGeometry(versionId: string | null) {
+/**
+ * The stations, hubs and hub pairs the map draws for a version. A build in progress passes the
+ * states of its steps as `signature`: the data are read again when one changes.
+ */
+export function useInstanceGeometry(versionId: string | null, signature = '') {
   const { cityInstances } = useGateways();
   return useQuery({
-    queryKey: ['instance-geometry', versionId],
+    queryKey: ['instance-geometry', versionId, signature],
     queryFn: () => loadInstanceGeometry({ cityInstances }, versionId ?? ''),
     enabled: versionId !== null,
     staleTime: Infinity,
+    // The map keeps what it draws until the new answer is there.
+    placeholderData: keepPreviousData,
     retry: false,
   });
 }

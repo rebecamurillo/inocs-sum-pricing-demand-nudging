@@ -49,6 +49,25 @@ export class TestControl {
     );
   }
 
+  /** Let the step a run is held at finish (`hold_at`). */
+  async releaseRun(runId: string): Promise<void> {
+    await this.expectNoContent(
+      await this.request.post(`/api/test-control/runs/${encodeURIComponent(runId)}/release`),
+    );
+  }
+
+  /** The ids of the queued and running runs, the running one first. */
+  async activeRunIds(): Promise<string[]> {
+    const response = await this.request.get('/api/v1/runs?state=queued,running');
+    const body = (await response.json()) as { items: { id: string }[] };
+    return body.items.map((run) => run.id);
+  }
+
+  /** Release every active run, so that a held step never blocks the next scenario's worker. */
+  async releaseActiveRuns(): Promise<void> {
+    for (const id of await this.activeRunIds()) await this.releaseRun(id);
+  }
+
   async makeUnavailable(component: ComponentName, reason: string): Promise<void> {
     await this.setComponent(component, { state: 'unavailable', reason });
   }

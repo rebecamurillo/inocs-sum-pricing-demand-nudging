@@ -4,7 +4,7 @@ from dataclasses import replace
 from typing import Any
 
 from pricing_demo.application.ports.read_model import IngestionBatch
-from pricing_demo.domain.read_model import HubPairRow, HubRow, StationRow
+from pricing_demo.domain.read_model import HubPairRow, HubRow, RoutePairRow, StationRow
 
 
 class InMemoryReadModel:
@@ -40,6 +40,12 @@ class InMemoryReadModel:
         if batch is None:
             return []
         return sorted(batch.hub_pairs, key=lambda row: (row.origin_hub, row.destination_hub))
+
+    def route_pairs(self, key: str) -> list[RoutePairRow]:
+        batch = self._batch(key)
+        if batch is None:
+            return []
+        return sorted(batch.route_pairs, key=lambda row: (row.origin_hub, row.destination_hub))
 
     def clear(self) -> None:
         with self._lock:

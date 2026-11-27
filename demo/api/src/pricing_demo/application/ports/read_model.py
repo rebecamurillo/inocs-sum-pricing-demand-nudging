@@ -7,6 +7,7 @@ from pricing_demo.domain.read_model import (
     HubRow,
     OptionStationDeltaRow,
     RouteOptionRow,
+    RoutePairRow,
     StationBikesRow,
     StationHubRow,
     StationRow,
@@ -28,6 +29,7 @@ class IngestionBatch:
     route_options: Sequence[RouteOptionRow] = ()
     station_bikes: Sequence[StationBikesRow] = ()
     deltas: Sequence[OptionStationDeltaRow] = ()
+    route_pairs: Sequence[RoutePairRow] = ()
 
 
 class ReadModel(Protocol):
@@ -54,4 +56,8 @@ class ReadModel(Protocol):
 
     def hub_pairs(self, key: str) -> list[HubPairRow]:
         """Ordered by origin, then destination."""
+        ...
+
+    def route_pairs(self, key: str) -> list[RoutePairRow]:
+        """The pairs of a routes artefact, ordered by origin, then destination."""
         ...

@@ -38,6 +38,8 @@ class InstanceVersionView:
     # The package's default values with the data set's preset, for a draft; None for a saved
     # version or while no package is recorded.
     package_defaults: InstanceParameters | None = None
+    # The version's latest build run; None for a draft or a version never built.
+    build_run_id: str | None = None
 
 
 def build_view(
@@ -65,15 +67,17 @@ def build_view(
     package_defaults = (
         parameters_from_defaults(fingerprint.defaults, dataset.preset) if fingerprint else None
     )
+    state, build_run_id = planning.state_and_run(version)
     return InstanceVersionView(
         version,
         periods,
         tuple(rules),
         tuple(changes),
-        planning.state(version),
+        state,
         plan,
         planning.verdict(plan),
         counts,
         routes,
         package_defaults,
+        build_run_id,
     )

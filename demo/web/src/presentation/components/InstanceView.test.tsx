@@ -10,6 +10,7 @@ import {
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import type { RouteFailure } from '../../domain/city-instance';
 import { GatewaysProvider } from '../hooks/gateways';
 import { fakeMapFactory, installBrowserStubs, type FakeMap } from '../map/fake-map';
@@ -49,6 +50,7 @@ function mount(
     cityDatasets: { list: () => Promise.resolve([]) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances,
+    runs: fakeRunGateway(),
   };
   const { factory, maps } = fakeMapFactory();
   render(

@@ -28,6 +28,7 @@ from pricing_demo.application.use_cases.list_city_instances import ListCityInsta
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hubs import ListHubs
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
+from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
@@ -179,6 +180,7 @@ def create_application(settings: Settings) -> FastAPI:
                 ListStations(instances, artifacts, read_model),
                 ListHubs(instances, artifacts, read_model),
                 ListHubPairs(instances, artifacts, read_model),
+                ListRoutePairs(instances, artifacts, read_model),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),

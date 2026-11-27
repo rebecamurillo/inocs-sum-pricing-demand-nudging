@@ -154,6 +154,8 @@ export interface InstanceVersion {
   readonly basedOnId: string | null;
   readonly status: 'draft' | 'sealed';
   readonly state: string;
+  /** The version's latest build run; null for a draft or a version never built. */
+  readonly buildRunId: string | null;
   readonly createdAt: Date;
   readonly sealedAt: Date | null;
   /** The package's default values for a draft; null for a saved version. */

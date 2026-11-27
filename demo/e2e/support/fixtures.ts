@@ -10,6 +10,9 @@ export const test = base.extend<{ control: TestControl }>({
       const control = new TestControl(request);
       await control.reset();
       await use(control);
+      // A step the scenario held would keep the one worker from the next scenario.
+      await control.setPricingModel({});
+      await control.releaseActiveRuns();
     },
     { auto: true },
   ],

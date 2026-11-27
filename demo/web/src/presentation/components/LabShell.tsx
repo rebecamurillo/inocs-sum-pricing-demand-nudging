@@ -15,6 +15,7 @@ import {
   nothingAtThisLink,
 } from '../../domain/unknown-link';
 import { useInstanceMenu, useInstanceView, useNewInstanceBasis } from '../hooks/useCityInstances';
+import { useActiveRuns, useEndedBuild } from '../hooks/useRuns';
 import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { useSystemStatus } from '../hooks/useSystemStatus';
@@ -26,6 +27,7 @@ import { InstanceMenu } from './InstanceMenu';
 import { DraftForm } from './DraftForm';
 import { InstanceView, type OpenedDraft } from './InstanceView';
 import { NewInstanceForm } from './NewInstanceForm';
+import { RunLine } from './RunLine';
 import styles from './LabShell.module.css';
 
 const MENU_WIDTH_PX = 264;
@@ -117,6 +119,7 @@ export function LabShell() {
   useSystemStatus();
 
   const menu = useInstanceMenu();
+  const { runs: activeRuns } = useActiveRuns();
   const entries = menu.data ?? [];
   // Reset on a change of link, not on the render that follows "+ New": its hash change is
   // still to come when "+ New" is clicked on another link.
@@ -159,7 +162,18 @@ export function LabShell() {
     entries.length === 0 &&
     unknownLink === null &&
     current === 'instances';
+  const queuedPlaces = new Map(
+    activeRuns.flatMap((run) =>
+      run.state === 'queued' &&
+      run.queuePosition !== null &&
+      run.subject.type === 'instance_version'
+        ? [[run.subject.id, run.queuePosition + 1] as const]
+        : [],
+    ),
+  );
   const openedView = useInstanceView(openVersion?.versionId ?? null).data ?? null;
+  // Held here, not in the run line: the line is unmounted while the menu is closed.
+  const endedBuild = useEndedBuild(openVersion?.versionId ?? null);
   const firstPeriod = openedView?.version.periods[0];
 
   const openVersionRow = (instanceId: string, number: number) => {
@@ -273,6 +287,7 @@ export function LabShell() {
                     entries={entries}
                     open={openVersion}
                     setupCurrent={openVersion !== null}
+                    queued={queuedPlaces}
                     onOpenVersion={openVersionRow}
                     onKeyDown={onMenuKeyDown}
                   />
@@ -304,7 +319,13 @@ export function LabShell() {
                   <span className={styles.track} aria-hidden="true" />
                   Advanced view
                 </button>
-                <p className={styles.runLine}>No run in progress</p>
+                <RunLine
+                  className={styles.runLine}
+                  entries={entries}
+                  openVersionId={openVersion?.versionId ?? null}
+                  onOpen={openVersionRow}
+                  tracker={endedBuild}
+                />
               </div>
             </aside>
           )}

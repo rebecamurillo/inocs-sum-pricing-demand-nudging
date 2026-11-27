@@ -67,6 +67,14 @@ class HubPairRow:
 
 
 @dataclass(frozen=True)
+class RoutePairRow:
+    """A hub pair the routes step routed: the pair has at least one route in `od_routes.json`."""
+
+    origin_hub: str
+    destination_hub: str
+
+
+@dataclass(frozen=True)
 class RouteLeg:
     mode: str
     duration_s: float
@@ -209,6 +217,17 @@ def hub_pairs_from(instance: Any) -> tuple[HubPairRow, ...]:
         )
     except (KeyError, TypeError) as error:
         raise _malformed("Instance_1.json", error) from error
+    return tuple(sorted(rows, key=lambda row: (row.origin_hub, row.destination_hub)))
+
+
+def route_pairs(od_routes: Any) -> tuple[RoutePairRow, ...]:
+    try:
+        rows = tuple(
+            RoutePairRow(str(pair["from_id"]), str(pair["to_id"]))
+            for pair in od_routes["od_results"]
+        )
+    except (KeyError, TypeError) as error:
+        raise _malformed("od_routes.json", error) from error
     return tuple(sorted(rows, key=lambda row: (row.origin_hub, row.destination_hub)))
 
 

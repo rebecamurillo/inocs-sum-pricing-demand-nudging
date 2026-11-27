@@ -83,6 +83,32 @@ def test_the_hub_pairs_default_to_the_only_period(
     assert set(items[0]) == {"origin_hub", "destination_hub", "demand", "euclid_dist_m"}
 
 
+def test_the_route_pairs_list_the_pairs_the_routes_step_routed(
+    instances_app: CityInstancesApp, tmp_path: Path
+) -> None:
+    built(instances_app, tmp_path)
+
+    response = instances_app.client.get(f"{VERSION}/route-pairs")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 24
+    assert set(items[0]) == {"origin_hub", "destination_hub"}
+
+
+def test_a_version_not_built_yet_has_no_route_pairs_and_an_unknown_one_is_404(
+    instances_app: CityInstancesApp,
+) -> None:
+    create(instances_app)
+
+    empty = instances_app.client.get(f"{VERSION}/route-pairs")
+    unknown = instances_app.client.get("/api/v1/instance-versions/nope.v1/route-pairs")
+
+    assert (empty.status_code, empty.json()) == (200, {"items": []})
+    assert unknown.status_code == 404
+    assert unknown.json()["code"] == "instance_version_not_found"
+
+
 def test_a_version_not_built_yet_lists_nothing(instances_app: CityInstancesApp) -> None:
     create(instances_app)
 

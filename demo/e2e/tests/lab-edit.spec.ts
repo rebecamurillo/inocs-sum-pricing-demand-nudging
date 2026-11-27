@@ -66,7 +66,24 @@ test.describe('Lab', () => {
     await expect(page.getByText(/^Draft saved · \d{2}:\d{2}$/)).toBeVisible();
     await expect(page.getByText('One rule is not met.')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Save as v1 and build' })).toBeEnabled();
+    // The fake holds the build before its last step: the steps show with what they counted.
+    await control.setPricingModel({ hold_at: 'travellers_and_bikes' });
     await page.getByRole('button', { name: 'Save as v1 and build' }).click();
+
+    const kept = '(kept: already computed with the same inputs · )?';
+    await expect(page.getByRole('list', { name: 'Build steps' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(
+      page.getByText(new RegExp(`^✓ ${kept}30 stops and platforms · 12 bike stations$`)),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText(new RegExp(`^✓ ${kept}6 hubs$`))).toBeVisible();
+    await expect(page.getByText(new RegExp(`^✓ ${kept}24 hub pairs with routes$`))).toBeVisible();
+    await expect(
+      page.getByRole('listitem').filter({ hasText: '4 Travellers and bikes' }),
+    ).toContainText(/\d+ s$/);
+    const [heldRun] = await control.activeRunIds();
+    await control.releaseRun(heldRun ?? '');
 
     // The build runs in the worker; the saved card reads its five counts.
     const counts = await builtCounts(request, 'geneva-3km.v1');
@@ -139,9 +156,17 @@ test.describe('Lab', () => {
     const changes = page.getByRole('table');
     await expect(changes.getByRole('columnheader', { name: 'What v2 changes' })).toBeVisible();
     await expect(changes.getByRole('cell', { name: 'Grouping distance' })).toBeVisible();
+    // The fake holds the build at step 2, which a changed grouping distance rebuilds.
+    await control.setPricingModel({ hold_at: 'hubs' });
     await page.getByRole('button', { name: 'Save and build' }).click();
 
     await expect(page).toHaveURL(/#\/lab\/geneva-3km\.v2$/);
+    await expect(
+      page.getByText('✓ kept from v1 · 30 stops and platforms · 12 bike stations'),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('columnheader', { name: 'What v2 changes' })).toBeVisible();
+    const [heldBuild] = await control.activeRunIds();
+    await control.releaseRun(heldBuild ?? '');
     await builtCounts(request, 'geneva-3km.v2');
     await page.reload();
     // Both versions are in the menu; v2 is the open one.

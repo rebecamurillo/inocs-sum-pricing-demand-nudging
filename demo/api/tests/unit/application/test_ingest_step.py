@@ -97,6 +97,17 @@ def test_the_routes_counts_read_the_failures_of_the_producing_run_step(tmp_path:
     }
 
 
+def test_the_routes_step_stores_the_pairs_it_routed(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+
+    rig.ingest(StepName.ROUTES)
+
+    pairs = rig.read_model.route_pairs("k-routes")
+    assert len(pairs) == 24
+    assert pairs == sorted(pairs, key=lambda item: (item.origin_hub, item.destination_hub))
+    assert rig.read_model.hub_pairs("k-routes") == []
+
+
 def test_the_routes_of_an_artefact_with_no_producing_run_have_no_failures(
     tmp_path: Path,
 ) -> None:

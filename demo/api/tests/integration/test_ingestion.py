@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.application.ports.read_model import IngestionBatch
-from pricing_demo.domain.read_model import HubRow, StationRow
+from pricing_demo.domain.read_model import HubRow, RoutePairRow, StationRow
 from pricing_demo.domain.runs import RunState, StepName, StepState
 from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
 from tests.integration.test_builds import READ_MODEL_TABLES, Rig, rig  # noqa: F401
@@ -58,6 +58,49 @@ def test_a_batch_whose_last_table_breaks_a_key_leaves_nothing_behind(rig: Rig) -
     }
     assert model.is_ingested(key) is False
     assert model.counts_of([key]) == {}
+
+
+def test_the_route_pairs_roll_back_with_a_batch_that_fails_after_them(rig: Rig) -> None:  # noqa: F811
+    queued = rig.build.execute(rig.draft())
+    rig.process.execute()
+    routes_key = rig.run_of(queued.id).steps[2].input_key or ""
+    with rig.engine.begin() as connection:
+        for table in READ_MODEL_TABLES:
+            connection.execute(text(f"DELETE FROM {table}"))
+        connection.execute(text("UPDATE artifacts SET counts = NULL, ingested_at = NULL"))
+    model = PostgresReadModel(rig.engine)
+    # The same pair twice breaks the primary key of `route_pairs` after the hubs were written.
+    broken = IngestionBatch(
+        routes_key,
+        StepName.ROUTES,
+        {},
+        hubs=[HubRow("H1", "label", 1.0, 2.0, None, (), (), ())],
+        route_pairs=[RoutePairRow("H1", "H2"), RoutePairRow("H1", "H2")],
+    )
+
+    with pytest.raises(IntegrityError):
+        model.ingest(broken)
+
+    assert rig.rows("route_pairs") == []
+    assert rig.rows("hubs") == []
+    assert model.is_ingested(routes_key) is False
+
+
+def test_the_route_pairs_are_deleted_with_their_artefact(rig: Rig) -> None:  # noqa: F811
+    queued = rig.build.execute(rig.draft())
+    rig.process.execute()
+    routes_key = rig.run_of(queued.id).steps[2].input_key or ""
+    assert len(PostgresReadModel(rig.engine).route_pairs(routes_key)) == 24
+
+    with rig.engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM instance_version_steps WHERE input_key = :key"), {"key": routes_key}
+        )
+        connection.execute(
+            text("DELETE FROM artifacts WHERE input_key = :key"), {"key": routes_key}
+        )
+
+    assert rig.rows("route_pairs") == []
 
 
 def test_ingesting_the_same_key_twice_does_not_duplicate(rig: Rig) -> None:  # noqa: F811

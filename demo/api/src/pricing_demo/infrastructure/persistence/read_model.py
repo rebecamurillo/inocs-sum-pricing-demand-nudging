@@ -5,13 +5,14 @@ from typing import Any
 from sqlalchemy import Connection, Engine, Table, delete, insert, select, update
 
 from pricing_demo.application.ports.read_model import IngestionBatch
-from pricing_demo.domain.read_model import HubPairRow, HubRow, StationRow
+from pricing_demo.domain.read_model import HubPairRow, HubRow, RoutePairRow, StationRow
 from pricing_demo.infrastructure.persistence.tables import (
     artifacts,
     hub_pairs,
     hubs,
     option_station_deltas,
     route_options,
+    route_pairs,
     station_bikes,
     station_hubs,
     stations,
@@ -95,6 +96,18 @@ class PostgresReadModel:
                         "euclid_dist_m": row.euclid_dist_m,
                     }
                     for row in batch.hub_pairs
+                ],
+            )
+            _insert_all(
+                connection,
+                route_pairs,
+                [
+                    {
+                        "instance_key": key,
+                        "origin_hub": row.origin_hub,
+                        "destination_hub": row.destination_hub,
+                    }
+                    for row in batch.route_pairs
                 ],
             )
             _insert_all(
@@ -207,6 +220,14 @@ class PostgresReadModel:
             for row in self._rows(query)
         ]
 
+    def route_pairs(self, key: str) -> list[RoutePairRow]:
+        query = (
+            select(route_pairs)
+            .where(route_pairs.c.instance_key == key)
+            .order_by(route_pairs.c.origin_hub, route_pairs.c.destination_hub)
+        )
+        return [RoutePairRow(row.origin_hub, row.destination_hub) for row in self._rows(query)]
+
     def _rows(self, query: Any) -> Iterable[Any]:
         with self._engine.connect() as connection:
             return connection.execute(query).all()
@@ -217,6 +238,7 @@ _KEYS: tuple[tuple[Table, str], ...] = (
     (station_bikes, "instance_key"),
     (route_options, "instance_key"),
     (hub_pairs, "instance_key"),
+    (route_pairs, "instance_key"),
     (station_hubs, "hubs_key"),
     (hubs, "hubs_key"),
     (stations, "stations_key"),

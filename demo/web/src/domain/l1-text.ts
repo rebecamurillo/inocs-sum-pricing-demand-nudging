@@ -7,6 +7,7 @@ import type {
   RouteFailure,
   RoutesSummary,
 } from './city-instance';
+import { ordinal } from './ordinal';
 
 const SHORT_MONTHS = [
   'Jan',
@@ -110,10 +111,21 @@ function hhmm(time: string): string {
   return time.slice(0, 5);
 }
 
-export function routingMomentSentence(period: InstancePeriod): string {
-  const { year, month, day } = datePart(period.routingDate);
+/** "Monday 10 March 2025" from an ISO calendar date. */
+export function longDate(date: string): string {
+  const { year, month, day } = datePart(date);
   const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()] ?? '';
-  const when = `${weekday} ${String(day)} ${LONG_MONTHS[month - 1] ?? ''} ${String(year)}`;
+  return `${weekday} ${String(day)} ${LONG_MONTHS[month - 1] ?? ''} ${String(year)}`;
+}
+
+/** "10:42" in the browser's time zone. */
+export function clockTime(time: Date): string {
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(time.getHours())}:${two(time.getMinutes())}`;
+}
+
+export function routingMomentSentence(period: InstancePeriod): string {
+  const when = longDate(period.routingDate);
   const direction = period.arriveBy ? 'arrive by' : 'leave at';
   const provisional = period.provisional ? ' · provisional' : '';
   return `Routes planned for ${when}, ${direction} ${hhmm(period.routingTime)}${provisional}.`;
@@ -178,8 +190,21 @@ export function periodChip(label: string): string {
   return `Period ${label}`;
 }
 
-export function menuVersionState(state: string): string {
-  return state;
+/**
+ * The state a menu row shows: a running build is `● building`, a queued one `◷ queued · 2nd`
+ * (`queueOrdinal` counts the running run as 1st), a failed one `✕ failed`.
+ */
+export function menuVersionState(state: string, queueOrdinal: number | null = null): string {
+  switch (state) {
+    case 'building':
+      return '● building';
+    case 'queued':
+      return queueOrdinal === null ? '◷ queued' : `◷ queued · ${ordinal(queueOrdinal)}`;
+    case 'failed':
+      return '✕ failed';
+    default:
+      return state;
+  }
 }
 
 export function collapsedCount(n: number): string {

@@ -1,6 +1,7 @@
 import type { KeyboardEvent } from 'react';
 import type { InstanceMenuEntry } from '../../domain/city-instance';
 import { collapsedCount, latestVersion, menuVersionState, versionTag } from '../../domain/l1-text';
+import { PRICING_VERSIONS_OFF } from '../../domain/run-text';
 import styles from './InstanceMenu.module.css';
 
 interface InstanceMenuProps {
@@ -9,6 +10,8 @@ interface InstanceMenuProps {
   readonly open: { readonly instanceId: string; readonly versionId: string } | null;
   /** True while the open version's set-up card (L-1) is the current view. */
   readonly setupCurrent: boolean;
+  /** The place in line of each queued build, by version id: 2 is "2nd", the running run being 1st. */
+  readonly queued?: ReadonlyMap<string, number>;
   readonly onOpenVersion: (instanceId: string, number: number) => void;
   readonly onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }
@@ -18,6 +21,7 @@ export function InstanceMenu({
   entries,
   open,
   setupCurrent,
+  queued,
   onOpenVersion,
   onKeyDown,
 }: InstanceMenuProps) {
@@ -63,7 +67,7 @@ export function InstanceMenu({
                   <span>{entry.name}</span>{' '}
                   <span className={styles.tag}>{versionTag(version.number)}</span>{' '}
                   <span className={styles.state} data-state={version.state}>
-                    {menuVersionState(version.state)}
+                    {menuVersionState(version.state, queued?.get(version.id) ?? null)}
                   </span>
                 </button>
                 {version.id === open.versionId && (
@@ -81,6 +85,9 @@ export function InstanceMenu({
                       Instance set-up
                     </button>
                     <p className={styles.caption}>Pricing versions</p>
+                    {version.state !== 'ready' && (
+                      <p className={styles.caption}>{PRICING_VERSIONS_OFF}</p>
+                    )}
                   </div>
                 )}
               </div>

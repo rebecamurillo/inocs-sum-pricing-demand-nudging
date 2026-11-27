@@ -15,18 +15,17 @@ import {
   showPairsLink,
   versionTag,
 } from '../../domain/l1-text';
-import { oneDraftMessage, versionNumberOf } from '../../domain/draft-text';
 import { circleBounds } from '../../domain/map';
-import {
-  useDraftActions,
-  useInstanceGeometry,
-  useInstanceView,
-  useRouteFailures,
-} from '../hooks/useCityInstances';
+import { useInstanceGeometry, useInstanceView, useRouteFailures } from '../hooks/useCityInstances';
+import { useEditAsNewVersion, type OpenedDraft } from '../hooks/useEditAsNewVersion';
 import { UNROUTED_COLOUR, l1Layers, unroutedPairLayer } from '../map/l1-layers';
 import { useMapFit, useMapLayers, useMapLegend, type LegendEntry } from '../map/MapContext';
+import { BuildingView } from './BuildingView';
+import { CancelledCard } from './CancelledCard';
 import { LoadingCard } from './LoadingCard';
 import styles from './InstanceView.module.css';
+
+export type { OpenedDraft };
 
 const UNROUTED_LEGEND: readonly LegendEntry[] = [
   { label: 'Hub pair without a route', colour: UNROUTED_COLOUR },
@@ -130,13 +129,6 @@ function RoutesBox({
   );
 }
 
-/** Where "Edit as a new version" leads: the draft, and the sentence to show when it already existed. */
-export interface OpenedDraft {
-  readonly instanceId: string;
-  readonly number: number;
-  readonly message: string | null;
-}
-
 function SavedInstance({
   view,
   advancedView,
@@ -149,8 +141,7 @@ function SavedInstance({
   const { version, instanceName, dataset, pricingVersionCount } = view;
   const geometry = useInstanceGeometry(version.id).data ?? null;
   const [shown, setShown] = useState<ReadonlySet<number>>(new Set());
-  const actions = useDraftActions();
-  const [editError, setEditError] = useState<string | null>(null);
+  const editing = useEditAsNewVersion(version, onOpenDraft);
   const failures = useRouteFailures(version.routes, false).data;
 
   const declaration = useMemo(
@@ -194,27 +185,6 @@ function SavedInstance({
     const next = new Set(shown);
     if (!next.delete(index)) next.add(index);
     setShown(next);
-  };
-
-  const edit = () => {
-    setEditError(null);
-    actions.draft.mutateAsync({ instanceId: version.instanceId, basedOnId: version.id }).then(
-      (opened) => {
-        const based =
-          opened.version.basedOnId === null ? null : versionNumberOf(opened.version.basedOnId);
-        onOpenDraft?.({
-          instanceId: version.instanceId,
-          number: opened.version.number,
-          message:
-            opened.existed && based !== null
-              ? oneDraftMessage(based, opened.version.createdAt)
-              : null,
-        });
-      },
-      (error: unknown) => {
-        setEditError(error instanceof Error ? error.message : String(error));
-      },
-    );
   };
 
   return (
@@ -268,13 +238,13 @@ function SavedInstance({
         <button
           type="button"
           className={styles.button}
-          disabled={actions.draft.isPending}
-          onClick={edit}
+          disabled={editing.pending}
+          onClick={editing.edit}
         >
           Edit as a new version
         </button>
       </div>
-      {editError !== null && <p className={styles.error}>{editError}</p>}
+      {editing.error !== null && <p className={styles.error}>{editing.error}</p>}
     </div>
   );
 }
@@ -297,5 +267,10 @@ export function InstanceView({
     );
   }
   if (query.data === null) return <p>Nothing at this link.</p>;
+  const { state } = query.data.version;
+  if (state === 'queued' || state === 'building' || state === 'failed') {
+    return <BuildingView view={query.data} advancedView={advancedView} />;
+  }
+  if (state === 'cancelled') return <CancelledCard view={query.data} onOpenDraft={onOpenDraft} />;
   return <SavedInstance view={query.data} advancedView={advancedView} onOpenDraft={onOpenDraft} />;
 }

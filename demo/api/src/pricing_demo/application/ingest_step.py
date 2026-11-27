@@ -63,7 +63,12 @@ class StepIngestion:
             counts = rows.routes_counts(
                 self._read(artifact, "od_routes.json"), artifact.reported_counts, failures
             )
-            return IngestionBatch(key, step, counts)
+            return IngestionBatch(
+                key,
+                step,
+                counts,
+                route_pairs=rows.route_pairs(self._read(artifact, "od_routes.json")),
+            )
         instance = self._read(artifact, "Instance_1.json")
         routes = upstream[StepName.ROUTES]
         # An artefact stored before the bike legs were written has no such file: null.

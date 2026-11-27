@@ -375,6 +375,17 @@ hub_pairs = Table(
     PrimaryKeyConstraint("instance_key", "origin_hub", "destination_hub", name="pk_hub_pairs"),
 )
 
+# The pairs the routes step routed, keyed by the routes artefact: the map draws them while step 4
+# has not stored `hub_pairs` yet.
+route_pairs = Table(
+    "route_pairs",
+    metadata,
+    _artifact_key("instance_key"),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    PrimaryKeyConstraint("instance_key", "origin_hub", "destination_hub", name="pk_route_pairs"),
+)
+
 # The six parser columns stay null until the package's parser fills them (story 2-7).
 route_options = Table(
     "route_options",

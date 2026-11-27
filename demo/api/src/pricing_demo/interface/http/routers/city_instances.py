@@ -16,6 +16,7 @@ from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.interface.http.schemas import (
@@ -31,6 +32,8 @@ from pricing_demo.interface.http.schemas import (
     InstanceVersionPatch,
     InstanceVersionResource,
     ProblemDetails,
+    RoutePairList,
+    RoutePairResource,
     RunResource,
     StationList,
     StationResource,
@@ -67,6 +70,7 @@ def build_city_instances_router(
     list_stations: ListStations,
     list_hubs: ListHubs,
     list_hub_pairs: ListHubPairs,
+    list_route_pairs: ListRoutePairs,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["city-instances"])
 
@@ -201,6 +205,22 @@ def build_city_instances_router(
             items=[
                 HubPairResource.from_domain(row)
                 for row in list_hub_pairs.execute(version_id, period)
+            ]
+        )
+
+    @router.get(
+        "/instance-versions/{version_id}/route-pairs",
+        operation_id="listRoutePairs",
+        summary="The hub pairs the routes step of a version routed",
+        description="Ordered by `origin_hub`, then `destination_hub`. Empty until the routes "
+        "step is linked to the version, which is before the last step ends.",
+        response_model=RoutePairList,
+        responses={**VERSION_NOT_FOUND, **UNEXPECTED},
+    )
+    def read_route_pairs(version_id: str) -> RoutePairList:
+        return RoutePairList(
+            items=[
+                RoutePairResource.from_domain(row) for row in list_route_pairs.execute(version_id)
             ]
         )
 

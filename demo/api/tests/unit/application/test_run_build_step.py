@@ -170,6 +170,7 @@ def test_a_step_whose_key_has_an_artefact_is_kept_and_linked_and_nothing_runs() 
     kept = rig.keep(second, AREA)
 
     assert kept is True
+    assert rig.step_of(second, AREA).counts == {"rows": 1}
     key = rig.planned(AREA, "geneva-3km.v2").input_key
     assert rig.builds.artifacts.links_of("geneva-3km.v2") == {AREA: key}
     assert (len(rig.preparation.requests), len(rig.files.calls)) == (requests, calls)

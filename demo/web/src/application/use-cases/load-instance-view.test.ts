@@ -119,6 +119,25 @@ describe('loadInstanceMenu and loadInstanceGeometry', () => {
     expect(geometry.hubs.map((h) => h.label)).toEqual(['Hub H1', 'Hub H2']);
     expect(geometry.hubPairs).toEqual([{ originHub: 'H1', destinationHub: 'H2' }]);
   });
+
+  it('draws the routed pairs while no hub pair is stored yet', async () => {
+    const routePairs = vi.fn(() => Promise.resolve([{ originHub: 'H2', destinationHub: 'H1' }]));
+    const gateway = fakeCityInstances({ hubPairs: () => Promise.resolve([]), routePairs });
+
+    const geometry = await loadInstanceGeometry({ cityInstances: gateway }, 'geneva-3km.v2');
+
+    expect(geometry.hubPairs).toEqual([{ originHub: 'H2', destinationHub: 'H1' }]);
+    expect(routePairs).toHaveBeenCalledWith('geneva-3km.v2');
+  });
+
+  it('does not ask for the routed pairs once the hub pairs answer', async () => {
+    const routePairs = vi.fn(() => Promise.resolve([]));
+    const gateway = fakeCityInstances({ routePairs });
+
+    await loadInstanceGeometry({ cityInstances: gateway }, 'geneva-3km.v1');
+
+    expect(routePairs).not.toHaveBeenCalled();
+  });
 });
 
 describe('loadNewInstanceBasis', () => {

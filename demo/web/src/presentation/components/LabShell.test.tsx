@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
@@ -11,6 +11,12 @@ import {
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
+import {
+  fakeRunGateway,
+  sampleBuildSteps,
+  sampleRunningBuild,
+} from '../../application/ports/fake-run-gateway';
+import type { RunGateway } from '../../application/ports/run-gateway';
 import { DEFAULT_LAYOUT, type LayoutPreferencesValue } from '../../domain/layout';
 import type { CityDataset } from '../../domain/map';
 import type { SystemStatus } from '../../domain/system-status';
@@ -32,6 +38,7 @@ function renderShell(
   initial: LayoutPreferencesValue = DEFAULT_LAYOUT,
   cityInstances: CityInstanceGateway = emptyCityInstances,
   datasets: CityDataset[] = [],
+  runs: RunGateway = fakeRunGateway(),
 ) {
   const saved: LayoutPreferencesValue[] = [];
   const gateways: Gateways = {
@@ -45,6 +52,7 @@ function renderShell(
     cityDatasets: { list: () => Promise.resolve(datasets) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances,
+    runs,
   };
   const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -696,5 +704,118 @@ describe('LabShell · creating and editing', () => {
     expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent(
       'Geneva 3 km v2 › Instance set-up',
     );
+  });
+});
+
+describe('LabShell · run states in the menu', () => {
+  const states = ['building', 'queued', 'failed', 'cancelled', 'ready'] as const;
+  const menuWith = () =>
+    Promise.resolve([
+      {
+        id: 'geneva-3km',
+        name: 'Geneva 3 km',
+        datasetId: 'geneva-2026-11-26',
+        versions: states.map((state, at) => ({
+          id: `geneva-3km.v${String(at + 1)}`,
+          number: at + 1,
+          status: 'sealed' as const,
+          state,
+          pricingVersionCount: 0,
+        })),
+      },
+    ]);
+
+  it('writes each version row with its run state and the place of a queued build', async () => {
+    window.location.hash = '#/lab/geneva-3km.v5';
+    const running = {
+      ...sampleRunningBuild,
+      subject: { type: 'instance_version' as const, id: 'geneva-3km.v1' },
+    };
+    const queued = {
+      ...sampleRunningBuild,
+      id: 'run-3',
+      state: 'queued' as const,
+      queuePosition: 1,
+      subject: { type: 'instance_version' as const, id: 'geneva-3km.v2' },
+      steps: sampleBuildSteps(5),
+    };
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({
+        menu: menuWith,
+        version: (id) => Promise.resolve(id === 'geneva-3km.v5' ? sampleVersion : null),
+      }),
+      [],
+      fakeRunGateway([running, queued]),
+    );
+
+    expect(await screen.findByRole('button', { name: 'Geneva 3 km v1 ● building' })).toBeVisible();
+    await screen.findByRole('button', { name: 'Geneva 3 km v2 ◷ queued · 2nd' });
+    expect(screen.getByRole('button', { name: 'Geneva 3 km v3 ✕ failed' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Geneva 3 km v4 cancelled' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Geneva 3 km v5 ready' })).toBeVisible();
+    expect(screen.queryByText('Available when the instance is built.')).not.toBeInTheDocument();
+  });
+
+  it('turns "Pricing versions" off until the open instance is built', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({
+        menu: menuWith,
+        version: () =>
+          Promise.resolve({ ...sampleVersion, id: 'geneva-3km.v1', state: 'building' }),
+      }),
+    );
+
+    expect(await screen.findByText('Available when the instance is built.')).toBeVisible();
+    expect(screen.getByText('Pricing versions')).toBeVisible();
+  });
+
+  it('writes the run in progress on the run line of the menu', async () => {
+    const running = {
+      ...sampleRunningBuild,
+      startedAt: new Date(Date.now() - 252_000),
+      serverTime: new Date(),
+      subject: { type: 'instance_version' as const, id: 'geneva-3km.v1' },
+    };
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({ menu: menuWith }),
+      [],
+      fakeRunGateway([running]),
+    );
+
+    expect(await screen.findByText(/^● Geneva 3 km v1 building · 4 min 1\d s$/)).toBeVisible();
+  });
+
+  it('still says a build is ready when it ended while the menu was hidden', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const running = {
+        ...sampleRunningBuild,
+        startedAt: new Date(Date.now() - 252_000),
+        serverTime: new Date(),
+        subject: { type: 'instance_version' as const, id: 'geneva-3km.v1' },
+      };
+      const runs = fakeRunGateway([running]);
+      renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: menuWith }), [], runs);
+      await screen.findByText(/^● Geneva 3 km v1 building/);
+
+      await user.click(screen.getByRole('button', { name: 'Hide the menu' }));
+      runs.put({ ...running, state: 'succeeded', steps: sampleBuildSteps(5) });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+      await waitFor(() => {
+        expect(runs.calls).toContain(`get ${running.id}`);
+      });
+      await user.click(screen.getByRole('button', { name: '☰ Menu' }));
+
+      expect(await screen.findByText(/^✓ Geneva 3 km v1: ready ·/)).toBeVisible();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

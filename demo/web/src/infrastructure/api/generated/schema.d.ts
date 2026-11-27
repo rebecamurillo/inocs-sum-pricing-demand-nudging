@@ -132,6 +132,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instance-versions/{version_id}/route-pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The hub pairs the routes step of a version routed
+         * @description Ordered by `origin_hub`, then `destination_hub`. Empty until the routes step is linked to the version, which is before the last step ends.
+         */
+        get: operations["listRoutePairs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instance-versions/{version_id}/stations": {
         parameters: {
             query?: never;
@@ -559,6 +579,11 @@ export interface components {
             based_on_id: string | null;
             build_plan: components["schemas"]["BuildPlanResource"];
             /**
+             * Build Run Id
+             * @description The version's latest build run; null for a draft or a version never built.
+             */
+            build_run_id: string | null;
+            /**
              * Changes
              * @description The parameters that differ from `based_on_id`, in column order.
              */
@@ -776,6 +801,18 @@ export interface components {
              * @enum {string}
              */
             query: "pt_bike" | "car";
+        };
+        /** RoutePairList */
+        RoutePairList: {
+            /** Items */
+            items: components["schemas"]["RoutePairResource"][];
+        };
+        /** RoutePairResource */
+        RoutePairResource: {
+            /** Destination Hub */
+            destination_hub: string;
+            /** Origin Hub */
+            origin_hub: string;
         };
         /**
          * RoutesSummaryResource
@@ -1484,6 +1521,55 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HubList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listRoutePairs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePairList"];
                 };
             };
             /** @description No instance version has this id */

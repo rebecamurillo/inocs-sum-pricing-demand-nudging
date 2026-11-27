@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { awaitPackageDefaults, buildFakeInstance } from '../support/build';
+import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
 
 const viewports = [
@@ -9,7 +9,11 @@ const viewports = [
 ];
 
 /** Every size with and without Aa: no page scroll, and the card, map, footer and run line in view. */
-async function holdsAtEverySize(page: Page, card: ReturnType<Page['getByRole']> | null) {
+async function holdsAtEverySize(
+  page: Page,
+  card: ReturnType<Page['getByRole']> | null,
+  runLine: string | RegExp = 'No run in progress',
+) {
   const aa = page.getByRole('button', { name: 'Larger text for a projector' });
 
   for (const viewport of viewports) {
@@ -31,7 +35,7 @@ async function holdsAtEverySize(page: Page, card: ReturnType<Page['getByRole']> 
       expect(size.baseFont).toBe(large ? '16.9px' : '13px');
       // The body does not scroll, so clipped content would not show in the sizes above.
       await expect(page.getByRole('contentinfo')).toBeInViewport({ ratio: 1 });
-      await expect(page.getByText('No run in progress')).toBeInViewport({ ratio: 1 });
+      await expect(page.getByText(runLine)).toBeInViewport({ ratio: 1 });
       await expect(aa).toBeInViewport({ ratio: 1 });
       // The map pane is part of the held view (the e2e stack has no basemap file: ground colour).
       await expect(page.getByRole('region', { name: 'Map' })).toBeInViewport({ ratio: 1 });
@@ -80,6 +84,53 @@ test.describe('Lab', () => {
 
     await page.getByRole('textbox', { name: 'Grouping distance', exact: true }).fill('1000');
     await expect(page.getByText('One rule is not met.')).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+
+    // The building, queued, failed and cancelled states: one run held at its routes step, a
+    // second instance queued behind it.
+    await control.setPricingModel({ hold_at: 'routes' });
+    const first = await queueFakeInstance(request, control, {
+      name: 'Geneva 4 km',
+      minOdDistanceM: 990,
+    });
+    await queueFakeInstance(request, control, {
+      name: 'Geneva 5 km',
+      minOdDistanceM: 995,
+      datasetId: first.datasetId,
+    });
+    const buildingLine = /^● Geneva 4 km v1 building · /;
+    await page.goto(`/#/lab/${first.version}`);
+    await page.reload();
+    await expect(page.getByRole('list', { name: 'Build steps' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await holdsAtEverySize(page, page.getByRole('main'), buildingLine);
+
+    await page.goto('/#/lab/geneva-5km.v1');
+    await page.reload();
+    await expect(
+      page.getByText(/^Queued, 2nd in line: Geneva 4 km v1 is building\./),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), buildingLine);
+
+    await page.getByRole('button', { name: 'Remove from the queue' }).click();
+    await page.getByRole('button', { name: 'Remove from the queue' }).click();
+    await expect(
+      page.getByText(
+        /^Run cancelled during Area on \d{1,2} [A-Z][a-z]{2} \d{4}\. Steps before it are kept\.$/,
+      ),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), buildingLine);
+
+    // The held run goes on to a failure at its routes step.
+    await control.setPricingModel({ fail_at: { step: 'routes', code: 'stage_error' } });
+    await control.releaseRun(first.runId);
+    await page.goto(`/#/lab/${first.version}`);
+    await expect(
+      page.getByText(
+        /^✕ Routes failed: an error stopped the step\. The details are in the run's log\./,
+      ),
+    ).toBeVisible({ timeout: 30_000 });
     await holdsAtEverySize(page, page.getByRole('main'));
   });
 

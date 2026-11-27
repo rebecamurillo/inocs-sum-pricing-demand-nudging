@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
 import type { CityDataset } from '../../domain/map';
 import { GatewaysProvider } from '../hooks/gateways';
@@ -32,6 +33,7 @@ function gatewaysFor(datasets: CityDataset[], served: boolean): Gateways {
       url: (id) => `/basemap/${id}.pmtiles`,
     },
     cityInstances: emptyCityInstances,
+    runs: fakeRunGateway(),
   };
 }
 

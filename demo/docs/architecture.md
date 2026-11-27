@@ -299,8 +299,11 @@ its fake and the pricing-model adapter implement it.
 The tables every screen reads, none of which needs a file: `stations`, `hubs` and
 `station_hubs` (keyed by the `area` and `hubs` artefacts), `hub_pairs`, `route_options`,
 `station_bikes` and `option_station_deltas` (keyed by the `travellers_and_bikes` artefact), each
-with a foreign key `ON DELETE CASCADE` to `artifacts.input_key`, and `route_failures`. The API
-reads PostgreSQL only; it never opens an artefact folder.
+with a foreign key `ON DELETE CASCADE` to `artifacts.input_key`, `route_pairs` (the hub pairs the
+routes step routed, keyed by the `routes` artefact so that the map can draw them while the last
+step still runs) and `route_failures`. The API reads PostgreSQL only; it never opens an artefact
+folder. An artefact stored before the `route_pairs` migration has no such rows: its pair lines
+appear with step 4.
 
 **Ingestion.** After a step's outputs are stored, `StepIngestion` reads the artefact's files
 through `ArtifactFiles.read_json` (the last step also reads the routes artefact's
@@ -322,7 +325,10 @@ artefact also keeps the run that produced it (`run_id`) and the counts that run'
 (`reported_counts`): an ingest-only rerun, which has no preparation to ask, reads them back.
 `GET /instance-versions/{id}` derives its five headline numbers and its routes summary from
 these, and both are null until every step of the version is linked to an ingested artefact.
-The resource also carries `created_at` (when the version was created, for the one-draft message), `sealed_at` (the instant the version was saved, null for a draft) and `package_defaults` (for a draft, the latest package fingerprint's defaults with the data set's preset centre and radius, derived by `build_view` through `parameters_from_defaults`; null for a saved version or while no fingerprint is recorded), so "Restore the package defaults" needs no other read.
+`GET /instance-versions/{id}/route-pairs` lists the pairs of the version's linked `routes` artefact
+(`[]` until step 3 is linked), written by the routes step's ingestion in its transaction. The
+resource carries `build_run_id`, the id of the version's latest build run (null for a draft or a
+version never built), so a reload or a direct link finds the run to follow. The resource also carries `created_at` (when the version was created, for the one-draft message), `sealed_at` (the instant the version was saved, null for a draft) and `package_defaults` (for a draft, the latest package fingerprint's defaults with the data set's preset centre and radius, derived by `build_view` through `parameters_from_defaults`; null for a saved version or while no fingerprint is recorded), so "Restore the package defaults" needs no other read.
 
 **Route failures.** `CityPreparation.prepare` calls `route_failed` once per failed
 trip-planner query as it happens; the executor writes one `route_failures` row for each (run,
@@ -443,6 +449,21 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   of a `PATCH` feeds the rules box, the save box and the table of changes, never the inputs.
   The draft's map has two markers (centre, and the radius on the circle's east edge) added
   through `MapHandle.addMarker` by `useMapHandles`; the real handle uses MapLibre's `Marker`.
+- Following a build (L-1 building, queued, failed and cancelled). `InstanceView` chooses the card
+  by the version's `state`: `queued`, `building` and `failed` show `BuildingView`, `cancelled`
+  `CancelledCard`, `ready` the saved view. `RunGateway` (port; `HttpRunGateway` reads `/runs/{id}`
+  and `/runs?state=queued,running` and sends `PUT /runs/{id}/cancellation`) feeds
+  `application/use-cases/follow-run.ts`. `presentation/hooks/useRuns.ts` polls the open run every
+  2 s while it is queued or running, and `/runs?state=queued,running` every 2 s while it lists a
+  run and every 15 s otherwise; the version, the menu, the run list and the map's data are read
+  again when a step or the run changes state. The elapsed clock is the browser's clock offset
+  by the `server_time` of the last answer, ticking each second and held at the last answer while
+  `runner.alive` is false. Every sentence is built in `domain/run-text.ts`. The map draws stations
+  once step 1 is done or kept, the hubs once step 2 is, and the hub-pair lines once step 3 is
+  (from `/route-pairs` until `/hub-pairs` answers pairs). `RunLine` in the menu writes the run in
+  progress, the silent runner, or, when a build ended while another view was open, "✓ {name}
+  ready · Open"; the menu rows read `● building`, `◷ queued · 2nd`, `✕ failed`. Under
+  `prefers-reduced-motion` only the ● spinner stops.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode
