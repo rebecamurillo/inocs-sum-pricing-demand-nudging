@@ -29,6 +29,7 @@ from pricing_demo.application.errors import (
     OtherTimetableInGraphFolder,
     StreetExtractNotFound,
     UnknownCityDataset,
+    VersionNotBuilt,
 )
 from pricing_demo.application.ingest_step import StepIngestion
 from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
@@ -54,10 +55,14 @@ from pricing_demo.application.use_cases.report_components import ReportComponent
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.run_worker import RunWorker
 from pricing_demo.application.use_cases.show_basemap_bounds import ShowBasemapBounds
+from pricing_demo.application.use_cases.verify_build import VerifyBuild
 from pricing_demo.domain.build_plan import BUILD_STEPS
+from pricing_demo.domain.build_verification import report_lines
 from pricing_demo.domain.city_datasets import DisjointAreas
+from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
+from pricing_demo.infrastructure.artifact_store.scratch import LocalScratchBuilds
 from pricing_demo.infrastructure.city_data.feed_shapes import GtfsFeedShapes
 from pricing_demo.infrastructure.city_data.files import LocalDatasetFiles
 from pricing_demo.infrastructure.city_data.gtfs import ZipTimetableReader, ZipTimetableShapes
@@ -147,6 +152,23 @@ def build_graph_fingerprints(settings: Settings) -> FileGraphFingerprints:
     return FileGraphFingerprints(settings.otp_graph_dir)
 
 
+def build_city_preparation(
+    settings: Settings, fake_settings: PostgresFakeSettings | None, waiter: Waiter
+) -> CityPreparation:
+    """The adapter of the four build steps, by adapter set: the build and `verify-build` choose
+    it here, so they cannot drift."""
+    if fake_settings is not None:
+        return FakeCityPreparation(fake_settings, waiter)
+    return PackageCityPreparation(
+        settings.data_dir,
+        StageChild(),
+        settings.otp_url,
+        settings.otp_workers,
+        settings.otp_retries,
+        settings.otp_retry_wait_s,
+    )
+
+
 def register_build_steps(
     settings: Settings,
     registry: StepRegistry,
@@ -163,22 +185,13 @@ def register_build_steps(
     files = LocalArtifactStore(settings.data_dir)
     read_model = PostgresReadModel(engine)
     route_failures = PostgresRouteFailures(engine)
+    preparation = build_city_preparation(settings, fake_settings, waiter)
     # The fake city has one route with a timetable shape and one without.
-    preparation: CityPreparation
-    feed_shapes: FeedShapes
-    if fake_settings is not None:
-        preparation = FakeCityPreparation(fake_settings, waiter)
-        feed_shapes = FakeFeedShapes(frozenset({"1"}))
-    else:
-        preparation = PackageCityPreparation(
-            settings.data_dir,
-            StageChild(),
-            settings.otp_url,
-            settings.otp_workers,
-            settings.otp_retries,
-            settings.otp_retry_wait_s,
-        )
-        feed_shapes = GtfsFeedShapes(settings.data_dir)
+    feed_shapes: FeedShapes = (
+        FakeFeedShapes(frozenset({"1"}))
+        if fake_settings is not None
+        else GtfsFeedShapes(settings.data_dir)
+    )
     executor = BuildStepExecutor(
         preparation,
         files,
@@ -321,6 +334,20 @@ def build_build_trip_planner_graph(settings: Settings, engine: Engine) -> BuildT
     )
 
 
+def build_verify_build(settings: Settings, engine: Engine) -> VerifyBuild:
+    """Reads the stored build; the rebuild goes through the same preparation as a build."""
+    fake_settings = PostgresFakeSettings(engine) if settings.adapters == "fake" else None
+    return VerifyBuild(
+        PostgresCityInstances(engine),
+        PostgresCityDatasets(engine),
+        PostgresArtifacts(engine),
+        LocalArtifactStore(settings.data_dir),
+        PostgresRouteFailures(engine),
+        build_city_preparation(settings, fake_settings, SystemWaiter()),
+        LocalScratchBuilds(settings.data_dir),
+    )
+
+
 def build_show_basemap_bounds(engine: Engine) -> ShowBasemapBounds:
     return ShowBasemapBounds(PostgresCityDatasets(engine))
 
@@ -345,12 +372,49 @@ def parser() -> argparse.ArgumentParser:
         help="print a data set's id and its available area's bounding box (west,south,east,north)",
     )
     bounds.add_argument("--dataset", default=None, help="default: the most recent data set")
+    verifying = commands.add_parser(
+        "verify-build",
+        help="rebuild an instance version's steps 1-4 with reuse off and compare them "
+        "with the stored build",
+    )
+    verifying.add_argument("version", help="the instance version, e.g. geneva-3km.v1")
     return root
+
+
+def run_verify_build(args: argparse.Namespace, settings: Settings, engine: Engine) -> int:
+    """Print one line per step and the verdict: exit 0 when the builds match, 1 when they
+    differ, 2 when the version cannot be verified or a rebuild step fails (reason on stderr)."""
+    stop = threading.Event()
+    # SIGINT and SIGTERM stop the rebuild: a stopped rebuild is a failure and leaves no folder.
+    signal.signal(signal.SIGTERM, lambda signum, frame: stop.set())
+    signal.signal(signal.SIGINT, lambda signum, frame: stop.set())
+    try:
+        result = build_verify_build(settings, engine).execute(args.version, stop)
+    except (InstanceVersionNotFound, VersionNotBuilt) as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    except Exception as error:
+        # Exit 1 means "the builds differ": any other error (a stored file missing or malformed,
+        # the database unreachable) is a run that could not verify, exit 2.
+        print(f"verify-build {args.version}: {error!r}", file=sys.stderr)
+        return 2
+    if result.failure is not None:
+        step, code, reason = result.failure
+        print(
+            f"verify-build {args.version}: step {step.value} failed ({code}): {reason}",
+            file=sys.stderr,
+        )
+        return 2
+    assert result.comparison is not None
+    for line in report_lines(args.version, result.comparison):
+        print(line)
+    return 0 if result.comparison.matches else 1
 
 
 def run_command(args: argparse.Namespace, settings: Settings) -> int:
     """Run one city data command; prints the new id (the manifest's path for `otp-graph`, the id
-    and the box for `basemap-bounds`), or the reason on stderr (exit 1)."""
+    and the box for `basemap-bounds`, the report of `verify-build`), or the reason on stderr
+    (exit 1; exit 2 for `verify-build`, whose exit 1 is a build that differs)."""
     engine = create_db_engine(settings.database_url)
     try:
         if args.command == "import-city-data":
@@ -359,6 +423,8 @@ def run_command(args: argparse.Namespace, settings: Settings) -> int:
             manifest = build_build_trip_planner_graph(settings, engine).execute(args.dataset)
             print(manifest)
             return 0
+        elif args.command == "verify-build":
+            return run_verify_build(args, settings, engine)
         elif args.command == "basemap-bounds":
             shown = build_show_basemap_bounds(engine).execute(args.dataset)
             area = shown.area

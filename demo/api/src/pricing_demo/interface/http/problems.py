@@ -24,6 +24,7 @@ from pricing_demo.application.errors import (
     StreetExtractNotFound,
     UnknownCityDataset,
     UnknownStartVersion,
+    VersionNotBuilt,
 )
 from pricing_demo.domain.builds import (
     AlreadyBuilt,
@@ -119,6 +120,7 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     InstanceVersionNotFound: Problem(
         404, "instance_version_not_found", "The instance version does not exist"
     ),
+    VersionNotBuilt: Problem(409, "version_not_built", "The version has no stored build"),
     PeriodNotFound: Problem(404, "period_not_found", "The version has no such period"),
     CityInstanceNotFound: Problem(
         404, "city_instance_not_found", "The city instance does not exist"

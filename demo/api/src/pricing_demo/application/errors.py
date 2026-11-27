@@ -80,3 +80,11 @@ class UnknownStartVersion(DomainError):
     def __init__(self, version_id: str) -> None:
         self.version_id = version_id
         super().__init__(f"There is no instance version {version_id} to start from.")
+
+
+class VersionNotBuilt(DomainError):
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(
+            f"The version {version_id} has no stored build: its four steps are not all built."
+        )

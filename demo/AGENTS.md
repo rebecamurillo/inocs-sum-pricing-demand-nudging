@@ -41,6 +41,7 @@ Run from `demo/`. `make help` lists them.
 | `make basemap` | builds the map's background `web/public/basemap/{dataset}.pmtiles` from the data set's area with Planetiler (`DATASET=<id>` for another) | Docker, internet, `make city-data`, the `.osm.pbf` in `otp/data/` |
 | `make up` / `make down` | the whole local stack in Docker | Docker |
 | `make live-smoke` | checks the real package, solver and trip planner | Gurobi licence, running OpenTripPlanner |
+| `uv --directory api run pricing-demo-worker verify-build {instance version}` | rebuilds steps 1-4 of a built version with reuse off in `var/data/verify/` and compares the artefact hashes (exit 0 only on a match); a maintainer command, never part of `make check` or `make e2e` | Docker, running OpenTripPlanner, the data |
 
 A change is finished when `make check` and `make e2e` both exit 0, and `make test-integration`
 too when it touches `infrastructure/persistence/`, and `make test-model` when it touches

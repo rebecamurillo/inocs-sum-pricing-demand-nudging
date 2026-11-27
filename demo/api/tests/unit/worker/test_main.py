@@ -5,13 +5,20 @@ from pathlib import Path
 
 import pytest
 
-from pricing_demo.application.errors import NoCityDataYet, OtherTimetableInGraphFolder
+from pricing_demo.application.errors import (
+    NoCityDataYet,
+    OtherTimetableInGraphFolder,
+    VersionNotBuilt,
+)
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.show_basemap_bounds import (
     BasemapBounds,
     ShowBasemapBounds,
 )
+from pricing_demo.application.use_cases.verify_build import VerifyResult
 from pricing_demo.domain.build_plan import BUILD_STEPS
+from pricing_demo.domain.build_verification import FileComparison
+from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.infrastructure.config.settings import (
@@ -399,3 +406,123 @@ def test_the_basemap_bounds_use_case_reads_the_database_data_sets(tmp_path: Path
         engine.dispose()
 
     assert isinstance(use_case, ShowBasemapBounds)
+
+
+def verify_result(match: bool) -> object:
+    from pricing_demo.domain.build_verification import BuildComparison, StepComparison
+
+    return VerifyResult(
+        comparison=BuildComparison(
+            tuple(StepComparison(step, ()) for step in BUILD_STEPS)
+            if match
+            else (StepComparison(StepName.AREA, (FileComparison("a", "1", "2"),)),)
+        )
+    )
+
+
+def test_verify_build_parses_its_version() -> None:
+    assert worker_main.parser().parse_args(["verify-build", "geneva-3km.v1"]).version == (
+        "geneva-3km.v1"
+    )
+
+
+@pytest.mark.parametrize(("match", "code"), [(True, 0), (False, 1)])
+def test_verify_build_prints_the_report_and_exits_zero_or_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    match: bool,
+    code: int,
+) -> None:
+    class Verifying:
+        def execute(self, version_id: str, stop: object) -> object:
+            assert version_id == "geneva-3km.v1"
+            return verify_result(match)
+
+    monkeypatch.setattr(worker_main, "build_verify_build", lambda s, e: Verifying())
+
+    exit_code = worker_main.run_command(
+        worker_main.parser().parse_args(["verify-build", "geneva-3km.v1"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == code
+    assert captured.err == ""
+    assert captured.out.splitlines()[-1] == (
+        f"verify-build geneva-3km.v1: {'match' if match else 'differ'}"
+    )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        VersionNotBuilt("v.v1"),
+        InstanceVersionNotFound("v.v1"),
+        FileNotFoundError("od_routes.json"),
+        ValueError("Instance_1.json does not have the expected shape"),
+    ],
+)
+def test_verify_build_exits_two_with_the_reason_on_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: Exception,
+) -> None:
+    class Refusing:
+        def execute(self, version_id: str, stop: object) -> object:
+            raise error
+
+    monkeypatch.setattr(worker_main, "build_verify_build", lambda s, e: Refusing())
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["verify-build", "v.v1"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert captured.out == ""
+    assert "v.v1" in captured.err
+
+
+def test_verify_build_exits_two_naming_the_step_and_code_of_a_failed_rebuild(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class Failing:
+        def execute(self, version_id: str, stop: object) -> VerifyResult:
+            return VerifyResult(failure=(StepName.ROUTES, "trip_planner_unreachable", "down"))
+
+    monkeypatch.setattr(worker_main, "build_verify_build", lambda s, e: Failing())
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["verify-build", "v.v1"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert captured.out == ""
+    assert "routes" in captured.err
+    assert "trip_planner_unreachable" in captured.err
+    assert "down" in captured.err
+
+
+def test_main_returns_the_code_of_verify_build(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(worker_main, "run_command", lambda args, settings: 2)
+
+    assert worker_main.main(["verify-build", "v.v1"]) == 2
+
+
+@pytest.mark.parametrize(
+    ("adapters", "preparation"), [("fake", FakeCityPreparation), ("real", PackageCityPreparation)]
+)
+def test_verify_build_rebuilds_with_the_preparation_of_the_adapter_set(
+    tmp_path: Path, adapters: str, preparation: type
+) -> None:
+    engine = create_db_engine(settings_for(tmp_path).database_url)
+    try:
+        verifying = worker_main.build_verify_build(
+            settings_for(tmp_path, adapters=adapters), engine
+        )
+    finally:
+        engine.dispose()
+
+    assert isinstance(verifying._preparation, preparation)

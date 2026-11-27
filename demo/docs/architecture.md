@@ -210,6 +210,16 @@ build and only then writes the manifest (OTP image, data set id, hashes of `gtfs
 modification time changed; both null without a manifest) to the `trip_planner` component's
 `details`; the solver and package reports keep `details = {}`. No route exposes `details`.
 
+A fourth worker command, `pricing-demo-worker verify-build {instance version}`, is the
+maintainer's proof that a build is reproducible. `VerifyBuild` reads the stored build (the
+artefacts the version links to, the failures of the routes step's run), rebuilds steps 1 to 4
+with reuse off through the same `CityPreparation` as a build, in a scratch folder
+`{data_dir}/verify/{uuid}/` behind the `ScratchBuilds` port (`LocalScratchBuilds`; removed on
+every path), and hands both descriptions to `domain/build_verification.py`, which compares file
+hashes, or the hub pairs both builds have when a query failed in either (options without their
+ids). It writes no artefact, link, read-model row, route failure or run. Exit status: 0 match,
+1 differ, 2 the version is unknown or not built, or a step failed.
+
 The GTFS copy is shaped: after copying, the import hands the copy and the `.osm.pbf` to the
 `BusShapeMatcher` port, and `ZipTimetableShapes` writes the tool's `shapes.txt` and the
 `shape_id` of the bus trips (route types 3 and 700-799) into the copy; every other entry stays
