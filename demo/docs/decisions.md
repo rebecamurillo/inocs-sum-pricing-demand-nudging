@@ -94,6 +94,21 @@ of mind is a new entry that names the one it replaces.
 - **Why:** a named-user academic Gurobi licence does not work inside a container. A container
   worker with real adapters needs a container-capable licence (Gurobi WLS).
 
+## D-11 — The traveller simulation behind a port (2026-11-27)
+
+- **Decision:** the `TravellerSimulation` port (`application/ports/`) takes a period's
+  instance and a price scheme (`model_prices` or `flat`) and returns the outputs with the
+  rule's id, version and parameters. The placeholder rule `balanced-score` version 1 lives in
+  `domain/traveller_simulation.py`: half scaled price, half scaled travel time, ties to
+  PT + bike, PT alone, car, then instance order; one traveller of each hub pair in turn; a bike
+  or dock refusal moves a traveller to the next option (`displaced`), none left is `unserved`.
+  Station bounds are checked after every choice and conservation before returning; a broken
+  check raises `SimulationCheckFailed` (`simulation_check_failed`). The rule is provisional
+  until the model's author states hers (Q-39), which then arrives as a second adapter under
+  `infrastructure/pricing_model/`. ARCHITECTURE.md § 6.3.
+- **Why:** the flat-price reference is a simulation, not a second solve, and both schemes must
+  be compared by the same rule that can be replaced without touching the use cases.
+
 ## D-12 — The worker and the queue (2026-11-26)
 
 - **Decision:** ARCHITECTURE.md § 16 correction 1 calls this entry D-7; D-7 was already

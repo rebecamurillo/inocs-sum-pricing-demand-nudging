@@ -59,6 +59,7 @@ from pricing_demo.domain.runs import (
     RunNotFound,
 )
 from pricing_demo.domain.system_status import IncompleteSystemStatus, InvalidComponentStatus
+from pricing_demo.domain.traveller_simulation import SimulationCheckFailed
 from pricing_demo.interface.http.schemas import (
     BlockingReasonResponse,
     FieldError,
@@ -97,6 +98,10 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     ),
     RunNotFound: Problem(404, "run_not_found", "The run does not exist"),
     RunAlreadyFinished: Problem(409, "run_finished", "The run has already finished"),
+    # No route reaches the simulation yet; the worker records the code as the step's failure.
+    SimulationCheckFailed: Problem(
+        500, "simulation_check_failed", "The traveller simulation broke its check"
+    ),
     # No route lets a client ask for a transition the machine refuses: reaching one is a bug.
     InvalidRunTransition: INTERNAL_ERROR,
     InvalidStepTransition: INTERNAL_ERROR,
