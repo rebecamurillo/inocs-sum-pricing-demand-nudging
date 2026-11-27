@@ -12,7 +12,9 @@
   display: none;
 }
 
-.canvas {
+/* Two classes: maplibre's own `.maplibregl-map { position: relative }` has one and would win by
+   its order in the built stylesheet, leaving the canvas at its 300 px default and unclickable. */
+.pane > .canvas {
   position: absolute;
   inset: 0;
 }

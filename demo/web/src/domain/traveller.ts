@@ -1,6 +1,7 @@
 /** The traveller view (L-5): labels, the version list, the time slots and the quote's reading. */
 import type { InstanceMenuEntry } from './city-instance';
 import type { GeoPoint } from './map';
+import type { RouteLegResult } from './pricing-result';
 import type { PricingPeriod, PricingVersion } from './pricing-version';
 
 export const TRAVELLER_BRIEF = {
@@ -34,10 +35,41 @@ export interface QuotedOption {
   /** The option with the largest flow within its mode. */
   readonly mostTaken: boolean;
   readonly price: number;
+  readonly arcId: string;
+  readonly durationS: number;
+  readonly transfers: number;
+  readonly bikeLegs: number;
+  /** Per bike ride; PT + bike only. */
+  readonly bikePrice: number | null;
+  readonly ptFare: number | null;
+  readonly carCost: number | null;
+  readonly carParkingFee: number | null;
+  readonly flow: number | null;
+  readonly legs: readonly RouteLegResult[];
+}
+
+export type QuoteStatus =
+  | 'one_point'
+  | 'outside_zone'
+  | 'no_hub_here'
+  | 'same_hub'
+  | 'under_minimum_distance'
+  | 'no_route'
+  | 'removed_by_quality_check'
+  | 'no_bike_option'
+  | 'priced';
+
+export interface QuotedHub {
+  readonly hubId: string;
+  readonly hubName: string;
 }
 
 export interface TripQuote {
-  readonly status: string;
+  readonly status: QuoteStatus;
+  readonly originHub: QuotedHub | null;
+  readonly destinationHub: QuotedHub | null;
+  readonly minTripDistanceM: number | null;
+  readonly noCarOption: boolean | null;
   readonly fromPoint: QuotedPoint | null;
   readonly toPoint: QuotedPoint | null;
   readonly options: readonly QuotedOption[];
@@ -57,6 +89,8 @@ export interface VersionChoice {
   readonly id: string;
   readonly instanceVersionId: string;
   readonly instanceId: string;
+  /** "Geneva 3 km v1". */
+  readonly instanceVersionName: string;
   readonly number: number;
   readonly letter: string;
   /** "Geneva 3 km v1 · Version B · Incentive". */
@@ -81,6 +115,7 @@ export function finishedVersionChoices(
           id: item.id,
           instanceVersionId: version.id,
           instanceId: entry.id,
+          instanceVersionName: `${entry.name} v${String(version.number)}`,
           number: version.number,
           letter: item.letter,
           label: `${entry.name} v${String(version.number)} · Version ${item.letter} · ${item.name}`,

@@ -20,6 +20,32 @@ import {
   type TripQuote,
 } from './traveller';
 
+const blankOption: QuotedOption = {
+  mode: 'car',
+  mostTaken: true,
+  price: 0,
+  arcId: 'a',
+  durationS: 0,
+  transfers: 0,
+  bikeLegs: 0,
+  bikePrice: null,
+  ptFare: null,
+  carCost: null,
+  carParkingFee: null,
+  flow: null,
+  legs: [],
+};
+const blankQuote: TripQuote = {
+  status: 'priced',
+  fromPoint: null,
+  toPoint: null,
+  originHub: null,
+  destinationHub: null,
+  minTripDistanceM: null,
+  noCarOption: null,
+  options: [],
+};
+
 const menu: InstanceMenuEntry[] = [
   {
     id: 'geneva-3km',
@@ -101,6 +127,7 @@ describe('finishedVersionChoices', () => {
       id: 'geneva-3km.v1.B',
       instanceVersionId: 'geneva-3km.v1',
       instanceId: 'geneva-3km',
+      instanceVersionName: 'Geneva 3 km v1',
       number: 1,
       letter: 'B',
     });
@@ -206,14 +233,14 @@ describe('points and messages', () => {
 
 describe('prices', () => {
   const option = (mode: QuotedOption['mode'], price: number, mostTaken: boolean): QuotedOption => ({
+    ...blankOption,
     mode,
     price,
     mostTaken,
   });
   const quote = (options: QuotedOption[]): TripQuote => ({
+    ...blankQuote,
     status: 'priced',
-    fromPoint: null,
-    toPoint: null,
     options,
   });
 
@@ -256,10 +283,9 @@ describe('the struck-through previous quote', () => {
     instanceVersionId,
     points,
     quote: {
-      status: 'priced',
-      fromPoint: null,
-      toPoint: null,
-      options: [{ mode: 'car' as const, price, mostTaken: true }],
+      ...blankQuote,
+      status: 'priced' as const,
+      options: [{ ...blankOption, mode: 'car' as const, price, mostTaken: true }],
     } satisfies TripQuote,
   });
 

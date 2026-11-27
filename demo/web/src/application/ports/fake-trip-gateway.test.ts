@@ -29,4 +29,18 @@ describe('fakeTrips', () => {
     ).toBe('no_hub_here');
     expect(quoteCalls).toHaveLength(4);
   });
+
+  it('answers a same-hub status for two points in one hub, and a configured answer', async () => {
+    const { gateway, answer } = fakeTrips();
+    const a = { lat: 46.199, lon: 6.14 };
+    const b = { lat: 46.2102, lon: 6.1424 };
+    const same = await gateway.quote('geneva-3km.v1.B', null, a, a);
+    expect(same.status).toBe('same_hub');
+    expect(same.originHub).toEqual({ hubId: 'H4', hubName: 'Plainpalais' });
+    expect(same.options).toEqual([]);
+    answer({ status: 'no_route' });
+    expect((await gateway.quote('geneva-3km.v1.B', null, a, b)).status).toBe('no_route');
+    answer(null);
+    expect((await gateway.quote('geneva-3km.v1.B', null, a, b)).status).toBe('priced');
+  });
 });

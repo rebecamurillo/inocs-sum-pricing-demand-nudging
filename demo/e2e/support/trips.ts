@@ -16,6 +16,11 @@ interface QuotedOption {
   price: { value: number };
 }
 
+interface QuotedHub {
+  hub_id: string;
+  hub_name: string;
+}
+
 /** The first stop line of one hub, as the API lists them for a typed name. */
 async function firstStopOfHub(
   request: APIRequestContext,
@@ -74,4 +79,38 @@ export async function pricedPair(
     }
   }
   throw new Error('no two stops of different hubs are priced');
+}
+
+/** The hubs of a priced quote: what the heading of L-5 names. */
+export async function quotedHubs(
+  request: APIRequestContext,
+  pricingVersion: string,
+  from: PlaceLine,
+  to: PlaceLine,
+): Promise<{ origin: QuotedHub; destination: QuotedHub }> {
+  const answer = await request.get('/api/v1/trip-quotes', {
+    params: { pricing_version: pricingVersion, from: pointOf(from), to: pointOf(to) },
+  });
+  const body = (await answer.json()) as { origin_hub: QuotedHub; destination_hub: QuotedHub };
+  return { origin: body.origin_hub, destination: body.destination_hub };
+}
+
+/** Two stop lines of one hub: the first hub with at least two stops in the fake city. */
+export async function sameHubPair(
+  request: APIRequestContext,
+  instanceVersion: string,
+): Promise<[PlaceLine, PlaceLine]> {
+  const answer = await request.get(`/api/v1/instance-versions/${instanceVersion}/hubs`);
+  const hubs = ((await answer.json()) as { items: { hub_id: string }[] }).items;
+  for (const hub of hubs) {
+    const found = await request.get('/api/v1/place-names', {
+      params: { instance_version: instanceVersion, q: `Fake stop ${hub.hub_id}-` },
+    });
+    const stops = ((await found.json()) as { items: PlaceLine[] }).items.filter(
+      (line) => line.kind === 'stop' && line.hub_id === hub.hub_id,
+    );
+    const [first, second] = stops;
+    if (first !== undefined && second !== undefined) return [first, second];
+  }
+  throw new Error('no hub has two stops');
 }

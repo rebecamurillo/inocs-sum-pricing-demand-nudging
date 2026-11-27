@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
-import { pricedPair } from '../support/trips';
+import { pricedPair, sameHubPair } from '../support/trips';
 import {
   createPricingVersion,
   finishVersion,
@@ -375,7 +375,10 @@ test.describe('Lab', () => {
     const { version } = await buildFakeInstance(request, control, 912);
     const main = page.getByRole('main');
     await finishVersion(request, version, 'Baseline');
-    await finishVersion(request, version, 'Incentive', { pt_fare_chf: 3, lowest_price_chf: 0.8 });
+    await finishVersion(request, version, 'Incentive', {
+      pt_fare_chf: 3,
+      lowest_price_chf: 0.8,
+    });
 
     // Pick: the form, no prices yet.
     await page.goto(`/#/lab/traveller/${version}/A`);
@@ -399,6 +402,20 @@ test.describe('Lab', () => {
     await main.getByRole('combobox', { name: 'Pricing version' }).selectOption(`${version}.B`);
     await expect(main.getByText('Monday 08:00–09:00 · Version B')).toBeVisible();
     await expect(main.getByRole('deletion').first()).toBeVisible();
+    await holdsAtEverySize(page, main);
+
+    // Options: the three cards and the notes under them (the fake city offers one bike option
+    // per pair, so the list of other bike options cannot be opened here).
+    await expect(main.getByText(/^Durations and legs are those of the hub pair/)).toBeVisible();
+    await holdsAtEverySize(page, main);
+
+    // No price: two stops of one hub.
+    const [sameA, sameB] = await sameHubPair(request, version);
+    await fieldA.fill(sameA.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await fieldB.fill(sameB.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await expect(main.getByRole('status')).toContainText('both points are in hub');
     await holdsAtEverySize(page, main);
   });
 

@@ -1,7 +1,7 @@
 import { buildFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
 import { finishVersion } from '../support/pricing';
-import { pricedPair, quoteOf } from '../support/trips';
+import { pricedPair, quotedHubs, quoteOf, sameHubPair } from '../support/trips';
 
 // Its own distance, so no other scenario's build finds this one's routes already computed.
 const TRAVELLER_DISTANCE_M = 915;
@@ -113,5 +113,59 @@ test.describe('Traveller view', () => {
     await page.getByRole('button', { name: 'Open in the traveller view' }).click();
     await expect(page).toHaveURL(new RegExp(`#/lab/traveller/${built.version}/B$`));
     await expect(versions).toHaveValue(`${built.version}.B`);
+
+    // The messages part runs from stored data: the solver and the trip planner are unavailable.
+    await control.makeUnavailable('solver', 'Solver unavailable for the scenario');
+    await control.makeUnavailable('trip_planner', 'Trip planner unavailable for the scenario');
+    await page.goto(`/#/lab/traveller/${built.version}/B`);
+    await page.reload();
+    await fieldA.fill(stopA.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await fieldB.fill(stopB.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    const { origin, destination } = await quotedHubs(request, `${built.version}.B`, stopA, stopB);
+    await expect(
+      main.getByRole('heading', {
+        name: `Priced between hub ${origin.hub_id} (${origin.hub_name}) and hub ${destination.hub_id} (${destination.hub_name})`,
+      }),
+    ).toBeVisible();
+    await expect(main.getByText('Monday 08:00–09:00 · Version B')).toBeVisible();
+    await expect(main.getByTestId(/^card-/)).toHaveCount(3);
+    await expect(main.getByTestId('card-car')).toContainText('Car');
+    await expect(main.getByTestId('card-pt_bike')).toContainText('Public transport + shared bike');
+    await expect(main.getByTestId('card-pt_only')).toContainText('Public transport');
+    await expect(main.getByTestId('card-pt_bike')).toContainText('SET BY THE PRICING MODEL');
+    const notes = main.getByText(
+      /^(The bike price is|The pricing model prices a shared bike|Durations and legs are those)/,
+    );
+    await expect(notes).toHaveText([
+      "The bike price is the pricing model's price for this option, per bike ride, added to the public transport fare. Durations and legs: trip planner, between the two hubs.",
+      'The pricing model prices a shared bike only together with a public transport trip: a trip by shared bike alone has no option here.',
+      'Durations and legs are those of the hub pair: the walk from your point to the hub is not included.',
+    ]);
+    await expect(main.getByRole('alert')).toHaveCount(0);
+
+    // Two typed stop names of one hub.
+    const [sameA, sameB] = await sameHubPair(request, built.version);
+    await fieldA.fill(sameA.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await fieldB.fill(sameB.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await expect(main.getByRole('status')).toHaveText(
+      `No model price for this trip: both points are in hub ${sameA.hub_id}. The model prices trips between hubs.`,
+    );
+    await expect(main.getByTestId('card-car')).toHaveCount(0);
+
+    // A click near a corner of the map pane: outside the fitted study circle.
+    const instance = (await (
+      await request.get(`/api/v1/instance-versions/${built.version}`)
+    ).json()) as { parameters: { radius_m: number } };
+    const radiusKm = String(instance.parameters.radius_m / 1000);
+    await fieldB.focus();
+    await page.getByRole('region', { name: 'Map' }).click({ position: { x: 6, y: 6 } });
+    await expect(main.getByRole('status')).toHaveText(
+      `Point B is outside the ${radiusKm} km zone of Geneva 3 km v1.`,
+    );
+    await expect(main.getByRole('alert')).toHaveCount(0);
   });
 });

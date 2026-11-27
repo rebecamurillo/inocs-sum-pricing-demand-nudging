@@ -1,7 +1,13 @@
 import { ApiProblemError } from '../../application/errors';
 import type { TripGateway } from '../../application/ports/trip-gateway';
 import type { GeoPoint } from '../../domain/map';
-import type { PlaceLine, QuotedPoint, TripQuote } from '../../domain/traveller';
+import type {
+  PlaceLine,
+  QuotedHub,
+  QuotedOption,
+  QuotedPoint,
+  TripQuote,
+} from '../../domain/traveller';
 import type { components } from './generated/schema';
 
 type Schemas = components['schemas'];
@@ -19,16 +25,46 @@ function toPoint(wire: Schemas['QuotedPointResource'] | null): QuotedPoint | nul
   };
 }
 
+function toHub(wire: Schemas['QuotedHubResource'] | null): QuotedHub | null {
+  return wire === null ? null : { hubId: wire.hub_id, hubName: wire.hub_name };
+}
+
+const valueOrNull = (wire: Schemas['NumberResource'] | null): number | null => wire?.value ?? null;
+
+function toOption(option: Schemas['QuotedOptionResource']): QuotedOption {
+  return {
+    mode: option.mode,
+    mostTaken: option.most_taken,
+    price: option.price.value,
+    arcId: option.arc_id,
+    durationS: option.duration_s.value,
+    transfers: option.transfers.value,
+    bikeLegs: option.bike_legs.value,
+    bikePrice: valueOrNull(option.bike_price),
+    ptFare: valueOrNull(option.pt_fare),
+    carCost: valueOrNull(option.car_cost),
+    carParkingFee: valueOrNull(option.car_parking_fee),
+    flow: valueOrNull(option.flow),
+    legs: option.legs.map((leg) => ({
+      mode: leg.mode,
+      line: leg.line,
+      fromPlace: leg.from_name,
+      toPlace: leg.to_name,
+      durationS: leg.duration_s.value,
+    })),
+  };
+}
+
 function toQuote(wire: Schemas['TripQuoteResponse']): TripQuote {
   return {
     status: wire.status,
     fromPoint: toPoint(wire.from_point),
     toPoint: toPoint(wire.to_point),
-    options: wire.options.map((option) => ({
-      mode: option.mode,
-      mostTaken: option.most_taken,
-      price: option.price.value,
-    })),
+    originHub: toHub(wire.origin_hub),
+    destinationHub: toHub(wire.destination_hub),
+    minTripDistanceM: valueOrNull(wire.min_trip_distance_m),
+    noCarOption: wire.no_car_option,
+    options: wire.options.map(toOption),
   };
 }
 

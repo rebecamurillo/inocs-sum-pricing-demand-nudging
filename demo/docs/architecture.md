@@ -821,8 +821,16 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   context (`MapHandle.onClick`, `useMapClick`) and `l5-layers.ts` declares the study circle, the
   hubs' outlines and the bike stations; L-5 has its own map share (`TRAVELLER_VIEW`, 44 %).
   `PricingVersion.periods` (the keys the version priced) gives the time slots. L-3's action bar
-  holds "Open in the traveller view" after "Compare versions →". The legs, the duration and the
-  other messages of a quote are story 5-3's.
+  holds "Open in the traveller view" after "Compare versions →". A priced quote shows, under the
+  scope line, a heading naming both hubs and one card per mode (car, PT + shared bike, PT; an
+  `OptionCard` each) of the `most_taken` option: price, duration line, an `aria-hidden` leg
+  strip, the make-up and, on the bike card, the tag "SET BY THE PRICING MODEL" and the button
+  that lists the other offered bike options. The three notes follow the cards. All of it is
+  formatted by `domain/trip-options.ts` from the quote's own fields (no number is computed in the
+  view), which also words the no-price messages (same hub, outside the zone, under the minimum
+  distance, removed by the check, no route; the missing bike or car option shows its message in
+  its card's place). The view reads stored data only and shows no component banner. The legs list
+  and the drawn route are story 5-4's.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

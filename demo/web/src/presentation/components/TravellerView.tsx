@@ -17,7 +17,6 @@ import {
   noHubMessage,
   placeLine,
   pointFieldText,
-  priceText,
   scopeLine,
   timeSlots,
   type PlaceLine,
@@ -25,6 +24,15 @@ import {
   type ShownQuote,
   type VersionChoice,
 } from '../../domain/traveller';
+import {
+  NO_CAR_ROUTE,
+  TRAVELLER_NOTES,
+  noBikeOption,
+  noPriceMessages,
+  otherBikeOptions,
+  quoteHeading,
+} from '../../domain/trip-options';
+import { OptionCard } from './OptionCard';
 import { useInstanceGeometry, useInstanceView } from '../hooks/useCityInstances';
 import { tripKey, usePlaceNames, useTripQuote } from '../hooks/useTrips';
 import { useMapClick, useMapFit, useMapLayers } from '../map/MapContext';
@@ -138,7 +146,6 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
   }
   const quote = track.shown?.quote ?? null;
   const previousPrices = track.previous === null ? null : cardPrices(track.previous.quote);
-  const prices = quote === null ? null : cardPrices(quote);
   const priced = quote !== null && (quote.status === 'priced' || quote.status === 'no_bike_option');
 
   const names = usePlaceNames(choice.instanceVersionId, typing?.text ?? '');
@@ -152,6 +159,9 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
   const messages = [
     noHubMessage(quote?.fromPoint ?? null),
     noHubMessage(quote?.toPoint ?? null),
+    ...(quote === null
+      ? []
+      : noPriceMessages(quote, choice.instanceVersionName, parameters?.radiusM ?? null)),
   ].filter((message): message is string => message !== null);
 
   const choose = (field: PointField, line: PlaceLine) => {
@@ -352,31 +362,53 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
         </div>
       </section>
 
-      {priced && prices !== null && (
-        <section aria-label="Options and prices">
-          <p className={styles.scope}>{scopeLine(range, choice.letter)}</p>
+      {priced && (
+        <section aria-label="Options and prices" className={styles.options}>
+          <div className={styles.optionsHead}>
+            <h3 className={styles.heading}>{quoteHeading(quote)}</h3>
+            <p className={styles.scope}>{scopeLine(range, choice.letter)}</p>
+          </div>
           <ul className={styles.cards}>
             {OPTION_CARDS.flatMap((card) => {
-              const price = prices.get(card.mode);
-              if (price === undefined) return [];
-              const before = previousPrices?.get(card.mode);
+              const option = quote.options.find(
+                (item) => item.mode === card.mode && item.mostTaken,
+              );
+              if (option === undefined) {
+                const missing =
+                  card.mode === 'pt_bike' && quote.status === 'no_bike_option'
+                    ? noBikeOption(choice.letter)
+                    : card.mode === 'car' && quote.noCarOption === true
+                      ? NO_CAR_ROUTE
+                      : null;
+                return missing === null
+                  ? []
+                  : [
+                      <li
+                        key={card.mode}
+                        className={styles.card}
+                        data-mode={card.mode}
+                        data-testid={`card-${card.mode}`}
+                      >
+                        <p className={styles.missing}>{missing}</p>
+                      </li>,
+                    ];
+              }
               return [
-                <li
+                <OptionCard
                   key={card.mode}
-                  className={styles.card}
-                  data-mode={card.mode}
-                  data-testid={`card-${card.mode}`}
-                >
-                  <span aria-hidden="true">{card.icon}</span>
-                  <span>{card.label}</span>
-                  <span className={styles.price} data-testid={`price-${card.mode}`}>
-                    {priceText(price)}
-                    {before !== undefined && <del>{priceText(before)}</del>}
-                  </span>
-                </li>,
+                  card={card}
+                  option={option}
+                  others={card.mode === 'pt_bike' ? otherBikeOptions(quote) : []}
+                  before={previousPrices?.get(card.mode)}
+                />,
               ];
             })}
           </ul>
+          <div className={styles.notes}>
+            {TRAVELLER_NOTES.map((note) => (
+              <p key={note}>{note}</p>
+            ))}
+          </div>
         </section>
       )}
     </div>
