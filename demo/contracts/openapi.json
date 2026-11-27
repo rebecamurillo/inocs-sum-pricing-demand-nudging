@@ -2517,6 +2517,7 @@
     },
     "/api/v1/instance-versions/{version_id}/hub-pairs": {
       "get": {
+        "description": "Ordered by `origin_hub`, then `destination_hub`.",
         "operationId": "listHubPairs",
         "parameters": [
           {
@@ -2597,6 +2598,7 @@
     },
     "/api/v1/instance-versions/{version_id}/hubs": {
       "get": {
+        "description": "Ordered by `hub_id`.",
         "operationId": "listHubs",
         "parameters": [
           {
@@ -2659,6 +2661,7 @@
     },
     "/api/v1/instance-versions/{version_id}/stations": {
       "get": {
+        "description": "Ordered by `station_id`.",
         "operationId": "listStations",
         "parameters": [
           {
@@ -2996,6 +2999,7 @@
     },
     "/api/v1/runs/{run_id}/route-failures": {
       "get": {
+        "description": "Ordered by `origin_hub`, `destination_hub`, then `query`.",
         "operationId": "listRouteFailures",
         "parameters": [
           {

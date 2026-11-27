@@ -91,6 +91,7 @@ def build_runs_router(
         "/runs/{run_id}/route-failures",
         operation_id="listRouteFailures",
         summary="The trip-planner queries that failed during the run's routes step",
+        description="Ordered by `origin_hub`, `destination_hub`, then `query`.",
         response_model=RouteFailureList,
         responses={**NOT_FOUND, **UNEXPECTED},
     )

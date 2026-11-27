@@ -154,6 +154,7 @@ def build_city_instances_router(
         "/instance-versions/{version_id}/stations",
         operation_id="listStations",
         summary="The public transport stops and bike stations of a built version",
+        description="Ordered by `station_id`.",
         response_model=StationList,
         responses={**VERSION_NOT_FOUND, **UNEXPECTED},
     )
@@ -166,6 +167,7 @@ def build_city_instances_router(
         "/instance-versions/{version_id}/hubs",
         operation_id="listHubs",
         summary="The hubs of a built version, with their stations and lines",
+        description="Ordered by `hub_id`.",
         response_model=HubList,
         responses={**VERSION_NOT_FOUND, **UNEXPECTED},
     )
@@ -178,6 +180,7 @@ def build_city_instances_router(
         "/instance-versions/{version_id}/hub-pairs",
         operation_id="listHubPairs",
         summary="The hub pairs of one period of a built version",
+        description="Ordered by `origin_hub`, then `destination_hub`.",
         response_model=HubPairList,
         responses={
             404: _problem(

@@ -99,7 +99,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The hub pairs of one period of a built version */
+        /**
+         * The hub pairs of one period of a built version
+         * @description Ordered by `origin_hub`, then `destination_hub`.
+         */
         get: operations["listHubPairs"];
         put?: never;
         post?: never;
@@ -116,7 +119,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The hubs of a built version, with their stations and lines */
+        /**
+         * The hubs of a built version, with their stations and lines
+         * @description Ordered by `hub_id`.
+         */
         get: operations["listHubs"];
         put?: never;
         post?: never;
@@ -133,7 +139,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The public transport stops and bike stations of a built version */
+        /**
+         * The public transport stops and bike stations of a built version
+         * @description Ordered by `station_id`.
+         */
         get: operations["listStations"];
         put?: never;
         post?: never;
@@ -218,7 +227,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The trip-planner queries that failed during the run's routes step */
+        /**
+         * The trip-planner queries that failed during the run's routes step
+         * @description Ordered by `origin_hub`, `destination_hub`, then `query`.
+         */
         get: operations["listRouteFailures"];
         put?: never;
         post?: never;

@@ -35,6 +35,11 @@ class PostgresReadModel:
     def ingest(self, batch: IngestionBatch) -> None:
         key = batch.input_key
         with self._engine.begin() as connection:
+            # Two runs that stored the same key ingest it one after the other: the second
+            # replaces the first's rows instead of failing on their primary keys.
+            connection.execute(
+                select(artifacts.c.input_key).where(artifacts.c.input_key == key).with_for_update()
+            )
             for table, column in _KEYS:
                 connection.execute(delete(table).where(table.c[column] == key))
             _insert_all(

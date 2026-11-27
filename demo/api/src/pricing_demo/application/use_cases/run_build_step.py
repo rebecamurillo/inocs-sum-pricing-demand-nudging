@@ -134,7 +134,10 @@ class BuildStepExecutor:
         )
         self._artifacts.add(artifact)
         self._files.discard(working)
-        return self._ingest(run, step, artifact, dataset, plan, version, planned)
+        # Another run may have stored the same key first; its row is the artefact (its run's
+        # failures and reported counts are the ones the read model and the summary read).
+        stored_artifact = self._artifacts.get(key) or artifact
+        return self._ingest(run, step, stored_artifact, dataset, plan, version, planned)
 
     def _ingest(
         self,
