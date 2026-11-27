@@ -1,6 +1,7 @@
 """A pricing rig: a built fake city in memory, and the worker's two pricing steps on the
 in-memory adapters, run through the real `ProcessNextRun`."""
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 
@@ -65,6 +66,12 @@ class PricingRig:
         )
 
     def use_rule(self, rule: TravellerSimulation) -> TravellerSimulationStepExecutor:
+        return self.use_rule_source(lambda: rule)
+
+    def use_rule_source(
+        self, rule: Callable[[], TravellerSimulation]
+    ) -> TravellerSimulationStepExecutor:
+        """The step reads its rule from `rule`, as the worker's composition root gives it."""
         self.simulation = TravellerSimulationStepExecutor(
             rule,
             self.rig.pricing,

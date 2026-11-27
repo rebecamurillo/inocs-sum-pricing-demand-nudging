@@ -112,7 +112,12 @@ e2e/
   fake adapters. It resets stored data and sets what the fakes answer (a component
   unavailable or, for the solver, limited; a run that fails at a named step, a build step or
   `pricing_model` (`fail_at`; `hold_at` holds a build step only); the licence kind the fake
-  solver records on its solves (`licence_kind`, `full` unless a test sets `limited`); failed
+  solver records on its solves (`licence_kind`, `full` unless a test sets `limited`); the
+  traveller simulation rule the worker uses (`simulation_rule`: `version`, `price_weight`,
+  `time_weight`, `balanced-score` v1 with 0.5 and 0.5 unless a test stages another; the version
+  is at least 2, because a staged version 1 with other weights would replace the links of the
+  version 1 simulations and leave them unlinked, and the worker records it on its next
+  heartbeat, so a scenario waits for `/system-status` to show it); failed
   route queries at named hub pairs). An
   architecture test asserts it is not mounted with the real adapters. It is the only test
   seam: a scenario never stubs the network in the browser.

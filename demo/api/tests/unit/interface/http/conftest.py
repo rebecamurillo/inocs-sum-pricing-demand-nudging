@@ -263,6 +263,8 @@ class CityInstancesApp:
                         DeletePricingVersion(self.rig.pricing),
                         self.rig.run_pricing,
                         GetRun(self.runs, self.clock),
+                        self.rig.simulate,
+                        self.rig.list_simulations,
                     ),
                 ],
             ),

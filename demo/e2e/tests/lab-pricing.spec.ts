@@ -1,6 +1,12 @@
 import { expect, test } from '../support/fixtures';
 import { buildFakeInstance, queueFakeInstance } from '../support/build';
-import { createPricingVersion, runPricingVersion, waitForRun } from '../support/pricing';
+import {
+  createPricingVersion,
+  runPricingVersion,
+  simulatePricingVersion,
+  waitForRun,
+  waitForSimulationRule,
+} from '../support/pricing';
 
 // Running a pricing version through the API (the screens that start it are stories 3.7 and 3.8).
 const SOLVER_REASON = 'Size-limited Gurobi licence: a model of 2001 variables is refused.';
@@ -87,5 +93,56 @@ test.describe('Pricing · run', () => {
       reason: KEPT_REASON,
     });
     expect(kept.steps[1]).toMatchObject({ step: 'traveller_simulation', state: 'done' });
+  });
+
+  test('Pricing · simulating a stored version again with a staged rule adds the new rule’s simulations without solving', async ({
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, PRICING_DISTANCE_M);
+    const version = await createPricingVersion(request, built.version);
+    const queued = (await (await runPricingVersion(request, version.id)).json()) as { id: string };
+    await waitForRun(request, queued.id, 'succeeded');
+    await waitForSimulationRule(request, 1);
+
+    // A new rule version, with the solver unavailable: a simulation reads the stored solve.
+    await control.setPricingModel({
+      simulation_rule: { version: 2, price_weight: 0.6, time_weight: 0.4 },
+    });
+    await control.makeUnavailable('solver', SOLVER_REASON);
+    await waitForSimulationRule(request, 2);
+
+    const simulate = await simulatePricingVersion(request, version.id);
+
+    expect(simulate.status()).toBe(202);
+    const run = (await simulate.json()) as { id: string; kind: string; state: string };
+    expect(simulate.headers().location).toBe(`/api/v1/runs/${run.id}`);
+    expect(run).toMatchObject({ kind: 'simulation', state: 'queued' });
+    const done = await waitForRun(request, run.id, 'succeeded');
+    expect(done.steps.map((step) => [step.step, step.state])).toEqual([
+      ['traveller_simulation', 'done'],
+    ]);
+
+    const listed = (await (
+      await request.get(`/api/v1/pricing-versions/${version.id}/simulations`)
+    ).json()) as {
+      items: { price_scheme: string; rule_version: number; rule_current: boolean }[];
+    };
+    expect(
+      listed.items.map((item) => [item.price_scheme, item.rule_version, item.rule_current]),
+    ).toEqual([
+      ['flat', 1, false],
+      ['flat', 2, true],
+      ['model_prices', 1, false],
+      ['model_prices', 2, true],
+    ]);
+    const stored = (await (await request.get(`/api/v1/pricing-versions/${version.id}`)).json()) as {
+      state: string;
+    };
+    expect(stored.state).toBe('result');
+
+    const again = await simulatePricingVersion(request, version.id);
+    expect(again.status()).toBe(409);
+    expect(((await again.json()) as Problem).code).toBe('simulation_current');
   });
 });

@@ -215,6 +215,10 @@ class PostgresPricingVersions:
             steps = steps_of(connection.execute(steps_query([row["id"]])).mappings())
         return run_of(row, steps.get(row["id"], ()))
 
+    def active_run_id(self, version_id: str) -> str | None:
+        with self._engine.connect() as connection:
+            return active_run_of(connection, [version_id])
+
     def queue_run(self, run: Run, seal_at: datetime | None, checked: PricingGoals | None) -> None:
         version_id = run.subject.id
         try:
@@ -289,7 +293,7 @@ def _last_run_states(connection: Connection, ids: list[str]) -> dict[str, RunSta
     latest: dict[str, RunState] = {}
     for version, state in connection.execute(
         select(runs.c.pricing_version_id, runs.c.state)
-        .where(runs.c.pricing_version_id.in_(ids))
+        .where(runs.c.kind == RunKind.PRICING.value, runs.c.pricing_version_id.in_(ids))
         .order_by(runs.c.queued_at.desc(), runs.c.id.desc())
     ):
         latest.setdefault(version, RunState(state))

@@ -221,3 +221,31 @@ def test_a_run_is_released_and_a_reset_forgets_the_release_and_the_settings(
     faked.client.post("/api/test-control/reset")
     assert "released_runs" not in faked.settings.read()
     assert "pricing_model" not in faked.settings.read()
+
+
+def test_the_simulation_rule_is_stored_only_when_given(faked: Faked) -> None:
+    staged = {"version": 2, "price_weight": 0.6, "time_weight": 0.4}
+    assert faked.client.put(PRICING_MODEL, json={"simulation_rule": staged}).status_code == 204
+    assert faked.settings.read()["pricing_model"]["simulation_rule"] == staged  # type: ignore[index]
+
+    faked.client.put(PRICING_MODEL, json={})
+
+    assert "simulation_rule" not in faked.settings.read()["pricing_model"]  # type: ignore[operator]
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        {"version": 1, "price_weight": 0.6, "time_weight": 0.4},
+        {"version": 2, "price_weight": 1.5, "time_weight": 0.4},
+        {"version": 2, "price_weight": 0.6, "time_weight": -0.1},
+        {"version": 2, "price_weight": 0.6},
+    ],
+)
+def test_a_staged_rule_below_version_2_or_with_a_weight_outside_0_to_1_is_refused(
+    faked: Faked, rule: dict[str, object]
+) -> None:
+    response = faked.client.put(PRICING_MODEL, json={"simulation_rule": rule})
+
+    assert response.status_code == 422
+    assert "simulation_rule" in response.json()["errors"][0]["field"]

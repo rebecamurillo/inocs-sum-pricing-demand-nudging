@@ -4,7 +4,11 @@ from typing import Any
 from sqlalchemy import Connection, Engine, delete, exists, select
 from sqlalchemy.dialects.postgresql import insert
 
-from pricing_demo.application.ports.simulations import SimulationLink, StoredSimulation
+from pricing_demo.application.ports.simulations import (
+    LinkedSimulation,
+    SimulationLink,
+    StoredSimulation,
+)
 from pricing_demo.infrastructure.persistence.tables import (
     pricing_version_simulations,
     simulation_choices,
@@ -76,6 +80,31 @@ class PostgresSimulations:
                     row.price_scheme,
                     row.rule_id,
                     row.rule_version,
+                    row.simulation_key,
+                    row.created_at,
+                )
+                for row in connection.execute(query)
+            ]
+
+    def linked_of(self, pricing_version_id: str) -> list[LinkedSimulation]:
+        table = pricing_version_simulations
+        query = (
+            select(table, simulations.c.rule_parameters)
+            .join(simulations, simulations.c.simulation_key == table.c.simulation_key)
+            .where(table.c.pricing_version_id == pricing_version_id)
+            .order_by(
+                table.c.period_id, table.c.price_scheme, table.c.rule_id, table.c.rule_version
+            )
+        )
+        with self._engine.connect() as connection:
+            return [
+                LinkedSimulation(
+                    row.pricing_version_id,
+                    row.period_id,
+                    row.price_scheme,
+                    row.rule_id,
+                    row.rule_version,
+                    dict(row.rule_parameters),
                     row.simulation_key,
                     row.created_at,
                 )

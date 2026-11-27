@@ -10,6 +10,8 @@ from pricing_demo.domain.system_status import ComponentReport, ComponentStatus
 class ReportedComponents:
     reports: tuple[ComponentReport, ...]
     latest_worker_heartbeat: datetime | None
+    # The `simulation_rule` of the worker with that latest heartbeat (ties by id).
+    simulation_rule: Mapping[str, object] | None = None
 
 
 class ComponentReports(Protocol):
@@ -26,5 +28,6 @@ class ComponentReports(Protocol):
         ...
 
     def read(self) -> ReportedComponents:
-        """Every report with its worker's last heartbeat, and the latest heartbeat of any worker."""
+        """Every report with its worker's last heartbeat, the latest heartbeat of any worker and
+        the simulation rule that worker records."""
         ...

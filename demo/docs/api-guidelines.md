@@ -79,7 +79,9 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   `component_unavailable`
   (each missing component with its reason) and `pricing_version_ids` on `has_pricing_versions`
   (the pricing versions that block a deletion, in letter order). `already_run` (409) has no
-  extension member: the version's result exists.
+  extension member: the version's result exists. `no_result` (409: the version has no succeeded
+  pricing run to simulate again) and `simulation_current` (409: both schemes already have a
+  simulation under the current rule) have none either.
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

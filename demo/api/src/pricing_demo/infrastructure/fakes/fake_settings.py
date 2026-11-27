@@ -26,8 +26,10 @@ class InMemoryFakeSettings:
         self._settings = {**self._settings, "components": components}
 
     def set_pricing_model(self, value: Mapping[str, object] | None) -> None:
-        """Set what the fake pricing model does (`fail_at`, `hold_at`, `routes_pace_ms`); None
-        returns it to its defaults: no failure, no hold, no pace."""
+        """Set what the fake pricing model does (`fail_at`, `hold_at`, `routes_pace_ms`) and
+        the traveller simulation rule the worker uses (`simulation_rule`: `version`,
+        `price_weight`, `time_weight`); None returns it to its defaults: no failure, no hold,
+        no pace, `balanced-score` version 1 with equal weights."""
         settings = {key: item for key, item in self._settings.items() if key != "pricing_model"}
         if value is not None:
             settings["pricing_model"] = dict(value)

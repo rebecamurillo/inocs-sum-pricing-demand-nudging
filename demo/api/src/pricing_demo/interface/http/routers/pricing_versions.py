@@ -6,14 +6,20 @@ from pricing_demo.application.use_cases.create_pricing_version import CreatePric
 from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
 from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
 from pricing_demo.application.use_cases.get_run import GetRun
+from pricing_demo.application.use_cases.list_pricing_version_simulations import (
+    ListPricingVersionSimulations,
+)
 from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
 from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
+from pricing_demo.application.use_cases.simulate_pricing_version import SimulatePricingVersion
 from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.interface.http.schemas import (
     CreatePricingVersionRequest,
     PricingVersionList,
     PricingVersionPatch,
     PricingVersionResource,
+    PricingVersionSimulationList,
+    PricingVersionSimulationResource,
     ProblemDetails,
     RunResource,
 )
@@ -37,6 +43,8 @@ def build_pricing_versions_router(
     delete: DeletePricingVersion,
     run_version: RunPricingVersion,
     get_run: GetRun,
+    simulate_version: SimulatePricingVersion,
+    list_simulations: ListPricingVersionSimulations,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["pricing-versions"])
 
@@ -150,5 +158,48 @@ def build_pricing_versions_router(
         run = run_version.execute(pricing_version_id)
         response.headers["Location"] = f"/api/v1/runs/{run.id}"
         return RunResource.from_view(get_run.execute(run.id))
+
+    @router.post(
+        "/pricing-versions/{pricing_version_id}/simulations",
+        operation_id="simulatePricingVersion",
+        summary="Queue a simulation run: the stored solve, simulated again with the current rule",
+        status_code=202,
+        response_model=RunResource,
+        responses={
+            202: {
+                "description": "The simulation run is queued; the body is the run",
+                "headers": {"Location": {"description": "The run", "schema": {"type": "string"}}},
+            },
+            **NOT_FOUND,
+            409: _problem(
+                "`run_active` (`run_id` is the run), `no_result` (no succeeded pricing run) or "
+                "`simulation_current` (both schemes already have a simulation with the current "
+                "rule)"
+            ),
+            503: _problem(
+                "`component_unavailable`: no worker runs, or storage is down; `reasons` names each"
+            ),
+            **UNEXPECTED,
+        },
+    )
+    def simulate_route(pricing_version_id: str, response: Response) -> RunResource:
+        run = simulate_version.execute(pricing_version_id)
+        response.headers["Location"] = f"/api/v1/runs/{run.id}"
+        return RunResource.from_view(get_run.execute(run.id))
+
+    @router.get(
+        "/pricing-versions/{pricing_version_id}/simulations",
+        operation_id="listPricingVersionSimulations",
+        summary="Every stored simulation of a version, with its rule and whether it is current",
+        response_model=PricingVersionSimulationList,
+        responses={**NOT_FOUND, **UNEXPECTED},
+    )
+    def list_simulations_route(pricing_version_id: str) -> PricingVersionSimulationList:
+        return PricingVersionSimulationList(
+            items=[
+                PricingVersionSimulationResource.from_view(item)
+                for item in list_simulations.execute(pricing_version_id)
+            ]
+        )
 
     return router

@@ -5,6 +5,7 @@ from enum import StrEnum
 
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.runner_liveness import is_alive
+from pricing_demo.domain.traveller_simulation import SimulationRule
 
 
 class ComponentName(StrEnum):
@@ -118,9 +119,11 @@ REQUIRED: Mapping[str, frozenset[ComponentName]] = {
 
 @dataclass(frozen=True)
 class SystemStatus:
-    """One status per component, in `ComponentName` order."""
+    """One status per component, in `ComponentName` order, and the traveller simulation rule
+    of the worker with the latest live heartbeat (None when no worker is live)."""
 
     components: tuple[ComponentStatus, ...]
+    simulation_rule: SimulationRule | None = None
 
     def __post_init__(self) -> None:
         if tuple(status.name for status in self.components) != tuple(ComponentName):
@@ -130,9 +133,13 @@ class SystemStatus:
             )
 
     @classmethod
-    def of(cls, statuses: Iterable[ComponentStatus]) -> "SystemStatus":
+    def of(
+        cls,
+        statuses: Iterable[ComponentStatus],
+        simulation_rule: SimulationRule | None = None,
+    ) -> "SystemStatus":
         order = {name: position for position, name in enumerate(ComponentName)}
-        return cls(tuple(sorted(statuses, key=lambda status: order[status.name])))
+        return cls(tuple(sorted(statuses, key=lambda status: order[status.name])), simulation_rule)
 
     @property
     def can_build_instances(self) -> Verdict:
@@ -214,9 +221,11 @@ def system_status_from(
     reports: Sequence[ComponentReport],
     server_time: datetime,
     city_data: ComponentStatus,
+    simulation_rule: Mapping[str, object] | None = None,
 ) -> SystemStatus:
     """The six components from the API's own storage probe, the `workers` heartbeats, the
-    reports and the count of city data sets, judged on the API's clock."""
+    reports and the count of city data sets, judged on the API's clock. The current rule is
+    the latest heartbeat's `simulation_rule`, when that heartbeat is live."""
     if storage.state is not ComponentState.AVAILABLE:
         unknown = [
             ComponentStatus.unavailable(name, STORAGE_UNKNOWN_REASON)
@@ -224,7 +233,8 @@ def system_status_from(
             if name is not ComponentName.STORAGE
         ]
         return SystemStatus.of([storage, *unknown])
-    if is_alive(latest_worker_heartbeat, server_time):
+    runner_alive = is_alive(latest_worker_heartbeat, server_time)
+    if runner_alive:
         runner = ComponentStatus.ready(ComponentName.RUNNER)
     else:
         runner = ComponentStatus.unavailable(ComponentName.RUNNER, NO_RUNNER_REASON)
@@ -237,4 +247,5 @@ def system_status_from(
         fresh.get(name) or ComponentStatus.unavailable(name, not_reported_reason(name))
         for name in PROBED_COMPONENTS
     ]
-    return SystemStatus.of([storage, runner, *probed, city_data])
+    current = SimulationRule.from_record(simulation_rule) if runner_alive else None
+    return SystemStatus.of([storage, runner, *probed, city_data], current)

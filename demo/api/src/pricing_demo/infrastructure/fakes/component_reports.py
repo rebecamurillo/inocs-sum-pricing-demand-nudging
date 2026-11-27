@@ -13,6 +13,8 @@ class InMemoryComponentReports:
         self._reports: dict[str, ComponentReport] = {}
         # The `workers.heartbeat_at` values, set by the test.
         self.worker_heartbeats: dict[str, datetime] = {}
+        # The `workers.simulation_rule` values, set by the test.
+        self.worker_rules: dict[str, Mapping[str, object]] = {}
 
     def write(
         self,
@@ -35,4 +37,8 @@ class InMemoryComponentReports:
             for report in self._reports.values()
         )
         latest = max(self.worker_heartbeats.values(), default=None)
-        return ReportedComponents(reports, latest)
+        newest = min(
+            (item for item, at in self.worker_heartbeats.items() if at == latest), default=None
+        )
+        rule = None if newest is None else self.worker_rules.get(newest)
+        return ReportedComponents(reports, latest, rule)

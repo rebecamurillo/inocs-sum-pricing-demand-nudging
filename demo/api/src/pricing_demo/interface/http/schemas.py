@@ -7,6 +7,9 @@ from pricing_demo.application.instance_version_view import InstanceVersionView
 from pricing_demo.application.pricing_version_view import PricingVersionView
 from pricing_demo.application.run_view import RunView
 from pricing_demo.application.use_cases.list_city_instances import InstanceMenuEntry
+from pricing_demo.application.use_cases.list_pricing_version_simulations import (
+    VersionSimulation,
+)
 from pricing_demo.domain.build_plan import BUILD_STEPS, BuildPlan, Cause, PlannedStep
 from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import (
@@ -47,6 +50,7 @@ from pricing_demo.domain.system_status import (
     SystemStatus,
     Verdict,
 )
+from pricing_demo.domain.traveller_simulation import SimulationRule
 
 
 class ComponentStatusResponse(BaseModel):
@@ -82,11 +86,27 @@ class VerdictResponse(BaseModel):
         )
 
 
+class SimulationRuleResource(BaseModel):
+    """A traveller simulation rule: its id, its version and its parameters."""
+
+    id: str
+    version: int
+    parameters: dict[str, float]
+
+    @classmethod
+    def from_domain(cls, rule: SimulationRule) -> "SimulationRuleResource":
+        return cls(id=rule.id, version=rule.version, parameters=dict(rule.parameters))
+
+
 class SystemStatusResponse(BaseModel):
     components: list[ComponentStatusResponse]
     can_build_instances: VerdictResponse
     can_run_pricing: VerdictResponse
     can_simulate: VerdictResponse
+    simulation_rule: SimulationRuleResource | None = Field(
+        description="The traveller simulation rule of the worker with the latest live "
+        "heartbeat; null when no worker is live."
+    )
 
     @classmethod
     def from_domain(cls, status: SystemStatus) -> "SystemStatusResponse":
@@ -95,6 +115,9 @@ class SystemStatusResponse(BaseModel):
             can_build_instances=VerdictResponse.from_domain(status.can_build_instances),
             can_run_pricing=VerdictResponse.from_domain(status.can_run_pricing),
             can_simulate=VerdictResponse.from_domain(status.can_simulate),
+            simulation_rule=None
+            if status.simulation_rule is None
+            else SimulationRuleResource.from_domain(status.simulation_rule),
         )
 
 
@@ -151,17 +174,29 @@ class FakeRouteFailure(BaseModel):
     message: str
 
 
+class StagedSimulationRule(BaseModel):
+    """The placeholder rule the worker uses, staged for a re-simulation scenario: a version
+    (at least 2: version 1 is the rule's default, and a staged version 1 with other weights
+    would replace its links and leave its simulations unlinked) and the two weights."""
+
+    version: int = Field(ge=2)
+    price_weight: float = Field(ge=0, le=1)
+    time_weight: float = Field(ge=0, le=1)
+
+
 class PricingModelSettings(BaseModel):
     """What the fake pricing model does: fail a step with a code, hold a step until it is
     released, pace the routes step, fail trip-planner queries at named pairs, and record a
-    licence kind on its solves. The defaults are no failure, no hold, no pace, no failed query
-    and a full licence."""
+    licence kind on its solves; and the rule the worker simulates travellers with. The
+    defaults are no failure, no hold, no pace, no failed query, a full licence and
+    `balanced-score` version 1 with equal weights."""
 
     fail_at: FailAt | None = None
     hold_at: StepName | None = None
     routes_pace_ms: int = Field(default=0, ge=0)
     route_failures: list[FakeRouteFailure] = Field(default_factory=list)
     licence_kind: Literal["full", "limited"] | None = None
+    simulation_rule: StagedSimulationRule | None = None
 
     _hold_is_a_build_step = field_validator("hold_at")(_a_build_step)
 
@@ -947,3 +982,37 @@ class PricingVersionResource(BaseModel):
 
 class PricingVersionList(BaseModel):
     items: list[PricingVersionResource]
+
+
+class PricingVersionSimulationResource(BaseModel):
+    """One stored simulation of a pricing version: a period under a price scheme and a rule."""
+
+    period_id: str
+    price_scheme: Literal["model_prices", "flat"]
+    rule_id: str
+    rule_version: int
+    rule_parameters: dict[str, float]
+    rule_current: bool = Field(
+        description="True when the rule is the one the live worker uses now; false for every "
+        "simulation when no worker is live."
+    )
+    simulation_key: str
+    created_at: datetime
+
+    @classmethod
+    def from_view(cls, view: VersionSimulation) -> "PricingVersionSimulationResource":
+        linked = view.linked
+        return cls(
+            period_id=linked.period_id,
+            price_scheme=linked.price_scheme,
+            rule_id=linked.rule_id,
+            rule_version=linked.rule_version,
+            rule_parameters=dict(linked.rule_parameters),
+            rule_current=view.rule_current,
+            simulation_key=linked.simulation_key,
+            created_at=linked.created_at,
+        )
+
+
+class PricingVersionSimulationList(BaseModel):
+    items: list[PricingVersionSimulationResource]

@@ -1,6 +1,13 @@
-from pricing_demo.domain.runs import RunState
+from dataclasses import replace
+
+import pytest
+
+from pricing_demo.domain.runs import RunKind, RunState
 from pricing_demo.domain.system_status import ComponentName, ComponentStatus, SystemStatus
+from pricing_demo.domain.traveller_simulation import BalancedScore, SimulationRule
+from tests.support.builds import unavailable
 from tests.support.pricing_versions import built_in_memory, sealed_pricing_version
+from tests.support.simulations import simulate_under
 from tests.unit.interface.http.conftest import CityInstancesApp
 
 VERSION = "geneva-3km.v1"
@@ -314,3 +321,184 @@ def test_a_component_the_run_needs_blocks_it_with_503_naming_the_reasons(
     assert instances_app.client.get(f"/api/v1/pricing-versions/{version}").json()["status"] == (
         "draft"
     )
+
+
+SIMULATIONS = "/api/v1/pricing-versions/{}/simulations"
+V1 = BalancedScore()
+V2 = BalancedScore(0.6, 0.4, rule_version=2)
+
+
+def a_result(app: CityInstancesApp, current: BalancedScore | None = V2) -> str:
+    """A sealed version whose pricing run succeeded and whose simulations used rule v1, with a
+    live worker that records `current`."""
+    version = a_draft(app)
+    sealed_pricing_version(app.rig, version, RunState.SUCCEEDED)
+    simulate_under(app.rig.simulations, version, f"{VERSION}.mon-08", V1)
+    app.status.value = replace(
+        app.status.value,
+        simulation_rule=None if current is None else SimulationRule.of(current),
+    )
+    return version
+
+
+def test_simulating_a_version_answers_202_with_the_run_and_its_location(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+
+    response = instances_app.client.post(SIMULATIONS.format(version))
+
+    assert response.status_code == 202
+    body = response.json()
+    assert response.headers["Location"] == f"/api/v1/runs/{body['id']}"
+    assert (body["kind"], body["state"]) == ("simulation", "queued")
+    assert body["subject"] == {"type": "pricing_version", "id": version}
+    assert [(item["step"], item["state"], item["period"]) for item in body["steps"]] == [
+        ("traveller_simulation", "pending", f"{VERSION}.mon-08")
+    ]
+
+
+def test_simulating_an_unknown_version_answers_404(instances_app: CityInstancesApp) -> None:
+    response = instances_app.client.post(SIMULATIONS.format("geneva-3km.v1.Q"))
+
+    assert (response.status_code, response.json()["code"]) == (404, "pricing_version_not_found")
+
+
+def test_simulating_a_version_with_an_active_run_answers_409_run_active_with_the_run(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+    first = instances_app.client.post(SIMULATIONS.format(version)).json()
+
+    response = instances_app.client.post(SIMULATIONS.format(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "run_active")
+    assert response.json()["run_id"] == first["id"]
+
+
+@pytest.mark.parametrize("state", [RunState.FAILED, RunState.CANCELLED])
+def test_simulating_a_version_without_a_succeeded_pricing_run_answers_409_no_result(
+    instances_app: CityInstancesApp, state: RunState
+) -> None:
+    version = a_draft(instances_app)
+    sealed_pricing_version(instances_app.rig, version, state)
+
+    response = instances_app.client.post(SIMULATIONS.format(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "no_result")
+
+
+def test_simulating_a_draft_answers_409_no_result_and_queues_nothing(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+
+    response = instances_app.client.post(SIMULATIONS.format(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "no_result")
+    assert [run.kind for run in instances_app.runs.list_by_states(list(RunState))] == [
+        RunKind.BUILD
+    ]
+
+
+def test_simulating_a_version_already_simulated_with_the_current_rule_answers_409(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+    simulate_under(instances_app.rig.simulations, version, f"{VERSION}.mon-08", V2)
+
+    response = instances_app.client.post(SIMULATIONS.format(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "simulation_current")
+
+
+def test_without_a_worker_a_simulation_is_refused_with_503_naming_the_reasons(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+    instances_app.status.value = unavailable(ComponentName.RUNNER)
+
+    response = instances_app.client.post(SIMULATIONS.format(version))
+
+    assert (response.status_code, response.json()["code"]) == (503, "component_unavailable")
+    assert [item["component"] for item in response.json()["reasons"]] == ["runner"]
+
+
+def test_a_missing_solver_and_trip_planner_do_not_refuse_a_simulation(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+    instances_app.status.value = replace(
+        unavailable(ComponentName.SOLVER, ComponentName.TRIP_PLANNER),
+        simulation_rule=SimulationRule.of(V2),
+    )
+
+    assert instances_app.client.post(SIMULATIONS.format(version)).status_code == 202
+
+
+def test_the_simulations_of_a_version_are_listed_with_their_rule_and_whether_it_is_current(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+    simulate_under(instances_app.rig.simulations, version, f"{VERSION}.mon-08", V2)
+
+    response = instances_app.client.get(SIMULATIONS.format(version))
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert [
+        (item["period_id"], item["price_scheme"], item["rule_id"], item["rule_version"])
+        for item in items
+    ] == [
+        (f"{VERSION}.mon-08", "flat", "balanced-score", 1),
+        (f"{VERSION}.mon-08", "flat", "balanced-score", 2),
+        (f"{VERSION}.mon-08", "model_prices", "balanced-score", 1),
+        (f"{VERSION}.mon-08", "model_prices", "balanced-score", 2),
+    ]
+    assert [item["rule_current"] for item in items] == [False, True, False, True]
+    assert items[0]["rule_parameters"] == {"price_weight": 0.5, "time_weight": 0.5}
+    assert items[1]["rule_parameters"] == {"price_weight": 0.6, "time_weight": 0.4}
+    assert set(items[0]) == {
+        "period_id",
+        "price_scheme",
+        "rule_id",
+        "rule_version",
+        "rule_parameters",
+        "rule_current",
+        "simulation_key",
+        "created_at",
+    }
+    assert items[0]["simulation_key"].startswith(version)
+
+
+def test_no_simulation_is_current_without_a_live_worker(instances_app: CityInstancesApp) -> None:
+    version = a_result(instances_app, current=None)
+
+    items = instances_app.client.get(SIMULATIONS.format(version)).json()["items"]
+
+    assert len(items) == 2
+    assert [item["rule_current"] for item in items] == [False, False]
+
+
+def test_a_version_without_simulations_lists_nothing_and_an_unknown_one_is_404(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+
+    empty = instances_app.client.get(SIMULATIONS.format(version))
+    unknown = instances_app.client.get(SIMULATIONS.format("geneva-3km.v1.Q"))
+
+    assert (empty.status_code, empty.json()) == (200, {"items": []})
+    assert (unknown.status_code, unknown.json()["code"]) == (404, "pricing_version_not_found")
+
+
+def test_the_version_stays_a_result_while_a_simulation_run_is_queued(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_result(instances_app)
+    instances_app.client.post(SIMULATIONS.format(version))
+
+    body = instances_app.client.get(f"/api/v1/pricing-versions/{version}").json()
+
+    assert body["state"] == "result"
+    assert instances_app.client.post(runs_path(version)).json()["code"] == "already_run"

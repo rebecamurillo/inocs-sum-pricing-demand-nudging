@@ -1,6 +1,6 @@
 """The ComponentReports port: one suite, run against the fake and the PostgreSQL adapter."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -20,6 +20,7 @@ from tests.support.runs import T0, later
 class Reports:
     port: ComponentReports
     beat: Callable[[str, datetime], None]
+    beat_with_rule: Callable[[str, datetime, Mapping[str, object]], None]
     drop_worker: Callable[[str], None]
     inject_unknown_component: Callable[[], None]
 
@@ -30,13 +31,17 @@ def fake_reports() -> Iterator[Reports]:
     def beat(worker_id: str, at: datetime) -> None:
         fake.worker_heartbeats[worker_id] = at
 
+    def beat_with_rule(worker_id: str, at: datetime, rule: Mapping[str, object]) -> None:
+        fake.worker_heartbeats[worker_id] = at
+        fake.worker_rules[worker_id] = rule
+
     def drop(worker_id: str) -> None:
         fake.worker_heartbeats.pop(worker_id)
 
     def inject() -> None:
         pass  # the fake only holds what `write` accepts
 
-    yield Reports(fake, beat, drop, inject)
+    yield Reports(fake, beat, beat_with_rule, drop, inject)
 
 
 @pytest.fixture
@@ -45,6 +50,9 @@ def postgres_reports(migrated_database: Engine) -> Reports:
 
     def beat(worker_id: str, at: datetime) -> None:
         registry.heartbeat(worker_id, "h", 1, T0, at)
+
+    def beat_with_rule(worker_id: str, at: datetime, rule: Mapping[str, object]) -> None:
+        registry.heartbeat(worker_id, "h", 1, T0, at, None, rule)
 
     def drop_worker(worker_id: str) -> None:
         with migrated_database.begin() as connection:
@@ -58,7 +66,9 @@ def postgres_reports(migrated_database: Engine) -> Reports:
                 )
             )
 
-    return Reports(PostgresComponentReports(migrated_database), beat, drop_worker, inject)
+    return Reports(
+        PostgresComponentReports(migrated_database), beat, beat_with_rule, drop_worker, inject
+    )
 
 
 @pytest.fixture(
@@ -155,3 +165,29 @@ def test_the_details_given_to_a_write_are_read_back(reports: Reports) -> None:
     read = {item.status.name: item for item in reports.port.read().reports}
     assert read[ComponentName.TRIP_PLANNER].details == details
     assert read[ComponentName.SOLVER].details == {}
+
+
+RULE_1 = {"id": "balanced-score", "version": 1, "parameters": {"price_weight": 0.5}}
+RULE_2 = {"id": "balanced-score", "version": 2, "parameters": {"price_weight": 0.6}}
+
+
+def test_the_rule_is_the_one_of_the_worker_with_the_latest_heartbeat(reports: Reports) -> None:
+    reports.beat_with_rule("w-1", later(3), RULE_1)
+    reports.beat_with_rule("w-2", later(9), RULE_2)
+
+    assert reports.port.read().simulation_rule == RULE_2
+
+    reports.beat_with_rule("w-1", later(20), RULE_1)
+
+    assert reports.port.read().simulation_rule == RULE_1
+
+
+def test_there_is_no_rule_without_a_worker_or_when_the_latest_worker_records_none(
+    reports: Reports,
+) -> None:
+    assert reports.port.read().simulation_rule is None
+
+    reports.beat_with_rule("w-1", later(3), RULE_1)
+    reports.beat("w-2", later(9))
+
+    assert reports.port.read().simulation_rule is None

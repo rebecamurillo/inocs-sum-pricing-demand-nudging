@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -39,6 +40,7 @@ SCHEMES = ("model_prices", "flat")
 
 @dataclass(frozen=True)
 class _Context:
+    rule: TravellerSimulation  # read once per keep or execute: keys, outputs and links agree
     version: PricingVersion
     period_id: str
     instance_key: str
@@ -53,11 +55,15 @@ class TravellerSimulationStepExecutor:
 
     A simulation stored under the same key (the same instance, rule, prices and solve) is
     reused, so versions of one period with the same flat price share one flat simulation.
+
+    The rule is read from a callable, once per `keep` and once per `execute`, so a rule the
+    worker's composition root changes simulates a stored version again under new keys and links
+    beside the old ones.
     """
 
     def __init__(
         self,
-        rule: TravellerSimulation,
+        rule: Callable[[], TravellerSimulation],
         pricing_versions: PricingVersions,
         artifacts: Artifacts,
         solves: Solves,
@@ -105,7 +111,7 @@ class TravellerSimulationStepExecutor:
             for name in missing:
                 if stop.is_set():
                     return StepOutcome.stopped_on_signal()
-                outputs = self._rule.simulate(instance, self._scheme(name, context))
+                outputs = context.rule.simulate(instance, self._scheme(name, context))
                 goals = context.version.goals
                 new.append(
                     StoredSimulation(
@@ -162,8 +168,8 @@ class TravellerSimulationStepExecutor:
                 context.version.id,
                 context.period_id,
                 name,
-                self._rule.rule_id,
-                self._rule.rule_version,
+                context.rule.rule_id,
+                context.rule.rule_version,
                 context.keys[name],
                 now,
             )
@@ -172,6 +178,7 @@ class TravellerSimulationStepExecutor:
 
     def _context(self, run: Run, step: RunStep) -> _Context | str:
         """The keys of the two simulations, or the reason there are none."""
+        rule = self._rule()
         version = self._pricing_versions.get(run.subject.id)
         if version is None:
             raise PricingVersionNotFound(run.subject.id)
@@ -188,9 +195,9 @@ class TravellerSimulationStepExecutor:
         common: dict[str, Any] = {
             "instance_key": instance_key,
             "period_id": period_id,
-            "rule_id": self._rule.rule_id,
-            "rule_version": self._rule.rule_version,
-            "rule_parameters": self._rule.parameters,
+            "rule_id": rule.rule_id,
+            "rule_version": rule.rule_version,
+            "rule_parameters": rule.parameters,
             "pt_fare_chf": float(goals.pt_fare_chf),
             "car_parking_fee_chf": float(goals.car_parking_fee_chf),
         }
@@ -210,4 +217,4 @@ class TravellerSimulationStepExecutor:
                 flat_price_amount_chf=float(goals.flat_price_per_ride_chf),
             ),
         }
-        return _Context(version, period_id, instance_key, solve_key, keys)
+        return _Context(rule, version, period_id, instance_key, solve_key, keys)

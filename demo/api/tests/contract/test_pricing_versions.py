@@ -73,11 +73,18 @@ class Env:
                 {"at": T0, "id": version_id},
             )
 
-    def run(self, run_id: str, version_id: str, state: RunState, at: int = 1) -> None:
+    def run(
+        self,
+        run_id: str,
+        version_id: str,
+        state: RunState,
+        at: int = 1,
+        kind: RunKind = RunKind.PRICING,
+    ) -> None:
         self.runs.add(
             make_run(
                 run_id,
-                kind=RunKind.PRICING,
+                kind=kind,
                 subject_id=version_id,
                 state=state,
                 queued_at=later(at),
@@ -355,3 +362,51 @@ def test_a_second_active_run_is_refused_and_nothing_is_sealed_or_stored(
 def test_queueing_a_run_for_an_unknown_version_is_not_found(env: Env) -> None:
     with pytest.raises(PricingVersionNotFound):
         env.pricing.queue_run(pricing_run("geneva-3km.v1.Q"), T0, GOALS)
+
+
+def test_the_state_derives_from_the_pricing_runs_only(env: Env) -> None:
+    version = env.draft()
+    env.seal(version)
+    env.run("r-pricing", version, RunState.SUCCEEDED, at=1)
+    env.run("r-sim", version, RunState.RUNNING, at=2, kind=RunKind.SIMULATION)
+
+    assert [item.state for item in env.pricing.list_for(VERSION)] == ["result"]
+
+    env.runs.update("r-sim", lambda run: replace(run, state=RunState.FAILED))
+    env.run("r-sim-2", version, RunState.CANCELLED, at=3, kind=RunKind.SIMULATION)
+
+    assert [item.state for item in env.pricing.list_for(VERSION)] == ["result"]
+
+
+def test_the_latest_run_is_a_pricing_run_even_after_a_simulation_run(env: Env) -> None:
+    version = env.draft()
+    env.seal(version)
+    env.run("r-pricing", version, RunState.SUCCEEDED, at=1)
+    env.run("r-sim", version, RunState.SUCCEEDED, at=2, kind=RunKind.SIMULATION)
+
+    latest = env.pricing.latest_run(version)
+
+    assert latest is not None
+    assert latest.id == "r-pricing"
+
+
+def test_a_version_without_a_queued_or_running_run_has_no_active_run(env: Env) -> None:
+    version = env.draft()
+    env.seal(version)
+    env.run("r1", version, RunState.SUCCEEDED, at=1)
+    env.run("r2", version, RunState.FAILED, at=2, kind=RunKind.SIMULATION)
+
+    assert env.pricing.active_run_id(version) is None
+    assert env.pricing.active_run_id("geneva-3km.v1.Q") is None
+
+
+@pytest.mark.parametrize("kind", [RunKind.PRICING, RunKind.SIMULATION])
+@pytest.mark.parametrize("state", [RunState.QUEUED, RunState.RUNNING])
+def test_the_active_run_of_any_kind_is_found(env: Env, kind: RunKind, state: RunState) -> None:
+    version, other = env.draft(), env.draft()
+    env.seal(version)
+    env.seal(other)
+    env.run("r-active", version, state, at=1, kind=kind)
+
+    assert env.pricing.active_run_id(version) == "r-active"
+    assert env.pricing.active_run_id(other) is None

@@ -243,6 +243,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/pricing-versions/{pricing_version_id}/simulations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every stored simulation of a version, with its rule and whether it is current */
+        get: operations["listPricingVersionSimulations"];
+        put?: never;
+        /** Queue a simulation run: the stored solve, simulated again with the current rule */
+        post: operations["simulatePricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -935,6 +953,44 @@ export interface components {
              */
             status: "draft" | "sealed";
         };
+        /** PricingVersionSimulationList */
+        PricingVersionSimulationList: {
+            /** Items */
+            items: components["schemas"]["PricingVersionSimulationResource"][];
+        };
+        /**
+         * PricingVersionSimulationResource
+         * @description One stored simulation of a pricing version: a period under a price scheme and a rule.
+         */
+        PricingVersionSimulationResource: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Period Id */
+            period_id: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            /**
+             * Rule Current
+             * @description True when the rule is the one the live worker uses now; false for every simulation when no worker is live.
+             */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+        };
         /**
          * ProblemDetails
          * @description An error, as a problem document (RFC 9457).
@@ -1184,6 +1240,20 @@ export interface components {
             /** Last Heartbeat At */
             last_heartbeat_at: string | null;
         };
+        /**
+         * SimulationRuleResource
+         * @description A traveller simulation rule: its id, its version and its parameters.
+         */
+        SimulationRuleResource: {
+            /** Id */
+            id: string;
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+            /** Version */
+            version: number;
+        };
         /** StationList */
         StationList: {
             /** Items */
@@ -1235,6 +1305,8 @@ export interface components {
             can_simulate: components["schemas"]["VerdictResponse"];
             /** Components */
             components: components["schemas"]["ComponentStatusResponse"][];
+            /** @description The traveller simulation rule of the worker with the latest live heartbeat; null when no worker is live. */
+            simulation_rule: components["schemas"]["SimulationRuleResource"] | null;
         };
         /** VerdictResponse */
         VerdictResponse: {
@@ -2261,6 +2333,124 @@ export interface operations {
                 };
             };
             /** @description `component_unavailable`: `reasons` names each component the run needs and lacks */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listPricingVersionSimulations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionSimulationList"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    simulatePricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The simulation run is queued; the body is the run */
+            202: {
+                headers: {
+                    /** @description The run */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `run_active` (`run_id` is the run), `no_result` (no succeeded pricing run) or `simulation_current` (both schemes already have a simulation with the current rule) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `component_unavailable`: no worker runs, or storage is down; `reasons` names each */
             503: {
                 headers: {
                     [name: string]: unknown;

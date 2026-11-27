@@ -85,10 +85,7 @@ class FakePricingVersions:
         return list(self._periods.get(version_id, []))
 
     def _last_run_state(self, version_id: str) -> RunState | None:
-        runs = [
-            run for run in self._runs.list_by_states(list(RunState)) if run.subject.id == version_id
-        ]
-        latest = max(runs, key=lambda run: (run.queued_at, run.id), default=None)
+        latest = self.latest_run(version_id)
         return None if latest is None else latest.state
 
     def latest_run(self, version_id: str) -> Run | None:
@@ -162,7 +159,11 @@ class FakePricingVersions:
             if v.instance_version_id in instance_version_ids
         ]
 
-    def active_run_id(self, ids: Collection[str]) -> str | None:
+    def active_run_id(self, ids: str | Collection[str]) -> str | None:
+        """The earliest queued or running run of the version (the port) or of any of the
+        versions (what the deletion of an instance version asks)."""
+        if isinstance(ids, str):
+            ids = [ids]
         active = [run for run in self._runs.list_by_states(list(ACTIVE)) if run.subject.id in ids]
         return min(active, key=lambda run: (run.queued_at, run.id)).id if active else None
 

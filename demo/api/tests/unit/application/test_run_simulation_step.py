@@ -292,3 +292,48 @@ def test_the_link_names_the_rule_it_was_made_with(rig: PricingRig) -> None:
     found: list[SimulationLink] = rig.rig.simulations.links_of(version)
 
     assert {(item.rule_id, item.rule_version) for item in found} == {("balanced-score", 1)}
+
+
+def test_the_rule_is_read_once_per_execution_and_a_changed_rule_adds_new_simulations(
+    rig: PricingRig,
+) -> None:
+    reads: list[BalancedScore] = []
+    current = [BalancedScore()]
+
+    def source() -> BalancedScore:
+        reads.append(current[0])
+        return current[0]
+
+    rig.use_rule_source(source)
+    version = rig.version()
+    done = rig.run(version)
+    first = links(rig, version)
+    first_simulations = {key: simulation(rig, key) for key in first.values()}
+
+    current[0] = BalancedScore(0.6, 0.4, rule_version=2)
+    reads.clear()
+    # A simulation run of the version: its single step is the traveller simulation.
+    step = done.steps[1]
+    assert rig.simulation.keep(done, step) is False
+    assert len(reads) == 1
+    reads.clear()
+    outcome = rig.simulation.execute(done, step, threading.Event())
+
+    assert len(reads) == 1
+    assert outcome.failure_code is None
+    assert not outcome.stopped
+    stored = rig.rig.simulations.links_of(version)
+    assert [(item.price_scheme, item.rule_version) for item in stored] == [
+        ("flat", 1),
+        ("flat", 2),
+        ("model_prices", 1),
+        ("model_prices", 2),
+    ]
+    old = {item.price_scheme: item.simulation_key for item in stored if item.rule_version == 1}
+    new = {item.price_scheme: item.simulation_key for item in stored if item.rule_version == 2}
+    assert old == first
+    assert set(new.values()).isdisjoint(old.values())
+    for key, before in first_simulations.items():
+        assert simulation(rig, key) == before
+    for key in new.values():
+        assert simulation(rig, key).outputs.parameters == {"price_weight": 0.6, "time_weight": 0.4}

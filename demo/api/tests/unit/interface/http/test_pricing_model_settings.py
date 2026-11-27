@@ -78,3 +78,16 @@ def test_a_route_failure_naming_an_unknown_query_or_kind_is_refused(field: str, 
 
     with pytest.raises(ValidationError):
         PricingModelSettings.model_validate({"route_failures": [failure]})
+
+
+def test_a_staged_rule_needs_version_2_and_weights_in_0_to_1() -> None:
+    assert PricingModelSettings.model_validate({}).simulation_rule is None
+    staged = {"version": 2, "price_weight": 0.6, "time_weight": 0.4}
+    assert PricingModelSettings.model_validate({"simulation_rule": staged}).simulation_rule
+    for bad in (
+        {**staged, "version": 1},
+        {**staged, "price_weight": 1.1},
+        {**staged, "time_weight": -0.5},
+    ):
+        with pytest.raises(ValidationError):
+            PricingModelSettings.model_validate({"simulation_rule": bad})

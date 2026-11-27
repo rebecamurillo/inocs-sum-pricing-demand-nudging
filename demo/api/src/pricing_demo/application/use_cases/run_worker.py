@@ -1,6 +1,6 @@
 import logging
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta
 
 from pricing_demo.application.ports.clock import Clock
@@ -38,6 +38,7 @@ class RunWorker:
     at the start and again every `report_every`, in the same way; a failed report is logged
     and tried again at the next tick. The worker records the id, version and parameters of the
     traveller simulation rule it uses on its `workers` row, at its start and with each
+    heartbeat; the rule is read again each time, so a rule that changes is recorded by the next
     heartbeat.
     """
 
@@ -54,7 +55,7 @@ class RunWorker:
         fingerprint: RecordPackageFingerprint,
         *,
         collect: CollectUnreferenced | None = None,
-        simulation_rule: Mapping[str, object] | None = None,
+        simulation_rule: Callable[[], Mapping[str, object]] | None = None,
     ) -> None:
         self._identity = identity
         self._workers = workers
@@ -79,7 +80,7 @@ class RunWorker:
             identity.pid,
             self._clock.now(),
             self._fingerprint.execute(),
-            self._simulation_rule,
+            self._current_rule(),
         )
         self._report_if_due()
         self._recover_now(None)
@@ -160,5 +161,8 @@ class RunWorker:
             identity.started_at,
             at,
             self._fingerprint.execute(),
-            self._simulation_rule,
+            self._current_rule(),
         )
+
+    def _current_rule(self) -> Mapping[str, object] | None:
+        return None if self._simulation_rule is None else self._simulation_rule()

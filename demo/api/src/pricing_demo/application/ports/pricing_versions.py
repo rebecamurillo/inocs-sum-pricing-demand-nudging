@@ -45,7 +45,12 @@ class PricingVersions(Protocol):
         ...
 
     def latest_run(self, version_id: str) -> Run | None:
-        """The version's most recently queued run, with its steps."""
+        """The version's most recently queued pricing run (never a simulation run), with its
+        steps."""
+        ...
+
+    def active_run_id(self, version_id: str) -> str | None:
+        """The id of the version's queued or running run of any kind, or None."""
         ...
 
     def queue_run(self, run: Run, seal_at: datetime | None, checked: PricingGoals | None) -> None:

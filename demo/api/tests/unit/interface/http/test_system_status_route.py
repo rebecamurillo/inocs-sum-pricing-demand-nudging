@@ -1,4 +1,6 @@
-from tests.unit.interface.http.conftest import Faked
+from datetime import timedelta
+
+from tests.unit.interface.http.conftest import SERVER_TIME, Faked
 
 ALLOWED = {"allowed": True, "reasons": []}
 
@@ -20,7 +22,31 @@ def test_every_component_is_available_and_every_action_can_start_by_default(fake
         "can_build_instances": ALLOWED,
         "can_run_pricing": ALLOWED,
         "can_simulate": ALLOWED,
+        "simulation_rule": None,
     }
+
+
+def test_the_current_rule_is_the_one_the_latest_live_worker_records(faked: Faked) -> None:
+    faked.reports.worker_rules["w-1"] = {
+        "id": "balanced-score",
+        "version": 2,
+        "parameters": {"price_weight": 0.6, "time_weight": 0.4},
+    }
+
+    body = faked.client.get("/api/v1/system-status").json()
+
+    assert body["simulation_rule"] == {
+        "id": "balanced-score",
+        "version": 2,
+        "parameters": {"price_weight": 0.6, "time_weight": 0.4},
+    }
+
+
+def test_there_is_no_current_rule_when_no_worker_is_live(faked: Faked) -> None:
+    faked.reports.worker_rules["w-1"] = {"id": "balanced-score", "version": 1, "parameters": {}}
+    faked.reports.worker_heartbeats["w-1"] = SERVER_TIME - timedelta(seconds=300)
+
+    assert faked.client.get("/api/v1/system-status").json()["simulation_rule"] is None
 
 
 def test_an_unavailable_trip_planner_refuses_builds_only_and_says_why(faked: Faked) -> None:
@@ -65,7 +91,13 @@ def test_a_limited_solver_refuses_pricing_runs_only(faked: Faked) -> None:
 def test_the_answer_has_no_trace_of_the_old_shape(faked: Faked) -> None:
     body = faked.client.get("/api/v1/system-status").json()
 
-    assert set(body) == {"components", "can_build_instances", "can_run_pricing", "can_simulate"}
+    assert set(body) == {
+        "components",
+        "can_build_instances",
+        "can_run_pricing",
+        "can_simulate",
+        "simulation_rule",
+    }
 
 
 def test_without_a_city_data_set_builds_are_refused_with_that_reason(

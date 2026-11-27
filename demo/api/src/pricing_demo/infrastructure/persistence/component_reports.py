@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from datetime import datetime
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.application.ports.component_reports import ReportedComponents
@@ -54,7 +54,12 @@ class PostgresComponentReports:
         ).select_from(joined)
         with self._engine.connect() as connection:
             rows = connection.execute(query).all()
-            latest = connection.execute(select(func.max(workers.c.heartbeat_at))).scalar()
+            newest = connection.execute(
+                select(workers.c.heartbeat_at, workers.c.simulation_rule)
+                .order_by(workers.c.heartbeat_at.desc(), workers.c.id)
+                .limit(1)
+            ).first()
+        latest, rule = (None, None) if newest is None else (newest[0], newest[1])
         probed = {name.value: name for name in PROBED_COMPONENTS}
         reports = tuple(
             ComponentReport(
@@ -69,4 +74,4 @@ class PostgresComponentReports:
             for row in rows
             if row.component in probed
         )
-        return ReportedComponents(reports, latest)
+        return ReportedComponents(reports, latest, rule)

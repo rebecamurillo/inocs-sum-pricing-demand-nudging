@@ -1,7 +1,7 @@
 """A pricing run end to end on PostgreSQL: the API's use case queues it, the worker's loop pieces
 run it with the fake solver and the real artefact store on a temporary folder."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -19,6 +19,7 @@ from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.run_pricing_step import PricingModelStepExecutor
 from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
 from pricing_demo.application.use_cases.run_simulation_step import TravellerSimulationStepExecutor
+from pricing_demo.application.use_cases.simulate_pricing_version import SimulatePricingVersion
 from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.city_instances import (
     CityInstance,
@@ -27,10 +28,10 @@ from pricing_demo.domain.city_instances import (
     parameters_from_defaults,
 )
 from pricing_demo.domain.pricing_keys import KEPT_SOLVE_REASON
-from pricing_demo.domain.pricing_versions import new_draft_goals
+from pricing_demo.domain.pricing_versions import SimulationCurrent, new_draft_goals
 from pricing_demo.domain.runs import Run, RunState, StepName, StepState
-from pricing_demo.domain.system_status import ComponentName, ComponentStatus
-from pricing_demo.domain.traveller_simulation import BalancedScore
+from pricing_demo.domain.system_status import ComponentName, ComponentStatus, SystemStatus
+from pricing_demo.domain.traveller_simulation import SimulationRule
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
@@ -43,6 +44,7 @@ from pricing_demo.infrastructure.fakes.graph_fingerprints import (
 )
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
+from pricing_demo.infrastructure.fakes.simulation_rule import FakeSimulationRule
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.ids import UuidV7Source
 from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
@@ -86,6 +88,7 @@ class Rig:
     solves: PostgresSolves
     simulations: PostgresSimulations
     run_pricing: RunPricingVersion
+    simulate_version: SimulatePricingVersion
     process: ProcessNextRun
     collect: CollectUnreferenced
 
@@ -178,8 +181,9 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
         sources,
         clock,
     )
+    rule_source = FakeSimulationRule(settings).current
     simulation = TravellerSimulationStepExecutor(
-        BalancedScore(),
+        rule_source,
         pricing,
         artifacts,
         solves,
@@ -200,6 +204,14 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
     planning = BuildPlanning(
         instances, datasets, artifacts, PostgresBuildSources(engine), builds, all_available
     )
+
+    def current_status() -> SystemStatus:
+        # The worker's heartbeat records the rule it reads from the fake settings.
+        return replace(
+            all_available(),
+            simulation_rule=SimulationRule.of(FakeSimulationRule(settings).current()),
+        )
+
     parameters = parameters_from_defaults(FAKE_FINGERPRINT.defaults, DATASET.preset)
     version = InstanceVersion(
         INSTANCE_VERSION,
@@ -230,6 +242,7 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
         solves,
         simulations,
         RunPricingVersion(pricing, all_available, UuidV7Source(), clock),
+        SimulatePricingVersion(pricing, simulations, current_status, UuidV7Source(), clock),
         process,
         CollectUnreferenced(artifacts, files, runs, simulations),
     )
@@ -378,3 +391,52 @@ def test_deleting_a_version_removes_its_solve_and_links_and_the_collection_frees
     assert rig.count("simulations") == 0
     assert rig.count("simulation_choices") == 0
     assert [row for row in rig.rows("artifacts") if row[1] == "pricing_model"] == []
+
+
+def test_a_re_simulation_adds_rows_and_keeps_the_old_ones(rig: Rig) -> None:
+    version = rig.version()
+    rig.run(version)
+    old_links = rig.simulations.links_of(version)
+    old_simulations = rig.rows("simulations")
+    counts = {table: rig.count(table) for table in ("solves", "solve_rows", "solve_ods")}
+    model_artifacts = [row for row in rig.rows("artifacts") if row[1] == "pricing_model"]
+    rig.settings.set_pricing_model(
+        {"simulation_rule": {"version": 2, "price_weight": 0.6, "time_weight": 0.4}}
+    )
+    # The solver is not needed: a simulation reads the stored solve.
+    rig.settings.set_component("solver", "unavailable", "No licence.")
+
+    queued = rig.simulate_version.execute(version)
+    assert rig.process.execute() is True
+    run = rig.stored(queued.id)
+
+    assert run.state is RunState.SUCCEEDED
+    assert [(item.step, item.state) for item in run.steps] == [
+        (StepName.TRAVELLER_SIMULATION, StepState.DONE)
+    ]
+    links = rig.simulations.linked_of(version)
+    assert [(item.price_scheme, item.rule_version) for item in links] == [
+        ("flat", 1),
+        ("flat", 2),
+        ("model_prices", 1),
+        ("model_prices", 2),
+    ]
+    assert [item for item in rig.simulations.links_of(version) if item.rule_version == 1] == (
+        old_links
+    )
+    assert all(row in rig.rows("simulations") for row in old_simulations)
+    assert rig.count("simulations") == 4
+    assert rig.count("pricing_version_simulations") == 4
+    assert all(
+        item.rule_parameters == {"price_weight": 0.6, "time_weight": 0.4}
+        for item in links
+        if item.rule_version == 2
+    )
+    assert {table: rig.count(table) for table in counts} == counts
+    assert [row for row in rig.rows("artifacts") if row[1] == "pricing_model"] == model_artifacts
+    with pytest.raises(SimulationCurrent):
+        rig.simulate_version.execute(version)
+    state = rig.pricing.list_for(INSTANCE_VERSION)[0].state
+    assert state == "result"
+    rig.collect.execute()
+    assert rig.count("simulations") == 4

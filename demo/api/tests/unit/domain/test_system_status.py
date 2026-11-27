@@ -20,6 +20,7 @@ from pricing_demo.domain.system_status import (
     build_verdict,
     system_status_from,
 )
+from pricing_demo.domain.traveller_simulation import SimulationRule
 
 SOLVER_REASON = "No Gurobi licence was found."
 NOW = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
@@ -433,3 +434,43 @@ def test_the_three_existing_verdicts_are_unchanged_by_the_verdict_for_a_set() ->
 
     assert status.can_run_pricing.reasons == (BlockingReason(ComponentName.SOLVER, "No licence."),)
     assert status.can_build_instances.allowed is True
+
+
+LIVE_RULE = {"id": "balanced-score", "version": 2, "parameters": {"price_weight": 0.6}}
+
+
+def test_the_current_rule_is_the_one_of_the_latest_heartbeat_when_it_is_live() -> None:
+    status = system_status_from(
+        ComponentStatus.ready(ComponentName.STORAGE),
+        NOW - timedelta(seconds=5),
+        [],
+        NOW,
+        ComponentStatus.ready(ComponentName.CITY_DATA),
+        LIVE_RULE,
+    )
+
+    assert status.simulation_rule == SimulationRule("balanced-score", 2, {"price_weight": 0.6})
+
+
+def test_there_is_no_current_rule_when_the_latest_heartbeat_is_stale_or_absent() -> None:
+    storage = ComponentStatus.ready(ComponentName.STORAGE)
+    city = ComponentStatus.ready(ComponentName.CITY_DATA)
+
+    stale = system_status_from(storage, NOW - timedelta(seconds=300), [], NOW, city, LIVE_RULE)
+    absent = system_status_from(storage, None, [], NOW, city, LIVE_RULE)
+
+    assert stale.simulation_rule is None
+    assert absent.simulation_rule is None
+
+
+def test_there_is_no_current_rule_with_storage_down() -> None:
+    status = system_status_from(
+        ComponentStatus.unavailable(ComponentName.STORAGE, "down"),
+        NOW,
+        [],
+        NOW,
+        ComponentStatus.ready(ComponentName.CITY_DATA),
+        LIVE_RULE,
+    )
+
+    assert status.simulation_rule is None

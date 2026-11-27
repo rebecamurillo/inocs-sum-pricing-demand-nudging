@@ -339,10 +339,36 @@ Gurobi version and the platform) and reads the child's `stdout.log` and
 `optimization_instance_results.json` into a `Solve` (`solve_reading.read_solve`): the size-limit
 error printed by the package is `solver_size_limited`, no result or a status without a solution is
 `solver_no_solution`, a `TIME_LIMIT` solve with a solution is a result with `time_limit_reached`.
-The simulation is the demonstrator's own domain code and runs in both sets. The worker records the rule it chose (`{id, version, parameters}`) on its
-`workers.simulation_rule`. The fake `PricingSolver` (`infrastructure/fakes/pricing_solver.py`)
+The simulation is the demonstrator's own domain code and runs in both sets. The rule is read
+from a callable, once per step execution (`simulation_rule_source` in `worker/main.py`): the real
+set returns `BalancedScore()`; the fake set returns `FakeSimulationRule(fake_settings).current()`,
+which reads the staged `pricing_model.simulation_rule` of the fake settings. The worker records the
+rule it uses (`{id, version, parameters}`, `SimulationRule.record()`) on its
+`workers.simulation_rule` at its start and with every heartbeat, so a staged rule shows within one
+heartbeat. The fake `PricingSolver` (`infrastructure/fakes/pricing_solver.py`)
 computes its rows from a fixed formula of the version's goals, offers fewer options than the flat
 scheme does (none from hub `H6`) and labels its provenance `fake`.
+
+#### Simulating a stored version again
+
+"The rule" is the triple (rule id, rule version, rule parameters), the value `SimulationRule`
+(`domain/traveller_simulation.py`). `GET /api/v1/system-status` carries it as `simulation_rule`:
+the `workers.simulation_rule` of the worker with the latest heartbeat, `null` when that
+heartbeat is not live (`ReportedComponents.simulation_rule`, `SystemStatus.simulation_rule`).
+
+`POST /api/v1/pricing-versions/{id}/simulations` (`SimulatePricingVersion`) checks, in this order,
+that the version exists (`pricing_version_not_found`), that no run of it of any kind is queued or
+running (`run_active`, `PricingVersions.active_run_id`), that its last pricing run succeeded
+(`no_result`), that `can_simulate` holds (`component_unavailable`: storage and the runner only, so
+a missing solver, package or trip planner does not refuse it) and that both schemes lack a
+simulation of the version's period under the live worker's rule (`simulation_current`). It queues
+a run of kind `simulation` with the one step `traveller_simulation` (5b) through `queue_run(run,
+None, None)`; the step reads the stored solve, so no solve and no solver probe happen. The new
+simulations and links sit beside the old ones: a link is keyed by the rule id and version too, and
+the test-control rule is always version 2 or later so that a staged rule never replaces a link of
+version 1. `GET /api/v1/pricing-versions/{id}/simulations` (`ListPricingVersionSimulations`) lists
+every stored link with its rule and `rule_current`. The version's state derives from its pricing
+runs only (`latest_run`, `_last_run_states`): a simulation run never changes it.
 
 Deleting a pricing version also removes its `solves` rows and its links to simulations
 (`pricing_version_simulations`) in the same transaction.

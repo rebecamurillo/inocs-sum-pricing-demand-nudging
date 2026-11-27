@@ -50,8 +50,10 @@ from pricing_demo.domain.pricing_versions import (
     AlreadyRun,
     HasPricingVersions,
     InstanceNotBuilt,
+    NoResult,
     PricingVersionNotFound,
     SealedWithoutRun,
+    SimulationCurrent,
     UnknownBasedOn,
 )
 from pricing_demo.domain.runs import (
@@ -147,6 +149,10 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     AlreadyBuilt: Problem(409, "already_built", "The version is already built"),
     PricingRuleBroken: Problem(409, "rule_broken", "The pricing draft breaks a rule"),
     AlreadyRun: Problem(409, "already_run", "The pricing version already has its result"),
+    NoResult: Problem(409, "no_result", "The pricing version has no result yet"),
+    SimulationCurrent: Problem(
+        409, "simulation_current", "The version is already simulated with the current rule"
+    ),
     PricingVersionNotFound: Problem(
         404, "pricing_version_not_found", "The pricing version does not exist"
     ),
@@ -162,7 +168,7 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     # Sealing and queueing the run are one transaction: a sealed version without a run is a bug.
     SealedWithoutRun: INTERNAL_ERROR,
     ComponentUnavailable: Problem(
-        503, "component_unavailable", "A component the build needs is not available"
+        503, "component_unavailable", "A component the action needs is not available"
     ),
     # Only after every retry of the use case found the draft edited again meanwhile.
     DraftChanged: INTERNAL_ERROR,

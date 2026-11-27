@@ -23,7 +23,7 @@ from pricing_demo.domain.build_verification import FileComparison
 from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
-from pricing_demo.domain.traveller_simulation import BalancedScore
+from pricing_demo.domain.traveller_simulation import SimulationRule
 from pricing_demo.infrastructure.config.settings import (
     DEFAULT_GTFS,
     DEFAULT_OSM_DIR,
@@ -34,9 +34,12 @@ from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStati
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
+from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
+from pricing_demo.infrastructure.fakes.simulation_rule import FakeSimulationRule
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
+from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSettings
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.pricing_model.city_preparation import PackageCityPreparation
 from pricing_demo.infrastructure.pricing_model.pricing_solver import PackagePricingSolver
@@ -45,7 +48,12 @@ from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphB
 from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
 from pricing_demo.infrastructure.worker_build_sources import WorkerBuildSources
 from pricing_demo.worker import main as worker_main
-from pricing_demo.worker.main import build_probes, build_worker, worker_id_for
+from pricing_demo.worker.main import (
+    build_probes,
+    build_worker,
+    simulation_rule_source,
+    worker_id_for,
+)
 from tests.support.runs import T0
 
 
@@ -334,7 +342,9 @@ def test_the_fake_set_registers_both_pricing_steps(tmp_path: Path) -> None:
     assert isinstance(model._solver, FakePricingSolver)
     assert registry.keeper_for(StepName.PRICING_MODEL) is model
     assert isinstance(simulation, TravellerSimulationStepExecutor)
-    assert isinstance(simulation._rule, BalancedScore)
+    # The rule is read from the fake settings at each call; the callable is not called here
+    # because the settings are a database row.
+    assert isinstance(simulation._rule.__self__, FakeSimulationRule)  # type: ignore[attr-defined]
     assert registry.keeper_for(StepName.TRAVELLER_SIMULATION) is simulation
 
 
@@ -355,11 +365,16 @@ def test_the_real_set_registers_the_package_solver_and_the_simulation_step(
 
 
 @pytest.mark.parametrize("adapters", ["fake", "real"])
-def test_the_worker_records_the_simulation_rule_it_chose(tmp_path: Path, adapters: str) -> None:
+def test_the_worker_records_the_simulation_rule_it_chose(
+    tmp_path: Path, adapters: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The fake set reads its rule from the settings row: none is staged.
+    monkeypatch.setattr(PostgresFakeSettings, "read", lambda self: {})
     built = build_worker(settings_for(tmp_path, adapters=adapters))
     built.engine.dispose()
 
-    assert built.worker._simulation_rule == {
+    assert built.worker._simulation_rule is not None
+    assert built.worker._simulation_rule() == {
         "id": "balanced-score",
         "version": 1,
         "parameters": {"price_weight": 0.5, "time_weight": 0.5},
@@ -573,3 +588,28 @@ def test_verify_build_rebuilds_with_the_preparation_of_the_adapter_set(
         engine.dispose()
 
     assert isinstance(verifying._preparation, preparation)
+
+
+def test_the_fake_set_reads_the_staged_rule_and_the_real_set_keeps_its_own() -> None:
+    settings = InMemoryFakeSettings()
+    source = simulation_rule_source(settings)
+
+    assert SimulationRule.of(source()).version == 1
+
+    settings.set_pricing_model(
+        {"simulation_rule": {"version": 2, "price_weight": 0.6, "time_weight": 0.4}}
+    )
+
+    assert SimulationRule.of(source()) == SimulationRule(
+        "balanced-score", 2, {"price_weight": 0.6, "time_weight": 0.4}
+    )
+    assert SimulationRule.of(simulation_rule_source(None)()).version == 1
+
+
+def test_the_fake_worker_simulates_and_records_with_the_same_rule_source(tmp_path: Path) -> None:
+    built = build_worker(settings_for(tmp_path, adapters="fake"))
+    built.engine.dispose()
+
+    simulation = built.worker._process._registry.executor_for(StepName.TRAVELLER_SIMULATION)
+    assert isinstance(simulation, TravellerSimulationStepExecutor)
+    assert isinstance(simulation._rule.__self__, FakeSimulationRule)  # type: ignore[attr-defined]

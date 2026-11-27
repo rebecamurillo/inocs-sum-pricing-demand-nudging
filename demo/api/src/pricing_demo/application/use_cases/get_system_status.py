@@ -48,4 +48,5 @@ class GetSystemStatus:
             reported.reports,
             self._clock.now(),
             city_data_status(self._datasets.count()),
+            reported.simulation_rule,
         )

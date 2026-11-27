@@ -63,3 +63,29 @@ export async function waitForRun(
   if (found === undefined) throw new Error(`run ${runId} was not read`);
   return found;
 }
+
+/** Asks for the version's stored solve to be simulated again with the worker's current rule. */
+export async function simulatePricingVersion(request: APIRequestContext, id: string) {
+  return request.post(`/api/v1/pricing-versions/${id}/simulations`);
+}
+
+/** Waits until `/system-status` reports the rule version the live worker recorded on its heartbeat. */
+export async function waitForSimulationRule(
+  request: APIRequestContext,
+  version: number,
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const status = (await (await request.get('/api/v1/system-status')).json()) as {
+          simulation_rule: { version: number } | null;
+        };
+        return status.simulation_rule?.version ?? null;
+      },
+      {
+        timeout: RUN_TIMEOUT_MS,
+        message: `the worker records simulation rule version ${String(version)}`,
+      },
+    )
+    .toBe(version);
+}

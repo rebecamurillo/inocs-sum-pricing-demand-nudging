@@ -113,9 +113,8 @@ def env(request: pytest.FixtureRequest) -> Iterator[Env]:
 
         yield Env(simulations, pricing, new_fake_version, fake_children, fake_created)
         return
-    from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
-
     from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPricingVersions
+    from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
     from tests.support.pricing_versions import insert_pricing_version
 
     engine: Engine = request.getfixturevalue("migrated_database")
@@ -265,3 +264,23 @@ def test_the_links_come_in_scheme_order(env: Env) -> None:
         ("flat", 1),
         ("model_prices", 2),
     ]
+
+
+def test_the_linked_simulations_carry_their_rule_parameters_in_link_order(env: Env) -> None:
+    version = env.new_version("A")
+    other = replace(link(version, "sim-2", "model_prices"), rule_version=2)
+    env.simulations.store(
+        [stored("sim-1"), stored("sim-2", "model_prices")],
+        [link(version, "sim-1"), other],
+    )
+
+    found = env.simulations.linked_of(version)
+
+    assert [(item.price_scheme, item.rule_id, item.rule_version) for item in found] == [
+        ("flat", "balanced-score", 1),
+        ("model_prices", "balanced-score", 2),
+    ]
+    assert [item.simulation_key for item in found] == ["sim-1", "sim-2"]
+    assert [item.created_at for item in found] == [T0, T0]
+    assert all(item.rule_parameters == {"price_weight": 0.5, "time_weight": 0.5} for item in found)
+    assert env.simulations.linked_of("geneva-3km.v1.Z") == []

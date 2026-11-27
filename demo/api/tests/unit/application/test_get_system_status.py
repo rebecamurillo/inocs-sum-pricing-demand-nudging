@@ -154,3 +154,21 @@ def test_storage_down_makes_city_data_not_known_without_counting() -> None:
 
     assert city.state is ComponentState.UNAVAILABLE
     assert city.reason == "Not known: the database does not answer."
+
+
+def test_the_current_rule_is_the_one_the_latest_live_worker_records() -> None:
+    rig = Rig()
+    rig.report_all()
+    rig.reports.worker_rules["w-1"] = {"id": "balanced-score", "version": 2, "parameters": {"a": 1}}
+
+    status = rig.use_case.execute()
+
+    assert status.simulation_rule is not None
+    assert (status.simulation_rule.id, status.simulation_rule.version) == ("balanced-score", 2)
+
+
+def test_there_is_no_current_rule_without_a_worker_record() -> None:
+    rig = Rig()
+    rig.report_all()
+
+    assert rig.use_case.execute().simulation_rule is None

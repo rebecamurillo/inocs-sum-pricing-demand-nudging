@@ -23,8 +23,12 @@ from pricing_demo.application.ports.city_preparation import (
 from pricing_demo.application.ports.read_model import IngestionBatch
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
+from pricing_demo.application.use_cases.list_pricing_version_simulations import (
+    ListPricingVersionSimulations,
+)
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
+from pricing_demo.application.use_cases.simulate_pricing_version import SimulatePricingVersion
 from pricing_demo.domain.build_plan import STEP_OUTPUTS
 from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import (
@@ -144,6 +148,12 @@ class MemoryBuilds:
             self.instances, self.datasets, self.builds, self.planning, self.ids, self.clock
         )
         self.run_pricing = RunPricingVersion(self.pricing, self.status, self.ids, self.clock)
+        self.simulate = SimulatePricingVersion(
+            self.pricing, self.simulations, self.status, self.ids, self.clock
+        )
+        self.list_simulations = ListPricingVersionSimulations(
+            self.pricing, self.simulations, self.status
+        )
 
     def add_draft(self, *changes: tuple[str, float]) -> InstanceVersion:
         """The data set, the instance `geneva-3km` and its first draft, valid unless the

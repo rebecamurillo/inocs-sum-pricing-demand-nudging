@@ -1,5 +1,5 @@
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta
 
@@ -36,7 +36,7 @@ class Rig:
         self,
         runs: InMemoryRunRepository | None = None,
         collect: CollectUnreferenced | None = None,
-        simulation_rule: Mapping[str, object] | None = None,
+        simulation_rule: Callable[[], Mapping[str, object]] | None = None,
     ) -> None:
         self.runs = runs or InMemoryRunRepository()
         self.workers = InMemoryWorkerRegistry()
@@ -636,7 +636,7 @@ RULE = {"id": "balanced-score", "version": 1, "parameters": {"price_weight": 0.5
 
 
 def test_the_worker_registers_its_simulation_rule_and_every_heartbeat_repeats_it() -> None:
-    rig = Rig(simulation_rule=RULE)
+    rig = Rig(simulation_rule=lambda: RULE)
 
     rig.worker.start()
 
@@ -651,3 +651,17 @@ def test_a_worker_without_a_rule_registers_none(rig: Rig) -> None:
     rig.worker.start()
 
     assert rig.workers.rows["w-1"].simulation_rule is None
+
+
+def test_a_heartbeat_after_the_rule_changed_records_the_new_rule() -> None:
+    current = [RULE]
+    rig = Rig(simulation_rule=lambda: current[0])
+    rig.worker.start()
+    assert rig.workers.rows["w-1"].simulation_rule == RULE
+
+    staged = {"id": "balanced-score", "version": 2, "parameters": {"price_weight": 0.6}}
+    current[0] = staged
+    rig.stop_at(6)
+    rig.worker.run(rig.until)
+
+    assert rig.workers.rows["w-1"].simulation_rule == staged

@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
@@ -40,6 +40,20 @@ class SimulationLink:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class LinkedSimulation:
+    """A link with the parameters of the rule its simulation ran under."""
+
+    pricing_version_id: str
+    period_id: str
+    price_scheme: str
+    rule_id: str
+    rule_version: int
+    rule_parameters: Mapping[str, float]
+    simulation_key: str
+    created_at: datetime
+
+
 class Simulations(Protocol):
     def is_stored(self, key: str) -> bool: ...
 
@@ -51,6 +65,11 @@ class Simulations(Protocol):
 
     def links_of(self, pricing_version_id: str) -> list[SimulationLink]:
         """The version's links, ordered by period, scheme, rule id and rule version."""
+        ...
+
+    def linked_of(self, pricing_version_id: str) -> list[LinkedSimulation]:
+        """The version's links in the order of `links_of`, each with the rule parameters of
+        its simulation."""
         ...
 
     def remove_unlinked(self) -> int:

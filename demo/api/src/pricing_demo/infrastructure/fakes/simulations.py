@@ -1,7 +1,11 @@
 import threading
 from collections.abc import Collection, Sequence
 
-from pricing_demo.application.ports.simulations import SimulationLink, StoredSimulation
+from pricing_demo.application.ports.simulations import (
+    LinkedSimulation,
+    SimulationLink,
+    StoredSimulation,
+)
 
 
 def _slot(link: SimulationLink) -> tuple[str, str, str, str, int]:
@@ -50,6 +54,23 @@ class InMemorySimulations:
             found,
             key=lambda item: (item.period_id, item.price_scheme, item.rule_id, item.rule_version),
         )
+
+    def linked_of(self, pricing_version_id: str) -> list[LinkedSimulation]:
+        found = self.links_of(pricing_version_id)
+        with self._lock:
+            return [
+                LinkedSimulation(
+                    item.pricing_version_id,
+                    item.period_id,
+                    item.price_scheme,
+                    item.rule_id,
+                    item.rule_version,
+                    dict(self._simulations[item.simulation_key].outputs.parameters),
+                    item.simulation_key,
+                    item.created_at,
+                )
+                for item in found
+            ]
 
     def remove_unlinked(self) -> int:
         with self._lock:

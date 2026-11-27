@@ -1618,6 +1618,80 @@
         "title": "PricingVersionResource",
         "type": "object"
       },
+      "PricingVersionSimulationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PricingVersionSimulationResource"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "PricingVersionSimulationList",
+        "type": "object"
+      },
+      "PricingVersionSimulationResource": {
+        "description": "One stored simulation of a pricing version: a period under a price scheme and a rule.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "period_id": {
+            "title": "Period Id",
+            "type": "string"
+          },
+          "price_scheme": {
+            "enum": [
+              "model_prices",
+              "flat"
+            ],
+            "title": "Price Scheme",
+            "type": "string"
+          },
+          "rule_current": {
+            "description": "True when the rule is the one the live worker uses now; false for every simulation when no worker is live.",
+            "title": "Rule Current",
+            "type": "boolean"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Rule Parameters",
+            "type": "object"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          },
+          "simulation_key": {
+            "title": "Simulation Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_id",
+          "price_scheme",
+          "rule_id",
+          "rule_version",
+          "rule_parameters",
+          "rule_current",
+          "simulation_key",
+          "created_at"
+        ],
+        "title": "PricingVersionSimulationResource",
+        "type": "object"
+      },
       "ProblemDetails": {
         "description": "An error, as a problem document (RFC 9457).",
         "properties": {
@@ -2333,6 +2407,33 @@
         "title": "RunnerResource",
         "type": "object"
       },
+      "SimulationRuleResource": {
+        "description": "A traveller simulation rule: its id, its version and its parameters.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Parameters",
+            "type": "object"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "parameters"
+        ],
+        "title": "SimulationRuleResource",
+        "type": "object"
+      },
       "StationList": {
         "properties": {
           "items": {
@@ -2454,13 +2555,25 @@
             },
             "title": "Components",
             "type": "array"
+          },
+          "simulation_rule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SimulationRuleResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The traveller simulation rule of the worker with the latest live heartbeat; null when no worker is live."
           }
         },
         "required": [
           "components",
           "can_build_instances",
           "can_run_pricing",
-          "can_simulate"
+          "can_simulate",
+          "simulation_rule"
         ],
         "title": "SystemStatusResponse",
         "type": "object"
@@ -3803,6 +3916,156 @@
           }
         },
         "summary": "Seal a draft and queue its pricing run, or queue the run again after a failure",
+        "tags": [
+          "pricing-versions"
+        ]
+      }
+    },
+    "/api/v1/pricing-versions/{pricing_version_id}/simulations": {
+      "get": {
+        "operationId": "listPricingVersionSimulations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingVersionSimulationList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No pricing version has this id"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Every stored simulation of a version, with its rule and whether it is current",
+        "tags": [
+          "pricing-versions"
+        ]
+      },
+      "post": {
+        "operationId": "simulatePricingVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResource"
+                }
+              }
+            },
+            "description": "The simulation run is queued; the body is the run",
+            "headers": {
+              "Location": {
+                "description": "The run",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No pricing version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`run_active` (`run_id` is the run), `no_result` (no succeeded pricing run) or `simulation_current` (both schemes already have a simulation with the current rule)"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`component_unavailable`: no worker runs, or storage is down; `reasons` names each"
+          }
+        },
+        "summary": "Queue a simulation run: the stored solve, simulated again with the current rule",
         "tags": [
           "pricing-versions"
         ]

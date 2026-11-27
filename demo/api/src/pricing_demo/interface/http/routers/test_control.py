@@ -66,6 +66,10 @@ def build_test_control_router(seam: E2ETestSeam) -> APIRouter:
         # The same for `licence_kind`: the stored settings name a kind only when a test does.
         if values["licence_kind"] is None:
             del values["licence_kind"]
+        # And for `simulation_rule`: the worker uses `balanced-score` version 1 until a test
+        # stages another rule.
+        if values["simulation_rule"] is None:
+            del values["simulation_rule"]
         seam.set_pricing_model(values)
         return Response(status_code=204)
 

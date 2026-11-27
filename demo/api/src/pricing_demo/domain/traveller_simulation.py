@@ -8,7 +8,7 @@ until the model's author states the real one (Q-39). This module does not import
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import ClassVar, Literal
+from typing import ClassVar, Literal, Protocol
 
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.failure_codes import SIMULATION_CHECK_FAILED, failure_reason
@@ -173,6 +173,62 @@ def _scaled(values: Sequence[float]) -> list[float]:
     if high == low:
         return [0.0 for _ in values]
     return [(value - low) / (high - low) for value in values]
+
+
+class _NamedRule(Protocol):
+    @property
+    def rule_id(self) -> str: ...
+    @property
+    def rule_version(self) -> int: ...
+    @property
+    def parameters(self) -> Mapping[str, float]: ...
+
+
+@dataclass(frozen=True)
+class SimulationRule:
+    """ "The rule" of a simulation: the triple (rule id, rule version, rule parameters). Two
+    rules are equal when the triple is equal, parameters compared as floats."""
+
+    id: str
+    version: int
+    parameters: Mapping[str, float]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "parameters", {name: float(value) for name, value in self.parameters.items()}
+        )
+
+    @classmethod
+    def of(cls, rule: _NamedRule) -> "SimulationRule":
+        return cls(rule.rule_id, rule.rule_version, rule.parameters)
+
+    def record(self) -> dict[str, object]:
+        """The shape of `workers.simulation_rule`."""
+        return {"id": self.id, "version": self.version, "parameters": dict(self.parameters)}
+
+    @classmethod
+    def from_record(cls, record: Mapping[str, object] | None) -> "SimulationRule | None":
+        """None for an absent or malformed record."""
+        if not record or not isinstance(record, Mapping):
+            return None
+        rule_id, version, parameters = (
+            record.get("id"),
+            record.get("version"),
+            record.get("parameters"),
+        )
+        if not isinstance(rule_id, str) or not isinstance(version, int):
+            return None
+        if isinstance(version, bool) or not isinstance(parameters, Mapping):
+            return None
+        values: dict[str, float] = {}
+        for name, value in parameters.items():
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                return None
+            try:
+                values[str(name)] = float(value)
+            except OverflowError:  # an integer beyond a float, which jsonb accepts
+                return None
+        return cls(rule_id, version, values)
 
 
 @dataclass(frozen=True)

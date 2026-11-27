@@ -63,6 +63,24 @@ class AlreadyRun(DomainError):
         super().__init__(f"The pricing version {version_id} already has its result.")
 
 
+class NoResult(DomainError):
+    """The version has no succeeded pricing run: there is nothing to simulate again."""
+
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(f"The pricing version {version_id} has no result yet.")
+
+
+class SimulationCurrent(DomainError):
+    """Both schemes are already simulated with the rule the live worker uses."""
+
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(
+            f"The pricing version {version_id} is already simulated with the current rule."
+        )
+
+
 class SealedWithoutRun(DomainError):
     """A sealed pricing version always has a run: sealing and queueing are one transaction."""
 

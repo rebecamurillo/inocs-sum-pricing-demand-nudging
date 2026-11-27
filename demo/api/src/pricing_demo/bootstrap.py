@@ -31,12 +31,16 @@ from pricing_demo.application.use_cases.list_city_datasets import ListCityDatase
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
 from pricing_demo.application.use_cases.list_hubs import ListHubs
+from pricing_demo.application.use_cases.list_pricing_version_simulations import (
+    ListPricingVersionSimulations,
+)
 from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
 from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
+from pricing_demo.application.use_cases.simulate_pricing_version import SimulatePricingVersion
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
@@ -66,6 +70,7 @@ from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPri
 from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
 from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
+from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
 from pricing_demo.infrastructure.persistence.truncate import truncate_all
 from pricing_demo.interface.http.app import Lifespan, create_app
@@ -152,6 +157,7 @@ def create_application(settings: Settings) -> FastAPI:
     instances = PostgresCityInstances(engine)
     builds = PostgresBuilds(engine)
     pricing_versions = PostgresPricingVersions(engine)
+    simulations = PostgresSimulations(engine)
     artifacts = PostgresArtifacts(engine)
     read_model = PostgresReadModel(engine)
     route_failures = PostgresRouteFailures(engine)
@@ -206,6 +212,16 @@ def create_application(settings: Settings) -> FastAPI:
                     clock,
                 ),
                 GetRun(run_repository, clock),
+                SimulatePricingVersion(
+                    pricing_versions,
+                    simulations,
+                    get_system_status.execute,
+                    UuidV7Source(),
+                    clock,
+                ),
+                ListPricingVersionSimulations(
+                    pricing_versions, simulations, get_system_status.execute
+                ),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),

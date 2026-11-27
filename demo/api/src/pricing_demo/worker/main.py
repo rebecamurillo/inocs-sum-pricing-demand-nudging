@@ -12,7 +12,7 @@ import signal
 import socket
 import sys
 import threading
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib.metadata import version
@@ -67,7 +67,7 @@ from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.system_status import PROBED_COMPONENTS, ComponentName
-from pricing_demo.domain.traveller_simulation import BalancedScore
+from pricing_demo.domain.traveller_simulation import BalancedScore, SimulationRule
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
 from pricing_demo.infrastructure.artifact_store.scratch import LocalScratchBuilds
 from pricing_demo.infrastructure.city_data.feed_shapes import GtfsFeedShapes
@@ -84,11 +84,12 @@ from pricing_demo.infrastructure.config.settings import (
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
-from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.fakes.component_probe import FakeProbe, FakeSettingsSource
 from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.fakes.package_fingerprints import FakePackageFingerprintReader
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
+from pricing_demo.infrastructure.fakes.simulation_rule import FakeSimulationRule
 from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from pricing_demo.infrastructure.persistence.city_instances import PostgresCityInstances
@@ -221,10 +222,13 @@ def register_build_steps(
         registry.register(step, executor, executor)
 
 
-def simulation_rule_record(rule: BalancedScore) -> Mapping[str, object]:
-    """The id, version and parameters of the traveller simulation rule, as the worker records
-    them on its `workers` row."""
-    return {"id": rule.rule_id, "version": rule.rule_version, "parameters": dict(rule.parameters)}
+def simulation_rule_source(fake_settings: FakeSettingsSource | None) -> Callable[[], BalancedScore]:
+    """The traveller simulation rule the worker uses, read at each simulation and heartbeat:
+    `balanced-score` version 1 in the real set, and in the fake set the version and weights
+    the test-control `pricing-model` settings stage."""
+    if fake_settings is None:
+        return lambda: BalancedScore()
+    return FakeSimulationRule(fake_settings).current
 
 
 def lock_sha256(lock: Path) -> str:
@@ -246,7 +250,7 @@ def register_pricing_steps(
     graph: FileGraphFingerprints,
     fake_settings: PostgresFakeSettings | None,
     probes: Sequence[ComponentProbe],
-    rule: BalancedScore,
+    rule: Callable[[], BalancedScore],
 ) -> None:
     """The two steps of a pricing run. The pricing model runs the fake solver in the fake set
     and the package's solver in a stage child in the real one; the traveller simulation is the
@@ -312,7 +316,7 @@ def build_worker(settings: Settings) -> BuiltWorker:
         settings, registry, engine, repository, clock, waiter, fingerprint, graph, fake_settings
     )
     probes = build_probes(settings, engine, fake_settings)
-    rule = BalancedScore()
+    rule = simulation_rule_source(fake_settings)
     register_pricing_steps(
         settings,
         registry,
@@ -349,7 +353,7 @@ def build_worker(settings: Settings) -> BuiltWorker:
             repository,
             PostgresSimulations(engine),
         ),
-        simulation_rule=simulation_rule_record(rule),
+        simulation_rule=lambda: SimulationRule.of(rule()).record(),
     )
     return BuiltWorker(worker, identity, engine)
 
