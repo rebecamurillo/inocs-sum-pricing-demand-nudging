@@ -50,8 +50,11 @@ from pricing_demo.domain.pricing_versions import (
     AlreadyRun,
     HasPricingVersions,
     InstanceNotBuilt,
+    IsShowcase,
     NoResult,
+    NoShowcase,
     PricingVersionNotFound,
+    ResultNotFound,
     SealedWithoutRun,
     SimulationCurrent,
     UnknownBasedOn,
@@ -150,6 +153,9 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     PricingRuleBroken: Problem(409, "rule_broken", "The pricing draft breaks a rule"),
     AlreadyRun: Problem(409, "already_run", "The pricing version already has its result"),
     NoResult: Problem(409, "no_result", "The pricing version has no result yet"),
+    ResultNotFound: Problem(404, "no_result", "The pricing version has no result yet"),
+    IsShowcase: Problem(409, "is_showcase", "The pricing version is the showcase"),
+    NoShowcase: Problem(404, "no_showcase", "No pricing version is the showcase"),
     SimulationCurrent: Problem(
         409, "simulation_current", "The version is already simulated with the current rule"
     ),

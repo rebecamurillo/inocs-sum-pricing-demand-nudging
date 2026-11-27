@@ -15,6 +15,7 @@ from pricing_demo.domain.failure_codes import (
     SOLVER_SIZE_LIMITED,
     failure_reason,
 )
+from pricing_demo.domain.pricing_keys import PACKAGE_GOAL_NAMES as PACKAGE_GOAL_NAMES
 from pricing_demo.domain.solves import (
     Solve,
     SolveOd,
@@ -24,16 +25,6 @@ from pricing_demo.domain.solves import (
     SolveRowType,
 )
 
-# The version's goals under the package's `OptimizerParams` field names (`config.py:40-54`).
-PACKAGE_GOAL_NAMES: Mapping[str, str] = {
-    "cost_bike_chf": "cost_bike",
-    "lowest_price_chf": "P_bar",
-    "ridership_weight": "ridership_weight",
-    "station_balance_weight": "theta",
-    "pt_fare_chf": "pt_price",
-    "car_parking_fee_chf": "parking_fee",
-    "max_displayed_options": "max_displayed_alternatives",
-}
 INTEGER_FIELDS = frozenset({"max_displayed_alternatives", "mult_A1"})
 
 # Gurobi's status codes.
@@ -82,6 +73,13 @@ def optimizer_fields(goals: Mapping[str, Any], fixed_inputs: Mapping[str, Any]) 
     for name in INTEGER_FIELDS & fields.keys():
         fields[name] = int(fields[name])
     return fields
+
+
+def package_parameters(goals: Mapping[str, Any]) -> dict[str, Any]:
+    """The goals a solve ran with under the package's names (the goal subset of
+    `optimizer_fields`)."""
+    fields = optimizer_fields(goals, {})
+    return {name: fields[name] for name in PACKAGE_GOAL_NAMES.values() if name in fields}
 
 
 def size_limited(stdout: str) -> bool:

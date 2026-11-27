@@ -55,6 +55,7 @@ from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersio
 from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
+from pricing_demo.infrastructure.fakes.showcase import InMemoryShowcase
 from pricing_demo.infrastructure.fakes.simulations import InMemorySimulations
 from pricing_demo.infrastructure.fakes.solves import InMemorySolves
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
@@ -131,8 +132,9 @@ class MemoryBuilds:
         self.runs = InMemoryRunRepository()
         self.solves = InMemorySolves(self.artifacts)
         self.simulations = InMemorySimulations()
+        self.showcase = InMemoryShowcase()
         self.pricing = FakePricingVersions(
-            self.runs, solves=self.solves, simulations=self.simulations
+            self.runs, solves=self.solves, simulations=self.simulations, showcase=self.showcase
         )
         self.builds = InMemoryBuilds(
             self.runs, self.instances, self.artifacts, self.route_failures, self.pricing

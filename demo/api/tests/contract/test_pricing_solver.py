@@ -254,3 +254,30 @@ def test_the_model_offers_fewer_options_than_the_flat_scheme(fake_rig: FakeRig) 
     offered = {row.arc_id for row in solved(fake_rig).rows if row.type == "PT+Bike"}
 
     assert len(offered) < len(arcs(fake_rig, "arcs_pt_bike"))
+
+
+def test_the_solve_carries_the_package_summary_with_its_two_average_bike_prices(rig: Rig) -> None:
+    solve = solved(rig)
+
+    assert solve.package_summary is not None
+    assert "Avg Bike Price (Multimodal, Flow ≥ 1)" in solve.package_summary
+    assert "Avg Bike Price (for all offered arcs)" in solve.package_summary
+
+
+def test_the_solve_carries_the_goals_under_the_packages_names(rig: Rig) -> None:
+    solve = solved(rig)
+
+    assert solve.package_parameters["cost_bike"] == GOALS["cost_bike_chf"]
+    assert solve.package_parameters["P_bar"] == GOALS["lowest_price_chf"]
+    assert solve.package_parameters["theta"] == GOALS["station_balance_weight"]
+    assert solve.package_parameters["ridership_weight"] == GOALS["ridership_weight"]
+
+
+def test_the_fake_summary_averages_the_prices_of_the_offered_options(fake_rig: FakeRig) -> None:
+    solve = solved(fake_rig)
+
+    prices = list(model_bike_prices(solve.rows).values())
+    assert solve.package_summary is not None
+    assert solve.package_summary["Avg Bike Price (for all offered arcs)"] == pytest.approx(
+        sum(prices) / len(prices)
+    )

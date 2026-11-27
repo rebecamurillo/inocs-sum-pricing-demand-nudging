@@ -148,6 +148,16 @@ The EU co-funding mark is `web/src/presentation/assets/eu-co-funding-mark-placeh
 The maintainer replaces it by `EN-Co-Funded-by-the-EU_POS-1.png` and updates the import in
 `web/src/presentation/components/Footer.tsx`.
 
+## The showcase
+
+`PUT /api/v1/showcase` with `{"pricing_version_id": "...", "period_id": "..."}` (the period is
+optional) marks one finished pricing version and period as the showcase, replacing an earlier
+mark; `409 no_result` when the version has no result or does not price the period. `GET
+/api/v1/showcase` answers the marked version's id and period, its instance version's name, its
+letter and the headline numbers of its result, or `404 no_showcase`. While a version is marked,
+`DELETE /api/v1/pricing-versions/{id}` answers `409 is_showcase`. The Lab has no control for it
+yet: story 6.3 adds one, and story 6.2 completes the answer for Home.
+
 ## Where things are
 
 | Path | Content |

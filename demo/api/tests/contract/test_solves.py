@@ -12,7 +12,9 @@ from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.application.ports.artifacts import Artifact, Artifacts, StoredFile
 from pricing_demo.application.ports.pricing_versions import PricingVersions
-from pricing_demo.application.ports.solves import Solves
+from pricing_demo.application.ports.solves import Solves, StoredResultSummary
+from pricing_demo.domain.derived_result import DERIVATION_VERSION, ResultNumbers
+from pricing_demo.domain.numbers import Number
 from pricing_demo.domain.pricing_versions import new_draft_goals
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.solves import (
@@ -47,8 +49,9 @@ class Env:
         key: str = KEY,
         solve: Solve | None = None,
         at: datetime = T0,
+        summary: StoredResultSummary | None = None,
     ) -> None:
-        self.solves.store(artifact(key), solve or a_solve(), version, PERIOD, at)
+        self.solves.store(artifact(key), solve or a_solve(), version, PERIOD, at, summary)
 
 
 def artifact(key: str = KEY) -> Artifact:
@@ -102,13 +105,12 @@ def env(request: pytest.FixtureRequest) -> Iterator[Env]:
 
         yield Env(solves, artifacts, pricing, new_fake_version)
         return
-    from pricing_demo.infrastructure.persistence.solves import PostgresSolves
-
     from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
     from pricing_demo.infrastructure.persistence.package_fingerprints import (
         PostgresPackageFingerprints,
     )
     from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPricingVersions
+    from pricing_demo.infrastructure.persistence.solves import PostgresSolves
     from tests.support.pricing_versions import insert_pricing_version
 
     engine: Engine = request.getfixturevalue("migrated_database")
@@ -243,3 +245,68 @@ def test_the_artefact_stays_while_another_version_still_points_to_it(env: Env) -
     assert KEY not in {item.input_key for item in env.artifacts.unreferenced()}
     assert env.solves.is_stored(KEY) is True
     assert env.solves.solve_key_of(second, PERIOD) == KEY
+
+
+def a_summary(
+    key: str = KEY,
+    version: int = DERIVATION_VERSION,
+    package: dict[str, object] | None = None,
+    residual: float | None = 0.25,
+) -> StoredResultSummary:
+    numbers = ResultNumbers(
+        {"ridership": Number(4, "travellers", "model", "headline")}, (), (), None, residual
+    )
+    return StoredResultSummary(key, version, numbers, package, T0)
+
+
+def test_a_summary_stored_with_the_solve_is_read_back(env: Env) -> None:
+    version = env.new_version("A")
+    summary = a_summary(package={"Obj Value": 12.5})
+
+    env.store(version, summary=summary)
+
+    assert env.solves.summary_of(KEY, DERIVATION_VERSION) == summary
+    assert env.solves.summary_of(KEY, DERIVATION_VERSION + 1) is None
+    assert env.solves.summary_of("other", DERIVATION_VERSION) is None
+
+
+def test_a_solve_without_a_summary_has_none(env: Env) -> None:
+    env.store(env.new_version("A"))
+
+    assert env.solves.summary_of(KEY, DERIVATION_VERSION) is None
+    assert env.solves.package_summary_of(KEY) is None
+
+
+def test_storing_a_key_again_keeps_its_first_summary(env: Env) -> None:
+    first, second = env.new_version("A"), env.new_version("B")
+    env.store(first, summary=a_summary(residual=0.1))
+
+    env.store(second, summary=a_summary(residual=0.9))
+
+    found = env.solves.summary_of(KEY, DERIVATION_VERSION)
+    assert found is not None
+    assert found.numbers.objective_residual == 0.1
+
+
+def test_a_summary_is_added_to_a_stored_solve_once(env: Env) -> None:
+    env.store(env.new_version("A"))
+
+    env.solves.store_summary(a_summary(residual=0.1))
+    env.solves.store_summary(a_summary(residual=0.9))
+
+    found = env.solves.summary_of(KEY, DERIVATION_VERSION)
+    assert found is not None
+    assert found.numbers.objective_residual == 0.1
+
+
+def test_a_summary_for_a_solve_that_is_not_stored_is_refused(env: Env) -> None:
+    with pytest.raises((KeyError, IntegrityError)):
+        env.solves.store_summary(a_summary("nope"))
+
+
+def test_the_package_summary_comes_from_any_derivation_version_of_the_key(env: Env) -> None:
+    env.store(env.new_version("A"), summary=a_summary(package={"Obj Value": 12.5}))
+
+    assert env.solves.package_summary_of(KEY) == {"Obj Value": 12.5}
+    env.solves.store_summary(a_summary(version=DERIVATION_VERSION + 1, package=None))
+    assert env.solves.package_summary_of(KEY) == {"Obj Value": 12.5}

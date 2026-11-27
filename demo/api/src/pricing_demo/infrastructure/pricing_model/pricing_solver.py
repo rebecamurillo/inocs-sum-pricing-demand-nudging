@@ -6,6 +6,7 @@ The package is not imported here: the child imports it (`stage_runner.run_pricin
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -16,11 +17,13 @@ from pricing_demo.infrastructure.pricing_model.solve_reading import (
     RESULTS_FILE,
     ProvenanceBase,
     optimizer_fields,
+    package_parameters,
     read_solve,
     size_limited,
 )
 from pricing_demo.infrastructure.pricing_model.stage_child import StageChild
 from pricing_demo.infrastructure.pricing_model.stage_spec import (
+    PACKAGE_SUMMARY_FILE,
     SOLVE_FACTS_FILE,
     STDOUT_FILE,
     StageSpec,
@@ -104,4 +107,10 @@ class PackagePricingSolver:
             return SolveOutcome(
                 failure_code=code, failure_reason=reason, log_excerpt=ended.log_excerpt
             )
-        return SolveOutcome(solve=read, output_files=(RESULTS_FILE,), log_excerpt=ended.log_excerpt)
+        summary = _read_json(folder / PACKAGE_SUMMARY_FILE)
+        summary = summary if isinstance(summary, dict) else None
+        solve = replace(
+            read, package_summary=summary, package_parameters=package_parameters(request.goals)
+        )
+        files = (RESULTS_FILE,) if summary is None else (RESULTS_FILE, PACKAGE_SUMMARY_FILE)
+        return SolveOutcome(solve=solve, output_files=files, log_excerpt=ended.log_excerpt)

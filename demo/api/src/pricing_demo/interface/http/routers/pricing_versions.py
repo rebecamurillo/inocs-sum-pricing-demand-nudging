@@ -1,11 +1,14 @@
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Query, Response
 
 from pricing_demo.application.use_cases.create_pricing_version import CreatePricingVersion
 from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
+from pricing_demo.application.use_cases.get_pricing_result import GetPricingResult
 from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
 from pricing_demo.application.use_cases.get_run import GetRun
+from pricing_demo.application.use_cases.list_hub_pair_results import ListHubPairResults
+from pricing_demo.application.use_cases.list_hub_results import ListHubResults
 from pricing_demo.application.use_cases.list_pricing_version_simulations import (
     ListPricingVersionSimulations,
 )
@@ -15,6 +18,11 @@ from pricing_demo.application.use_cases.simulate_pricing_version import Simulate
 from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.interface.http.schemas import (
     CreatePricingVersionRequest,
+    HubPairResultList,
+    HubPairResultResource,
+    HubResultList,
+    HubResultResource,
+    PricingResultResponse,
     PricingVersionList,
     PricingVersionPatch,
     PricingVersionResource,
@@ -33,6 +41,16 @@ def _problem(description: str) -> dict[str, Any]:
 
 UNEXPECTED: Responses = {500: _problem("Unexpected error")}
 NOT_FOUND: Responses = {404: _problem("No pricing version has this id")}
+NO_RESULT: Responses = {
+    404: _problem(
+        "`pricing_version_not_found`, or `no_result`: the version's latest pricing run has not "
+        "succeeded, or its solve, its summary or one of its two simulations is missing"
+    )
+}
+Period = Annotated[
+    str | None,
+    Query(description="The period's id; the version's first period when absent."),
+]
 
 
 def build_pricing_versions_router(
@@ -45,6 +63,9 @@ def build_pricing_versions_router(
     get_run: GetRun,
     simulate_version: SimulatePricingVersion,
     list_simulations: ListPricingVersionSimulations,
+    get_result: GetPricingResult,
+    list_hub_pair_results: ListHubPairResults,
+    list_hub_results: ListHubResults,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["pricing-versions"])
 
@@ -119,7 +140,10 @@ def build_pricing_versions_router(
         response_class=Response,
         responses={
             **NOT_FOUND,
-            409: _problem("A run of the version is queued or running: `run_active`"),
+            409: _problem(
+                "`run_active` (a run of the version is queued or running) or `is_showcase` "
+                "(the version is the showcase)"
+            ),
             **UNEXPECTED,
         },
     )
@@ -199,6 +223,46 @@ def build_pricing_versions_router(
             items=[
                 PricingVersionSimulationResource.from_view(item)
                 for item in list_simulations.execute(pricing_version_id)
+            ]
+        )
+
+    @router.get(
+        "/pricing-versions/{pricing_version_id}/result",
+        operation_id="getPricingResult",
+        summary="The numbers of a finished version, each with its unit, its source and its group",
+        response_model=PricingResultResponse,
+        responses={**NO_RESULT, **UNEXPECTED},
+    )
+    def result_route(pricing_version_id: str, period: Period = None) -> PricingResultResponse:
+        return PricingResultResponse.from_domain(get_result.execute(pricing_version_id, period))
+
+    @router.get(
+        "/pricing-versions/{pricing_version_id}/hub-pair-results",
+        operation_id="listHubPairResults",
+        summary="Per hub pair: the bike price, the travellers per mode and the options",
+        response_model=HubPairResultList,
+        responses={**NO_RESULT, **UNEXPECTED},
+    )
+    def hub_pair_results_route(pricing_version_id: str, period: Period = None) -> HubPairResultList:
+        return HubPairResultList(
+            items=[
+                HubPairResultResource.from_domain(item)
+                for item in list_hub_pair_results.execute(pricing_version_id, period)
+            ]
+        )
+
+    @router.get(
+        "/pricing-versions/{pricing_version_id}/hub-results",
+        operation_id="listHubResults",
+        summary="Per hub: the bike rides that start and end there and the mean bike price",
+        response_model=HubResultList,
+        responses={**NO_RESULT, **UNEXPECTED},
+    )
+    def hub_results_route(pricing_version_id: str, period: Period = None) -> HubResultList:
+        return HubResultList(
+            items=[
+                HubResultResource.from_domain(item)
+                for item in list_hub_results.execute(pricing_version_id, period)
             ]
         )
 

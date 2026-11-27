@@ -280,6 +280,7 @@ def register_pricing_steps(
         repository,
         WorkerBuildSources(fingerprint.current, graph),
         clock,
+        PostgresReadModel(engine),
     )
     registry.register(StepName.PRICING_MODEL, pricing_model, pricing_model)
     simulation = TravellerSimulationStepExecutor(

@@ -5,6 +5,7 @@ from datetime import datetime
 from pricing_demo.domain.builds import DraftChanged, RunActive
 from pricing_demo.domain.city_instances import InstanceVersionNotFound, Number, VersionSealed
 from pricing_demo.domain.pricing_versions import (
+    IsShowcase,
     PricingGoals,
     PricingVersion,
     PricingVersionNotFound,
@@ -17,6 +18,7 @@ from pricing_demo.domain.pricing_versions import (
 from pricing_demo.domain.runs import Run, RunKind, RunState
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
+from pricing_demo.infrastructure.fakes.showcase import InMemoryShowcase
 from pricing_demo.infrastructure.fakes.simulations import InMemorySimulations
 from pricing_demo.infrastructure.fakes.solves import InMemorySolves
 
@@ -37,11 +39,13 @@ class FakePricingVersions:
         instances: InMemoryCityInstances | None = None,
         solves: InMemorySolves | None = None,
         simulations: InMemorySimulations | None = None,
+        showcase: InMemoryShowcase | None = None,
     ) -> None:
         self._runs = runs
         self._instances = instances
         self._solves = solves
         self._simulations = simulations
+        self._showcase = showcase
         self._versions: dict[str, PricingVersion] = {}
         self._periods: dict[str, list[str]] = {}
         self._next_index: dict[str, int] = {}
@@ -143,6 +147,10 @@ class FakePricingVersions:
     def delete(self, version_id: str) -> None:
         if version_id not in self._versions:
             raise PricingVersionNotFound(version_id)
+        if self._showcase is not None:
+            mark = self._showcase.current()
+            if mark is not None and mark.pricing_version_id == version_id:
+                raise IsShowcase(version_id)
         self.remove_all([version_id])
 
     def letters_by_instance_version(
@@ -178,6 +186,8 @@ class FakePricingVersions:
             self._solves.drop_version(ids)
         if self._simulations is not None:
             self._simulations.drop_version(ids)
+        if self._showcase is not None:
+            self._showcase.drop_version(ids)
         for version_id in ids:
             self._versions.pop(version_id, None)
             self._periods.pop(version_id, None)

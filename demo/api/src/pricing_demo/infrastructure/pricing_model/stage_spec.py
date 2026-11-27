@@ -16,6 +16,8 @@ STDOUT_FILE = "stdout.log"
 STDERR_FILE = "stderr.log"
 # What the pricing-model child learned that the solver's output does not say.
 SOLVE_FACTS_FILE = "solve_facts.json"
+# The first record of the package's own summary of the solution (`optimizer.summarize`).
+PACKAGE_SUMMARY_FILE = "package_summary.json"
 
 StageStep = Literal["area", "hubs", "routes", "travellers_and_bikes", "pricing_model"]
 STAGE_STEPS: tuple[StageStep, ...] = (

@@ -284,3 +284,27 @@ def test_the_linked_simulations_carry_their_rule_parameters_in_link_order(env: E
     assert [item.created_at for item in found] == [T0, T0]
     assert all(item.rule_parameters == {"price_weight": 0.5, "time_weight": 0.5} for item in found)
     assert env.simulations.linked_of("geneva-3km.v1.Z") == []
+
+
+def test_a_stored_simulation_summarises_itself(env: Env) -> None:
+    version = env.new_version("A")
+    out = outputs()
+    env.simulations.store(
+        [stored("sim-1", "model_prices")], [link(version, "sim-1", "model_prices")]
+    )
+
+    summary = env.simulations.summary_of("sim-1")
+
+    assert summary is not None
+    assert (summary.key, summary.price_scheme) == ("sim-1", "model_prices")
+    assert (summary.rule_id, summary.rule_version) == ("balanced-score", 1)
+    assert dict(summary.rule_parameters) == dict(out.parameters)
+    assert dict(summary.travellers_per_mode) == dict(out.travellers_per_mode)
+    assert summary.travellers == sum(out.travellers_per_mode.values()) + out.unserved
+    assert (summary.displaced, summary.unserved) == (out.displaced, out.unserved)
+    assert summary.bike_rides == out.bike_rides
+    assert summary.bike_revenue_chf == out.bike_revenue_chf
+    assert summary.stations_empty == len(out.stations_empty)
+    assert summary.stations_full == len(out.stations_full)
+    assert summary.created_at == T0
+    assert env.simulations.summary_of("other") is None

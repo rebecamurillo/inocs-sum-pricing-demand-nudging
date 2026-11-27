@@ -95,3 +95,13 @@ def test_a_row_with_coefficients_is_not_changed_by_a_later_record(
     fingerprints.record(other, later(5))
 
     assert fingerprints.latest() == FAKE_FINGERPRINT
+
+
+def test_a_fingerprint_is_found_by_its_hash(fingerprints: PackageFingerprints) -> None:
+    other = replace(FAKE_FINGERPRINT, fingerprint="b" * 64)
+    fingerprints.record(FAKE_FINGERPRINT, T0)
+    fingerprints.record(other, later(5))
+
+    assert fingerprints.get(FAKE_FINGERPRINT.fingerprint) == FAKE_FINGERPRINT
+    assert fingerprints.get("b" * 64) == other
+    assert fingerprints.get("c" * 64) is None

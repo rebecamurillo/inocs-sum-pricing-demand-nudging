@@ -4,6 +4,7 @@ from collections.abc import Collection, Sequence
 from pricing_demo.application.ports.simulations import (
     LinkedSimulation,
     SimulationLink,
+    SimulationSummary,
     StoredSimulation,
 )
 
@@ -71,6 +72,29 @@ class InMemorySimulations:
                 )
                 for item in found
             ]
+
+    def summary_of(self, key: str) -> SimulationSummary | None:
+        with self._lock:
+            found = self._simulations.get(key)
+        if found is None:
+            return None
+        out = found.outputs
+        return SimulationSummary(
+            key,
+            found.scheme_kind,
+            out.rule_id,
+            out.rule_version,
+            dict(out.parameters),
+            sum(out.travellers_per_mode.values()) + out.unserved,
+            {str(mode): count for mode, count in out.travellers_per_mode.items()},
+            out.displaced,
+            out.unserved,
+            out.bike_rides,
+            out.bike_revenue_chf,
+            len(out.stations_empty),
+            len(out.stations_full),
+            found.created_at,
+        )
 
     def remove_unlinked(self) -> int:
         with self._lock:

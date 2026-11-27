@@ -1,6 +1,28 @@
 {
   "components": {
     "schemas": {
+      "AdvancedResource": {
+        "description": "The technical numbers: only here, never among the headline ones.",
+        "properties": {
+          "numbers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "title": "Numbers",
+            "type": "object"
+          },
+          "solver_status_name": {
+            "title": "Solver Status Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "solver_status_name",
+          "numbers"
+        ],
+        "title": "AdvancedResource",
+        "type": "object"
+      },
       "BlockingReasonResponse": {
         "description": "The component that blocks an action, with that component's own reason.",
         "properties": {
@@ -388,6 +410,74 @@
         "title": "FieldError",
         "type": "object"
       },
+      "GoalResource": {
+        "description": "One goal: what the model's own result says (absent when it says nothing), the value\nsimulated with the model's prices and with the flat price, and their difference.",
+        "properties": {
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The simulation with the model's prices minus the simulation with the flat price; absent when either value is."
+          },
+          "flat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "model_prices": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "enum": [
+              "ridership",
+              "revenue",
+              "cost",
+              "profit",
+              "mean_bike_price",
+              "stations_empty",
+              "stations_full"
+            ],
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "model",
+          "model_prices",
+          "flat",
+          "change"
+        ],
+        "title": "GoalResource",
+        "type": "object"
+      },
       "HubList": {
         "properties": {
           "items": {
@@ -446,6 +536,91 @@
           "euclid_dist_m"
         ],
         "title": "HubPairResource",
+        "type": "object"
+      },
+      "HubPairResultList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HubPairResultResource"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "HubPairResultList",
+        "type": "object"
+      },
+      "HubPairResultResource": {
+        "properties": {
+          "destination_hub": {
+            "title": "Destination Hub",
+            "type": "string"
+          },
+          "max_bike_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mean_bike_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent when the pair has no offered PT + bike option."
+          },
+          "min_bike_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionResultResource"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "origin_hub": {
+            "title": "Origin Hub",
+            "type": "string"
+          },
+          "travellers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "description": "Travellers per mode of the model's own result.",
+            "title": "Travellers",
+            "type": "object"
+          }
+        },
+        "required": [
+          "origin_hub",
+          "destination_hub",
+          "mean_bike_price",
+          "min_bike_price",
+          "max_bike_price",
+          "travellers",
+          "options"
+        ],
+        "title": "HubPairResultResource",
         "type": "object"
       },
       "HubResource": {
@@ -512,6 +687,70 @@
           "lines"
         ],
         "title": "HubResource",
+        "type": "object"
+      },
+      "HubResultList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HubResultResource"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "HubResultList",
+        "type": "object"
+      },
+      "HubResultResource": {
+        "properties": {
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "mean_bike_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over the offered options that start at the hub; absent without any."
+          },
+          "rides_ending": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "rides_starting": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "hub_id",
+          "label",
+          "lat",
+          "lon",
+          "rides_starting",
+          "rides_ending",
+          "mean_bike_price"
+        ],
+        "title": "HubResultResource",
         "type": "object"
       },
       "InstanceCounts": {
@@ -1114,6 +1353,76 @@
         "title": "NumberResource",
         "type": "object"
       },
+      "OptionResultResource": {
+        "properties": {
+          "arc_id": {
+            "title": "Arc Id",
+            "type": "string"
+          },
+          "bike_legs": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "bike_price": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent when the model does not offer it."
+          },
+          "duration": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/RouteLegResource"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "mode": {
+            "enum": [
+              "pt_bike",
+              "pt_only",
+              "car"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "riders": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Absent when the model has no row for it."
+          }
+        },
+        "required": [
+          "arc_id",
+          "mode",
+          "legs",
+          "duration",
+          "bike_legs",
+          "bike_price",
+          "riders"
+        ],
+        "title": "OptionResultResource",
+        "type": "object"
+      },
       "PackageDefaultsStart": {
         "properties": {
           "kind": {
@@ -1351,6 +1660,100 @@
           "label"
         ],
         "title": "PricingPeriodResource",
+        "type": "object"
+      },
+      "PricingResultResponse": {
+        "properties": {
+          "advanced": {
+            "$ref": "#/components/schemas/AdvancedResource"
+          },
+          "coefficients": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/NumberResource"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The choice-model coefficients read from the package source, each null when not found; null as a whole when the package fingerprint is not stored.",
+            "title": "Coefficients"
+          },
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/GoalResource"
+            },
+            "title": "Goals",
+            "type": "array"
+          },
+          "headline": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "title": "Headline",
+            "type": "object"
+          },
+          "hub_pairs_with_bike_option": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "model_split": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "title": "Model Split",
+            "type": "object"
+          },
+          "period_id": {
+            "title": "Period Id",
+            "type": "string"
+          },
+          "pricing_version_id": {
+            "title": "Pricing Version Id",
+            "type": "string"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/ProvenanceResource"
+          },
+          "simulation_history": {
+            "items": {
+              "$ref": "#/components/schemas/StoredSimulationResource"
+            },
+            "title": "Simulation History",
+            "type": "array"
+          },
+          "simulations": {
+            "description": "The latest simulation of each scheme: `model_prices`, then `flat`.",
+            "items": {
+              "$ref": "#/components/schemas/SimulationResultResource"
+            },
+            "title": "Simulations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "pricing_version_id",
+          "period_id",
+          "headline",
+          "goals",
+          "simulations",
+          "simulation_history",
+          "model_split",
+          "advanced",
+          "coefficients",
+          "hub_pairs_with_bike_option",
+          "provenance"
+        ],
+        "title": "PricingResultResponse",
         "type": "object"
       },
       "PricingRuleResultResource": {
@@ -1824,6 +2227,220 @@
         "title": "ProblemDetails",
         "type": "object"
       },
+      "ProvenanceResource": {
+        "properties": {
+          "bike_stations_fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bike Stations Fetched At"
+          },
+          "demonstrator_version": {
+            "title": "Demonstrator Version",
+            "type": "string"
+          },
+          "dependency_lock_sha256": {
+            "title": "Dependency Lock Sha256",
+            "type": "string"
+          },
+          "derivation_version": {
+            "title": "Derivation Version",
+            "type": "integer"
+          },
+          "gbfs_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gbfs Sha256"
+          },
+          "gtfs_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gtfs Sha256"
+          },
+          "gurobi_version": {
+            "title": "Gurobi Version",
+            "type": "string"
+          },
+          "input_keys": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The key of each build step's artefact.",
+            "title": "Input Keys",
+            "type": "object"
+          },
+          "licence_kind": {
+            "title": "Licence Kind",
+            "type": "string"
+          },
+          "package_commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Commit"
+          },
+          "package_dirty": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Dirty"
+          },
+          "package_fingerprint": {
+            "title": "Package Fingerprint",
+            "type": "string"
+          },
+          "package_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Package Version"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "routing_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routing Date"
+          },
+          "routing_date_provisional": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routing Date Provisional"
+          },
+          "routing_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routing Time"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "simulations": {
+            "description": "The rule and the date of the latest simulation of each scheme.",
+            "items": {
+              "$ref": "#/components/schemas/SimulationProvenanceResource"
+            },
+            "title": "Simulations",
+            "type": "array"
+          },
+          "solve_key": {
+            "title": "Solve Key",
+            "type": "string"
+          },
+          "solver_parameters": {
+            "additionalProperties": true,
+            "title": "Solver Parameters",
+            "type": "object"
+          },
+          "timetable_valid_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timetable Valid From"
+          },
+          "timetable_valid_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timetable Valid To"
+          }
+        },
+        "required": [
+          "run_id",
+          "solve_key",
+          "derivation_version",
+          "package_fingerprint",
+          "package_version",
+          "package_commit",
+          "package_dirty",
+          "gurobi_version",
+          "licence_kind",
+          "solver_parameters",
+          "dependency_lock_sha256",
+          "platform",
+          "demonstrator_version",
+          "input_keys",
+          "gtfs_sha256",
+          "gbfs_sha256",
+          "timetable_valid_from",
+          "timetable_valid_to",
+          "routing_date",
+          "routing_time",
+          "routing_date_provisional",
+          "bike_stations_fetched_at",
+          "simulations"
+        ],
+        "title": "ProvenanceResource",
+        "type": "object"
+      },
       "RouteFailureList": {
         "properties": {
           "items": {
@@ -1897,6 +2514,39 @@
           "period"
         ],
         "title": "RouteFailureResource",
+        "type": "object"
+      },
+      "RouteLegResource": {
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "line_kind": {
+            "enum": [
+              "street",
+              "shape",
+              "straight"
+            ],
+            "title": "Line Kind",
+            "type": "string"
+          },
+          "mode": {
+            "title": "Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "duration_s",
+          "distance_m",
+          "line_kind"
+        ],
+        "title": "RouteLegResource",
         "type": "object"
       },
       "RoutePairList": {
@@ -2407,6 +3057,197 @@
         "title": "RunnerResource",
         "type": "object"
       },
+      "ShowcaseRequest": {
+        "properties": {
+          "period_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The period to show; the version's first when absent.",
+            "title": "Period Id"
+          },
+          "pricing_version_id": {
+            "title": "Pricing Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pricing_version_id"
+        ],
+        "title": "ShowcaseRequest",
+        "type": "object"
+      },
+      "ShowcaseResponse": {
+        "properties": {
+          "headline": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "title": "Headline",
+            "type": "object"
+          },
+          "instance_version_id": {
+            "title": "Instance Version Id",
+            "type": "string"
+          },
+          "instance_version_name": {
+            "title": "Instance Version Name",
+            "type": "string"
+          },
+          "letter": {
+            "title": "Letter",
+            "type": "string"
+          },
+          "marked_at": {
+            "format": "date-time",
+            "title": "Marked At",
+            "type": "string"
+          },
+          "period_id": {
+            "title": "Period Id",
+            "type": "string"
+          },
+          "pricing_version_id": {
+            "title": "Pricing Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pricing_version_id",
+          "period_id",
+          "marked_at",
+          "letter",
+          "instance_version_id",
+          "instance_version_name",
+          "headline"
+        ],
+        "title": "ShowcaseResponse",
+        "type": "object"
+      },
+      "SimulationProvenanceResource": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "price_scheme": {
+            "enum": [
+              "model_prices",
+              "flat"
+            ],
+            "title": "Price Scheme",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "price_scheme",
+          "rule_id",
+          "rule_version",
+          "created_at"
+        ],
+        "title": "SimulationProvenanceResource",
+        "type": "object"
+      },
+      "SimulationResultResource": {
+        "description": "The latest simulation of one price scheme.",
+        "properties": {
+          "bike_rides": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "displaced": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "period_id": {
+            "title": "Period Id",
+            "type": "string"
+          },
+          "price_scheme": {
+            "enum": [
+              "model_prices",
+              "flat"
+            ],
+            "title": "Price Scheme",
+            "type": "string"
+          },
+          "revenue": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "rule_current": {
+            "title": "Rule Current",
+            "type": "boolean"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Rule Parameters",
+            "type": "object"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          },
+          "simulation_key": {
+            "title": "Simulation Key",
+            "type": "string"
+          },
+          "travellers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "description": "Travellers per mode: `pt_bike`, `pt_only`, `car`.",
+            "title": "Travellers",
+            "type": "object"
+          },
+          "unserved": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "price_scheme",
+          "period_id",
+          "rule_id",
+          "rule_version",
+          "rule_parameters",
+          "rule_current",
+          "simulation_key",
+          "created_at",
+          "travellers",
+          "displaced",
+          "unserved",
+          "bike_rides",
+          "revenue",
+          "cost"
+        ],
+        "title": "SimulationResultResource",
+        "type": "object"
+      },
       "SimulationRuleResource": {
         "description": "A traveller simulation rule: its id, its version and its parameters.",
         "properties": {
@@ -2529,6 +3370,62 @@
         ],
         "title": "StepState",
         "type": "string"
+      },
+      "StoredSimulationResource": {
+        "description": "One stored simulation of the version (older rules included), as stories 3-9 to 3-12\nread it.",
+        "properties": {
+          "bike_rides": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "period_id": {
+            "title": "Period Id",
+            "type": "string"
+          },
+          "price_scheme": {
+            "enum": [
+              "model_prices",
+              "flat"
+            ],
+            "title": "Price Scheme",
+            "type": "string"
+          },
+          "revenue": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          },
+          "simulation_key": {
+            "title": "Simulation Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price_scheme",
+          "period_id",
+          "rule_id",
+          "rule_version",
+          "simulation_key",
+          "created_at",
+          "bike_rides",
+          "revenue",
+          "cost"
+        ],
+        "title": "StoredSimulationResource",
+        "type": "object"
       },
       "SubjectType": {
         "enum": [
@@ -3662,7 +4559,7 @@
                 }
               }
             },
-            "description": "A run of the version is queued or running: `run_active`"
+            "description": "`run_active` (a run of the version is queued or running) or `is_showcase` (the version is the showcase)"
           },
           "422": {
             "content": {
@@ -3826,6 +4723,246 @@
           }
         },
         "summary": "Change the goals of a draft; the answer reports every rule",
+        "tags": [
+          "pricing-versions"
+        ]
+      }
+    },
+    "/api/v1/pricing-versions/{pricing_version_id}/hub-pair-results": {
+      "get": {
+        "operationId": "listHubPairResults",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period's id; the version's first period when absent.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's id; the version's first period when absent.",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubPairResultList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Per hub pair: the bike price, the travellers per mode and the options",
+        "tags": [
+          "pricing-versions"
+        ]
+      }
+    },
+    "/api/v1/pricing-versions/{pricing_version_id}/hub-results": {
+      "get": {
+        "operationId": "listHubResults",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period's id; the version's first period when absent.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's id; the version's first period when absent.",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HubResultList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Per hub: the bike rides that start and end there and the mean bike price",
+        "tags": [
+          "pricing-versions"
+        ]
+      }
+    },
+    "/api/v1/pricing-versions/{pricing_version_id}/result": {
+      "get": {
+        "operationId": "getPricingResult",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period's id; the version's first period when absent.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's id; the version's first period when absent.",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingResultResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The numbers of a finished version, each with its unit, its source and its group",
         "tags": [
           "pricing-versions"
         ]
@@ -4406,6 +5543,116 @@
         "summary": "The trip-planner queries that failed during the run's routes step",
         "tags": [
           "runs"
+        ]
+      }
+    },
+    "/api/v1/showcase": {
+      "get": {
+        "operationId": "getShowcase",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`no_showcase` (none is marked) or `no_result` (the marked version has lost part of its result)"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "The showcased pricing version with its headline numbers",
+        "tags": [
+          "showcase"
+        ]
+      },
+      "put": {
+        "operationId": "markShowcase",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShowcaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShowcaseResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`pricing_version_not_found`"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`no_result`: the version has no result, or does not price the period"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Make a finished pricing version and period the showcase",
+        "tags": [
+          "showcase"
         ]
       }
     },

@@ -5,6 +5,7 @@ from pathlib import Path
 from pricing_demo.infrastructure.pricing_model.stage_runner import (
     ProgressHandler,
     failure_outcome,
+    plain_record,
     watch_parent,
     write_outcome,
 )
@@ -100,3 +101,36 @@ def test_a_spec_without_optimizer_fields_reads_as_empty() -> None:
     assert StageSpec.from_json(StageSpec("area", "/w", 1).to_json()).optimizer == {}
     legacy = '{"step": "area", "working_dir": "/w", "parent_pid": 1}'
     assert StageSpec.from_json(legacy).optimizer == {}
+
+
+class NumpyLike:
+    """What numpy scalars offer the child: `item()` gives the Python value."""
+
+    def __init__(self, value: float) -> None:
+        self._value = value
+
+    def item(self) -> float:
+        return self._value
+
+
+def test_the_package_summary_record_has_plain_values_with_nan_as_null() -> None:
+    record = {
+        "Obj Value": NumpyLike(3.5),
+        "Gap (%)": float("nan"),
+        "Avg": NumpyLike(float("nan")),
+        "Name": "Instance_1",
+        "Total": 4,
+        "Used": None,
+    }
+
+    found = plain_record(record)
+
+    assert found == {
+        "Obj Value": 3.5,
+        "Gap (%)": None,
+        "Avg": None,
+        "Name": "Instance_1",
+        "Total": 4,
+        "Used": None,
+    }
+    assert json.loads(json.dumps(found, allow_nan=False)) == found

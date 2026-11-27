@@ -24,11 +24,13 @@ from pricing_demo.domain.solves import (
     SolveRow,
 )
 from pricing_demo.infrastructure.fakes.component_probe import FakeSettingsSource
+from pricing_demo.infrastructure.pricing_model.solve_reading import package_parameters
 
 SOLUTION_FILE = "solution.json"
 # The origin hub the fake model offers nothing from.
 UNPRICED_ORIGIN = "H6"
 OPTIMAL = 2
+TYPES = ("PT+Bike", "PT-Only", "Car")
 FAKE_PARAMETERS = {"Threads": 4, "TimeLimit": 7200}
 # What a failure's reason is written with when the code names a value (as the fake city's).
 FAKE_REASON_VALUES: Mapping[str, object] = {
@@ -50,6 +52,24 @@ def _arcs(instance: Mapping[str, Any], name: str) -> dict[tuple[str, str], list[
         origin, _, destination = str(key).partition("_")
         result[(origin, destination)] = list(items)
     return result
+
+
+def _package_summary(rows: list[SolveRow]) -> dict[str, object]:
+    """A record with the keys of the package's `summarize` (`metrics.py:111-135`) that the
+    result reads, computed from the rows the way the package does."""
+    bike = [row for row in rows if row.type == "PT+Bike"]
+    used = [row.bike_price for row in bike if row.flow >= 1 and row.bike_price is not None]
+    offered = [row.bike_price for row in bike if row.nu == 1 and row.bike_price is not None]
+    flows = {kind: sum(row.flow for row in rows if row.type == kind) for kind in TYPES}
+    return {
+        "Obj Value": round(sum((row.bike_price or 0.0) * row.flow for row in bike), 2),
+        "Total Demand": round(sum(flows.values()), 2),
+        "Total Flow (Car)": round(flows["Car"], 2),
+        "Total Flow (PT Only)": round(flows["PT-Only"], 2),
+        "Total Flow (Multimodal)": round(sum(row.flow for row in bike if row.flow >= 1), 2),
+        "Avg Bike Price (Multimodal, Flow ≥ 1)": sum(used) / len(used) if used else None,
+        "Avg Bike Price (for all offered arcs)": sum(offered) / len(offered) if offered else None,
+    }
 
 
 class FakePricingSolver:
@@ -94,6 +114,8 @@ class FakePricingSolver:
             ),
             tuple(rows),
             tuple(ods),
+            _package_summary(rows),
+            package_parameters(goals),
         )
         (request.working_dir / SOLUTION_FILE).write_text(
             json.dumps([row.__dict__ for row in rows], sort_keys=True, separators=(",", ":"))

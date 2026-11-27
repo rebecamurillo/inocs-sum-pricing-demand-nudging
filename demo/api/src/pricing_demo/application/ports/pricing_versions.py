@@ -63,7 +63,8 @@ class PricingVersions(Protocol):
     def delete(self, version_id: str) -> None:
         """In one transaction, remove the version with its periods, its solves, its links to
         simulations and its finished runs (their steps). Raises `PricingVersionNotFound`, and
-        `RunActive` while a run of it is queued or running; nothing is removed then. The
+        `RunActive` while a run of it is queued or running, and `IsShowcase` while it is the
+        showcase; nothing is removed then. The
         instance version's next letter never decreases."""
         ...
 

@@ -27,8 +27,9 @@ from pricing_demo.domain.city_instances import (
     first_period,
     parameters_from_defaults,
 )
+from pricing_demo.domain.derived_result import DERIVATION_VERSION
 from pricing_demo.domain.pricing_keys import KEPT_SOLVE_REASON
-from pricing_demo.domain.pricing_versions import SimulationCurrent, new_draft_goals
+from pricing_demo.domain.pricing_versions import IsShowcase, SimulationCurrent, new_draft_goals
 from pricing_demo.domain.runs import Run, RunState, StepName, StepState
 from pricing_demo.domain.system_status import ComponentName, ComponentStatus, SystemStatus
 from pricing_demo.domain.traveller_simulation import SimulationRule
@@ -61,6 +62,7 @@ from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPri
 from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
 from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
+from pricing_demo.infrastructure.persistence.showcase import PostgresShowcase
 from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
 from pricing_demo.infrastructure.persistence.solves import PostgresSolves
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
@@ -180,6 +182,7 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
         runs,
         sources,
         clock,
+        read_model,
     )
     rule_source = FakeSimulationRule(settings).current
     simulation = TravellerSimulationStepExecutor(
@@ -276,6 +279,45 @@ def test_a_pricing_run_solves_ingests_the_solve_and_stores_both_simulations(rig:
     assert schemes == {"model_prices", "flat"}
     # PT+Bike rows exist for the offered options only; the others have a row for every option.
     assert 0 < offered < every_bike
+
+
+def test_a_pricing_run_stores_one_result_summary_and_a_kept_solve_reuses_it(rig: Rig) -> None:
+    first = rig.version()
+    rig.run(first)
+
+    assert rig.count("result_summaries") == 1
+    key = rig.key_of(first)
+    stored = rig.solves.summary_of(key, DERIVATION_VERSION)
+    assert stored is not None
+    assert stored.numbers.numbers["ridership"].source == "model"
+    assert stored.package_summary is not None
+    with rig.engine.connect() as connection:
+        residual = connection.execute(
+            text("SELECT objective_residual FROM result_summaries")
+        ).scalar_one()
+    assert residual == stored.numbers.objective_residual
+
+    second = rig.version(flat_price_per_ride_chf=2.5)
+    run = rig.run(second)
+
+    assert run.steps[0].state is StepState.KEPT
+    assert rig.count("result_summaries") == 1
+    assert rig.solves.summary_of(key, DERIVATION_VERSION) == stored
+
+
+def test_the_showcased_version_is_not_deleted_and_another_is(rig: Rig) -> None:
+    first, second = rig.version(), rig.version(flat_price_per_ride_chf=2.5)
+    rig.run(first)
+    rig.run(second)
+    PostgresShowcase(rig.engine).mark(first, PERIOD, T0)
+
+    with pytest.raises(IsShowcase):
+        rig.pricing.delete(first)
+    rig.pricing.delete(second)
+
+    assert rig.count("solves") == 1
+    assert rig.count("showcase") == 1
+    assert rig.links(first) != {}
 
 
 def test_a_version_that_differs_only_in_its_flat_price_keeps_the_solve_and_adds_a_flat_simulation(

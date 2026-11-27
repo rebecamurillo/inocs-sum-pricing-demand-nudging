@@ -23,6 +23,17 @@ SOLVER_GOALS = (
     "max_displayed_options",
 )
 
+# The version's goals under the package's `OptimizerParams` field names (`config.py:40-54`).
+PACKAGE_GOAL_NAMES: Mapping[str, str] = {
+    "cost_bike_chf": "cost_bike",
+    "lowest_price_chf": "P_bar",
+    "ridership_weight": "ridership_weight",
+    "station_balance_weight": "theta",
+    "pt_fare_chf": "pt_price",
+    "car_parking_fee_chf": "parking_fee",
+    "max_displayed_options": "max_displayed_alternatives",
+}
+
 # What the demonstrator always passes the solver, the same way (ARCHITECTURE.md § 4.1).
 FIXED_SOLVER_INPUTS: Mapping[str, object] = {
     "capacity": None,

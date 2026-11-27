@@ -8,6 +8,7 @@ from pricing_demo.domain.builds import DraftChanged, RunActive
 from pricing_demo.domain.city_instances import InstanceVersionNotFound, Number, VersionSealed
 from pricing_demo.domain.pricing_versions import (
     GOAL_NAMES,
+    IsShowcase,
     PricingGoals,
     PricingVersion,
     PricingVersionNotFound,
@@ -32,6 +33,7 @@ from pricing_demo.infrastructure.persistence.tables import (
     pricing_versions,
     run_steps,
     runs,
+    showcase,
     solves,
 )
 
@@ -269,6 +271,13 @@ class PostgresPricingVersions:
             ).scalar()
             if locked is None:
                 raise PricingVersionNotFound(version_id)
+            marked = connection.execute(
+                select(showcase.c.pricing_version_id).where(
+                    showcase.c.pricing_version_id == version_id
+                )
+            ).scalar()
+            if marked is not None:
+                raise IsShowcase(version_id)
             remove_pricing_versions(connection, [version_id])
 
     def letters_by_instance_version(

@@ -95,5 +95,8 @@ class InMemoryPackageFingerprints:
             return None
         return max(self._rows, key=lambda row: row[0])[1]
 
+    def get(self, fingerprint: str) -> PackageFingerprint | None:
+        return next((row for _, row in self._rows if row.fingerprint == fingerprint), None)
+
     def clear(self) -> None:
         self._rows.clear()

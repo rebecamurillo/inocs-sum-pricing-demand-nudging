@@ -3,7 +3,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
+from pricing_demo.domain.derived_result import SimulationSummary
 from pricing_demo.domain.traveller_simulation import SimulationOutputs
+
+__all__ = ["SimulationSummary"]
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,11 @@ class Simulations(Protocol):
     def linked_of(self, pricing_version_id: str) -> list[LinkedSimulation]:
         """The version's links in the order of `links_of`, each with the rule parameters of
         its simulation."""
+        ...
+
+    def summary_of(self, key: str) -> SimulationSummary | None:
+        """What the stored simulation says about itself: its rule, its travellers, its bike
+        rides and revenue, its empty and full stations."""
         ...
 
     def remove_unlinked(self) -> int:

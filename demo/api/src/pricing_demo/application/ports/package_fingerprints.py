@@ -20,3 +20,7 @@ class PackageFingerprints(Protocol):
     def latest(self) -> PackageFingerprint | None:
         """The row first seen last, or None when none was recorded."""
         ...
+
+    def get(self, fingerprint: str) -> PackageFingerprint | None:
+        """The row of that fingerprint, or None when it was never recorded."""
+        ...

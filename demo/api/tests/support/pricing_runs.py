@@ -52,6 +52,7 @@ class PricingRig:
             self.rig.runs,
             self.rig.sources,
             self.rig.clock,
+            self.rig.read_model,
         )
         self.registry.register(StepName.PRICING_MODEL, self.model, self.model)
         self.use_rule(rule or BalancedScore())

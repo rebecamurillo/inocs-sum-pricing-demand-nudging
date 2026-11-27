@@ -1,17 +1,20 @@
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, null, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.application.ports.artifacts import Artifact
-from pricing_demo.application.ports.solves import SolveRecord
+from pricing_demo.application.ports.solves import SolveRecord, StoredResultSummary
+from pricing_demo.domain.derived_result import ResultNumbers
 from pricing_demo.domain.pricing_keys import solve_id
 from pricing_demo.domain.solves import Solve, SolveProvenance, SolveQuality, SolveRow
 from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
 from pricing_demo.infrastructure.persistence.tables import (
     artifacts,
     instance_periods,
+    result_summaries,
     solve_ods,
     solve_rows,
     solves,
@@ -69,6 +72,7 @@ class PostgresSolves:
         pricing_version_id: str,
         period_id: str,
         created_at: datetime,
+        summary: StoredResultSummary | None = None,
     ) -> None:
         key = artifact.input_key
         with self._engine.begin() as connection:
@@ -112,12 +116,49 @@ class PostgresSolves:
                         for item in solve.ods
                     ],
                 )
+            if summary is not None:
+                self._insert_summary(connection, summary)
             self._upsert_version_row(
                 connection,
                 pricing_version_id,
                 period_id,
                 SolveRecord(key, solve.quality, solve.provenance, created_at),
             )
+
+    def store_summary(self, summary: StoredResultSummary) -> None:
+        with self._engine.begin() as connection:
+            self._insert_summary(connection, summary)
+
+    def summary_of(self, key: str, derivation_version: int) -> StoredResultSummary | None:
+        query = select(result_summaries).where(
+            result_summaries.c.solve_key == key,
+            result_summaries.c.derivation_version == derivation_version,
+        )
+        with self._engine.connect() as connection:
+            row = connection.execute(query).first()
+        if row is None:
+            return None
+        return StoredResultSummary(
+            row.solve_key,
+            row.derivation_version,
+            ResultNumbers.from_record(row.numbers),
+            row.package_summary,
+            row.created_at,
+        )
+
+    def package_summary_of(self, key: str) -> Mapping[str, object] | None:
+        query = (
+            select(result_summaries.c.package_summary)
+            .where(
+                result_summaries.c.solve_key == key,
+                result_summaries.c.package_summary.is_not(None),
+            )
+            .order_by(result_summaries.c.derivation_version)
+            .limit(1)
+        )
+        with self._engine.connect() as connection:
+            found: Mapping[str, object] | None = connection.execute(query).scalar()
+        return found
 
     def link_stored(
         self, key: str, pricing_version_id: str, period_id: str, created_at: datetime
@@ -168,6 +209,24 @@ class PostgresSolves:
         with self._engine.connect() as connection:
             row = connection.execute(query).first()
         return None if row is None else _record(row)
+
+    @staticmethod
+    def _insert_summary(connection: Any, summary: StoredResultSummary) -> None:
+        connection.execute(
+            insert(result_summaries)
+            .values(
+                solve_key=summary.solve_key,
+                derivation_version=summary.derivation_version,
+                numbers=summary.numbers.record(),
+                # SQL null, not the JSON null a Python None would be stored as.
+                package_summary=summary.package_summary
+                if summary.package_summary is not None
+                else null(),
+                objective_residual=summary.numbers.objective_residual,
+                created_at=summary.created_at,
+            )
+            .on_conflict_do_nothing(constraint="pk_result_summaries")
+        )
 
     @staticmethod
     def _insert_all(connection: Any, table: Any, values: list[dict[str, Any]]) -> None:

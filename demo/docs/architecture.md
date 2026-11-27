@@ -315,8 +315,13 @@ step's keeper.
   named output files as an artefact of step `pricing_model` and, in one transaction
   (`Solves.store`), the artefact row, the rows of `solve_rows` (a `PT+Bike` row only for an offered
   option, `PT-Only` and `Car` rows for every option), the `gamma` of each hub pair in `solve_ods`
-  and the version's `solves` row (quality and provenance). A failed store is `stage_error`; the
-  working directory stays after a failure.
+  and the version's `solves` row (quality and provenance). The same transaction stores the
+  solve's `result_summaries` row for the current `DERIVATION_VERSION`: `domain/derived_result.py`
+  computes every number the demonstrator derives from the rows (the read model's options, bike
+  movements, stations, hubs and hub pairs), each under a `derived_*` name, and the package's own
+  `optimizer.summarize` record is stored beside it as it was written. A kept solve adds a summary
+  only when none exists for its derivation version. A failed store or computation is
+  `stage_error`; the working directory stays after a failure.
 - `TravellerSimulationStepExecutor` builds the simulation's instance from the read model
   (`domain/simulation_inputs.py`), runs the rule behind the `TravellerSimulation` port
   (`BalancedScore`, `balanced-score` v1, provisional until Q-39) with the model's prices and with
@@ -371,7 +376,18 @@ every stored link with its rule and `rule_current`. The version's state derives 
 runs only (`latest_run`, `_last_run_states`): a simulation run never changes it.
 
 Deleting a pricing version also removes its `solves` rows and its links to simulations
-(`pricing_version_simulations`) in the same transaction.
+(`pricing_version_simulations`) in the same transaction. The version marked in `showcase` (one row
+at most, port `Showcase`) is refused with `IsShowcase` (`409 is_showcase`) under the version's row
+lock; the foreign key cascades, so deleting an instance version with
+`?including_pricing_versions=true` still works until story 6.3 refuses it.
+
+The result routes (`GET /pricing-versions/{id}/result`, `/hub-pair-results`, `/hub-results`) read
+the stored summary, never recompute it: `ResultLookup` says a version has a result when its latest
+pricing run succeeded, the solve of the period has a summary of the current derivation version and
+both schemes have a simulation (`ResultNotFound`, `404 no_result`, otherwise). The result shows
+the latest simulation of each scheme and every number as `{value, unit, source, group}`; the
+solve's quality, the objective's terms and the package summary's averages are in the advanced group
+only.
 
 ### Builds and the artefact store
 

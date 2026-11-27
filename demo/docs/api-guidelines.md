@@ -81,7 +81,11 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   (the pricing versions that block a deletion, in letter order). `already_run` (409) has no
   extension member: the version's result exists. `no_result` (409: the version has no succeeded
   pricing run to simulate again) and `simulation_current` (409: both schemes already have a
-  simulation under the current rule) have none either.
+  simulation under the current rule) have none either. `no_result` is also a 404, on the three
+  result routes (`/result`, `/hub-pair-results`, `/hub-results`): the version's latest pricing run
+  has not succeeded, or its solve, its summary or one of its two simulations is missing.
+  `is_showcase` (409) refuses the deletion of the showcased pricing version; `no_showcase` (404)
+  answers `GET /showcase` when none is marked. Neither has an extension member.
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

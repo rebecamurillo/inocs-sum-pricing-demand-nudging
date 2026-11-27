@@ -1,9 +1,9 @@
 import threading
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from datetime import datetime
 
 from pricing_demo.application.ports.artifacts import Artifact
-from pricing_demo.application.ports.solves import SolveRecord
+from pricing_demo.application.ports.solves import SolveRecord, StoredResultSummary
 from pricing_demo.domain.solves import Solve, SolveOd, SolveRow
 from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
 
@@ -17,6 +17,7 @@ class InMemorySolves:
         self._artifacts = artifacts
         self._rows: dict[str, tuple[tuple[SolveRow, ...], tuple[SolveOd, ...]]] = {}
         self._versions: dict[tuple[str, str], SolveRecord] = {}
+        self._summaries: dict[tuple[str, int], StoredResultSummary] = {}
         self._lock = threading.Lock()
         artifacts.attach_solves(self)
 
@@ -31,6 +32,7 @@ class InMemorySolves:
         pricing_version_id: str,
         period_id: str,
         created_at: datetime,
+        summary: StoredResultSummary | None = None,
     ) -> None:
         ids = [row.arc_id for row in solve.rows]
         if len(set(ids)) != len(ids):
@@ -38,9 +40,28 @@ class InMemorySolves:
         self._artifacts.add(artifact)
         with self._lock:
             self._rows.setdefault(artifact.input_key, (tuple(solve.rows), tuple(solve.ods)))
+            if summary is not None:
+                self._summaries.setdefault((summary.solve_key, summary.derivation_version), summary)
             self._versions[(pricing_version_id, period_id)] = SolveRecord(
                 artifact.input_key, solve.quality, solve.provenance, created_at
             )
+
+    def store_summary(self, summary: StoredResultSummary) -> None:
+        with self._lock:
+            if summary.solve_key not in self._rows:
+                raise KeyError(summary.solve_key)
+            self._summaries.setdefault((summary.solve_key, summary.derivation_version), summary)
+
+    def summary_of(self, key: str, derivation_version: int) -> StoredResultSummary | None:
+        with self._lock:
+            return self._summaries.get((key, derivation_version))
+
+    def package_summary_of(self, key: str) -> Mapping[str, object] | None:
+        with self._lock:
+            for (stored_key, _), summary in sorted(self._summaries.items()):
+                if stored_key == key and summary.package_summary is not None:
+                    return summary.package_summary
+        return None
 
     def link_stored(
         self, key: str, pricing_version_id: str, period_id: str, created_at: datetime
@@ -75,6 +96,8 @@ class InMemorySolves:
     def drop_key(self, key: str) -> None:
         with self._lock:
             self._rows.pop(key, None)
+            for item in [item for item in self._summaries if item[0] == key]:
+                del self._summaries[item]
 
     def drop_version(self, version_ids: Collection[str]) -> None:
         with self._lock:

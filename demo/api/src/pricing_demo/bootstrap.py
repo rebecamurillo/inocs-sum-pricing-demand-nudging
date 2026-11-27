@@ -14,6 +14,7 @@ from pricing_demo.application.build_planning import BuildPlanning
 from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.ports.clock import Clock
+from pricing_demo.application.result_lookup import ResultLookup
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
@@ -23,13 +24,17 @@ from pricing_demo.application.use_cases.delete_city_instance import DeleteCityIn
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
+from pricing_demo.application.use_cases.get_pricing_result import GetPricingResult
 from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
+from pricing_demo.application.use_cases.get_showcase import GetShowcase
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
+from pricing_demo.application.use_cases.list_hub_pair_results import ListHubPairResults
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
+from pricing_demo.application.use_cases.list_hub_results import ListHubResults
 from pricing_demo.application.use_cases.list_hubs import ListHubs
 from pricing_demo.application.use_cases.list_pricing_version_simulations import (
     ListPricingVersionSimulations,
@@ -39,6 +44,7 @@ from pricing_demo.application.use_cases.list_route_failures import ListRouteFail
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
+from pricing_demo.application.use_cases.mark_showcase import MarkShowcase
 from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
 from pricing_demo.application.use_cases.simulate_pricing_version import SimulatePricingVersion
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
@@ -70,7 +76,9 @@ from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPri
 from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
 from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
+from pricing_demo.infrastructure.persistence.showcase import PostgresShowcase
 from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
+from pricing_demo.infrastructure.persistence.solves import PostgresSolves
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
 from pricing_demo.infrastructure.persistence.truncate import truncate_all
 from pricing_demo.interface.http.app import Lifespan, create_app
@@ -78,6 +86,7 @@ from pricing_demo.interface.http.routers.city_datasets import build_city_dataset
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
 from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
+from pricing_demo.interface.http.routers.showcase import build_showcase_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
 
@@ -172,6 +181,9 @@ def create_application(settings: Settings) -> FastAPI:
     )
 
     fingerprints = PostgresPackageFingerprints(engine)
+    solves = PostgresSolves(engine)
+    lookup = ResultLookup(pricing_versions, solves, simulations)
+    showcase = PostgresShowcase(engine)
     return create_app(
         api_version=api_version,
         routers=[
@@ -222,6 +234,20 @@ def create_application(settings: Settings) -> FastAPI:
                 ListPricingVersionSimulations(
                     pricing_versions, simulations, get_system_status.execute
                 ),
+                GetPricingResult(
+                    lookup,
+                    simulations,
+                    instances,
+                    datasets,
+                    artifacts,
+                    fingerprints,
+                    get_system_status.execute,
+                ),
+                ListHubPairResults(lookup, solves, artifacts, read_model),
+                ListHubResults(lookup, artifacts, read_model),
+            ),
+            build_showcase_router(
+                MarkShowcase(lookup, showcase, clock), GetShowcase(showcase, lookup, instances)
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),

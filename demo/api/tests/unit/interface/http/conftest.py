@@ -1,9 +1,11 @@
 from collections.abc import Callable, Mapping
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from pricing_demo.application.errors import ComponentNotControllable
+from pricing_demo.application.result_lookup import ResultLookup
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
@@ -12,19 +14,24 @@ from pricing_demo.application.use_cases.delete_city_instance import DeleteCityIn
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
+from pricing_demo.application.use_cases.get_pricing_result import GetPricingResult
 from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
 from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.get_run_log import GetRunLog
+from pricing_demo.application.use_cases.get_showcase import GetShowcase
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.application.use_cases.list_city_datasets import ListCityDatasets
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
+from pricing_demo.application.use_cases.list_hub_pair_results import ListHubPairResults
 from pricing_demo.application.use_cases.list_hub_pairs import ListHubPairs
+from pricing_demo.application.use_cases.list_hub_results import ListHubResults
 from pricing_demo.application.use_cases.list_hubs import ListHubs
 from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
 from pricing_demo.application.use_cases.list_route_failures import ListRouteFailures
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
+from pricing_demo.application.use_cases.mark_showcase import MarkShowcase
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
@@ -51,9 +58,11 @@ from pricing_demo.interface.http.routers.city_datasets import build_city_dataset
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
 from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
+from pricing_demo.interface.http.routers.showcase import build_showcase_router
 from pricing_demo.interface.http.routers.system_status import build_system_status_router
 from pricing_demo.interface.http.routers.test_control import build_test_control_router
 from tests.support.builds import FINGERPRINT, MemoryBuilds
+from tests.support.results import ResultRig
 from tests.support.runs import later
 
 API_VERSION = "0.1.0"
@@ -216,6 +225,7 @@ class CityInstancesApp:
             self.fingerprints.record(FAKE_FINGERPRINT, SERVER_TIME)
         planning = self.rig.planning
         built = self.rig.built
+        lookup = ResultLookup(self.rig.pricing, self.rig.solves, self.rig.simulations)
         self.client = TestClient(
             create_app(
                 api_version=API_VERSION,
@@ -265,6 +275,23 @@ class CityInstancesApp:
                         GetRun(self.runs, self.clock),
                         self.rig.simulate,
                         self.rig.list_simulations,
+                        GetPricingResult(
+                            lookup,
+                            self.rig.simulations,
+                            self.instances,
+                            self.datasets,
+                            self.rig.artifacts,
+                            self.fingerprints,
+                            self.rig.status,
+                        ),
+                        ListHubPairResults(
+                            lookup, self.rig.solves, self.rig.artifacts, self.rig.read_model
+                        ),
+                        ListHubResults(lookup, self.rig.artifacts, self.rig.read_model),
+                    ),
+                    build_showcase_router(
+                        MarkShowcase(lookup, self.rig.showcase, self.clock),
+                        GetShowcase(self.rig.showcase, lookup, self.instances),
                     ),
                 ],
             ),
@@ -275,3 +302,41 @@ class CityInstancesApp:
 @pytest.fixture
 def instances_app() -> CityInstancesApp:
     return CityInstancesApp()
+
+
+class ResultsApp:
+    """An app with the pricing version and showcase routes over a built fake city whose
+    pricing versions the worker's two steps have run."""
+
+    def __init__(self, folder: Path) -> None:
+        self.results = ResultRig(folder)
+        rig = self.results.rig
+        clock = rig.clock
+        self.client = TestClient(
+            create_app(
+                api_version=API_VERSION,
+                routers=[
+                    build_pricing_versions_router(
+                        CreatePricingVersion(rig.instances, rig.builds, rig.pricing, clock),
+                        ListPricingVersions(rig.instances, rig.pricing),
+                        GetPricingVersion(rig.instances, rig.pricing),
+                        UpdatePricingVersion(rig.instances, rig.pricing),
+                        DeletePricingVersion(rig.pricing),
+                        rig.run_pricing,
+                        GetRun(rig.runs, clock),
+                        rig.simulate,
+                        rig.list_simulations,
+                        self.results.result,
+                        self.results.hub_pairs,
+                        self.results.hubs,
+                    ),
+                    build_showcase_router(self.results.mark, self.results.get_showcase),
+                ],
+            ),
+            raise_server_exceptions=False,
+        )
+
+
+@pytest.fixture
+def results_app(tmp_path: Path) -> ResultsApp:
+    return ResultsApp(tmp_path)

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Engine, null, select
 from sqlalchemy.dialects.postgresql import insert
@@ -42,13 +43,23 @@ class PostgresPackageFingerprints:
         )
         with self._engine.connect() as connection:
             row = connection.execute(query).first()
-        if row is None:
-            return None
-        return PackageFingerprint(
-            fingerprint=row.fingerprint,
-            version=row.version,
-            git_commit=row.git_commit,
-            git_dirty=row.git_dirty,
-            defaults=row.defaults,
-            choice_coefficients=row.choice_coefficients or {},
+        return None if row is None else _fingerprint(row)
+
+    def get(self, fingerprint: str) -> PackageFingerprint | None:
+        query = select(package_fingerprints).where(
+            package_fingerprints.c.fingerprint == fingerprint
         )
+        with self._engine.connect() as connection:
+            row = connection.execute(query).first()
+        return None if row is None else _fingerprint(row)
+
+
+def _fingerprint(row: Any) -> PackageFingerprint:
+    return PackageFingerprint(
+        fingerprint=row.fingerprint,
+        version=row.version,
+        git_commit=row.git_commit,
+        git_dirty=row.git_dirty,
+        defaults=row.defaults,
+        choice_coefficients=row.choice_coefficients or {},
+    )

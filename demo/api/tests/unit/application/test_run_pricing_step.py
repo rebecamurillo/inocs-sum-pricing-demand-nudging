@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from pricing_demo.application.ports.artifacts import Artifact
+from pricing_demo.domain.derived_result import DERIVATION_VERSION
 from pricing_demo.domain.failure_codes import (
     SOLVER_NO_SOLUTION,
     SOLVER_SIZE_LIMITED,
@@ -224,3 +225,100 @@ def test_a_version_of_an_instance_that_was_never_built_fails_the_step_with_its_r
     assert outcome.failure_code == STAGE_ERROR
     assert "no stored build" in (outcome.failure_reason or "")
     assert rig.model.keep(queued, queued.steps[0]) is False
+
+
+def test_a_first_run_stores_the_summary_of_the_result_with_the_solve(rig: PricingRig) -> None:
+    version = rig.version()
+
+    rig.run(version)
+
+    key = solve_key(rig, version)
+    summary = rig.rig.solves.summary_of(key, DERIVATION_VERSION)
+    assert summary is not None
+    rows = rig.rig.solves.rows(key)
+    bike = [row for row in rows if row.type == "PT+Bike"]
+    numbers = summary.numbers.numbers
+    assert numbers["ridership"].value == pytest.approx(sum(row.flow for row in bike))
+    assert numbers["ridership"].source == "model"
+    assert numbers["bike_price_min"].value == min(row.bike_price for row in bike if row.bike_price)
+    assert numbers["revenue"].source == "derived"
+    assert numbers["hub_pairs_with_bike_option"].value == len(
+        {(row.origin_hub, row.destination_hub) for row in bike}
+    )
+    assert summary.package_summary is not None
+    assert "Avg Bike Price (for all offered arcs)" in summary.package_summary
+    # The fake's objective is the revenue without the weights: the terms do not add up to it.
+    assert summary.numbers.objective_terms is None
+    assert summary.numbers.objective_residual is not None
+    assert summary.numbers.objective_residual > 1e-6
+
+
+def test_the_summary_lists_every_hub_pair_and_every_hub_of_the_instance(rig: PricingRig) -> None:
+    version = rig.version()
+    rig.run(version)
+
+    summary = rig.rig.solves.summary_of(solve_key(rig, version), DERIVATION_VERSION)
+
+    assert summary is not None
+    instance_key = rig.rig.artifacts.links_of("geneva-3km.v1")[StepName.TRAVELLERS_AND_BIKES]
+    hubs_key = rig.rig.artifacts.links_of("geneva-3km.v1")[StepName.HUBS]
+    assert len(summary.numbers.pairs) == len(rig.rig.read_model.hub_pairs(instance_key))
+    assert [hub.hub_id for hub in summary.numbers.hubs] == [
+        hub.hub_id for hub in rig.rig.read_model.hubs(hubs_key)
+    ]
+
+
+def test_a_version_that_keeps_the_solve_adds_no_summary_and_leaves_the_stored_one(
+    rig: PricingRig,
+) -> None:
+    first, second = rig.version(), rig.version(flat_price_per_ride_chf=2.5)
+    rig.run(first)
+    stored = rig.rig.solves.summary_of(solve_key(rig, first), DERIVATION_VERSION)
+
+    run = rig.run(second)
+
+    assert run.steps[0].state is StepState.KEPT
+    assert rig.rig.solves.summary_of(solve_key(rig, second), DERIVATION_VERSION) is stored
+
+
+def test_keeping_a_solve_whose_summary_is_missing_computes_it_once(rig: PricingRig) -> None:
+    first, second = rig.version(), rig.version(flat_price_per_ride_chf=2.5)
+    rig.run(first)
+    key = solve_key(rig, first)
+    before = rig.rig.solves.summary_of(key, DERIVATION_VERSION)
+    assert before is not None
+    # A solve stored before the summary existed, or under an older derivation version.
+    rig.rig.solves._summaries.clear()
+    rig.rig.solves._summaries[(key, DERIVATION_VERSION + 1)] = before.__class__(
+        key, DERIVATION_VERSION + 1, before.numbers, before.package_summary, before.created_at
+    )
+
+    run = rig.run(second)
+
+    assert run.steps[0].state is StepState.KEPT
+    found = rig.rig.solves.summary_of(key, DERIVATION_VERSION)
+    assert found is not None
+    assert found.numbers == before.numbers
+    assert found.package_summary == before.package_summary
+
+
+def test_a_summary_that_cannot_be_computed_fails_the_step_and_leaves_the_working_directory(
+    rig: PricingRig, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(*_: object) -> None:
+        raise ValueError("The offered option a1 has no stored bike legs.")
+
+    monkeypatch.setattr(
+        "pricing_demo.application.use_cases.run_pricing_step.summarise_result", refuse
+    )
+    version = rig.version()
+
+    run = rig.run(version)
+
+    assert run.failure is not None
+    assert run.failure.code == STAGE_ERROR
+    assert "no stored bike legs" in run.failure.reason
+    assert rig.rig.solves.solve_key_of(version, PERIOD) is None
+    # Nothing was moved under the key: the solver's output stays where the run wrote it.
+    assert (tmp_path / "runs" / run.id / "pricing_model" / "solution.json").exists()
+    assert not (tmp_path / "artifacts" / "pricing_model").exists()

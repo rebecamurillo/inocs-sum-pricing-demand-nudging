@@ -691,3 +691,32 @@ pricing_version_simulations = Table(
     ),
     CheckConstraint(one_of("price_scheme", PRICE_SCHEMES), name="price_scheme"),
 )
+
+# The numbers of a solve's result, computed once per derivation version (ARCHITECTURE.md § 5.2).
+result_summaries = Table(
+    "result_summaries",
+    metadata,
+    _solve_key(),
+    Column("derivation_version", Integer, nullable=False),
+    Column("numbers", JSONB, nullable=False),
+    Column("package_summary", JSONB),
+    Column("objective_residual", Double),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint("solve_key", "derivation_version", name="pk_result_summaries"),
+)
+
+# The one pricing version (and period) the Home screen shows; deleting the version removes it.
+showcase = Table(
+    "showcase",
+    metadata,
+    Column("id", Integer, primary_key=True, autoincrement=False),
+    Column(
+        "pricing_version_id",
+        Text,
+        ForeignKey("pricing_versions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("period_id", Text, ForeignKey("instance_periods.id"), nullable=False),
+    Column("marked_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint("id = 1", name="one_row"),
+)

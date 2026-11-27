@@ -9,6 +9,7 @@ its output, `stdout.log` and `stderr.log`. The package is imported only here, in
 
 import json
 import logging
+import math
 import os
 import sys
 import threading
@@ -22,6 +23,7 @@ from pricing_demo.infrastructure.pricing_model.retry_policy import mounted_on_ot
 from pricing_demo.infrastructure.pricing_model.routes_file import sorted_routes
 from pricing_demo.infrastructure.pricing_model.stage_spec import (
     OUTCOME_FILE,
+    PACKAGE_SUMMARY_FILE,
     PROGRESS_FILE,
     SOLVE_FACTS_FILE,
     StageSpec,
@@ -150,6 +152,36 @@ def run(spec: StageSpec) -> dict[str, Any]:
     return {"status": "done", "counts": {}}
 
 
+def plain_record(record: dict[Any, Any]) -> dict[str, Any]:
+    """The package's summary record with Python values: numpy scalars become Python numbers
+    and NaN becomes null, so the file is valid JSON."""
+    plain: dict[str, Any] = {}
+    for name, value in record.items():
+        if hasattr(value, "item"):
+            value = value.item()
+        if isinstance(value, float) and math.isnan(value):
+            value = None
+        plain[str(name)] = value
+    return plain
+
+
+def write_package_summary(results: Path, folder: Path) -> None:
+    """Writes the first record of the package's `summarize` of the solution. The summary is
+    the author's own reading of the solution, never a reason to fail the step: when it cannot
+    be made, no file is written (model-notes entry 29)."""
+    from sum_nsm_dynamic_pricing.optimizer import summarize
+
+    try:
+        records = summarize(results).to_dict("records")
+        if records:
+            (folder / PACKAGE_SUMMARY_FILE).write_text(
+                json.dumps(plain_record(records[0]), allow_nan=False, sort_keys=True),
+                encoding="utf-8",
+            )
+    except Exception:
+        logging.getLogger(PACKAGE_LOGGER).warning("The package could not summarise the solution")
+
+
 def run_pricing_model(pipeline: Any, spec: StageSpec, folder: Path) -> dict[str, Any]:
     """Step 5: the package's solve of the period's instance. The solver's status and solution
     count exist only in its printed log (model-notes entry 27); what it does not print, the
@@ -166,6 +198,7 @@ def run_pricing_model(pipeline: Any, spec: StageSpec, folder: Path) -> dict[str,
         "platform": platform.platform(),
     }
     (folder / SOLVE_FACTS_FILE).write_text(json.dumps(facts, sort_keys=True), encoding="utf-8")
+    write_package_summary(results, folder)
     return {"status": "done", "counts": {}}
 
 

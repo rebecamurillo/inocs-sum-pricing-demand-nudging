@@ -23,7 +23,11 @@ NEW_TABLES = (
     "simulation_pairs",
     "simulation_stations",
     "pricing_version_simulations",
+    # Story 3-6: the numbers of a result, and the one showcase mark.
+    "result_summaries",
+    "showcase",
 )
+RESULT_SUMMARIES = "e6c1b4a8f209"
 
 
 def test_storage_is_unavailable_before_the_migrations_are_applied(empty_database: Engine) -> None:
@@ -158,3 +162,47 @@ def test_an_artefact_of_the_pricing_model_step_is_accepted_and_another_name_is_n
     (step_check,) = [item for item in checks if item["name"] == "ck_artifacts_step"]
     assert "pricing_model" in step_check["sqltext"]
     assert "traveller_simulation" not in step_check["sqltext"]
+
+
+def test_the_result_summaries_and_showcase_migration_goes_down_and_up_again(
+    migrated_database: Engine,
+) -> None:
+    command.downgrade(Config(str(ALEMBIC_INI)), RESULT_SUMMARIES)
+
+    tables = set(inspect(migrated_database).get_table_names())
+    assert not tables & {"result_summaries", "showcase"}
+
+    migrate_to_head()
+
+    inspector = inspect(migrated_database)
+    assert {"result_summaries", "showcase"} <= set(inspector.get_table_names())
+    assert {column["name"] for column in inspector.get_columns("result_summaries")} == {
+        "solve_key",
+        "derivation_version",
+        "numbers",
+        "package_summary",
+        "objective_residual",
+        "created_at",
+    }
+    assert {column["name"] for column in inspector.get_columns("showcase")} == {
+        "id",
+        "pricing_version_id",
+        "period_id",
+        "marked_at",
+    }
+
+
+def test_the_showcase_table_holds_one_row_at_most(migrated_database: Engine) -> None:
+    from tests.support.pricing_versions import insert_pricing_version
+
+    version = insert_pricing_version(migrated_database)
+    period = f"{version.rsplit('.', 1)[0]}.mon-08"
+    insert = (
+        "INSERT INTO showcase (id, pricing_version_id, period_id, marked_at) "
+        "VALUES ({id}, '{version}', '{period}', now())"
+    )
+    with migrated_database.begin() as connection:
+        connection.execute(text(insert.format(id=1, version=version, period=period)))
+
+    with pytest.raises(IntegrityError), migrated_database.begin() as connection:
+        connection.execute(text(insert.format(id=2, version=version, period=period)))

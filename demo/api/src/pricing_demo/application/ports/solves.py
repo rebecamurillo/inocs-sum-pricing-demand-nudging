@@ -1,8 +1,10 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
 from pricing_demo.application.ports.artifacts import Artifact
+from pricing_demo.domain.derived_result import ResultNumbers
 from pricing_demo.domain.solves import Solve, SolveProvenance, SolveQuality, SolveRow
 
 
@@ -14,6 +16,18 @@ class SolveRecord:
     key: str
     quality: SolveQuality
     provenance: SolveProvenance
+    created_at: datetime
+
+
+@dataclass(frozen=True)
+class StoredResultSummary:
+    """The numbers of a solve's result for one derivation version, with the package's own
+    summary record as it was written."""
+
+    solve_key: str
+    derivation_version: int
+    numbers: ResultNumbers
+    package_summary: Mapping[str, object] | None
     created_at: datetime
 
 
@@ -33,11 +47,22 @@ class Solves(Protocol):
         pricing_version_id: str,
         period_id: str,
         created_at: datetime,
+        summary: StoredResultSummary | None = None,
     ) -> None:
         """In one transaction: the artefact when none has the key, its rows and hub-pair
-        gammas when none are stored, and the version's `solves` row for the period (replacing
-        an earlier solve of the same version and period). Nothing is stored when any part
-        fails."""
+        gammas when none are stored, the result summary when none is stored for its key and
+        derivation version, and the version's `solves` row for the period (replacing an earlier
+        solve of the same version and period). Nothing is stored when any part fails."""
+        ...
+
+    def store_summary(self, summary: StoredResultSummary) -> None:
+        """Add the summary unless one is stored for its key and derivation version."""
+        ...
+
+    def summary_of(self, key: str, derivation_version: int) -> StoredResultSummary | None: ...
+
+    def package_summary_of(self, key: str) -> Mapping[str, object] | None:
+        """The package's summary record kept with any derivation version of the key."""
         ...
 
     def link_stored(

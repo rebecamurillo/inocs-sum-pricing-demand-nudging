@@ -5,6 +5,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from pricing_demo.application.ports.pricing_solver import SolveRequest
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.domain.failure_codes import SOLVER_NO_SOLUTION, SOLVER_SIZE_LIMITED
@@ -50,11 +52,13 @@ class FakeChild(StageChild):
         outcome: StepOutcome | None = None,
         stdout: str = OPTIMAL_LOG,
         results: object = RESULTS,
+        summary: str | None = None,
     ) -> None:
         self.specs: list[StageSpec] = []
         self._outcome = outcome or StepOutcome.done()
         self._stdout = stdout
         self._results = results
+        self._summary = summary
 
     def run(
         self, spec: StageSpec, stop: StopSignal, on_progress: Callable[[], None] | None = None
@@ -75,6 +79,8 @@ class FakeChild(StageChild):
         (folder / "optimization_instance_results.json").write_text(
             json.dumps(self._results), encoding="utf-8"
         )
+        if self._summary is not None:
+            (folder / "package_summary.json").write_text(self._summary, encoding="utf-8")
         return self._outcome
 
 
@@ -195,3 +201,43 @@ def test_a_stop_set_before_the_solve_runs_no_child(tmp_path: Path) -> None:
 
     assert outcome.stopped is True
     assert child.specs == []
+
+
+def test_the_package_summary_the_child_wrote_is_on_the_solve_and_among_the_output_files(
+    tmp_path: Path,
+) -> None:
+    record = {"Avg Bike Price (Multimodal, Flow ≥ 1)": 1.25, "Obj Value": 3.5, "Gap (%)": None}
+
+    outcome, _ = solve(tmp_path, FakeChild(summary=json.dumps(record)))
+
+    assert outcome.solve.package_summary == record
+    assert list(outcome.output_files) == [
+        "optimization_instance_results.json",
+        "package_summary.json",
+    ]
+
+
+def test_the_goals_the_solve_ran_with_are_on_it_under_the_packages_names(tmp_path: Path) -> None:
+    outcome, _ = solve(tmp_path, FakeChild())
+
+    assert outcome.solve.package_parameters["cost_bike"] == GOALS["cost_bike_chf"]
+    assert outcome.solve.package_parameters["P_bar"] == GOALS["lowest_price_chf"]
+    assert outcome.solve.package_parameters["theta"] == GOALS["station_balance_weight"]
+    assert "mult_A1" not in outcome.solve.package_parameters
+
+
+def test_a_missing_package_summary_is_none_and_not_a_failure(tmp_path: Path) -> None:
+    outcome, _ = solve(tmp_path, FakeChild())
+
+    assert outcome.failure_code is None
+    assert outcome.solve.package_summary is None
+    assert list(outcome.output_files) == ["optimization_instance_results.json"]
+
+
+@pytest.mark.parametrize("text", ["{not json", "[1, 2]", ""])
+def test_a_malformed_package_summary_is_none_and_not_a_failure(tmp_path: Path, text: str) -> None:
+    outcome, _ = solve(tmp_path, FakeChild(summary=text))
+
+    assert outcome.failure_code is None
+    assert outcome.solve.package_summary is None
+    assert list(outcome.output_files) == ["optimization_instance_results.json"]

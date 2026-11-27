@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from datetime import date, datetime, time
 from typing import Annotated, Any, Literal
 
@@ -6,7 +7,17 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 from pricing_demo.application.instance_version_view import InstanceVersionView
 from pricing_demo.application.pricing_version_view import PricingVersionView
 from pricing_demo.application.run_view import RunView
+from pricing_demo.application.use_cases.get_pricing_result import (
+    GoalComparison,
+    PricingResult,
+    Provenance,
+    SimulationResult,
+    StoredSimulationFigures,
+)
+from pricing_demo.application.use_cases.get_showcase import ShowcaseView
 from pricing_demo.application.use_cases.list_city_instances import InstanceMenuEntry
+from pricing_demo.application.use_cases.list_hub_pair_results import HubPairResult, OptionResult
+from pricing_demo.application.use_cases.list_hub_results import HubResult
 from pricing_demo.application.use_cases.list_pricing_version_simulations import (
     VersionSimulation,
 )
@@ -1016,3 +1027,350 @@ class PricingVersionSimulationResource(BaseModel):
 
 class PricingVersionSimulationList(BaseModel):
     items: list[PricingVersionSimulationResource]
+
+
+def _number(item: DomainNumber | None) -> "NumberResource | None":
+    return None if item is None else NumberResource.from_domain(item)
+
+
+def _numbers(items: Mapping[str, DomainNumber]) -> "dict[str, NumberResource]":
+    return {name: NumberResource.from_domain(item) for name, item in items.items()}
+
+
+class GoalResource(BaseModel):
+    """One goal: what the model's own result says (absent when it says nothing), the value
+    simulated with the model's prices and with the flat price, and their difference."""
+
+    name: Literal[
+        "ridership",
+        "revenue",
+        "cost",
+        "profit",
+        "mean_bike_price",
+        "stations_empty",
+        "stations_full",
+    ]
+    model: NumberResource | None
+    model_prices: NumberResource | None
+    flat: NumberResource | None
+    change: NumberResource | None = Field(
+        description="The simulation with the model's prices minus the simulation with the flat "
+        "price; absent when either value is."
+    )
+
+    @classmethod
+    def from_domain(cls, item: GoalComparison) -> "GoalResource":
+        return cls(
+            name=item.name,
+            model=_number(item.model),
+            model_prices=_number(item.model_prices),
+            flat=_number(item.flat),
+            change=_number(item.change),
+        )
+
+
+class SimulationResultResource(BaseModel):
+    """The latest simulation of one price scheme."""
+
+    price_scheme: Literal["model_prices", "flat"]
+    period_id: str
+    rule_id: str
+    rule_version: int
+    rule_parameters: dict[str, float]
+    rule_current: bool
+    simulation_key: str
+    created_at: datetime
+    travellers: dict[str, NumberResource] = Field(
+        description="Travellers per mode: `pt_bike`, `pt_only`, `car`."
+    )
+    displaced: NumberResource
+    unserved: NumberResource
+    bike_rides: NumberResource
+    revenue: NumberResource
+    cost: NumberResource
+
+    @classmethod
+    def from_domain(cls, item: SimulationResult) -> "SimulationResultResource":
+        summary = item.summary
+        return cls(
+            price_scheme=item.link.price_scheme,
+            period_id=item.link.period_id,
+            rule_id=item.link.rule_id,
+            rule_version=item.link.rule_version,
+            rule_parameters=dict(summary.rule_parameters),
+            rule_current=item.rule_current,
+            simulation_key=item.link.simulation_key,
+            created_at=item.link.created_at,
+            travellers={
+                mode: NumberResource(
+                    value=count, unit="travellers", source="simulation", group="headline"
+                )
+                for mode, count in summary.travellers_per_mode.items()
+            },
+            displaced=NumberResource(
+                value=summary.displaced, unit="travellers", source="simulation", group="headline"
+            ),
+            unserved=NumberResource(
+                value=summary.unserved, unit="travellers", source="simulation", group="headline"
+            ),
+            bike_rides=NumberResource(
+                value=summary.bike_rides, unit="bike_rides", source="simulation", group="headline"
+            ),
+            revenue=NumberResource.from_domain(item.goals["revenue"]),
+            cost=NumberResource.from_domain(item.goals["cost"]),
+        )
+
+
+class StoredSimulationResource(BaseModel):
+    """One stored simulation of the version (older rules included), as stories 3-9 to 3-12
+    read it."""
+
+    price_scheme: Literal["model_prices", "flat"]
+    period_id: str
+    rule_id: str
+    rule_version: int
+    simulation_key: str
+    created_at: datetime
+    bike_rides: NumberResource
+    revenue: NumberResource
+    cost: NumberResource
+
+    @classmethod
+    def from_domain(cls, item: StoredSimulationFigures) -> "StoredSimulationResource":
+        return cls(
+            price_scheme=item.link.price_scheme,
+            period_id=item.link.period_id,
+            rule_id=item.link.rule_id,
+            rule_version=item.link.rule_version,
+            simulation_key=item.link.simulation_key,
+            created_at=item.link.created_at,
+            bike_rides=NumberResource.from_domain(item.bike_rides),
+            revenue=NumberResource.from_domain(item.revenue),
+            cost=NumberResource.from_domain(item.cost),
+        )
+
+
+class AdvancedResource(BaseModel):
+    """The technical numbers: only here, never among the headline ones."""
+
+    solver_status_name: str
+    numbers: dict[str, NumberResource]
+
+
+class SimulationProvenanceResource(BaseModel):
+    price_scheme: Literal["model_prices", "flat"]
+    rule_id: str
+    rule_version: int
+    created_at: datetime
+
+
+class ProvenanceResource(BaseModel):
+    run_id: str
+    solve_key: str
+    derivation_version: int
+    package_fingerprint: str
+    package_version: str | None
+    package_commit: str | None
+    package_dirty: bool | None
+    gurobi_version: str
+    licence_kind: str
+    solver_parameters: dict[str, Any]
+    dependency_lock_sha256: str
+    platform: str
+    demonstrator_version: str
+    input_keys: dict[str, str] = Field(description="The key of each build step's artefact.")
+    gtfs_sha256: str | None
+    gbfs_sha256: str | None
+    timetable_valid_from: date | None
+    timetable_valid_to: date | None
+    routing_date: date | None
+    routing_time: time | None
+    routing_date_provisional: bool | None
+    bike_stations_fetched_at: datetime | None
+    simulations: list[SimulationProvenanceResource] = Field(
+        description="The rule and the date of the latest simulation of each scheme."
+    )
+
+    @classmethod
+    def from_domain(cls, item: Provenance) -> "ProvenanceResource":
+        fields = dict(item.__dict__)
+        fields["simulations"] = [
+            SimulationProvenanceResource(
+                price_scheme=found.price_scheme,
+                rule_id=found.rule_id,
+                rule_version=found.rule_version,
+                created_at=found.created_at,
+            )
+            for found in item.simulations
+        ]
+        return cls(**fields)
+
+
+class PricingResultResponse(BaseModel):
+    pricing_version_id: str
+    period_id: str
+    headline: dict[str, NumberResource]
+    goals: list[GoalResource]
+    simulations: list[SimulationResultResource] = Field(
+        description="The latest simulation of each scheme: `model_prices`, then `flat`."
+    )
+    simulation_history: list[StoredSimulationResource]
+    model_split: dict[str, NumberResource]
+    advanced: AdvancedResource
+    coefficients: dict[str, NumberResource | None] | None = Field(
+        description="The choice-model coefficients read from the package source, each null when "
+        "not found; null as a whole when the package fingerprint is not stored."
+    )
+    hub_pairs_with_bike_option: NumberResource
+    provenance: ProvenanceResource
+
+    @classmethod
+    def from_domain(cls, result: PricingResult) -> "PricingResultResponse":
+        return cls(
+            pricing_version_id=result.version.id,
+            period_id=result.period_id,
+            headline=_numbers(result.headline),
+            goals=[GoalResource.from_domain(item) for item in result.goals],
+            simulations=[SimulationResultResource.from_domain(item) for item in result.simulations],
+            simulation_history=[
+                StoredSimulationResource.from_domain(item) for item in result.simulation_history
+            ],
+            model_split=_numbers(result.model_split),
+            advanced=AdvancedResource(
+                solver_status_name=result.solver_status_name, numbers=_numbers(result.advanced)
+            ),
+            coefficients=None
+            if result.coefficients is None
+            else {name: _number(item) for name, item in result.coefficients.items()},
+            hub_pairs_with_bike_option=NumberResource.from_domain(
+                result.numbers.numbers["hub_pairs_with_bike_option"]
+            ),
+            provenance=ProvenanceResource.from_domain(result.provenance),
+        )
+
+
+class RouteLegResource(BaseModel):
+    mode: str
+    duration_s: float
+    distance_m: float
+    line_kind: Literal["street", "shape", "straight"]
+
+
+class OptionResultResource(BaseModel):
+    arc_id: str
+    mode: Literal["pt_bike", "pt_only", "car"]
+    legs: list[RouteLegResource]
+    duration: NumberResource
+    bike_legs: NumberResource | None
+    bike_price: NumberResource | None = Field(
+        description="Absent when the model does not offer it."
+    )
+    riders: NumberResource | None = Field(description="Absent when the model has no row for it.")
+
+    @classmethod
+    def from_domain(cls, item: OptionResult) -> "OptionResultResource":
+        return cls(
+            arc_id=item.arc_id,
+            mode=item.mode,
+            legs=[
+                RouteLegResource(
+                    mode=leg.mode,
+                    duration_s=leg.duration_s,
+                    distance_m=leg.distance_m,
+                    line_kind=leg.line_kind,
+                )
+                for leg in item.legs
+            ],
+            duration=NumberResource.from_domain(item.duration_s),
+            bike_legs=_number(item.bike_legs),
+            bike_price=_number(item.bike_price),
+            riders=_number(item.riders),
+        )
+
+
+class HubPairResultResource(BaseModel):
+    origin_hub: str
+    destination_hub: str
+    mean_bike_price: NumberResource | None = Field(
+        description="Absent when the pair has no offered PT + bike option."
+    )
+    min_bike_price: NumberResource | None
+    max_bike_price: NumberResource | None
+    travellers: dict[str, NumberResource] = Field(
+        description="Travellers per mode of the model's own result."
+    )
+    options: list[OptionResultResource]
+
+    @classmethod
+    def from_domain(cls, item: HubPairResult) -> "HubPairResultResource":
+        numbers = item.numbers
+        return cls(
+            origin_hub=numbers.origin_hub,
+            destination_hub=numbers.destination_hub,
+            mean_bike_price=_number(numbers.mean_bike_price),
+            min_bike_price=_number(numbers.min_bike_price),
+            max_bike_price=_number(numbers.max_bike_price),
+            travellers=_numbers(numbers.travellers),
+            options=[OptionResultResource.from_domain(option) for option in item.options],
+        )
+
+
+class HubPairResultList(BaseModel):
+    items: list[HubPairResultResource]
+
+
+class HubResultResource(BaseModel):
+    hub_id: str
+    label: str
+    lat: float
+    lon: float
+    rides_starting: NumberResource
+    rides_ending: NumberResource
+    mean_bike_price: NumberResource | None = Field(
+        description="Over the offered options that start at the hub; absent without any."
+    )
+
+    @classmethod
+    def from_domain(cls, item: HubResult) -> "HubResultResource":
+        return cls(
+            hub_id=item.hub.hub_id,
+            label=item.hub.label,
+            lat=item.hub.lat,
+            lon=item.hub.lon,
+            rides_starting=NumberResource.from_domain(item.numbers.rides_starting),
+            rides_ending=NumberResource.from_domain(item.numbers.rides_ending),
+            mean_bike_price=_number(item.numbers.mean_bike_price),
+        )
+
+
+class HubResultList(BaseModel):
+    items: list[HubResultResource]
+
+
+class ShowcaseRequest(BaseModel):
+    pricing_version_id: str
+    period_id: str | None = Field(
+        default=None, description="The period to show; the version's first when absent."
+    )
+
+
+class ShowcaseResponse(BaseModel):
+    pricing_version_id: str
+    period_id: str
+    marked_at: datetime
+    letter: str
+    instance_version_id: str
+    instance_version_name: str
+    headline: dict[str, NumberResource]
+
+    @classmethod
+    def from_view(cls, view: ShowcaseView) -> "ShowcaseResponse":
+        return cls(
+            pricing_version_id=view.mark.pricing_version_id,
+            period_id=view.mark.period_id,
+            marked_at=view.mark.marked_at,
+            letter=view.letter,
+            instance_version_id=view.instance_version_id,
+            instance_version_name=view.instance_version_name,
+            headline=_numbers(view.headline),
+        )

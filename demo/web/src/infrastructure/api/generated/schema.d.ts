@@ -226,6 +226,57 @@ export interface paths {
         patch: operations["updatePricingVersion"];
         trace?: never;
     };
+    "/api/v1/pricing-versions/{pricing_version_id}/hub-pair-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per hub pair: the bike price, the travellers per mode and the options */
+        get: operations["listHubPairResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/hub-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per hub: the bike rides that start and end there and the mean bike price */
+        get: operations["listHubResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The numbers of a finished version, each with its unit, its source and its group */
+        get: operations["getPricingResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/pricing-versions/{pricing_version_id}/runs": {
         parameters: {
             query?: never;
@@ -349,6 +400,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The showcased pricing version with its headline numbers */
+        get: operations["getShowcase"];
+        /** Make a finished pricing version and period the showcase */
+        put: operations["markShowcase"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system-status": {
         parameters: {
             query?: never;
@@ -370,6 +439,18 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdvancedResource
+         * @description The technical numbers: only here, never among the headline ones.
+         */
+        AdvancedResource: {
+            /** Numbers */
+            numbers: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Solver Status Name */
+            solver_status_name: string;
+        };
         /**
          * BlockingReasonResponse
          * @description The component that blocks an action, with that component's own reason.
@@ -515,6 +596,23 @@ export interface components {
             /** Message */
             message: string;
         };
+        /**
+         * GoalResource
+         * @description One goal: what the model's own result says (absent when it says nothing), the value
+         *     simulated with the model's prices and with the flat price, and their difference.
+         */
+        GoalResource: {
+            /** @description The simulation with the model's prices minus the simulation with the flat price; absent when either value is. */
+            change: components["schemas"]["NumberResource"] | null;
+            flat: components["schemas"]["NumberResource"] | null;
+            model: components["schemas"]["NumberResource"] | null;
+            model_prices: components["schemas"]["NumberResource"] | null;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "ridership" | "revenue" | "cost" | "profit" | "mean_bike_price" | "stations_empty" | "stations_full";
+        };
         /** HubList */
         HubList: {
             /** Items */
@@ -535,6 +633,31 @@ export interface components {
             euclid_dist_m: number;
             /** Origin Hub */
             origin_hub: string;
+        };
+        /** HubPairResultList */
+        HubPairResultList: {
+            /** Items */
+            items: components["schemas"]["HubPairResultResource"][];
+        };
+        /** HubPairResultResource */
+        HubPairResultResource: {
+            /** Destination Hub */
+            destination_hub: string;
+            max_bike_price: components["schemas"]["NumberResource"] | null;
+            /** @description Absent when the pair has no offered PT + bike option. */
+            mean_bike_price: components["schemas"]["NumberResource"] | null;
+            min_bike_price: components["schemas"]["NumberResource"] | null;
+            /** Options */
+            options: components["schemas"]["OptionResultResource"][];
+            /** Origin Hub */
+            origin_hub: string;
+            /**
+             * Travellers
+             * @description Travellers per mode of the model's own result.
+             */
+            travellers: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
         };
         /** HubResource */
         HubResource: {
@@ -559,6 +682,26 @@ export interface components {
             } | null;
             /** Pt Station Ids */
             pt_station_ids: string[];
+        };
+        /** HubResultList */
+        HubResultList: {
+            /** Items */
+            items: components["schemas"]["HubResultResource"][];
+        };
+        /** HubResultResource */
+        HubResultResource: {
+            /** Hub Id */
+            hub_id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** @description Over the offered options that start at the hub; absent without any. */
+            mean_bike_price: components["schemas"]["NumberResource"] | null;
+            rides_ending: components["schemas"]["NumberResource"];
+            rides_starting: components["schemas"]["NumberResource"];
         };
         /**
          * InstanceCounts
@@ -770,6 +913,24 @@ export interface components {
             /** Value */
             value: number;
         };
+        /** OptionResultResource */
+        OptionResultResource: {
+            /** Arc Id */
+            arc_id: string;
+            bike_legs: components["schemas"]["NumberResource"] | null;
+            /** @description Absent when the model does not offer it. */
+            bike_price: components["schemas"]["NumberResource"] | null;
+            duration: components["schemas"]["NumberResource"];
+            /** Legs */
+            legs: components["schemas"]["RouteLegResource"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "pt_bike" | "pt_only" | "car";
+            /** @description Absent when the model has no row for it. */
+            riders: components["schemas"]["NumberResource"] | null;
+        };
         /** PackageDefaultsStart */
         PackageDefaultsStart: {
             /**
@@ -869,6 +1030,40 @@ export interface components {
             key: string;
             /** Label */
             label: string;
+        };
+        /** PricingResultResponse */
+        PricingResultResponse: {
+            advanced: components["schemas"]["AdvancedResource"];
+            /**
+             * Coefficients
+             * @description The choice-model coefficients read from the package source, each null when not found; null as a whole when the package fingerprint is not stored.
+             */
+            coefficients: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            } | null;
+            /** Goals */
+            goals: components["schemas"]["GoalResource"][];
+            /** Headline */
+            headline: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            hub_pairs_with_bike_option: components["schemas"]["NumberResource"];
+            /** Model Split */
+            model_split: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Period Id */
+            period_id: string;
+            /** Pricing Version Id */
+            pricing_version_id: string;
+            provenance: components["schemas"]["ProvenanceResource"];
+            /** Simulation History */
+            simulation_history: components["schemas"]["StoredSimulationResource"][];
+            /**
+             * Simulations
+             * @description The latest simulation of each scheme: `model_prices`, then `flat`.
+             */
+            simulations: components["schemas"]["SimulationResultResource"][];
         };
         /** PricingRuleResultResource */
         PricingRuleResultResource: {
@@ -1039,6 +1234,65 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** ProvenanceResource */
+        ProvenanceResource: {
+            /** Bike Stations Fetched At */
+            bike_stations_fetched_at: string | null;
+            /** Demonstrator Version */
+            demonstrator_version: string;
+            /** Dependency Lock Sha256 */
+            dependency_lock_sha256: string;
+            /** Derivation Version */
+            derivation_version: number;
+            /** Gbfs Sha256 */
+            gbfs_sha256: string | null;
+            /** Gtfs Sha256 */
+            gtfs_sha256: string | null;
+            /** Gurobi Version */
+            gurobi_version: string;
+            /**
+             * Input Keys
+             * @description The key of each build step's artefact.
+             */
+            input_keys: {
+                [key: string]: string;
+            };
+            /** Licence Kind */
+            licence_kind: string;
+            /** Package Commit */
+            package_commit: string | null;
+            /** Package Dirty */
+            package_dirty: boolean | null;
+            /** Package Fingerprint */
+            package_fingerprint: string;
+            /** Package Version */
+            package_version: string | null;
+            /** Platform */
+            platform: string;
+            /** Routing Date */
+            routing_date: string | null;
+            /** Routing Date Provisional */
+            routing_date_provisional: boolean | null;
+            /** Routing Time */
+            routing_time: string | null;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Simulations
+             * @description The rule and the date of the latest simulation of each scheme.
+             */
+            simulations: components["schemas"]["SimulationProvenanceResource"][];
+            /** Solve Key */
+            solve_key: string;
+            /** Solver Parameters */
+            solver_parameters: {
+                [key: string]: unknown;
+            };
+            /** Timetable Valid From */
+            timetable_valid_from: string | null;
+            /** Timetable Valid To */
+            timetable_valid_to: string | null;
+        };
         /** RouteFailureList */
         RouteFailureList: {
             /** Items */
@@ -1069,6 +1323,20 @@ export interface components {
              * @enum {string}
              */
             query: "pt_bike" | "car";
+        };
+        /** RouteLegResource */
+        RouteLegResource: {
+            /** Distance M */
+            distance_m: number;
+            /** Duration S */
+            duration_s: number;
+            /**
+             * Line Kind
+             * @enum {string}
+             */
+            line_kind: "street" | "shape" | "straight";
+            /** Mode */
+            mode: string;
         };
         /** RoutePairList */
         RoutePairList: {
@@ -1240,6 +1508,97 @@ export interface components {
             /** Last Heartbeat At */
             last_heartbeat_at: string | null;
         };
+        /** ShowcaseRequest */
+        ShowcaseRequest: {
+            /**
+             * Period Id
+             * @description The period to show; the version's first when absent.
+             */
+            period_id?: string | null;
+            /** Pricing Version Id */
+            pricing_version_id: string;
+        };
+        /** ShowcaseResponse */
+        ShowcaseResponse: {
+            /** Headline */
+            headline: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Instance Version Id */
+            instance_version_id: string;
+            /** Instance Version Name */
+            instance_version_name: string;
+            /** Letter */
+            letter: string;
+            /**
+             * Marked At
+             * Format: date-time
+             */
+            marked_at: string;
+            /** Period Id */
+            period_id: string;
+            /** Pricing Version Id */
+            pricing_version_id: string;
+        };
+        /** SimulationProvenanceResource */
+        SimulationProvenanceResource: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Version */
+            rule_version: number;
+        };
+        /**
+         * SimulationResultResource
+         * @description The latest simulation of one price scheme.
+         */
+        SimulationResultResource: {
+            bike_rides: components["schemas"]["NumberResource"];
+            cost: components["schemas"]["NumberResource"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            displaced: components["schemas"]["NumberResource"];
+            /** Period Id */
+            period_id: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            revenue: components["schemas"]["NumberResource"];
+            /** Rule Current */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+            /**
+             * Travellers
+             * @description Travellers per mode: `pt_bike`, `pt_only`, `car`.
+             */
+            travellers: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            unserved: components["schemas"]["NumberResource"];
+        };
         /**
          * SimulationRuleResource
          * @description A traveller simulation rule: its id, its version and its parameters.
@@ -1293,6 +1652,34 @@ export interface components {
          * @enum {string}
          */
         StepState: "pending" | "running" | "done" | "kept" | "failed" | "cancelled";
+        /**
+         * StoredSimulationResource
+         * @description One stored simulation of the version (older rules included), as stories 3-9 to 3-12
+         *     read it.
+         */
+        StoredSimulationResource: {
+            bike_rides: components["schemas"]["NumberResource"];
+            cost: components["schemas"]["NumberResource"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Period Id */
+            period_id: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            revenue: components["schemas"]["NumberResource"];
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+        };
         /**
          * SubjectType
          * @enum {string}
@@ -2183,7 +2570,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A run of the version is queued or running: `run_active` */
+            /** @description `run_active` (a run of the version is queued or running) or `is_showcase` (the version is the showcase) */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2255,6 +2642,162 @@ export interface operations {
                 };
             };
             /** @description A value is not a JSON number, or a name is not a goal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubPairResults: {
+        parameters: {
+            query?: {
+                /** @description The period's id; the version's first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubPairResultList"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubResults: {
+        parameters: {
+            query?: {
+                /** @description The period's id; the version's first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubResultList"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getPricingResult: {
+        parameters: {
+            query?: {
+                /** @description The period's id; the version's first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingResultResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2691,6 +3234,104 @@ export interface operations {
             };
             /** @description No run has this id */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getShowcase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShowcaseResponse"];
+                };
+            };
+            /** @description `no_showcase` (none is marked) or `no_result` (the marked version has lost part of its result) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    markShowcase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShowcaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShowcaseResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `no_result`: the version has no result, or does not price the period */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

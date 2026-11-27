@@ -71,6 +71,28 @@ class NoResult(DomainError):
         super().__init__(f"The pricing version {version_id} has no result yet.")
 
 
+class ResultNotFound(DomainError):
+    """A result route was asked for a version whose pricing run and both simulations have not
+    all succeeded."""
+
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(f"The pricing version {version_id} has no result yet.")
+
+
+class IsShowcase(DomainError):
+    """The version is the showcase: it cannot be deleted while it is marked."""
+
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(f"The pricing version {version_id} is the showcase.")
+
+
+class NoShowcase(DomainError):
+    def __init__(self) -> None:
+        super().__init__("No pricing version is marked as the showcase.")
+
+
 class SimulationCurrent(DomainError):
     """Both schemes are already simulated with the rule the live worker uses."""
 

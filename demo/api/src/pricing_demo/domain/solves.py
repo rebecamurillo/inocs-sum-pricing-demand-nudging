@@ -61,6 +61,10 @@ class Solve:
     provenance: SolveProvenance
     rows: Sequence[SolveRow] = field(default_factory=tuple)
     ods: Sequence[SolveOd] = field(default_factory=tuple)
+    # The first record of the package's `optimizer.summarize`, as the package wrote it, and the
+    # goals the solve ran with under the package's names.
+    package_summary: Mapping[str, object] | None = None
+    package_parameters: Mapping[str, object] = field(default_factory=dict)
 
 
 def model_bike_prices(rows: Sequence[SolveRow]) -> dict[str, float]:

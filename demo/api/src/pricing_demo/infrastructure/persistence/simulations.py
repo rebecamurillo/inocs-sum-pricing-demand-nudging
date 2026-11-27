@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import insert
 from pricing_demo.application.ports.simulations import (
     LinkedSimulation,
     SimulationLink,
+    SimulationSummary,
     StoredSimulation,
 )
 from pricing_demo.infrastructure.persistence.tables import (
@@ -110,6 +111,36 @@ class PostgresSimulations:
                 )
                 for row in connection.execute(query)
             ]
+
+    def summary_of(self, key: str) -> SimulationSummary | None:
+        with self._engine.connect() as connection:
+            row = connection.execute(
+                select(simulations).where(simulations.c.simulation_key == key)
+            ).first()
+            if row is None:
+                return None
+            modes = {
+                item.mode: item.travellers
+                for item in connection.execute(
+                    select(simulation_modes).where(simulation_modes.c.simulation_key == key)
+                )
+            }
+        return SimulationSummary(
+            key,
+            row.price_scheme,
+            row.rule_id,
+            row.rule_version,
+            dict(row.rule_parameters),
+            row.travellers,
+            modes,
+            row.displaced,
+            row.unserved,
+            row.bike_rides,
+            row.bike_revenue_chf,
+            row.stations_empty,
+            row.stations_full,
+            row.created_at,
+        )
 
     def remove_unlinked(self) -> int:
         with self._engine.begin() as connection:
