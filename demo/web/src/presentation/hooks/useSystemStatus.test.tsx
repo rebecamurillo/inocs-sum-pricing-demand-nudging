@@ -26,6 +26,8 @@ describe('useSystemStatus', () => {
     const gateways: Gateways = {
       systemStatus: { load },
       layoutPreferences: { load: vi.fn(), save: vi.fn() },
+      cityDatasets: { list: () => Promise.resolve([]) },
+      basemap: { exists: () => Promise.resolve(false), url: () => '' },
     };
     const client = new QueryClient();
     const wrapper = ({ children }: { children: ReactNode }) => (

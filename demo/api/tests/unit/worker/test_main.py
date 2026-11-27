@@ -7,6 +7,10 @@ import pytest
 
 from pricing_demo.application.errors import NoCityDataYet, OtherTimetableInGraphFolder
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
+from pricing_demo.application.use_cases.show_basemap_bounds import (
+    BasemapBounds,
+    ShowBasemapBounds,
+)
 from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
@@ -18,6 +22,7 @@ from pricing_demo.infrastructure.config.settings import (
 )
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
+from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
@@ -29,6 +34,7 @@ from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGrap
 from pricing_demo.infrastructure.worker_build_sources import WorkerBuildSources
 from pricing_demo.worker import main as worker_main
 from pricing_demo.worker.main import build_probes, build_worker, worker_id_for
+from tests.support.runs import T0
 
 
 def settings_for(tmp_path: Path, **fields: object) -> Settings:
@@ -329,3 +335,67 @@ def test_the_worker_reports_the_graph_in_the_graph_folder(tmp_path: Path) -> Non
         fingerprints = built.worker._report._graph
         assert isinstance(fingerprints, FileGraphFingerprints)
         assert fingerprints._path == tmp_path / "g"
+
+
+# -- the basemap bounds command ------------------------------------------------------------
+
+
+def test_basemap_bounds_parses_with_and_without_a_data_set() -> None:
+    assert worker_main.parser().parse_args(["basemap-bounds"]).dataset is None
+    args = worker_main.parser().parse_args(["basemap-bounds", "--dataset", "d1"])
+
+    assert (args.command, args.dataset) == ("basemap-bounds", "d1")
+
+
+def test_basemap_bounds_prints_the_id_and_the_box(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    datasets = InMemoryCityDatasets()
+    datasets.add(fake_city_dataset("d1", T0))
+    asked: list[str | None] = []
+
+    class Showing(ShowBasemapBounds):
+        def execute(self, dataset_id: str | None) -> BasemapBounds:
+            asked.append(dataset_id)
+            return super().execute(dataset_id)
+
+    monkeypatch.setattr(worker_main, "build_show_basemap_bounds", lambda e: Showing(datasets))
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["basemap-bounds", "--dataset", "d1"]),
+        settings_for(tmp_path),
+    )
+
+    area = fake_city_dataset("d1", T0).available_area
+    assert (code, asked) == (0, ["d1"])
+    assert capsys.readouterr().out == (
+        f"d1 {area.min_lon},{area.min_lat},{area.max_lon},{area.max_lat}\n"
+    )
+
+
+def test_basemap_bounds_exits_one_with_the_reason_on_stderr(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        worker_main,
+        "build_show_basemap_bounds",
+        lambda e: ShowBasemapBounds(InMemoryCityDatasets()),
+    )
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["basemap-bounds"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert (code, captured.out) == (1, "")
+    assert "No city data is imported yet" in captured.err
+
+
+def test_the_basemap_bounds_use_case_reads_the_database_data_sets(tmp_path: Path) -> None:
+    engine = create_db_engine(settings_for(tmp_path).database_url)
+    try:
+        use_case = worker_main.build_show_basemap_bounds(engine)
+    finally:
+        engine.dispose()
+
+    assert isinstance(use_case, ShowBasemapBounds)

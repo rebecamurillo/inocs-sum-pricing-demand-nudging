@@ -32,3 +32,6 @@ htmlcov/
 otp/data/*
 !otp/data/.gitkeep
 var/
+
+# The map's background, built by make basemap
+web/public/basemap/

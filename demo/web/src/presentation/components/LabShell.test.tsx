@@ -6,6 +6,8 @@ import type { Gateways } from '../../application/ports/gateways';
 import { DEFAULT_LAYOUT, type LayoutPreferencesValue } from '../../domain/layout';
 import type { SystemStatus } from '../../domain/system-status';
 import { GatewaysProvider } from '../hooks/gateways';
+import { fakeMapFactory, installBrowserStubs } from '../map/fake-map';
+import { MapFactoryProvider } from '../map/MapContext';
 import { LabShell } from './LabShell';
 
 const allowed = { allowed: true, reasons: [] };
@@ -26,32 +28,41 @@ function renderShell(initial: LayoutPreferencesValue = DEFAULT_LAYOUT) {
         saved.push(value);
       },
     },
+    cityDatasets: { list: () => Promise.resolve([]) },
+    basemap: { exists: () => Promise.resolve(false), url: () => '' },
   };
+  const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
       <GatewaysProvider gateways={gateways}>
-        <LabShell />
+        <MapFactoryProvider factory={factory}>
+          <LabShell />
+        </MapFactoryProvider>
       </GatewaysProvider>
     </QueryClientProvider>,
   );
-  return { saved };
+  return { saved, maps };
 }
 
 const grip = () => screen.getByRole('separator');
 
+let stubs: ReturnType<typeof installBrowserStubs>;
+
 beforeEach(() => {
   window.location.hash = '#/lab';
+  stubs = installBrowserStubs(false);
 });
 
 afterEach(() => {
+  stubs.restore();
   window.location.hash = '';
   document.documentElement.style.removeProperty('font-size');
 });
 
 describe('LabShell · the empty Lab', () => {
   it('shows the menu, the top bar, the card, the map pane and the footer', () => {
-    renderShell();
+    const { maps } = renderShell();
 
     expect(screen.getByText('Dynamic pricing · Lab')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hide the menu' })).toBeInTheDocument();
@@ -77,7 +88,10 @@ describe('LabShell · the empty Lab', () => {
         'No city instance yet. Create one from the Geneva data: it prepares the area, the hubs, the routes and the travellers of one period.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Map' })).toBeEmptyDOMElement();
+    expect(screen.getByRole('region', { name: 'Map' })).toContainElement(
+      maps[0]?.container ?? null,
+    );
+    expect(maps).toHaveLength(1);
     expect(
       screen.getByText('Funded by the European Union under Horizon Europe, project SUM.'),
     ).toBeInTheDocument();
@@ -124,8 +138,8 @@ describe('LabShell · the empty Lab', () => {
     expect(saved.map((value) => value.menuOpen)).toEqual([false, true]);
   });
 
-  it('hides and shows the map', async () => {
-    renderShell();
+  it('hides and shows the map without creating another', async () => {
+    const { maps } = renderShell();
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: 'Hide map' }));
@@ -134,6 +148,8 @@ describe('LabShell · the empty Lab', () => {
 
     await user.click(screen.getByRole('button', { name: 'Show map' }));
     expect(screen.getByRole('region', { name: 'Map' })).toBeInTheDocument();
+    expect(maps).toHaveLength(1);
+    expect(maps[0]?.removed).toBe(false);
   });
 
   it('turns the projector type scale on and off', async () => {

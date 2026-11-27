@@ -1,0 +1,18 @@
+.pane {
+  grid-column: 4;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--map-ground);
+}
+
+.pane[hidden] {
+  display: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+}

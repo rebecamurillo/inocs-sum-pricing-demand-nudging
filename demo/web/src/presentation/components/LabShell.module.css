@@ -205,10 +205,3 @@
 .grip:hover {
   background: var(--blue-tint);
 }
-
-.map {
-  grid-column: 4;
-  grid-row: 2;
-  min-width: 0;
-  background: var(--map-ground);
-}

@@ -358,7 +358,7 @@ web/
       api/                     HTTP adapters; generated/ holds the types from the contract
       storage/                 the browser-storage adapter of the layout preferences
     presentation/
-      assets/  components/  hooks/  layouts/  styles/
+      assets/  components/  hooks/  layouts/  map/  styles/
     composition/               builds the adapters once; one island per page wraps its components in the provider
     pages/                     Astro routes: a layout and one island each
 ```
@@ -403,6 +403,19 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
 - The layout the visitor chooses (menu, map, share per view, Advanced view, Aa) goes through the
   `LayoutPreferences` port; `infrastructure/storage/` holds the one `localStorage` adapter and
   `composition/gateways.ts` hands it `window.localStorage`.
+- The map ([D-9](decisions.md)): `presentation/map/` holds the map pane, the map context (a
+  view declares its sources and layers with `useMapLayers` and where to look with
+  `useMapFit`; it never creates a map), the narrow `MapHandle` the components use, the
+  basemap style and the pure `l1Layers(...)`. `maplibre-gl` and `pmtiles` are imported only in
+  `composition/map-factory.ts`, which `LabIsland` injects. `LabShell` mounts the pane once; hiding the
+  map hides the pane without unmounting the map, and a `ResizeObserver` resizes the map and
+  fits the study circle when the pane's width changes or the pane is shown again. Under
+  `prefers-reduced-motion` the map has no fade and its camera jumps. The basemap file
+  `web/public/basemap/{dataset}.pmtiles` comes from `make basemap`; the web sends
+  `HEAD /basemap/{dataset}.pmtiles` through the `BasemapGateway` and, only on a 200, uses it;
+  otherwise the style is the ground colour alone. The `CityDatasetGateway` reads
+  `GET /api/v1/city-datasets` for the data set whose preset circle the map fits when no
+  instance version is open.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode
@@ -422,5 +435,5 @@ The skeleton proves the layers, the tooling and one request from the screen to t
 database. How runs are queued and executed, and where the worker runs, are settled by
 [D-12 and D-10](decisions.md); the artefact store by [D-8](decisions.md) and the
 [Builds and the artefact store](#builds-and-the-artefact-store) section. The data model of
-pricing versions and the map belong to the initiative's architecture step, which builds on
+pricing versions belongs to the initiative's architecture step, which builds on
 this document.

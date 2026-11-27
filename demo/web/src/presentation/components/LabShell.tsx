@@ -15,6 +15,8 @@ import {
 import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { useSystemStatus } from '../hooks/useSystemStatus';
+import { MapPane } from '../map/MapPane';
+import { MapProvider } from '../map/MapContext';
 import { Footer } from './Footer';
 import styles from './LabShell.module.css';
 
@@ -130,139 +132,142 @@ export function LabShell() {
 
   return (
     <div className={styles.shell}>
-      <div
-        ref={bodyRef}
-        className={styles.body}
-        style={{
-          gridTemplateColumns: `${menuWidth} minmax(0, 1fr) ${gripWidth} ${mapWidth}`,
-        }}
-      >
-        {menuOpen && (
-          <aside className={styles.menu} aria-label="Menu">
-            <div className={styles.brand}>
-              <span className={styles.logo} aria-hidden="true" />
-              <span className={styles.brandName}>SUM</span>
-              <span className={styles.brandTitle}>Dynamic pricing · Lab</span>
-              <button
-                type="button"
-                className={styles.iconButton}
-                aria-label="Hide the menu"
-                onClick={() => {
-                  layout.setMenuOpen(false);
-                }}
-              >
-                «
-              </button>
-            </div>
-            <nav ref={navRef} className={styles.nav}>
-              <p className={styles.section}>Operator view</p>
-              <MenuItem
-                choice="instances"
-                current={current}
-                onOpen={open}
-                onKeyDown={onMenuKeyDown}
-              />
-              <p className={styles.hint}>No instance yet</p>
-              <MenuItem
-                choice="compare"
-                current={current}
-                onOpen={open}
-                onKeyDown={onMenuKeyDown}
-              />
-              <p className={styles.section}>Traveller view</p>
-              <MenuItem
-                choice="traveller"
-                current={current}
-                onOpen={open}
-                onKeyDown={onMenuKeyDown}
-              />
-            </nav>
-            <div className={styles.foot}>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={advancedView}
-                className={styles.switch}
-                onClick={() => {
-                  layout.setAdvancedView(!advancedView);
-                }}
-              >
-                <span className={styles.track} aria-hidden="true" />
-                Advanced view
-              </button>
-              <p className={styles.runLine}>No run in progress</p>
-            </div>
-          </aside>
-        )}
+      <MapProvider>
+        <div
+          ref={bodyRef}
+          className={styles.body}
+          style={{
+            gridTemplateColumns: `${menuWidth} minmax(0, 1fr) ${gripWidth} ${mapWidth}`,
+          }}
+        >
+          {menuOpen && (
+            <aside className={styles.menu} aria-label="Menu">
+              <div className={styles.brand}>
+                <span className={styles.logo} aria-hidden="true" />
+                <span className={styles.brandName}>SUM</span>
+                <span className={styles.brandTitle}>Dynamic pricing · Lab</span>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  aria-label="Hide the menu"
+                  onClick={() => {
+                    layout.setMenuOpen(false);
+                  }}
+                >
+                  «
+                </button>
+              </div>
+              <nav ref={navRef} className={styles.nav}>
+                <p className={styles.section}>Operator view</p>
+                <MenuItem
+                  choice="instances"
+                  current={current}
+                  onOpen={open}
+                  onKeyDown={onMenuKeyDown}
+                />
+                <p className={styles.hint}>No instance yet</p>
+                <MenuItem
+                  choice="compare"
+                  current={current}
+                  onOpen={open}
+                  onKeyDown={onMenuKeyDown}
+                />
+                <p className={styles.section}>Traveller view</p>
+                <MenuItem
+                  choice="traveller"
+                  current={current}
+                  onOpen={open}
+                  onKeyDown={onMenuKeyDown}
+                />
+              </nav>
+              <div className={styles.foot}>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={advancedView}
+                  className={styles.switch}
+                  onClick={() => {
+                    layout.setAdvancedView(!advancedView);
+                  }}
+                >
+                  <span className={styles.track} aria-hidden="true" />
+                  Advanced view
+                </button>
+                <p className={styles.runLine}>No run in progress</p>
+              </div>
+            </aside>
+          )}
 
-        <header className={styles.topBar}>
-          {!menuOpen && (
+          <header className={styles.topBar}>
+            {!menuOpen && (
+              <button
+                type="button"
+                className={styles.barButton}
+                onClick={() => {
+                  layout.setMenuOpen(true);
+                }}
+              >
+                ☰ Menu
+              </button>
+            )}
+            <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
+              {choiceLabels[current]}
+            </nav>
             <button
               type="button"
               className={styles.barButton}
               onClick={() => {
-                layout.setMenuOpen(true);
+                layout.setMapShown(!mapShown);
               }}
             >
-              ☰ Menu
+              {mapShown ? 'Hide map' : 'Show map'}
             </button>
-          )}
-          <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
-            {choiceLabels[current]}
-          </nav>
-          <button
-            type="button"
-            className={styles.barButton}
-            onClick={() => {
-              layout.setMapShown(!mapShown);
-            }}
-          >
-            {mapShown ? 'Hide map' : 'Show map'}
-          </button>
-          <button
-            type="button"
-            className={styles.barButton}
-            aria-pressed={largeText}
-            aria-label="Larger text for a projector"
-            onClick={() => {
-              layout.setLargeText(!largeText);
-            }}
-          >
-            Aa
-          </button>
-        </header>
-
-        <main className={styles.card}>
-          <p className={styles.cardText}>
-            {unknownLink === null ? cardTexts[current] : unknownLinkSentence(unknownLink)}
-          </p>
-        </main>
-
-        {mapShown && (
-          <>
-            {/* A focusable separator is a widget (WAI-ARIA window splitter); the rules do not know it. */}
-            {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Drag to make the map wider or narrower"
-              aria-valuemin={MIN_MAP_SHARE}
-              aria-valuemax={MAX_MAP_SHARE}
-              aria-valuenow={mapShare}
-              tabIndex={0}
-              className={styles.grip}
-              onKeyDown={onGripKeyDown}
-              onPointerDown={(event) => {
-                event.currentTarget.setPointerCapture(event.pointerId);
+            <button
+              type="button"
+              className={styles.barButton}
+              aria-pressed={largeText}
+              aria-label="Larger text for a projector"
+              onClick={() => {
+                layout.setLargeText(!largeText);
               }}
-              onPointerMove={onGripPointerMove}
-            />
-            {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+            >
+              Aa
+            </button>
+          </header>
 
-            <section className={styles.map} aria-label="Map" />
-          </>
-        )}
-      </div>
+          <main className={styles.card}>
+            <p className={styles.cardText}>
+              {unknownLink === null ? cardTexts[current] : unknownLinkSentence(unknownLink)}
+            </p>
+          </main>
+
+          {mapShown && (
+            <>
+              {/* A focusable separator is a widget (WAI-ARIA window splitter); the rules do not know it. */}
+              {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Drag to make the map wider or narrower"
+                aria-valuemin={MIN_MAP_SHARE}
+                aria-valuemax={MAX_MAP_SHARE}
+                aria-valuenow={mapShare}
+                tabIndex={0}
+                className={styles.grip}
+                onKeyDown={onGripKeyDown}
+                onPointerDown={(event) => {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                }}
+                onPointerMove={onGripPointerMove}
+              />
+              {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+            </>
+          )}
+
+          {/* Hiding the map hides the pane; the map instance stays mounted. */}
+          <MapPane shown={mapShown} datasetId={null} />
+        </div>
+      </MapProvider>
       <Footer />
     </div>
   );

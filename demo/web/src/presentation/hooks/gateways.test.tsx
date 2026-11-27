@@ -13,6 +13,13 @@ const gateways: Gateways = {
       throw new Error('not called');
     },
   },
+  cityDatasets: { list: () => Promise.reject(new Error('not called')) },
+  basemap: {
+    exists: () => Promise.reject(new Error('not called')),
+    url: () => {
+      throw new Error('not called');
+    },
+  },
 };
 
 describe('useGateways', () => {

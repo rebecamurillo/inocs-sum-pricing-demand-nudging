@@ -115,6 +115,25 @@ of mind is a new entry that names the one it replaces.
   twice. The lease (a heartbeat and a 60 s limit) lets a restarted worker tell a run that is
   still alive from one that was abandoned, without any other coordination than PostgreSQL.
 
+## D-9 — The map: MapLibre and PMTiles from the trip planner's street extract (2026-11-27)
+
+- **Decision:** the Lab has one MapLibre GL JS map, mounted once in `LabShell` and never
+  re-created: hiding the map hides its pane, and views change what is drawn by declaring
+  sources and layers through a map context. The factory that builds it lives in
+  `composition/` and is injected; unit tests inject a fake. The background is a PMTiles file
+  that `make basemap` cuts with Planetiler (a pinned image) from the `.osm.pbf` in
+  `otp/data/`, clipped to the data set's available area, into `web/public/basemap/`
+  (git-ignored). The web server serves it as a static file with range requests. Without the
+  file, the map is the ground colour and every view works. The style has no text, glyphs,
+  sprite or remote address.
+- **Why:** the trip planner already needs the street extract, so the map adds no data source
+  and no tile service; everything runs offline, on one machine (UX-DR41). A map created once
+  keeps its camera, its tiles and its WebGL context across views and resizes.
+- **Rejected:** a hosted tile service or style (needs the internet and a key); raster tiles
+  (heavier, no styling in the identity's colours); a map created per view (flashes, loses the
+  camera and leaks contexts); labels from vector glyphs (needs glyph files; hub names are
+  HTML markers in the bundled fonts instead).
+
 ## Known debt
 
 Accepted for a tool that runs on one machine; each must be settled before any hosting.
@@ -144,4 +163,3 @@ Accepted for a tool that runs on one machine; each must be settled before any ho
 ## Open, for the initiative's architecture step
 
 - The data model of city instances, pricing versions, results and periods.
-- The map and its basemap.

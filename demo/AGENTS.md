@@ -38,6 +38,7 @@ Run from `demo/`. `make help` lists them.
 | `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it | Docker |
 | `make city-data` | imports the Geneva timetable and the first bike-station snapshot as a city data set | Docker, internet, the `.osm.pbf` in `otp/data/` |
 | `make otp-graph` | builds OpenTripPlanner's graph from the latest city data set (`DATASET=<id>` for another) with the data set's service window | Docker, `make city-data`, the `.osm.pbf` in `otp/data/` |
+| `make basemap` | builds the map's background `web/public/basemap/{dataset}.pmtiles` from the data set's area with Planetiler (`DATASET=<id>` for another) | Docker, internet, `make city-data`, the `.osm.pbf` in `otp/data/` |
 | `make up` / `make down` | the whole local stack in Docker | Docker |
 | `make live-smoke` | checks the real package, solver and trip planner | Gurobi licence, running OpenTripPlanner |
 

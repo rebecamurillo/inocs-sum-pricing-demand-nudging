@@ -32,6 +32,8 @@ test.describe('Lab', () => {
         await expect(page.getByRole('contentinfo')).toBeInViewport({ ratio: 1 });
         await expect(page.getByText('No run in progress')).toBeInViewport({ ratio: 1 });
         await expect(aa).toBeInViewport({ ratio: 1 });
+        // The map pane is part of the held view (the e2e stack has no basemap file: ground colour).
+        await expect(page.getByRole('region', { name: 'Map' })).toBeInViewport({ ratio: 1 });
         await aa.click();
       }
     }

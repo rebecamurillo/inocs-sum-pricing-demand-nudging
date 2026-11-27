@@ -11,6 +11,7 @@ API_PORT ?= 8100
 WEB_PORT ?= 4400
 OTP_PORT ?= 8080
 E2E_WEB_PORT ?= 14400
+PLANETILER_IMAGE ?= ghcr.io/onthegomap/planetiler:0.9.2
 INTEGRATION_DB_PORT ?= 5441
 ADAPTERS ?= real
 PLAYWRIGHT_ARGS ?= chromium
@@ -35,7 +36,7 @@ WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_
 # with this.
 ON_SIGNAL = trap 'exit 130' INT; trap 'exit 143' TERM
 
-.PHONY: help install check test test-model test-integration e2e contract format dev worker city-data otp-graph up down live-smoke
+.PHONY: help install check test test-model test-integration e2e contract format dev worker city-data otp-graph basemap up down live-smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -154,6 +155,23 @@ otp-graph: ## Build OpenTripPlanner's graph from the latest city data set (DATAS
 	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
 	uv --directory api run alembic upgrade head; \
 	env $(WORKER_ENV) uv --directory api run pricing-demo-worker otp-graph $(if $(DATASET),--dataset $(DATASET))
+
+basemap: ## Build the map's background web/public/basemap/<dataset>.pmtiles from the .osm.pbf, clipped to the data set's area (DATASET=<id>; Docker, internet, make city-data)
+	@set -e; \
+	files=$$(ls otp/data/*.osm.pbf 2>/dev/null || true); \
+	if [ -z "$$files" ] || [ $$(echo "$$files" | wc -l) -ne 1 ]; then \
+		echo "otp/data/ must hold exactly one .osm.pbf street extract (see otp/README.md)." >&2; exit 1; \
+	fi; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
+	uv --directory api run alembic upgrade head; \
+	shown=$$(env $(WORKER_ENV) uv --directory api run pricing-demo-worker basemap-bounds $(if $(DATASET),--dataset $(DATASET))); \
+	set -- $$shown; \
+	dataset=$$1; bounds=$$2; \
+	mkdir -p web/public/basemap var/planetiler; \
+	docker run --rm -v "$(CURDIR)/otp/data:/osm:ro" -v "$(CURDIR)/var/planetiler:/data" -v "$(CURDIR)/web/public/basemap:/out" $(PLANETILER_IMAGE) \
+		--download --force --osm-path=/osm/$$(basename $$files) --bounds=$$bounds --output=/out/$$dataset.pmtiles; \
+	echo "Wrote web/public/basemap/$$dataset.pmtiles"
 
 up: ## The whole stack in Docker; OpenTripPlanner too when otp/data/graph.obj exists
 	@set -e; \

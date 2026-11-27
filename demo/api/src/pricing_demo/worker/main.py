@@ -52,6 +52,7 @@ from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBike
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.run_worker import RunWorker
+from pricing_demo.application.use_cases.show_basemap_bounds import ShowBasemapBounds
 from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
@@ -316,6 +317,10 @@ def build_build_trip_planner_graph(settings: Settings, engine: Engine) -> BuildT
     )
 
 
+def build_show_basemap_bounds(engine: Engine) -> ShowBasemapBounds:
+    return ShowBasemapBounds(PostgresCityDatasets(engine))
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="pricing-demo-worker")
     commands = root.add_subparsers(dest="command")
@@ -331,12 +336,17 @@ def parser() -> argparse.ArgumentParser:
         "otp-graph", help="build OpenTripPlanner's graph from a city data set"
     )
     graph.add_argument("--dataset", default=None, help="default: the most recent data set")
+    bounds = commands.add_parser(
+        "basemap-bounds",
+        help="print a data set's id and its available area's bounding box (west,south,east,north)",
+    )
+    bounds.add_argument("--dataset", default=None, help="default: the most recent data set")
     return root
 
 
 def run_command(args: argparse.Namespace, settings: Settings) -> int:
-    """Run one city data command; prints the new id (the manifest's path for `otp-graph`), or
-    the reason on stderr (exit 1)."""
+    """Run one city data command; prints the new id (the manifest's path for `otp-graph`, the id
+    and the box for `basemap-bounds`), or the reason on stderr (exit 1)."""
     engine = create_db_engine(settings.database_url)
     try:
         if args.command == "import-city-data":
@@ -344,6 +354,11 @@ def run_command(args: argparse.Namespace, settings: Settings) -> int:
         elif args.command == "otp-graph":
             manifest = build_build_trip_planner_graph(settings, engine).execute(args.dataset)
             print(manifest)
+            return 0
+        elif args.command == "basemap-bounds":
+            shown = build_show_basemap_bounds(engine).execute(args.dataset)
+            area = shown.area
+            print(f"{shown.dataset_id} {area.min_lon},{area.min_lat},{area.max_lon},{area.max_lat}")
             return 0
         else:
             created = build_refresh_bike_stations(settings, engine).execute()

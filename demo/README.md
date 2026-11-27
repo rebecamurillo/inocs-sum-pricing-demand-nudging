@@ -34,6 +34,7 @@ pfaedle produces no bus shape, the import still succeeds, the data set records
 make city-data   # a data set geneva-{date} in the database and var/data/datasets/
 uv --directory api run pricing-demo-worker refresh-bike-stations   # a newer station snapshot
 make otp-graph   # OpenTripPlanner's graph from the data set, in otp/data/ (see otp/README.md)
+make basemap     # the map's background web/public/basemap/{dataset}.pmtiles from the same .osm.pbf
 ```
 
 To change a port or another per-machine value, copy `.env.example` to `.env` and edit it. Every
@@ -56,6 +57,7 @@ Run from this folder; `make help` lists them.
 | `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it |
 | `make city-data` | imports the Geneva timetable, the bus legs drawn on the streets and the first bike-station snapshot as a city data set |
 | `make otp-graph` | builds OpenTripPlanner's graph from the latest city data set (`DATASET=<id>` for another): copies its timetable to `otp/data/gtfs.zip`, sets the service window, runs the build in Docker and writes `otp/data/graph-manifest.json` |
+| `make basemap` | builds the map's background `web/public/basemap/{dataset}.pmtiles` (git-ignored) from the `.osm.pbf` in `otp/data/` with Planetiler in Docker, clipped to the latest data set's available area (`DATASET=<id>` for another); without it the map is the ground colour |
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
 | `make live-smoke` | checks the real package, solver and trip planner |
 
