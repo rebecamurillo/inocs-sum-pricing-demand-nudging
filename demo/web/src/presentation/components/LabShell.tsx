@@ -6,18 +6,22 @@ import {
   MIN_MAP_SHARE,
   clampMapShare,
 } from '../../domain/layout';
+import { breadcrumb, periodChip } from '../../domain/l1-text';
 import type { LabRoute } from '../../domain/route';
 import {
   instanceLabel,
   missingInstanceVersionLabel,
   nothingAtThisLink,
 } from '../../domain/unknown-link';
+import { useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
 import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { MapPane } from '../map/MapPane';
 import { MapProvider } from '../map/MapContext';
 import { Footer } from './Footer';
+import { InstanceMenu } from './InstanceMenu';
+import { InstanceView } from './InstanceView';
 import styles from './LabShell.module.css';
 
 const MENU_WIDTH_PX = 264;
@@ -38,10 +42,13 @@ const cardTexts: Readonly<Record<MenuChoice, string>> = {
   traveller: 'Run a pricing version first.',
 };
 
-function unknownLinkSentence(route: Exclude<LabRoute, { kind: 'lab' }>): string {
-  // No instance exists yet: the card names the id as the link writes it.
+function unknownLinkSentence(
+  route: Exclude<LabRoute, { kind: 'lab' }>,
+  instanceName: string | null,
+): string {
+  // The card names the instance when the menu lists it, else the id as the link writes it.
   return nothingAtThisLink(
-    instanceLabel(null, route.instance.instanceId),
+    instanceLabel(instanceName, route.instance.instanceId),
     missingInstanceVersionLabel(route.instance.version),
   );
 }
@@ -53,7 +60,7 @@ function MenuItem({
   onKeyDown,
 }: {
   choice: MenuChoice;
-  current: MenuChoice;
+  current: MenuChoice | null;
   onOpen: (choice: MenuChoice) => void;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }) {
@@ -82,10 +89,33 @@ export function LabShell() {
   // The poll runs for the views that come; the shell renders nothing from it yet.
   useSystemStatus();
 
+  const entries = useInstanceMenu().data ?? [];
+
   const { menuOpen, mapShown, advancedView, largeText } = layout.preferences;
   const mapShare = layout.mapShare(EMPTY_LAB_VIEW);
-  const unknownLink = route.kind === 'lab' ? null : route;
-  const current: MenuChoice = unknownLink === null ? choice : 'instances';
+
+  // An instance link is a view only when the menu lists that version; every other link is unknown.
+  const linkedEntry =
+    route.kind === 'instance'
+      ? entries.find((entry) => entry.id === route.instance.instanceId)
+      : undefined;
+  const linkedVersion =
+    route.kind === 'instance'
+      ? linkedEntry?.versions.find((version) => version.number === route.instance.version)
+      : undefined;
+  const openVersion =
+    linkedEntry !== undefined && linkedVersion !== undefined
+      ? { instanceId: linkedEntry.id, versionId: linkedVersion.id }
+      : null;
+  const unknownLink = route.kind === 'lab' || openVersion !== null ? null : route;
+  const current: MenuChoice | null =
+    openVersion !== null ? null : unknownLink === null ? choice : 'instances';
+  const openedView = useInstanceView(openVersion?.versionId ?? null).data ?? null;
+  const firstPeriod = openedView?.version.periods[0];
+
+  const openVersionRow = (instanceId: string, number: number) => {
+    navigate({ kind: 'instance', instance: { instanceId, version: number }, period: null });
+  };
 
   const open = (next: MenuChoice) => {
     setChoice(next);
@@ -159,13 +189,32 @@ export function LabShell() {
               </div>
               <nav ref={navRef} className={styles.nav}>
                 <p className={styles.section}>Operator view</p>
-                <MenuItem
-                  choice="instances"
-                  current={current}
-                  onOpen={open}
+                <div className={styles.headRow}>
+                  <MenuItem
+                    choice="instances"
+                    current={current}
+                    onOpen={open}
+                    onKeyDown={onMenuKeyDown}
+                  />
+                  {/* Story 2-11 gives "+ New" its form; the empty Lab has no such button. */}
+                  {entries.length > 0 && (
+                    <button
+                      type="button"
+                      data-menu-item=""
+                      className={styles.newButton}
+                      onKeyDown={onMenuKeyDown}
+                    >
+                      + New
+                    </button>
+                  )}
+                </div>
+                <InstanceMenu
+                  entries={entries}
+                  open={openVersion}
+                  setupCurrent={openVersion !== null}
+                  onOpenVersion={openVersionRow}
                   onKeyDown={onMenuKeyDown}
                 />
-                <p className={styles.hint}>No instance yet</p>
                 <MenuItem
                   choice="compare"
                   current={current}
@@ -211,8 +260,13 @@ export function LabShell() {
               </button>
             )}
             <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
-              {choiceLabels[current]}
+              {linkedEntry !== undefined && linkedVersion !== undefined && openVersion !== null
+                ? breadcrumb(linkedEntry.name, linkedVersion.number)
+                : choiceLabels[current ?? 'instances']}
             </nav>
+            {firstPeriod !== undefined && (
+              <span className={styles.chip}>{periodChip(firstPeriod.label)}</span>
+            )}
             <button
               type="button"
               className={styles.barButton}
@@ -236,9 +290,20 @@ export function LabShell() {
           </header>
 
           <main className={styles.card}>
-            <p className={styles.cardText}>
-              {unknownLink === null ? cardTexts[current] : unknownLinkSentence(unknownLink)}
-            </p>
+            {openVersion !== null ? (
+              // Keyed by version: rows shown on the map and the open table go with the version.
+              <InstanceView
+                key={openVersion.versionId}
+                versionId={openVersion.versionId}
+                advancedView={advancedView}
+              />
+            ) : (
+              <p className={styles.cardText}>
+                {unknownLink === null
+                  ? cardTexts[current ?? 'instances']
+                  : unknownLinkSentence(unknownLink, linkedEntry?.name ?? null)}
+              </p>
+            )}
           </main>
 
           {mapShown && (
@@ -265,7 +330,7 @@ export function LabShell() {
           )}
 
           {/* Hiding the map hides the pane; the map instance stays mounted. */}
-          <MapPane shown={mapShown} datasetId={null} />
+          <MapPane shown={mapShown} datasetId={linkedEntry?.datasetId ?? null} />
         </div>
       </MapProvider>
       <Footer />

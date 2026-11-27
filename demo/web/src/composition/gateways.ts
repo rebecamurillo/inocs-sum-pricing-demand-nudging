@@ -2,6 +2,7 @@ import type { Gateways } from '../application/ports/gateways';
 import { browserFetch } from '../infrastructure/api/browser-fetch';
 import { HttpBasemapGateway } from '../infrastructure/api/http-basemap-gateway';
 import { HttpCityDatasetGateway } from '../infrastructure/api/http-city-dataset-gateway';
+import { HttpCityInstanceGateway } from '../infrastructure/api/http-city-instance-gateway';
 import { HttpSystemStatusGateway } from '../infrastructure/api/http-system-status-gateway';
 import { LocalStorageLayoutPreferences } from '../infrastructure/storage/local-storage-layout-preferences';
 
@@ -21,5 +22,6 @@ export function createGateways(): Gateways {
     layoutPreferences: new LocalStorageLayoutPreferences(browserStorage()),
     cityDatasets: new HttpCityDatasetGateway(browserFetch),
     basemap: new HttpBasemapGateway(browserFetch),
+    cityInstances: new HttpCityInstanceGateway(browserFetch),
   };
 }

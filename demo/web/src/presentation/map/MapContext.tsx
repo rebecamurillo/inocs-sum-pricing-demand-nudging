@@ -35,9 +35,17 @@ interface ReadyMap {
   readonly revision: number;
 }
 
+/** One line of the legend a view shows over the map: a dotted line in its colour and a label. */
+export interface LegendEntry {
+  readonly label: string;
+  readonly colour: string;
+}
+
 interface MapContextValue {
   readonly ready: ReadyMap | null;
   readonly fitTarget: GeoBounds | null;
+  readonly legend: readonly LegendEntry[];
+  readonly setLegend: (entries: readonly LegendEntry[]) => void;
   readonly attach: (handle: MapHandle | null) => void;
   /** Call before `setStyle`: until the new style loads, views must not add to the map. */
   readonly restyling: () => void;
@@ -60,6 +68,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
   const [handle, setHandle] = useState<MapHandle | null>(null);
   const [ready, setReady] = useState<ReadyMap | null>(null);
   const [fitTarget, setFitTarget] = useState<GeoBounds | null>(null);
+  const [legend, setLegend] = useState<readonly LegendEntry[]>([]);
 
   useEffect(() => {
     if (handle === null) return undefined;
@@ -82,8 +91,8 @@ export function MapProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, fitTarget, attach, restyling, setFitTarget }),
-    [ready, fitTarget, attach, restyling],
+    () => ({ ready, fitTarget, legend, setLegend, attach, restyling, setFitTarget }),
+    [ready, fitTarget, legend, attach, restyling],
   );
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>;
 }
@@ -127,4 +136,15 @@ export function useMapFit(bounds: GeoBounds | null): void {
       setFitTarget(null);
     };
   }, [bounds, setFitTarget]);
+}
+
+/** The legend entries a view shows over the map. Pass a memoised array; they go with the view. */
+export function useMapLegend(entries: readonly LegendEntry[]): void {
+  const { setLegend } = useMapContext();
+  useEffect(() => {
+    setLegend(entries);
+    return () => {
+      setLegend([]);
+    };
+  }, [entries, setLegend]);
 }

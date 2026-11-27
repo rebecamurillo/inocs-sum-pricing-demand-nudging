@@ -19,7 +19,7 @@ interface MapPaneProps {
 /** The one map of the Lab: created once, resized and refitted, never re-created. */
 export function MapPane({ shown, datasetId }: MapPaneProps) {
   const factory = useMapFactory();
-  const { ready, fitTarget, attach, restyling } = useMapPaneContext();
+  const { ready, fitTarget, legend, attach, restyling } = useMapPaneContext();
   const basis = useMapBasis(datasetId).data ?? null;
   const paneRef = useRef<HTMLElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -95,6 +95,16 @@ export function MapPane({ shown, datasetId }: MapPaneProps) {
   return (
     <section ref={paneRef} className={styles.pane} aria-label="Map" hidden={!shown}>
       <div ref={containerRef} className={styles.canvas} />
+      {legend.length > 0 && (
+        <ul className={styles.legend} aria-label="Map legend">
+          {legend.map((entry) => (
+            <li key={entry.label}>
+              <span className={styles.swatch} style={{ borderTopColor: entry.colour }} />
+              {entry.label}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

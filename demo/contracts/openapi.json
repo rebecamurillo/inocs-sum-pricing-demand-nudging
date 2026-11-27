@@ -916,6 +916,19 @@
             "title": "Rules",
             "type": "array"
           },
+          "sealed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the version was saved; null for a draft.",
+            "title": "Sealed At"
+          },
           "state": {
             "description": "`draft`; for a saved version the state of its latest build: `queued`, `building`, `ready`, `failed` or `cancelled` (`sealed` while it has none).",
             "title": "State",
@@ -936,6 +949,7 @@
           "number",
           "based_on_id",
           "status",
+          "sealed_at",
           "state",
           "parameters",
           "periods",

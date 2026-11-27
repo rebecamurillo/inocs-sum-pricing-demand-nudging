@@ -1,5 +1,6 @@
 import json
 from dataclasses import replace
+from datetime import datetime
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -572,3 +573,16 @@ def test_a_version_that_is_not_built_has_no_counts_and_no_routes(
 
     assert body["counts"] is None
     assert body["routes"] is None
+
+
+def test_a_sealed_version_carries_the_instant_it_was_saved_and_a_draft_none(
+    instances_app: CityInstancesApp,
+) -> None:
+    draft = valid_draft(instances_app)
+    assert draft["sealed_at"] is None
+
+    instances_app.client.post(BUILDS)
+    body = instances_app.client.get(VERSION).json()
+
+    assert body["status"] == "sealed"
+    assert datetime.fromisoformat(body["sealed_at"]) == instances_app.clock.now()

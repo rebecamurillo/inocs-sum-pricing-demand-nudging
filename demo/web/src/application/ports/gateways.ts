@@ -1,4 +1,5 @@
 import type { BasemapGateway } from './basemap-gateway';
+import type { CityInstanceGateway } from './city-instance-gateway';
 import type { CityDatasetGateway } from './city-dataset-gateway';
 import type { LayoutPreferences } from './layout-preferences';
 import type { SystemStatusGateway } from './system-status-gateway';
@@ -9,4 +10,5 @@ export interface Gateways {
   readonly layoutPreferences: LayoutPreferences;
   readonly cityDatasets: CityDatasetGateway;
   readonly basemap: BasemapGateway;
+  readonly cityInstances: CityInstanceGateway;
 }

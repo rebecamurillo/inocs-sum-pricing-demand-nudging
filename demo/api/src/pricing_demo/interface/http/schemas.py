@@ -605,6 +605,7 @@ class InstanceVersionResource(BaseModel):
     number: int
     based_on_id: str | None
     status: Literal["draft", "sealed"]
+    sealed_at: datetime | None = Field(description="When the version was saved; null for a draft.")
     state: str = Field(
         description="`draft`; for a saved version the state of its latest build: `queued`, "
         "`building`, `ready`, `failed` or `cancelled` (`sealed` while it has none)."
@@ -628,6 +629,7 @@ class InstanceVersionResource(BaseModel):
             number=version.number,
             based_on_id=version.based_on_id,
             status=version.status,
+            sealed_at=version.sealed_at,
             state=view.state,
             parameters=InstanceParametersResource(**version.parameters.as_dict()),
             periods=[InstancePeriodResource.from_domain(item) for item in view.periods],

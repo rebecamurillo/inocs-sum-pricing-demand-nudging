@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { l1Layers, L1_IDS } from './l1-layers';
+import { l1Layers, L1_IDS, unroutedPairLayer } from './l1-layers';
 
 const input = {
   centre: { lat: 46.2, lon: 6.14 },
@@ -114,5 +114,44 @@ describe('l1Layers', () => {
         (source) => source.type === 'geojson' && source.data.features.length === 0,
       ),
     ).toHaveLength(4);
+  });
+});
+
+describe('unroutedPairLayer', () => {
+  const pairs = [
+    { originHub: 'h1', destinationHub: 'h2' },
+    { originHub: 'h1', destinationHub: 'ghost' },
+  ];
+
+  it('draws one red dotted line per pair between the hubs centres, skipping an unknown hub', () => {
+    const { sources, layers } = unroutedPairLayer(pairs, input.hubs);
+
+    expect(layers).toEqual([
+      expect.objectContaining({
+        id: 'l1-unrouted-pairs',
+        type: 'line',
+        source: 'l1-unrouted-pairs',
+        paint: expect.objectContaining({
+          'line-color': '#be280b',
+          'line-dasharray': [0.5, 2],
+        }) as unknown,
+      }),
+    ]);
+    const source = sources['l1-unrouted-pairs'];
+    if (source?.type !== 'geojson') throw new Error('no geojson source');
+    expect(source.data.features.map((f) => f.geometry)).toEqual([
+      {
+        type: 'LineString',
+        coordinates: [
+          [6.14, 46.2],
+          [6.16, 46.22],
+        ],
+      },
+    ]);
+  });
+
+  it('is a separate declaration: the five L-1 layers are unchanged', () => {
+    expect(l1Layers(input).layers.map((layer) => layer.id)).not.toContain('l1-unrouted-pairs');
+    expect(Object.keys(unroutedPairLayer([], []).sources)).toEqual(['l1-unrouted-pairs']);
   });
 });

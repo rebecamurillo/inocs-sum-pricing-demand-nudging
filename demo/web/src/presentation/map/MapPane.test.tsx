@@ -2,10 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
+import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
 import type { CityDataset } from '../../domain/map';
 import { GatewaysProvider } from '../hooks/gateways';
 import { fakeMapFactory, installBrowserStubs } from './fake-map';
-import { MapFactoryProvider, MapProvider, useMapLayers } from './MapContext';
+import { MapFactoryProvider, MapProvider, useMapLayers, useMapLegend } from './MapContext';
 import type { MapDeclaration } from './map-factory';
 import { MapPane } from './MapPane';
 
@@ -30,6 +31,7 @@ function gatewaysFor(datasets: CityDataset[], served: boolean): Gateways {
       exists: () => Promise.resolve(served),
       url: (id) => `/basemap/${id}.pmtiles`,
     },
+    cityInstances: emptyCityInstances,
   };
 }
 
@@ -219,6 +221,36 @@ describe('MapPane', () => {
       map?.emitStyleReady();
     });
     expect(map?.hasLayer('a-layer')).toBe(true);
+  });
+
+  it('lists the legend entries a view declares over the map, and drops them with the view', () => {
+    const entries = [{ label: 'Hub pair without a route', colour: '#be280b' }];
+    function View() {
+      useMapLegend(entries);
+      return null;
+    }
+    const { factory } = fakeMapFactory();
+    const tree = (withView: boolean) => (
+      <QueryClientProvider client={new QueryClient()}>
+        <GatewaysProvider gateways={gatewaysFor([], false)}>
+          <MapFactoryProvider factory={factory}>
+            <MapProvider>
+              <MapPane shown datasetId={null} />
+              {withView && <View />}
+            </MapProvider>
+          </MapFactoryProvider>
+        </GatewaysProvider>
+      </QueryClientProvider>
+    );
+    expect(screen.queryByRole('list', { name: 'Map legend' })).not.toBeInTheDocument();
+
+    const view = render(tree(true));
+    expect(screen.getByRole('list', { name: 'Map legend' })).toHaveTextContent(
+      'Hub pair without a route',
+    );
+
+    view.rerender(tree(false));
+    expect(screen.queryByRole('list', { name: 'Map legend' })).not.toBeInTheDocument();
   });
 
   it('removes the map and stops observing when it unmounts', () => {

@@ -322,6 +322,7 @@ artefact also keeps the run that produced it (`run_id`) and the counts that run'
 (`reported_counts`): an ingest-only rerun, which has no preparation to ask, reads them back.
 `GET /instance-versions/{id}` derives its five headline numbers and its routes summary from
 these, and both are null until every step of the version is linked to an ingested artefact.
+The resource also carries `sealed_at` (the instant the version was saved, null for a draft).
 
 **Route failures.** `CityPreparation.prepare` calls `route_failed` once per failed
 trip-planner query as it happens; the executor writes one `route_failures` row for each (run,
@@ -416,6 +417,17 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   otherwise the style is the ground colour alone. The `CityDatasetGateway` reads
   `GET /api/v1/city-datasets` for the data set whose preset circle the map fits when no
   instance version is open.
+- The saved city instance view (L-1). `CityInstanceGateway` (port; `HttpCityInstanceGateway`
+  reads `/city-instances`, `/instance-versions/{id}` and its `stations`, `hubs`, `hub-pairs`,
+  `/city-datasets` and `/runs/{id}/route-failures`) feeds the use cases of
+  `application/use-cases/load-instance-view.ts`. Every sentence of the view is built by a pure
+  function of `domain/l1-text.ts`, so components only place text. `LabShell` decides from the
+  menu whether an instance link names an existing version (the menu answering later than the
+  first render counts as an empty one), shows `InstanceMenu` and the period chip, and gives
+  `InstanceView` the card: it shows the skeleton while its reads are pending, declares
+  `l1Layers(...)` and the study circle's fit, and, for "Show on map" on a route failure, the dotted
+  red `unroutedPairLayer(...)` and a legend entry (`useMapLegend`) that `MapPane` lists over the
+  map. `presentation/hooks/useCityInstances.ts` holds the queries.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

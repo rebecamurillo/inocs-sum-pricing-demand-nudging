@@ -579,6 +579,11 @@ export interface components {
             /** Rules */
             rules: components["schemas"]["RuleResultResource"][];
             /**
+             * Sealed At
+             * @description When the version was saved; null for a draft.
+             */
+            sealed_at: string | null;
+            /**
              * State
              * @description `draft`; for a saved version the state of its latest build: `queued`, `building`, `ready`, `failed` or `cancelled` (`sealed` while it has none).
              */

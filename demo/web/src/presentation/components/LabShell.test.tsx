@@ -2,6 +2,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
+import {
+  emptyCityInstances,
+  fakeCityInstances,
+  sampleVersion,
+} from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
 import { DEFAULT_LAYOUT, type LayoutPreferencesValue } from '../../domain/layout';
 import type { SystemStatus } from '../../domain/system-status';
@@ -18,7 +24,10 @@ const status: SystemStatus = {
   canSimulate: allowed,
 };
 
-function renderShell(initial: LayoutPreferencesValue = DEFAULT_LAYOUT) {
+function renderShell(
+  initial: LayoutPreferencesValue = DEFAULT_LAYOUT,
+  cityInstances: CityInstanceGateway = emptyCityInstances,
+) {
   const saved: LayoutPreferencesValue[] = [];
   const gateways: Gateways = {
     systemStatus: { load: () => Promise.resolve(status) },
@@ -30,6 +39,7 @@ function renderShell(initial: LayoutPreferencesValue = DEFAULT_LAYOUT) {
     },
     cityDatasets: { list: () => Promise.resolve([]) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
+    cityInstances,
   };
   const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -312,5 +322,98 @@ describe('LabShell · the route', () => {
         screen.getByText('Nothing at this link: geneva-3km has no v2. It may have been deleted.'),
       ).toBeInTheDocument();
     });
+  });
+});
+
+describe('LabShell · an open instance version', () => {
+  const instances = (overrides: Partial<CityInstanceGateway> = {}) => fakeCityInstances(overrides);
+
+  it('lists the instances: the open one expanded with its set-up and pricing versions, the others with a count', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(DEFAULT_LAYOUT, instances());
+
+    const setup = await screen.findByRole('button', { name: 'Instance set-up' });
+
+    expect(setup).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: 'City instances' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(screen.getByRole('button', { name: '+ New' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Geneva 3 km v1 ready' })).toBeInTheDocument();
+    expect(screen.getByText('Pricing versions')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Geneva 2 km v1 1 version' })).toBeInTheDocument();
+    expect(screen.queryByText('No instance yet')).not.toBeInTheDocument();
+  });
+
+  it('writes the breadcrumb and the period chip once the version is read', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(DEFAULT_LAYOUT, instances());
+
+    expect(await screen.findByText('Period Monday 08:00–09:00')).toBeInTheDocument();
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent(
+      'Geneva 3 km v1 › Instance set-up',
+    );
+  });
+
+  it('shows the skeleton while the version is read, then the saved card', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderShell(
+      DEFAULT_LAYOUT,
+      instances({
+        version: async (id) => {
+          await gate;
+          return id === sampleVersion.id ? sampleVersion : null;
+        },
+      }),
+    );
+
+    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    release();
+
+    expect(await screen.findByText('City instance · pipeline steps 1 to 4')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
+  });
+
+  it('has no period chip when no instance version is open', () => {
+    renderShell();
+
+    expect(screen.queryByText(/^Period /)).not.toBeInTheDocument();
+  });
+
+  it('names the instance on a link to a version it does not have', async () => {
+    window.location.hash = '#/lab/geneva-3km.v7';
+    renderShell(DEFAULT_LAYOUT, instances());
+
+    expect(
+      await screen.findByText(
+        'Nothing at this link: Geneva 3 km has no v7. It may have been deleted.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent('City instances');
+  });
+
+  it('opens an instance version from its menu row', async () => {
+    renderShell(DEFAULT_LAYOUT, instances());
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Geneva 3 km v1 1 version' }));
+
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+    expect(await screen.findByText('City instance · pipeline steps 1 to 4')).toBeInTheDocument();
+  });
+
+  it('keeps arrow-key movement across the instance rows', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(DEFAULT_LAYOUT, instances());
+    const setup = await screen.findByRole('button', { name: 'Instance set-up' });
+    setup.focus();
+
+    await userEvent.setup().keyboard('{ArrowUp}');
+
+    expect(screen.getByRole('button', { name: 'Geneva 3 km v1 ready' })).toHaveFocus();
   });
 });

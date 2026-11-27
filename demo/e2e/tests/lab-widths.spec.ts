@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test';
+import { buildFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
 
 const viewports = [
@@ -6,37 +8,58 @@ const viewports = [
   { width: 1280, height: 720 },
 ];
 
+/** Every size with and without Aa: no page scroll, and the card, map, footer and run line in view. */
+async function holdsAtEverySize(page: Page, card: ReturnType<Page['getByRole']> | null) {
+  const aa = page.getByRole('button', { name: 'Larger text for a projector' });
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    for (const large of [false, true]) {
+      await expect(aa).toHaveAttribute('aria-pressed', String(large));
+
+      const size = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        scrollHeight: document.documentElement.scrollHeight,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        baseFont: getComputedStyle(document.body).fontSize,
+        rootFont: getComputedStyle(document.documentElement).fontSize,
+      }));
+      expect(size.scrollWidth).toBeLessThanOrEqual(size.innerWidth);
+      expect(size.scrollHeight).toBeLessThanOrEqual(size.innerHeight);
+      expect(size.rootFont).toBe(large ? '20.8px' : '16px');
+      expect(size.baseFont).toBe(large ? '16.9px' : '13px');
+      // The body does not scroll, so clipped content would not show in the sizes above.
+      await expect(page.getByRole('contentinfo')).toBeInViewport({ ratio: 1 });
+      await expect(page.getByText('No run in progress')).toBeInViewport({ ratio: 1 });
+      await expect(aa).toBeInViewport({ ratio: 1 });
+      // The map pane is part of the held view (the e2e stack has no basemap file: ground colour).
+      await expect(page.getByRole('region', { name: 'Map' })).toBeInViewport({ ratio: 1 });
+      if (card !== null) await expect(card).toBeInViewport();
+      await aa.click();
+    }
+  }
+}
+
 test.describe('Lab', () => {
   test('Lab · every built view holds at 1440, 1280 and 1280 × 720 with Aa', async ({ page }) => {
     await page.goto('/');
-    const aa = page.getByRole('button', { name: 'Larger text for a projector' });
+    await expect(page.getByRole('main')).toBeVisible();
 
-    for (const viewport of viewports) {
-      await page.setViewportSize(viewport);
-      for (const large of [false, true]) {
-        await expect(aa).toHaveAttribute('aria-pressed', String(large));
+    await holdsAtEverySize(page, null);
+  });
 
-        const size = await page.evaluate(() => ({
-          scrollWidth: document.documentElement.scrollWidth,
-          scrollHeight: document.documentElement.scrollHeight,
-          innerWidth: window.innerWidth,
-          innerHeight: window.innerHeight,
-          baseFont: getComputedStyle(document.body).fontSize,
-          rootFont: getComputedStyle(document.documentElement).fontSize,
-        }));
-        expect(size.scrollWidth).toBeLessThanOrEqual(size.innerWidth);
-        expect(size.scrollHeight).toBeLessThanOrEqual(size.innerHeight);
-        expect(size.rootFont).toBe(large ? '20.8px' : '16px');
-        expect(size.baseFont).toBe(large ? '16.9px' : '13px');
-        // The body does not scroll, so clipped content would not show in the sizes above.
-        await expect(page.getByRole('contentinfo')).toBeInViewport({ ratio: 1 });
-        await expect(page.getByText('No run in progress')).toBeInViewport({ ratio: 1 });
-        await expect(aa).toBeInViewport({ ratio: 1 });
-        // The map pane is part of the held view (the e2e stack has no basemap file: ground colour).
-        await expect(page.getByRole('region', { name: 'Map' })).toBeInViewport({ ratio: 1 });
-        await aa.click();
-      }
-    }
+  test('Lab · L-1 saved holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control);
+    await page.goto(`/#/lab/${version}`);
+    await expect(page.getByText('City instance · pipeline steps 1 to 4')).toBeVisible();
+
+    // The card is the scrolling region: it sits inside the viewport at every size.
+    await holdsAtEverySize(page, page.getByRole('main'));
   });
 
   test('Lab · under reduced motion the shell has no transition or animation time', async ({

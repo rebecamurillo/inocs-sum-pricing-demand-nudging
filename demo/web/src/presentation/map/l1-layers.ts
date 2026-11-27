@@ -24,6 +24,11 @@ export const L1_IDS = {
   hubPairs: 'l1-hub-pairs',
 } as const;
 
+/** The red of a hub pair without a route (`--red-ink` of the tokens). */
+export const UNROUTED_COLOUR = '#be280b';
+
+export const UNROUTED_ID = 'l1-unrouted-pairs';
+
 const collection = (features: readonly GeoJsonFeature[]) =>
   ({ type: 'FeatureCollection', features }) as const;
 
@@ -126,6 +131,44 @@ export function l1Layers({ centre, radiusM, stations, hubs, hubPairs }: L1Input)
           'circle-stroke-color': MAP_COLOURS.bikeRing,
           'circle-stroke-width': 1.5,
         },
+      },
+    ],
+  };
+}
+
+/**
+ * The hub pairs the trip planner found no route for, as one dotted red line layer on top of
+ * the L-1 layers. A pair that names a hub the instance does not have is left out.
+ */
+export function unroutedPairLayer(
+  pairs: readonly MapHubPair[],
+  hubs: readonly MapHub[],
+): MapDeclaration {
+  const centreOf = new Map(hubs.map((hub) => [hub.id, [hub.lon, hub.lat] as const]));
+  const lines: GeoJsonFeature[] = [];
+  for (const pair of pairs) {
+    const from = centreOf.get(pair.originHub);
+    const to = centreOf.get(pair.destinationHub);
+    if (from === undefined || to === undefined) continue;
+    lines.push({
+      type: 'Feature',
+      properties: { origin: pair.originHub, destination: pair.destinationHub },
+      geometry: { type: 'LineString', coordinates: [from, to] },
+    });
+  }
+  return {
+    sources: { [UNROUTED_ID]: { type: 'geojson', data: collection(lines) } },
+    layers: [
+      {
+        id: UNROUTED_ID,
+        type: 'line',
+        source: UNROUTED_ID,
+        paint: {
+          'line-color': UNROUTED_COLOUR,
+          'line-width': 2,
+          'line-dasharray': [0.5, 2],
+        },
+        layout: { 'line-cap': 'round' },
       },
     ],
   };
