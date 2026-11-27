@@ -43,4 +43,27 @@ describe('fakeTrips', () => {
     answer(null);
     expect((await gateway.quote('geneva-3km.v1.B', null, a, b)).status).toBe('priced');
   });
+
+  it('answers the stored options of a pair with each leg kind, and records the call', async () => {
+    const { gateway, routeCalls, busShapes } = fakeTrips();
+    const list = await gateway.routeOptions('geneva-3km.v1', 'mon-08', 'H4', 'H1');
+    expect(routeCalls).toEqual([
+      {
+        instanceVersionId: 'geneva-3km.v1',
+        period: 'mon-08',
+        originHubId: 'H4',
+        destinationHubId: 'H1',
+      },
+    ]);
+    expect(list.busShapes).toBe(true);
+    expect(list.items.map((item) => item.arcId).sort()).toEqual(['b1', 'b2', 'b3', 'c1', 'p1']);
+    const kinds = new Set(list.items.flatMap((item) => item.legs.map((l) => l.lineKind)));
+    expect(kinds).toEqual(new Set(['street_path', 'timetable_shape', 'straight_line']));
+    busShapes(false);
+    const noBus = await gateway.routeOptions('geneva-3km.v1', null, 'H4', 'H1');
+    expect(noBus.busShapes).toBe(false);
+    expect(
+      noBus.items.flatMap((item) => item.legs).some((l) => l.lineKind === 'timetable_shape'),
+    ).toBe(false);
+  });
 });

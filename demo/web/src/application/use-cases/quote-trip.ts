@@ -2,6 +2,7 @@ import type { GeoPoint } from '../../domain/map';
 import {
   finishedVersionChoices,
   type PlaceLine,
+  type RouteOptionList,
   type TripQuote,
   type VersionChoice,
 } from '../../domain/traveller';
@@ -20,6 +21,17 @@ export function quoteTrip(
 ): Promise<TripQuote | null> {
   if (from === null && to === null) return Promise.resolve(null);
   return trips.quote(pricingVersionId, period, from, to);
+}
+
+/** The stored options of a hub pair, for the route of the selected card. */
+export function loadRouteOptions(
+  { trips }: { trips: TripGateway },
+  instanceVersionId: string,
+  period: string | null,
+  originHubId: string,
+  destinationHubId: string,
+): Promise<RouteOptionList> {
+  return trips.routeOptions(instanceVersionId, period, originHubId, destinationHubId);
 }
 
 /** The place names that match what is typed; nothing before two characters. */

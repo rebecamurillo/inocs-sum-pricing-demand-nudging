@@ -1,5 +1,5 @@
 import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { circleBounds, type GeoPoint } from '../../domain/map';
+import { circleBounds, type GeoBounds, type GeoPoint } from '../../domain/map';
 import { travellerRoute, type LabRoute } from '../../domain/route';
 import {
   DAY_NAME,
@@ -21,6 +21,7 @@ import {
   timeSlots,
   type PlaceLine,
   type PointField,
+  type QuotedMode,
   type ShownQuote,
   type VersionChoice,
 } from '../../domain/traveller';
@@ -32,10 +33,25 @@ import {
   otherBikeOptions,
   quoteHeading,
 } from '../../domain/trip-options';
+import {
+  ROUTE_STYLES,
+  defaultCard,
+  routeBounds,
+  routeLegendKinds,
+  straightLegsSentence,
+} from '../../domain/trip-route';
 import { OptionCard } from './OptionCard';
 import { useInstanceGeometry, useInstanceView } from '../hooks/useCityInstances';
-import { tripKey, usePlaceNames, useTripQuote } from '../hooks/useTrips';
-import { useMapClick, useMapFit, useMapLayers } from '../map/MapContext';
+import { tripKey, usePlaceNames, useRouteOptions, useTripQuote } from '../hooks/useTrips';
+import {
+  useMapClick,
+  useMapFit,
+  useMapLayers,
+  useMapLegend,
+  useMapPins,
+  type LegendEntry,
+  type MapPin,
+} from '../map/MapContext';
 import { l5Layers } from '../map/l5-layers';
 import styles from './TravellerView.module.css';
 
@@ -48,6 +64,8 @@ interface TravellerViewProps {
   readonly period: string | null;
   readonly onNavigate: (route: LabRoute) => void;
 }
+
+const ROUTE_FIT_PADDING = 40;
 
 interface Typing {
   readonly field: PointField;
@@ -81,30 +99,13 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
   const centreLat = parameters?.centerLat;
   const centreLon = parameters?.centerLon;
   const radiusM = parameters?.radiusM;
-  const declaration = useMemo(
-    () =>
-      geometry === undefined ||
-      centreLat === undefined ||
-      centreLon === undefined ||
-      radiusM === undefined
-        ? null
-        : l5Layers({
-            centre: { lat: centreLat, lon: centreLon },
-            radiusM,
-            stations: geometry.stations,
-            hubs: geometry.hubs,
-          }),
-    [geometry, centreLat, centreLon, radiusM],
-  );
-  const bounds = useMemo(
+  const circle = useMemo(
     () =>
       centreLat === undefined || centreLon === undefined || radiusM === undefined
         ? null
-        : circleBounds({ lat: centreLat, lon: centreLon }, radiusM),
+        : { centre: { lat: centreLat, lon: centreLon }, radiusM },
     [centreLat, centreLon, radiusM],
   );
-  useMapLayers(declaration);
-  useMapFit(bounds);
 
   const setPoint = (field: PointField, point: GeoPoint) => {
     if (field === 'a') setA(point);
@@ -137,16 +138,98 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
           },
     [answer, placeholder, choice.id, choice.instanceVersionId, points],
   );
-  const [track, setTrack] = useState<{ shown: ShownQuote | null; previous: ShownQuote | null }>({
-    shown: null,
-    previous: null,
-  });
+  const [track, setTrack] = useState<{
+    shown: ShownQuote | null;
+    previous: ShownQuote | null;
+    /** The period the shown quote was read for. */
+    period: string | null;
+  }>({ shown: null, previous: null, period: null });
   if (shown !== null && track.shown !== shown) {
-    setTrack({ shown, previous: nextPrevious(track.shown, track.previous, shown) });
+    setTrack({
+      shown,
+      previous: nextPrevious(track.shown, track.previous, shown),
+      period: periodKey,
+    });
   }
   const quote = track.shown?.quote ?? null;
   const previousPrices = track.previous === null ? null : cardPrices(track.previous.quote);
   const priced = quote !== null && (quote.status === 'priced' || quote.status === 'no_bike_option');
+
+  // The selected card: the default one whenever a new quote shows, then the visitor's choice.
+  const [picked, setPicked] = useState<{ for: ShownQuote | null; mode: QuotedMode } | null>(null);
+  const selectedMode: QuotedMode | null =
+    picked !== null && picked.for === track.shown
+      ? picked.mode
+      : quote === null
+        ? null
+        : defaultCard(quote);
+  const selectedOption =
+    quote === null
+      ? undefined
+      : quote.options.find((item) => item.mode === selectedMode && item.mostTaken);
+  // The shown quote's own instance version and period: while the quote of a switched version or
+  // time slot loads, the previous quote's route is never asked with the new choice.
+  const routes = useRouteOptions(
+    track.shown?.instanceVersionId ?? choice.instanceVersionId,
+    track.period,
+    priced ? (quote.originHub?.hubId ?? null) : null,
+    priced ? (quote.destinationHub?.hubId ?? null) : null,
+  ).data;
+  const routeLegs = useMemo(
+    () =>
+      priced && selectedOption !== undefined
+        ? (routes?.items.find((item) => item.arcId === selectedOption.arcId)?.legs ?? null)
+        : null,
+    [priced, selectedOption, routes],
+  );
+  const busShapes = routes?.busShapes ?? true;
+
+  const fromHub = quote?.fromPoint?.hubId ?? null;
+  const toHub = quote?.toPoint?.hubId ?? null;
+  const declaration = useMemo(
+    () =>
+      geometry === undefined || circle === null
+        ? null
+        : l5Layers({
+            centre: circle.centre,
+            radiusM: circle.radiusM,
+            stations: geometry.stations,
+            hubs: geometry.hubs,
+            matchedHubIds: [fromHub, toHub].filter((id): id is string => id !== null),
+            route: routeLegs === null ? null : { legs: routeLegs },
+          }),
+    [geometry, circle, fromHub, toHub, routeLegs],
+  );
+  const bounds = useMemo<GeoBounds | null>(() => {
+    if (routeLegs !== null) {
+      const pins = [a, b].filter((point): point is GeoPoint => point !== null);
+      const around = routeBounds(routeLegs, pins);
+      if (around !== null) return around;
+    }
+    return circle === null ? null : circleBounds(circle.centre, circle.radiusM);
+  }, [routeLegs, a, b, circle]);
+  useMapLayers(declaration);
+  useMapFit(bounds, routeLegs === null ? undefined : ROUTE_FIT_PADDING);
+  const pins = useMemo<MapPin[]>(
+    () => [
+      ...(a === null ? [] : [{ point: a, label: 'Point A', text: 'A', colour: '#2e2d29' }]),
+      ...(b === null ? [] : [{ point: b, label: 'Point B', text: 'B', colour: '#004494' }]),
+    ],
+    [a, b],
+  );
+  useMapPins(pins);
+  const legend = useMemo<LegendEntry[]>(
+    () =>
+      routeLegs === null
+        ? []
+        : routeLegendKinds(routeLegs).map((kind) => ({
+            label: ROUTE_STYLES[kind].label,
+            colour: ROUTE_STYLES[kind].colour,
+            dash: ROUTE_STYLES[kind].dash,
+          })),
+    [routeLegs],
+  );
+  useMapLegend(legend, routeLegs === null ? null : straightLegsSentence(busShapes));
 
   const names = usePlaceNames(choice.instanceVersionId, typing?.text ?? '');
   const lines: readonly PlaceLine[] =
@@ -402,6 +485,10 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
                   option={option}
                   others={card.mode === 'pt_bike' ? otherBikeOptions(quote) : []}
                   before={previousPrices?.get(card.mode)}
+                  selected={card.mode === selectedMode}
+                  onSelect={() => {
+                    setPicked({ for: track.shown, mode: card.mode });
+                  }}
                 />,
               ];
             })}

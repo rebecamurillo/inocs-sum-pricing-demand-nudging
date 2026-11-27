@@ -829,8 +829,19 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   formatted by `domain/trip-options.ts` from the quote's own fields (no number is computed in the
   view), which also words the no-price messages (same hub, outside the zone, under the minimum
   distance, removed by the check, no route; the missing bike or car option shows its message in
-  its card's place). The view reads stored data only and shows no component banner. The legs list
-  and the drawn route are story 5-4's.
+  its card's place). The view reads stored data only and shows no component banner. The head of
+  each card is a toggle button (`aria-pressed`): the PT + bike card is pressed when a quote shows
+  (`defaultCard` of `domain/trip-route.ts`; the PT card without a bike option), and the pressed
+  card lists its legs, one line each (`legLine`). The pressed option's route comes from
+  `TripGateway.routeOptions` (`/route-options`, `useRouteOptions`, the item with the option's
+  `arcId`); `l5-layers.ts` draws one line layer per leg kind present (`ROUTE_STYLES`: car, public
+  transport, shared-bike dashed, walking dotted; geometry as stored, so street paths, timetable
+  shapes and straight stop-to-stop lines), and the outlines of the two matched hubs solid above the
+  dashed ones. The pins A and B are markers (`useMapPins`) at the points, and the legend lists the
+  leg kinds present with the sentence on straight tram and train legs (`useMapLegend(entries,
+  note)`, `LegendEntry.dash`, `straightLegsSentence(busShapes)`). The map fits the route and the
+  pins with 40 px padding (`useMapFit(bounds, padding)`; a jump under reduced motion, through
+  `MapPane`'s one rule).
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

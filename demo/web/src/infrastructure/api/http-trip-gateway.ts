@@ -6,6 +6,8 @@ import type {
   QuotedHub,
   QuotedOption,
   QuotedPoint,
+  RouteOption,
+  RouteOptionList,
   TripQuote,
 } from '../../domain/traveller';
 import type { components } from './generated/schema';
@@ -68,6 +70,26 @@ function toQuote(wire: Schemas['TripQuoteResponse']): TripQuote {
   };
 }
 
+function toRouteOption(item: Schemas['RouteOptionItem']): RouteOption {
+  return {
+    arcId: item.arc_id,
+    mode: item.mode,
+    legs: item.legs.map((leg) => ({
+      mode: leg.mode,
+      line: leg.line,
+      fromPlace: leg.from_name,
+      toPlace: leg.to_name,
+      durationS: leg.duration_s.value,
+      lineKind: leg.line_kind,
+      coordinates:
+        leg.geometry?.coordinates.map((position): [number, number] => [
+          position[0] ?? 0,
+          position[1] ?? 0,
+        ]) ?? null,
+    })),
+  };
+}
+
 function unexpected(status: number, body: unknown, path: string): ApiProblemError {
   const problem = body as Partial<Schemas['ProblemDetails']> | null;
   if (
@@ -127,6 +149,24 @@ export class HttpTripGateway implements TripGateway {
       `${apiRoot}/trip-quotes?${query.toString().replaceAll('%2C', ',')}`,
     );
     return toQuote(body);
+  }
+
+  async routeOptions(
+    instanceVersionId: string,
+    period: string | null,
+    originHubId: string,
+    destinationHubId: string,
+  ): Promise<RouteOptionList> {
+    const query = new URLSearchParams({
+      instance_version: instanceVersionId,
+      origin_hub: originHubId,
+      destination_hub: destinationHubId,
+    });
+    if (period !== null) query.set('period', period);
+    const body = await this.read<Schemas['RouteOptionList']>(
+      `${apiRoot}/route-options?${query.toString()}`,
+    );
+    return { busShapes: body.bus_shapes, items: body.items.map(toRouteOption) };
   }
 
   private async read<T>(path: string): Promise<T> {

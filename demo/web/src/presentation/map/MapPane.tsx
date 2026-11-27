@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { circleBounds } from '../../domain/map';
 import { useMapBasis } from '../hooks/useMapBasis';
 import { basemapStyle } from './basemap-style';
 import { useMapFactory, useMapPaneContext } from './MapContext';
-import type { MapHandle } from './map-factory';
+import type { CameraOptions, MapHandle } from './map-factory';
 import styles from './MapPane.module.css';
 
 const REDUCED_MOTION = '(prefers-reduced-motion: reduce)';
@@ -19,7 +19,8 @@ interface MapPaneProps {
 /** The one map of the Lab: created once, resized and refitted, never re-created. */
 export function MapPane({ shown, datasetId }: MapPaneProps) {
   const factory = useMapFactory();
-  const { ready, fitTarget, legend, panel, attach, restyling } = useMapPaneContext();
+  const { ready, fitTarget, fitPadding, legend, legendNote, panel, attach, restyling } =
+    useMapPaneContext();
   const basis = useMapBasis(datasetId).data ?? null;
   const paneRef = useRef<HTMLElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,10 +32,15 @@ export function MapPane({ shown, datasetId }: MapPaneProps) {
     [basis],
   );
   const target = fitTarget ?? presetBounds;
-  const targetRef = useRef(target);
+  const camera = useCallback(
+    (animate: boolean): CameraOptions =>
+      fitPadding === undefined ? { animate } : { animate, padding: fitPadding },
+    [fitPadding],
+  );
+  const targetRef = useRef({ target, camera });
   useEffect(() => {
-    targetRef.current = target;
-  }, [target]);
+    targetRef.current = { target, camera };
+  }, [target, camera]);
   const basemapUrl = basis?.basemapUrl ?? null;
 
   // The map exists for the pane's lifetime. Under reduced motion it does not fade and jumps.
@@ -69,8 +75,8 @@ export function MapPane({ shown, datasetId }: MapPaneProps) {
   useEffect(() => {
     if (ready === null || target === null) return;
     const reduced = window.matchMedia(REDUCED_MOTION).matches;
-    ready.handle.fitBounds(target, { animate: !reduced });
-  }, [ready, target]);
+    ready.handle.fitBounds(target, camera(!reduced));
+  }, [ready, target, camera]);
 
   // A pane that changes width or is shown again has a new size: tell the map, refit.
   useEffect(() => {
@@ -80,10 +86,10 @@ export function MapPane({ shown, datasetId }: MapPaneProps) {
       const handle = handleRef.current;
       if (handle === null) return;
       handle.resize();
-      const current = targetRef.current;
+      const { target: current, camera: options } = targetRef.current;
       if (current !== null) {
         const reduced = window.matchMedia(REDUCED_MOTION).matches;
-        handle.fitBounds(current, { animate: !reduced });
+        handle.fitBounds(current, options(!reduced));
       }
     });
     observer.observe(pane);
@@ -96,14 +102,18 @@ export function MapPane({ shown, datasetId }: MapPaneProps) {
     <section ref={paneRef} className={styles.pane} aria-label="Map" hidden={!shown}>
       <div ref={containerRef} className={styles.canvas} />
       {panel !== null && <div className={styles.panel}>{panel}</div>}
-      {legend.length > 0 && (
+      {(legend.length > 0 || legendNote !== null) && (
         <ul className={styles.legend} aria-label="Map legend">
           {legend.map((entry) => (
             <li key={entry.label}>
-              <span className={styles.swatch} style={{ borderTopColor: entry.colour }} />
+              <span
+                className={[styles.swatch, styles[entry.dash ?? 'dotted']].join(' ')}
+                style={{ borderTopColor: entry.colour }}
+              />
               {entry.label}
             </li>
           ))}
+          {legendNote !== null && <li className={styles.note}>{legendNote}</li>}
         </ul>
       )}
     </section>

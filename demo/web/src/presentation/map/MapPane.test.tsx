@@ -1,6 +1,6 @@
 import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
 import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
@@ -13,6 +13,7 @@ import {
   MapFactoryProvider,
   MapProvider,
   useMapLayers,
+  useMapFit,
   useMapLegend,
   useMapPanel,
 } from './MapContext';
@@ -263,6 +264,78 @@ describe('MapPane', () => {
 
     view.rerender(tree(false));
     expect(screen.queryByRole('list', { name: 'Map legend' })).not.toBeInTheDocument();
+  });
+
+  it('passes the fit padding to every fit, the resize refit included', async () => {
+    const bounds = [6.1, 46.1, 6.2, 46.2] as const;
+    function View() {
+      useMapFit(bounds, 40);
+      return null;
+    }
+    const { factory, maps } = fakeMapFactory();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <GatewaysProvider gateways={gatewaysFor([], false)}>
+          <MapFactoryProvider factory={factory}>
+            <MapProvider>
+              <MapPane shown datasetId={null} />
+              <View />
+            </MapProvider>
+          </MapFactoryProvider>
+        </GatewaysProvider>
+      </QueryClientProvider>,
+    );
+    act(() => {
+      maps[0]?.emitStyleReady();
+    });
+    await waitFor(() => {
+      expect(maps[0]?.fits.at(-1)).toEqual({ bounds, animate: true, padding: 40 });
+    });
+
+    act(() => {
+      stubs.observers[0]?.callback();
+    });
+
+    expect(maps[0]?.fits.at(-1)).toEqual({ bounds, animate: true, padding: 40 });
+    expect(maps[0]?.fits.every((move) => move.padding === 40)).toBe(true);
+  });
+
+  it('draws each swatch in its line style and the note as a last item of the legend', () => {
+    const entries = [
+      { label: 'Car', colour: '#eb6834', dash: 'solid' as const },
+      { label: 'Shared-bike leg', colour: '#008300', dash: 'dashed' as const },
+      { label: 'Study circle', colour: '#2e2d29' },
+    ];
+    function View() {
+      useMapLegend(entries, 'Tram and train legs: straight lines between stops.');
+      return null;
+    }
+    const { factory } = fakeMapFactory();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <GatewaysProvider gateways={gatewaysFor([], false)}>
+          <MapFactoryProvider factory={factory}>
+            <MapProvider>
+              <MapPane shown datasetId={null} />
+              <View />
+            </MapProvider>
+          </MapFactoryProvider>
+        </GatewaysProvider>
+      </QueryClientProvider>,
+    );
+
+    const items = within(screen.getByRole('list', { name: 'Map legend' })).getAllByRole('listitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      'Car',
+      'Shared-bike leg',
+      'Study circle',
+      'Tram and train legs: straight lines between stops.',
+    ]);
+    const swatch = (at: number) => items[at]?.querySelector('span')?.className ?? '';
+    expect(swatch(0)).toContain('solid');
+    expect(swatch(1)).toContain('dashed');
+    expect(swatch(2)).toContain('dotted');
+    expect(items[3]?.querySelector('span')).toBeNull();
   });
 
   it('removes the map and stops observing when it unmounts', () => {

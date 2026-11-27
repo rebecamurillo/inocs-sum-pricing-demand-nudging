@@ -418,6 +418,15 @@ test.describe('Lab', () => {
     ).toHaveAttribute('aria-expanded', 'true');
     await holdsAtEverySize(page, main);
 
+    // Route drawn: the PT + bike card is pressed, its legs are listed and the legend shows.
+    const bikeCard = main.getByTestId('card-pt_bike');
+    await expect(bikeCard.getByRole('button', { pressed: true })).toBeVisible();
+    await expect(bikeCard.getByRole('list', { name: 'Legs' })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Map legend' })).toContainText(
+      'straight lines between stops.',
+    );
+    await holdsAtEverySize(page, main);
+
     // No price: two stops of one hub.
     const [sameA, sameB] = await sameHubPair(request, version);
     await fieldA.fill(sameA.name);

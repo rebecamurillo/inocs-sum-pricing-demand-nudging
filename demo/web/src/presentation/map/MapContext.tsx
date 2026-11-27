@@ -40,20 +40,25 @@ interface ReadyMap {
 export interface LegendEntry {
   readonly label: string;
   readonly colour: string;
+  /** The swatch's line style; dotted when absent. */
+  readonly dash?: 'solid' | 'dashed' | 'dotted';
 }
 
 interface MapContextValue {
   readonly ready: ReadyMap | null;
   readonly fitTarget: GeoBounds | null;
+  /** Pixels around the fit target; the map's default when undefined. */
+  readonly fitPadding: number | undefined;
   readonly legend: readonly LegendEntry[];
-  readonly setLegend: (entries: readonly LegendEntry[]) => void;
+  readonly legendNote: string | null;
+  readonly setLegend: (entries: readonly LegendEntry[], note: string | null) => void;
   /** A view's own controls and legend over the map (L-3's "Map shows" and its legend). */
   readonly panel: ReactNode | null;
   readonly setPanel: (panel: ReactNode | null) => void;
   readonly attach: (handle: MapHandle | null) => void;
   /** Call before `setStyle`: until the new style loads, views must not add to the map. */
   readonly restyling: () => void;
-  readonly setFitTarget: (bounds: GeoBounds | null) => void;
+  readonly setFitTarget: (bounds: GeoBounds | null, padding?: number) => void;
 }
 
 const MapContext = createContext<MapContextValue | null>(null);
@@ -71,8 +76,14 @@ function useMapContext(): MapContextValue {
 export function MapProvider({ children }: { children: ReactNode }) {
   const [handle, setHandle] = useState<MapHandle | null>(null);
   const [ready, setReady] = useState<ReadyMap | null>(null);
-  const [fitTarget, setFitTarget] = useState<GeoBounds | null>(null);
-  const [legend, setLegend] = useState<readonly LegendEntry[]>([]);
+  const [fit, setFit] = useState<{ bounds: GeoBounds | null; padding: number | undefined }>({
+    bounds: null,
+    padding: undefined,
+  });
+  const [legendState, setLegendState] = useState<{
+    entries: readonly LegendEntry[];
+    note: string | null;
+  }>({ entries: [], note: null });
   const [panel, setPanel] = useState<ReactNode | null>(null);
 
   useEffect(() => {
@@ -95,11 +106,20 @@ export function MapProvider({ children }: { children: ReactNode }) {
     setReady(null);
   }, []);
 
+  const setFitTarget = useCallback((bounds: GeoBounds | null, padding?: number) => {
+    setFit({ bounds, padding });
+  }, []);
+  const setLegend = useCallback((entries: readonly LegendEntry[], note: string | null) => {
+    setLegendState({ entries, note });
+  }, []);
+
   const value = useMemo(
     () => ({
       ready,
-      fitTarget,
-      legend,
+      fitTarget: fit.bounds,
+      fitPadding: fit.padding,
+      legend: legendState.entries,
+      legendNote: legendState.note,
       setLegend,
       panel,
       setPanel,
@@ -107,7 +127,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
       restyling,
       setFitTarget,
     }),
-    [ready, fitTarget, legend, panel, attach, restyling],
+    [ready, fit, legendState, setLegend, setFitTarget, panel, attach, restyling],
   );
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>;
 }
@@ -158,25 +178,55 @@ export function useMapClick(handler: (point: GeoPoint) => void): void {
 }
 
 /** Where the map looks (a study circle's bounds); null leaves the default. */
-export function useMapFit(bounds: GeoBounds | null): void {
+export function useMapFit(bounds: GeoBounds | null, padding?: number): void {
   const { setFitTarget } = useMapContext();
   useEffect(() => {
-    setFitTarget(bounds);
+    setFitTarget(bounds, padding);
     return () => {
       setFitTarget(null);
     };
-  }, [bounds, setFitTarget]);
+  }, [bounds, padding, setFitTarget]);
 }
 
 /** The legend entries a view shows over the map. Pass a memoised array; they go with the view. */
-export function useMapLegend(entries: readonly LegendEntry[]): void {
+export function useMapLegend(entries: readonly LegendEntry[], note: string | null = null): void {
   const { setLegend } = useMapContext();
   useEffect(() => {
-    setLegend(entries);
+    setLegend(entries, note);
     return () => {
-      setLegend([]);
+      setLegend([], null);
     };
-  }, [entries, setLegend]);
+  }, [entries, note, setLegend]);
+}
+
+/** A pin the view stands on the map: a lettered disc named `label`. */
+export interface MapPin {
+  readonly point: GeoPoint;
+  readonly label: string;
+  readonly text: string;
+  readonly colour: string;
+}
+
+/**
+ * Non-draggable lettered markers while the map is ready. Pass a memoised array; the markers are
+ * replaced when it changes and removed with the view.
+ */
+export function useMapPins(pins: readonly MapPin[]): void {
+  const { ready } = useMapContext();
+  useEffect(() => {
+    if (ready === null) return undefined;
+    const markers = pins.map((pin) =>
+      ready.handle.addMarker(pin.point, {
+        draggable: false,
+        label: pin.label,
+        text: pin.text,
+        colour: pin.colour,
+      }),
+    );
+    return () => {
+      for (const marker of markers) marker.remove();
+    };
+  }, [ready, pins]);
 }
 
 /** A panel of the view's own over the map. Pass a memoised node; it goes with the view. */

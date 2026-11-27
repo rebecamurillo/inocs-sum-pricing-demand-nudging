@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import {
+  loadRouteOptions,
   loadTravellerChoices,
   quoteTrip,
   searchPlaces,
@@ -74,6 +75,29 @@ export function useTripQuote(
     queryFn: () => quoteTrip({ trips }, pricingVersionId, period, a, b),
     enabled: a !== null || b !== null,
     placeholderData: keepPreviousData,
+    retry: false,
+  });
+}
+
+/** The stored options of a hub pair, for the route of the selected card. */
+export function useRouteOptions(
+  instanceVersionId: string,
+  period: string | null,
+  originHubId: string | null,
+  destinationHubId: string | null,
+) {
+  const { trips } = useGateways();
+  return useQuery({
+    queryKey: ['route-options', instanceVersionId, period ?? '-', originHubId, destinationHubId],
+    queryFn: () =>
+      loadRouteOptions(
+        { trips },
+        instanceVersionId,
+        period,
+        originHubId ?? '',
+        destinationHubId ?? '',
+      ),
+    enabled: originHubId !== null && destinationHubId !== null,
     retry: false,
   });
 }

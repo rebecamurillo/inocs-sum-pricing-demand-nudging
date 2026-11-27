@@ -1,5 +1,5 @@
 import type { GeoPoint } from '../../domain/map';
-import type { PlaceLine, TripQuote } from '../../domain/traveller';
+import type { PlaceLine, RouteOptionList, TripQuote } from '../../domain/traveller';
 
 export interface TripGateway {
   /** The stop and bike-station names of an instance version that match `text`, at most 10. */
@@ -14,4 +14,11 @@ export interface TripGateway {
     from: GeoPoint | null,
     to: GeoPoint | null,
   ): Promise<TripQuote>;
+  /** The stored options of one hub pair with their legs and geometry. */
+  routeOptions(
+    instanceVersionId: string,
+    period: string | null,
+    originHubId: string,
+    destinationHubId: string,
+  ): Promise<RouteOptionList>;
 }

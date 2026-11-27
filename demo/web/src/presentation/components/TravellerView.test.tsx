@@ -12,6 +12,7 @@ import {
   type FakeTrips,
 } from '../../application/ports/fake-trip-gateway';
 import type { Gateways } from '../../application/ports/gateways';
+import type { MapHub } from '../../domain/map';
 import type { LabRoute } from '../../domain/route';
 import { finishedVersionChoices, type TripQuote, type VersionChoice } from '../../domain/traveller';
 import type { PricingVersion } from '../../domain/pricing-version';
@@ -115,7 +116,11 @@ afterEach(() => {
   stubs.restore();
 });
 
-function mount(initialLetter = 'B', answer: Partial<TripQuote> | null = null) {
+function mount(
+  initialLetter = 'B',
+  answer: Partial<TripQuote> | null = null,
+  hubs: MapHub[] | null = null,
+) {
   const trips: FakeTrips = fakeTrips();
   trips.answer(answer);
   const gateways: Gateways = {
@@ -123,7 +128,13 @@ function mount(initialLetter = 'B', answer: Partial<TripQuote> | null = null) {
     layoutPreferences: { load: () => ({}) as never, save: () => undefined },
     cityDatasets: { list: () => Promise.resolve([]) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
-    cityInstances: fakeCityInstances(),
+    cityInstances:
+      hubs === null
+        ? fakeCityInstances()
+        : {
+            ...fakeCityInstances(),
+            hubs: () => Promise.resolve(hubs.map((hub) => ({ ...hub, label: `Hub ${hub.id}` }))),
+          },
     runs: fakeRunGateway(),
     pricing: fakePricingGateway(),
     trips: trips.gateway,
@@ -162,6 +173,10 @@ function mount(initialLetter = 'B', answer: Partial<TripQuote> | null = null) {
 const fakeTripsOptions = () => sampleOptions('geneva-3km.v1.B');
 const pointA = () => screen.getByRole('combobox', { name: 'Point A' });
 const pointB = () => screen.getByRole('combobox', { name: 'Point B' });
+const present = <T extends HTMLElement>(element: T | null): T => {
+  if (element === null) throw new Error('element not found');
+  return element;
+};
 const card = (label: string) => screen.getByText(label, { selector: 'span' }).closest('li');
 
 describe('TravellerView · the three rows', () => {
@@ -485,7 +500,10 @@ describe('TravellerView · the options of a trip', () => {
     await user.click(button);
 
     expect(button).toHaveAttribute('aria-expanded', 'true');
-    const lines = within(card('Public transport + shared bike') as HTMLElement)
+    // The leg list of the selected card is a list of its own; this one is the button's.
+    const lines = within(
+      present(document.getElementById(button.getAttribute('aria-controls') ?? '')),
+    )
       .getAllByRole('listitem')
       .map((item) => item.textContent);
     expect(lines).toEqual([
@@ -670,5 +688,296 @@ describe('TravellerView · the no-price messages', () => {
       expect(pointA()).toHaveValue('hub H4 · Plainpalais');
     });
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+});
+
+describe('TravellerView · the route of the selected option', () => {
+  const OUTLINE: [number, number][] = [
+    [6.13, 46.19],
+    [6.15, 46.19],
+    [6.15, 46.21],
+    [6.13, 46.19],
+  ];
+  const hubs: MapHub[] = [
+    { id: 'H4', lat: 46.199, lon: 6.14, outline: OUTLINE },
+    { id: 'H1', lat: 46.2102, lon: 6.1424, outline: OUTLINE },
+    { id: 'H9', lat: 46.22, lon: 6.16, outline: OUTLINE },
+  ];
+  function priced(answer: Partial<TripQuote> | null = null, a = PLAINPALAIS, b = CORNAVIN) {
+    const rig = mount('B', answer, hubs);
+    act(() => {
+      rig.map.click(a);
+    });
+    act(() => {
+      rig.map.click(b);
+    });
+    return rig;
+  }
+  const toggle = (label: string) =>
+    present(within(present(card(label))).getAllByRole('button')[0] ?? null);
+  const legsOf = (label: string) =>
+    within(present(card(label)))
+      .queryAllByRole('listitem')
+      .filter((item) => item.closest('ol') !== null)
+      .map((item) => item.textContent);
+  const features = (map: ReturnType<typeof mount>['map'], id: string) => {
+    const source = map.sources.get(id);
+    if (source?.type !== 'geojson') return [];
+    return source.data.features;
+  };
+  const BIKE_CARD = 'Public transport + shared bike';
+
+  it('presses the PT + bike card first and lists its legs, the others show none', async () => {
+    priced();
+    await screen.findByText('Monday 08:00–09:00 · Version B');
+
+    expect(toggle(BIKE_CARD)).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle('Public transport')).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle('Car')).toHaveAttribute('aria-pressed', 'false');
+    expect(legsOf(BIKE_CARD)).toEqual([
+      'Walk · 2 min',
+      'Tram 12 · Plainpalais → Rive · 12 min',
+      'Shared bike · Rive → Cornavin · 4 min',
+    ]);
+    expect(legsOf('Public transport')).toEqual([]);
+    expect(legsOf('Car')).toEqual([]);
+  });
+
+  it('presses the PT card first when the quote has no bike option', async () => {
+    priced({
+      status: 'no_bike_option',
+      options: sampleOptions('geneva-3km.v1.B').filter((option) => option.mode !== 'pt_bike'),
+    });
+    await screen.findByText('Monday 08:00–09:00 · Version B');
+
+    expect(toggle('Public transport')).toHaveAttribute('aria-pressed', 'true');
+    expect(legsOf('Public transport')).toEqual(['Tram 12 · Plainpalais → Cornavin · 25 min']);
+  });
+
+  it('moves the selection and the leg list on a click, and on Enter and Space', async () => {
+    const { user } = priced();
+    await screen.findByText('Monday 08:00–09:00 · Version B');
+
+    await user.click(toggle('Car'));
+    expect(toggle('Car')).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle(BIKE_CARD)).toHaveAttribute('aria-pressed', 'false');
+    expect(legsOf('Car')).toEqual(['Car · 9 min']);
+    expect(legsOf(BIKE_CARD)).toEqual([]);
+
+    toggle('Public transport').focus();
+    await user.keyboard('{Enter}');
+    expect(toggle('Public transport')).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle('Car')).toHaveAttribute('aria-pressed', 'false');
+
+    toggle(BIKE_CARD).focus();
+    await user.keyboard(' ');
+    expect(toggle(BIKE_CARD)).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle('Public transport')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('presses the default card again when a new trip shows', async () => {
+    const { user, map } = priced();
+    await screen.findByText('Monday 08:00–09:00 · Version B');
+    await user.click(toggle('Car'));
+
+    act(() => {
+      map.click({ lat: 46.2105, lon: 6.1424 });
+    });
+    await waitFor(() => {
+      expect(toggle(BIKE_CARD)).toHaveAttribute('aria-pressed', 'true');
+    });
+  });
+
+  it('asks for the route options of the hub pair and period', async () => {
+    const { trips } = priced();
+    await screen.findByText('Monday 08:00–09:00 · Version B');
+
+    await waitFor(() => {
+      expect(trips.routeCalls).toEqual([
+        {
+          instanceVersionId: 'geneva-3km.v1',
+          period: 'mon-08',
+          originHubId: 'H4',
+          destinationHubId: 'H1',
+        },
+      ]);
+    });
+  });
+
+  it('asks the route options of the shown quote’s instance version while a switched one loads', async () => {
+    const { trips, user } = priced();
+    await waitFor(() => {
+      expect(trips.routeCalls).toHaveLength(1);
+    });
+    const quote = trips.gateway.quote.bind(trips.gateway);
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    trips.gateway.quote = async (...args) => {
+      await held;
+      return quote(...args);
+    };
+
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Pricing version' }),
+      'geneva-2km.v1.A',
+    );
+    await act(() => Promise.resolve());
+    expect(trips.routeCalls.map((call) => call.instanceVersionId)).toEqual(['geneva-3km.v1']);
+
+    act(() => {
+      release();
+    });
+    await waitFor(() => {
+      expect(trips.routeCalls.at(-1)?.instanceVersionId).toBe('geneva-2km.v1');
+    });
+  });
+
+  it('draws the selected option leg by leg in the leg-kind colours and styles', async () => {
+    const { map, user } = priced();
+    await waitFor(() => {
+      expect(map.layers.map((layer) => layer.id)).toContain('l5-route-bike');
+    });
+    const paint = (id: string) => map.layers.find((layer) => layer.id === id)?.paint;
+    expect(map.layers.map((layer) => layer.id).filter((id) => id.startsWith('l5-route'))).toEqual([
+      'l5-route-pt',
+      'l5-route-bike',
+      'l5-route-walk',
+    ]);
+    expect(paint('l5-route-pt')).toEqual({ 'line-color': '#2a78d6', 'line-width': 3 });
+    expect(paint('l5-route-bike')).toMatchObject({
+      'line-color': '#008300',
+      'line-dasharray': [2, 1],
+    });
+    expect(paint('l5-route-walk')).toMatchObject({
+      'line-color': '#5a6459',
+      'line-dasharray': [1, 1.5],
+    });
+    expect(features(map, 'l5-route-pt').map((f) => f.properties)).toEqual([
+      { lineKind: 'straight_line' },
+    ]);
+
+    await user.click(toggle('Car'));
+    await waitFor(() => {
+      expect(map.layers.map((layer) => layer.id)).toContain('l5-route-car');
+    });
+    expect(map.layers.map((layer) => layer.id)).not.toContain('l5-route-pt');
+    expect(paint('l5-route-car')).toEqual({ 'line-color': '#eb6834', 'line-width': 3 });
+  });
+
+  it('highlights the outlines of the two matched hubs only', async () => {
+    const { map } = priced();
+    await waitFor(() => {
+      expect(map.layers.map((layer) => layer.id)).toContain('l5-matched-outlines');
+    });
+
+    expect(features(map, 'l5-matched-outlines').map((f) => f.properties.id)).toEqual(['H4', 'H1']);
+    expect(features(map, 'l5-hub-outlines')).toHaveLength(3);
+  });
+
+  it('stands the pins A and B at the points, also for a point with no hub, and clears them', async () => {
+    const { map, user } = mount('B', null, hubs);
+    act(() => {
+      map.click(NOWHERE);
+    });
+    await waitFor(() => {
+      expect(map.markers.filter((m) => !m.removed)).toHaveLength(1);
+    });
+    act(() => {
+      map.click(CORNAVIN);
+    });
+    await waitFor(() => {
+      expect(map.markers.filter((m) => !m.removed)).toHaveLength(2);
+    });
+
+    const live = map.markers.filter((m) => !m.removed);
+    expect(
+      live.map((m) => [m.options.label, m.options.text, m.options.colour, m.options.draggable]),
+    ).toEqual([
+      ['Point A', 'A', '#2e2d29', false],
+      ['Point B', 'B', '#004494', false],
+    ]);
+    expect(live.map((m) => m.position)).toEqual([NOWHERE, CORNAVIN]);
+
+    await user.click(screen.getByRole('button', { name: 'Swap A and B' }));
+    await waitFor(() => {
+      expect(map.markers.filter((m) => !m.removed).map((m) => m.position)).toEqual([
+        CORNAVIN,
+        NOWHERE,
+      ]);
+    });
+  });
+
+  it('lists one legend key per leg kind of the option and the tram and train sentence', async () => {
+    const { user } = priced();
+    const legend = await screen.findByRole('list', { name: 'Map legend' });
+    await waitFor(() => {
+      expect(
+        within(legend)
+          .getAllByRole('listitem')
+          .map((item) => item.textContent),
+      ).toEqual([
+        'Public transport',
+        'Shared-bike leg',
+        'Walking leg',
+        'Tram and train legs: straight lines between stops.',
+      ]);
+    });
+
+    await user.click(toggle('Car'));
+    await waitFor(() => {
+      expect(
+        within(legend)
+          .getAllByRole('listitem')
+          .map((item) => item.textContent),
+      ).toEqual(['Car', 'Tram and train legs: straight lines between stops.']);
+    });
+  });
+
+  it('reads the tram, train and bus sentence when the data set has no bus shapes', async () => {
+    const rig = mount('B', null, hubs);
+    rig.trips.busShapes(false);
+    act(() => {
+      rig.map.click(PLAINPALAIS);
+    });
+    act(() => {
+      rig.map.click(CORNAVIN);
+    });
+
+    expect(
+      await screen.findByText('Tram, train and bus legs: straight lines between stops.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows no route legend before a route is drawn', async () => {
+    mount('B', null, hubs);
+    await waitFor(() => {
+      expect(screen.queryByRole('list', { name: 'Map legend' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('fits the route and the pins with 40 px padding, animated', async () => {
+    const { map } = priced();
+    await waitFor(() => {
+      expect(map.fits.at(-1)?.padding).toBe(40);
+    });
+
+    const last = map.fits.at(-1);
+    expect(last?.animate).toBe(true);
+    // West, south, east, north of the stored geometry and both pins.
+    expect(last?.bounds).toEqual([6.14, 46.199, 6.15, 46.2102]);
+  });
+
+  it('jumps to the route under reduced motion', async () => {
+    stubs.restore();
+    stubs = installBrowserStubs(true);
+    const { map } = priced();
+    await waitFor(() => {
+      expect(map.fits.at(-1)?.padding).toBe(40);
+    });
+
+    expect(map.fits.every((move) => !move.animate)).toBe(true);
+    expect(map.calls.some((call) => /easeTo|flyTo/.test(call))).toBe(false);
   });
 });

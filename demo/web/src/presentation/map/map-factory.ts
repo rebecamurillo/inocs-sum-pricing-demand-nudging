@@ -50,12 +50,18 @@ export interface MapDeclaration {
 export interface CameraOptions {
   /** False makes the camera jump. */
   readonly animate: boolean;
+  /** Pixels kept free around the bounds; the map's default when absent. */
+  readonly padding?: number;
 }
 
 export interface MarkerOptions {
   readonly draggable: boolean;
   /** The marker's accessible name. */
   readonly label: string;
+  /** A letter drawn in the marker (a pin's "A" or "B"). */
+  readonly text?: string;
+  /** The disc's colour; the ink colour when absent. */
+  readonly colour?: string;
   /** Called with the marker's position at every step of a drag. */
   readonly onDrag?: (position: GeoPoint) => void;
   /** Called with the marker's position when a drag ends. */

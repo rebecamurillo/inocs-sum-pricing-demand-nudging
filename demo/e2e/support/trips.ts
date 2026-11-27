@@ -10,10 +10,19 @@ export interface PlaceLine {
   lon: number;
 }
 
+interface QuotedLeg {
+  mode: string;
+  line: string | null;
+  from_name: string | null;
+  to_name: string | null;
+  duration_s: { value: number };
+}
+
 interface QuotedOption {
   mode: string;
   most_taken: boolean;
   price: { value: number };
+  legs: QuotedLeg[];
 }
 
 interface QuotedHub {
@@ -139,4 +148,40 @@ export async function sameHubPair(
     if (first !== undefined && second !== undefined) return [first, second];
   }
   throw new Error('no hub has two stops');
+}
+
+const TRANSIT_LABELS: Record<string, string> = { TRAM: 'Tram', BUS: 'Bus', RAIL: 'Train' };
+
+/** The leg line L-5 lists for a leg, written from the API's fields (UX: "Tram 12 · A → B · 5 min"). */
+function legLine(leg: QuotedLeg): string {
+  const minutes = `${String(Math.round(leg.duration_s.value / 60))} min`;
+  if (leg.mode === 'WALK' || leg.mode === 'FOOT') return `Walk · ${minutes}`;
+  if (leg.mode === 'CAR') return `Car · ${minutes}`;
+  const span =
+    leg.from_name !== null && leg.to_name !== null ? `${leg.from_name} → ${leg.to_name}` : null;
+  let head = 'Shared bike';
+  if (leg.mode !== 'BICYCLE') {
+    const lower = leg.mode.toLowerCase();
+    const label = TRANSIT_LABELS[leg.mode] ?? `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`;
+    head = leg.line === null ? label : `${label} ${leg.line}`;
+  }
+  return [head, span, minutes].filter((part) => part !== null).join(' · ');
+}
+
+/** The leg lines of the most taken option of a mode in the API's quote of two points. */
+export async function legLinesOf(
+  request: APIRequestContext,
+  pricingVersion: string,
+  from: PlaceLine,
+  to: PlaceLine,
+  mode: string,
+): Promise<string[]> {
+  const answer = await request.get('/api/v1/trip-quotes', {
+    params: { pricing_version: pricingVersion, from: pointOf(from), to: pointOf(to) },
+  });
+  expect(answer.status()).toBe(200);
+  const body = (await answer.json()) as { options: QuotedOption[] };
+  const option = body.options.find((item) => item.mode === mode && item.most_taken);
+  if (option === undefined) throw new Error(`the quote has no ${mode} option`);
+  return option.legs.map(legLine);
 }

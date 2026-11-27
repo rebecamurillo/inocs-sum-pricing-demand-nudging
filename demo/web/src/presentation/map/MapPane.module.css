@@ -45,6 +45,23 @@
   border-top: 2px dotted;
 }
 
+.solid {
+  border-top-style: solid;
+}
+
+.dashed {
+  border-top-style: dashed;
+}
+
+.dotted {
+  border-top-style: dotted;
+}
+
+.note {
+  display: block;
+  max-width: 22rem;
+}
+
 .panel {
   position: absolute;
   left: 0.75rem;

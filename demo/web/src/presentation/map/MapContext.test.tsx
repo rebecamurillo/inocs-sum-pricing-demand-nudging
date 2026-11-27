@@ -12,6 +12,8 @@ import {
   useMapHandles,
   useMapLayers,
   useMapPaneContext,
+  useMapPins,
+  type MapPin,
 } from './MapContext';
 import type { MapDeclaration } from './map-factory';
 
@@ -198,6 +200,61 @@ describe('useMapFit', () => {
     rerender({ on: false });
 
     expect(result.current.ctx.fitTarget).toBeNull();
+  });
+});
+
+describe('useMapFit padding', () => {
+  it('holds the padding with the target and drops both after', () => {
+    const { wrapper } = rig();
+    const bounds = [6, 46, 6.3, 46.4] as const;
+    const { result, rerender } = renderHook(
+      ({ on }) => {
+        const ctx = useMapPaneContext();
+        useMapFit(on ? bounds : null, 40);
+        return ctx;
+      },
+      { wrapper, initialProps: { on: true } },
+    );
+    expect(result.current.fitPadding).toBe(40);
+
+    rerender({ on: false });
+
+    expect(result.current.fitTarget).toBeNull();
+  });
+});
+
+describe('useMapPins', () => {
+  const pins: MapPin[] = [
+    { point: { lat: 46.2, lon: 6.14 }, label: 'Point A', text: 'A', colour: '#2e2d29' },
+    { point: { lat: 46.21, lon: 6.15 }, label: 'Point B', text: 'B', colour: '#004494' },
+  ];
+
+  it('stands non-draggable lettered markers on the ready map and removes them after', () => {
+    const { map, wrapper } = rig();
+    const { result, rerender } = renderHook(
+      ({ on }) => {
+        const ctx = useMapPaneContext();
+        const held = useMemo(() => (on ? pins : []), [on]);
+        useMapPins(held);
+        return ctx;
+      },
+      { wrapper, initialProps: { on: true } },
+    );
+    act(() => {
+      result.current.attach(map);
+      map.emitStyleReady();
+    });
+
+    expect(map.markers.map((m) => [m.options.label, m.options.text, m.options.colour])).toEqual([
+      ['Point A', 'A', '#2e2d29'],
+      ['Point B', 'B', '#004494'],
+    ]);
+    expect(map.markers.every((m) => !m.options.draggable)).toBe(true);
+    expect(map.markers[1]?.position).toEqual({ lat: 46.21, lon: 6.15 });
+
+    rerender({ on: false });
+
+    expect(map.markers.every((m) => m.removed)).toBe(true);
   });
 });
 

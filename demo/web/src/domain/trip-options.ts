@@ -54,7 +54,7 @@ export interface StripSegment {
   readonly colour: string;
 }
 
-function legKind(leg: RouteLegResult): StripSegment['kind'] {
+export function legKind(leg: RouteLegResult): StripSegment['kind'] {
   if (leg.mode === 'WALK' || leg.mode === 'FOOT') return 'walk';
   if (leg.mode === 'BICYCLE') return 'bike';
   if (leg.mode === 'CAR') return 'car';

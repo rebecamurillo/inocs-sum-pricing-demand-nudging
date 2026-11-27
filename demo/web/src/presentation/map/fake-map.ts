@@ -47,7 +47,7 @@ export class FakeMap implements MapHandle {
   readonly calls: string[] = [];
   readonly sources = new Map<string, MapSourceSpec>();
   readonly layers: MapLayerSpec[] = [];
-  readonly fits: { bounds: readonly number[]; animate: boolean }[] = [];
+  readonly fits: { bounds: readonly number[]; animate: boolean; padding?: number }[] = [];
   readonly styles: MapOptions['style'][] = [];
   readonly markers: FakeMarker[] = [];
   removed = false;
@@ -108,9 +108,13 @@ export class FakeMap implements MapHandle {
   resize(): void {
     this.calls.push('resize');
   }
-  fitBounds(bounds: readonly number[], options: { animate: boolean }): void {
+  fitBounds(bounds: readonly number[], options: { animate: boolean; padding?: number }): void {
     this.calls.push('fitBounds');
-    this.fits.push({ bounds, animate: options.animate });
+    this.fits.push({
+      bounds,
+      animate: options.animate,
+      ...(options.padding === undefined ? {} : { padding: options.padding }),
+    });
   }
   jumpTo(): void {
     this.calls.push('jumpTo');

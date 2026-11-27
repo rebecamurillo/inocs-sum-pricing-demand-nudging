@@ -235,3 +235,29 @@ export function nextPrevious(
   if (shownBefore.pricingVersionId === shown.pricingVersionId) return previous;
   return shownBefore.instanceVersionId === shown.instanceVersionId ? shownBefore : null;
 }
+
+export type RouteLineKind = 'street_path' | 'timetable_shape' | 'straight_line';
+
+/** One leg of a stored option, with the line the map draws for it. */
+export interface RouteOptionLeg {
+  readonly mode: string;
+  readonly line: string | null;
+  readonly fromPlace: string | null;
+  readonly toPlace: string | null;
+  readonly durationS: number;
+  readonly lineKind: RouteLineKind;
+  /** `[lon, lat]` positions; null when the leg has no stored geometry. */
+  readonly coordinates: readonly (readonly [number, number])[] | null;
+}
+
+export interface RouteOption {
+  readonly arcId: string;
+  readonly mode: QuotedMode;
+  readonly legs: readonly RouteOptionLeg[];
+}
+
+export interface RouteOptionList {
+  /** False when the city data set has no bus shapes. */
+  readonly busShapes: boolean;
+  readonly items: readonly RouteOption[];
+}

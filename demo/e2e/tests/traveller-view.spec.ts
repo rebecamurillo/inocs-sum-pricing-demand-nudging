@@ -1,7 +1,7 @@
 import { buildFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
 import { finishVersion } from '../support/pricing';
-import { pricedPair, quotedHubs, quoteOf, sameHubPair } from '../support/trips';
+import { legLinesOf, pricedPair, quotedHubs, quoteOf, sameHubPair } from '../support/trips';
 
 // Its own distance, so no other scenario's build finds this one's routes already computed.
 const TRAVELLER_DISTANCE_M = 915;
@@ -144,6 +144,17 @@ test.describe('Traveller view', () => {
       'Durations and legs are those of the hub pair: the walk from your point to the hub is not included.',
     ]);
     await expect(main.getByRole('alert')).toHaveCount(0);
+
+    // Selecting the PT card lists its legs and draws its route; the legend is read as text.
+    const ptCard = main.getByTestId('card-pt_only');
+    await ptCard.getByRole('button', { pressed: false }).click();
+    await expect(ptCard.getByRole('button', { pressed: true })).toBeVisible();
+    await expect(ptCard.getByRole('list', { name: 'Legs' }).getByRole('listitem')).toHaveText(
+      await legLinesOf(request, `${built.version}.B`, stopA, stopB, 'pt_only'),
+    );
+    await expect(page.getByRole('list', { name: 'Map legend' })).toContainText(
+      'Tram and train legs: straight lines between stops.',
+    );
 
     // Two typed stop names of one hub.
     const [sameA, sameB] = await sameHubPair(request, built.version);

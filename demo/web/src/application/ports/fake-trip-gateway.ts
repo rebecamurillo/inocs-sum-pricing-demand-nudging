@@ -4,8 +4,12 @@ import type {
   QuotedHub,
   QuotedPoint,
   QuotedOption,
+  RouteOption,
+  RouteOptionLeg,
+  RouteOptionList,
   TripQuote,
 } from '../../domain/traveller';
+import type { RouteLegResult } from '../../domain/pricing-result';
 import type { TripGateway } from './trip-gateway';
 
 export const samplePlaces: readonly PlaceLine[] = [
@@ -147,10 +151,60 @@ export function sampleOptions(pricingVersionId: string): QuotedOption[] {
   ];
 }
 
+const path = (...points: [number, number][]) => points;
+const P = {
+  plainpalais: [6.14, 46.199],
+  belAir: [6.1425, 46.2],
+  rive: [6.15, 46.205],
+  cornavin: [6.1424, 46.2102],
+} satisfies Record<string, [number, number]>;
+
+const routeLeg = (
+  base: RouteLegResult,
+  lineKind: RouteOptionLeg['lineKind'],
+  coordinates: [number, number][],
+): RouteOptionLeg => ({ ...base, lineKind, coordinates });
+
+/** The stored options of the sample pair: the arc ids of `sampleOptions`, each leg kind present. */
+export function sampleRouteOptions(busShapes = true): RouteOptionList {
+  const quoted = sampleOptions('x');
+  const geometry = (option: QuotedOption): RouteOption => ({
+    arcId: option.arcId,
+    mode: option.mode,
+    legs: option.legs.map((item) => {
+      switch (item.mode) {
+        case 'WALK':
+          return routeLeg(item, 'street_path', path(P.plainpalais, [6.1402, 46.1992]));
+        case 'BICYCLE':
+          return routeLeg(item, 'street_path', path(P.rive, [6.147, 46.208], P.cornavin));
+        case 'CAR':
+          return routeLeg(item, 'street_path', path(P.plainpalais, [6.141, 46.204], P.cornavin));
+        default:
+          return item.line === '15'
+            ? routeLeg(
+                item,
+                busShapes ? 'timetable_shape' : 'straight_line',
+                path(P.plainpalais, P.belAir, P.rive),
+              )
+            : routeLeg(item, 'straight_line', path(P.plainpalais, P.rive));
+      }
+    }),
+  });
+  return { busShapes, items: quoted.map(geometry) };
+}
+
 export interface FakeTrips {
   readonly gateway: TripGateway;
   /** Replaces fields of every following quote (a status, an option list); null restores them. */
   readonly answer: (patch: Partial<TripQuote> | null) => void;
+  /** Whether the following route options say the data set has bus shapes (default true). */
+  readonly busShapes: (value: boolean) => void;
+  readonly routeCalls: {
+    instanceVersionId: string;
+    period: string | null;
+    originHubId: string;
+    destinationHubId: string;
+  }[];
   readonly placeCalls: { instanceVersionId: string; text: string }[];
   readonly quoteCalls: {
     pricingVersionId: string;
@@ -164,6 +218,8 @@ export interface FakeTrips {
 export function fakeTrips(places: readonly PlaceLine[] = samplePlaces): FakeTrips {
   const placeCalls: FakeTrips['placeCalls'] = [];
   const quoteCalls: FakeTrips['quoteCalls'] = [];
+  const routeCalls: FakeTrips['routeCalls'] = [];
+  let busShapes = true;
   let patch: Partial<TripQuote> | null = null;
   const gateway: TripGateway = {
     placeNames: (instanceVersionId, text) => {
@@ -196,11 +252,19 @@ export function fakeTrips(places: readonly PlaceLine[] = samplePlaces): FakeTrip
       };
       return Promise.resolve(quote);
     },
+    routeOptions: (instanceVersionId, period, originHubId, destinationHubId) => {
+      routeCalls.push({ instanceVersionId, period, originHubId, destinationHubId });
+      return Promise.resolve(sampleRouteOptions(busShapes));
+    },
   };
   return {
     gateway,
     placeCalls,
     quoteCalls,
+    routeCalls,
+    busShapes: (value) => {
+      busShapes = value;
+    },
     answer: (next) => {
       patch = next;
     },

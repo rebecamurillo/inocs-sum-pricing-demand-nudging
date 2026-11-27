@@ -78,11 +78,27 @@ class MapLibreHandle implements MapHandle {
       width: '18px',
       height: '18px',
       borderRadius: '50%',
-      background: '#2e2d29',
+      background: options.colour ?? '#2e2d29',
       border: '3px solid #ffffff',
       boxShadow: '0 0 0 1px #2e2d29',
       cursor: options.draggable ? 'grab' : 'default',
     });
+    if (options.text !== undefined) {
+      Object.assign(element.style, {
+        width: '22px',
+        height: '22px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        boxSizing: 'border-box',
+        color: '#ffffff',
+        font: 'inherit',
+        fontSize: '12px',
+        fontWeight: '700',
+        lineHeight: '1',
+      });
+      element.textContent = options.text;
+    }
     const marker = new Marker({ element, draggable: options.draggable })
       .setLngLat([position.lon, position.lat])
       .addTo(this.map);
@@ -108,10 +124,10 @@ class MapLibreHandle implements MapHandle {
   resize(): void {
     this.map.resize();
   }
-  fitBounds(bounds: GeoBounds, options: { animate: boolean }): void {
+  fitBounds(bounds: GeoBounds, options: { animate: boolean; padding?: number }): void {
     this.map.fitBounds([bounds[0], bounds[1], bounds[2], bounds[3]], {
       animate: options.animate,
-      padding: 16,
+      padding: options.padding ?? 16,
     });
   }
   jumpTo(center: readonly [number, number], zoom: number): void {
