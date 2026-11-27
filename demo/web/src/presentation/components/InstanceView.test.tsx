@@ -11,8 +11,14 @@ import {
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
+import {
+  fakePricingGateway,
+  samplePricingDraft,
+} from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
+import type { PricingGateway } from '../../application/ports/pricing-gateway';
 import type { RouteFailure } from '../../domain/city-instance';
+import type { LabRoute } from '../../domain/route';
 import { GatewaysProvider } from '../hooks/gateways';
 import { fakeMapFactory, installBrowserStubs, type FakeMap } from '../map/fake-map';
 import { MapFactoryProvider, MapProvider } from '../map/MapContext';
@@ -44,6 +50,8 @@ function mount(
   cityInstances: CityInstanceGateway,
   advancedView = false,
   onOpenDraft?: (draft: OpenedDraft) => void,
+  onNavigate?: (route: LabRoute) => void,
+  pricing: PricingGateway = fakePricingGateway(),
 ) {
   const gateways: Gateways = {
     systemStatus: { load: () => Promise.reject(new Error('not called')) },
@@ -52,6 +60,7 @@ function mount(
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances,
     runs: fakeRunGateway(),
+    pricing,
   };
   const { factory, maps } = fakeMapFactory();
   render(
@@ -66,6 +75,7 @@ function mount(
               versionId="geneva-3km.v1"
               advancedView={advancedView}
               onOpenDraft={onOpenDraft}
+              onNavigate={onNavigate}
             />
           </MapProvider>
         </MapFactoryProvider>
@@ -172,7 +182,61 @@ describe('InstanceView · the saved card', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit as a new version' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete…' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /New pricing version/ })).not.toBeInTheDocument();
+  });
+
+  describe('"+ New pricing version"', () => {
+    it('is on a ready version, before "Edit as a new version"', async () => {
+      mount(fakeCityInstances());
+      await found('City instance · pipeline steps 1 to 4');
+
+      const buttons = screen
+        .getAllByRole('button')
+        .map((button) => button.textContent)
+        .filter((text) => text === '+ New pricing version' || text === 'Edit as a new version');
+      expect(buttons).toEqual(['+ New pricing version', 'Edit as a new version']);
+    });
+
+    it('is not on a version that is not ready', async () => {
+      mount(
+        fakeCityInstances({
+          version: () => Promise.resolve({ ...sampleVersion, state: 'failed' }),
+        }),
+      );
+      await screen.findByRole('list', { name: 'Build steps' }).catch(() => undefined);
+
+      expect(
+        screen.queryByRole('button', { name: '+ New pricing version' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('starts a draft and opens its L-2 route', async () => {
+      const create = vi.fn(() => Promise.resolve(samplePricingDraft({ letter: 'D' })));
+      const onNavigate = vi.fn();
+      mount(fakeCityInstances(), false, undefined, onNavigate, { ...fakePricingGateway(), create });
+      await found('City instance · pipeline steps 1 to 4');
+
+      await userEvent.click(screen.getByRole('button', { name: '+ New pricing version' }));
+
+      await waitFor(() => {
+        expect(onNavigate).toHaveBeenCalledWith({
+          kind: 'pricing',
+          instance: { instanceId: 'geneva-3km', version: 1 },
+          letter: 'D',
+          period: null,
+        });
+      });
+      expect(create).toHaveBeenCalledWith('geneva-3km.v1');
+    });
+
+    it('shows why nothing opened when the API refuses', async () => {
+      const create = vi.fn(() => Promise.reject(new Error('The instance version is not built.')));
+      mount(fakeCityInstances(), false, undefined, vi.fn(), { ...fakePricingGateway(), create });
+      await found('City instance · pipeline steps 1 to 4');
+
+      await userEvent.click(screen.getByRole('button', { name: '+ New pricing version' }));
+
+      expect(await screen.findByText('The instance version is not built.')).toBeInTheDocument();
+    });
   });
 
   describe('"Delete…"', () => {

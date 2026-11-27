@@ -120,17 +120,22 @@ def build_pricing_versions_router(
     @router.patch(
         "/pricing-versions/{pricing_version_id}",
         operation_id="updatePricingVersion",
-        summary="Change the goals of a draft; the answer reports every rule",
+        summary="Change the goals or the name of a draft; the answer reports every rule",
         response_model=PricingVersionResource,
         responses={
             **NOT_FOUND,
             409: _problem("The version is saved: `version_sealed`"),
-            422: _problem("A value is not a JSON number, or a name is not a goal"),
+            422: _problem(
+                "A value is not a JSON number, a field is not a goal or the name, or the name "
+                "is blank"
+            ),
             **UNEXPECTED,
         },
     )
     def patch_route(pricing_version_id: str, patch: PricingVersionPatch) -> PricingVersionResource:
-        return PricingVersionResource.from_view(update.execute(pricing_version_id, patch.changes()))
+        return PricingVersionResource.from_view(
+            update.execute(pricing_version_id, patch.changes(), patch.name)
+        )
 
     @router.delete(
         "/pricing-versions/{pricing_version_id}",

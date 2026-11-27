@@ -10,6 +10,12 @@ import {
   sampleMenu,
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
+import {
+  fakePricingGateway,
+  samplePricingDraft,
+  sampleSealedPricing,
+} from '../../application/ports/fake-pricing-gateway';
+import type { PricingGateway } from '../../application/ports/pricing-gateway';
 import type { Gateways } from '../../application/ports/gateways';
 import {
   fakeRunGateway,
@@ -39,10 +45,12 @@ function renderShell(
   cityInstances: CityInstanceGateway = emptyCityInstances,
   datasets: CityDataset[] = [],
   runs: RunGateway = fakeRunGateway(),
+  pricing: PricingGateway = fakePricingGateway(),
+  systemStatus: SystemStatus = status,
 ) {
   const saved: LayoutPreferencesValue[] = [];
   const gateways: Gateways = {
-    systemStatus: { load: () => Promise.resolve(status) },
+    systemStatus: { load: () => Promise.resolve(systemStatus) },
     layoutPreferences: {
       load: () => initial,
       save: (value) => {
@@ -53,6 +61,7 @@ function renderShell(
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances,
     runs,
+    pricing,
   };
   const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -948,5 +957,203 @@ describe('LabShell · deleting an instance from its menu row', () => {
       await within(await menuNav()).findByText('A run of this version is queued or running.'),
     ).toBeVisible();
     expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+  });
+});
+
+describe('LabShell · pricing versions', () => {
+  const versions = () => [
+    sampleSealedPricing({ id: 'geneva-3km.v1.A', letter: 'A', name: 'Version A', state: 'result' }),
+    sampleSealedPricing({
+      id: 'geneva-3km.v1.B',
+      letter: 'B',
+      name: 'Balance first',
+      state: 'queued',
+    }),
+    sampleSealedPricing({
+      id: 'geneva-3km.v1.C',
+      letter: 'C',
+      name: 'Lower floor',
+      state: 'failed',
+    }),
+    samplePricingDraft({ id: 'geneva-3km.v1.D', letter: 'D', name: 'Version D' }),
+  ];
+  const queuedBuild = {
+    ...sampleRunningBuild,
+    id: 'run-pricing-B',
+    state: 'queued' as const,
+    queuePosition: 1,
+    subject: { type: 'pricing_version' as const, id: 'geneva-3km.v1.B' },
+  };
+
+  function open(hash: string, layout: LayoutPreferencesValue = DEFAULT_LAYOUT) {
+    window.location.hash = hash;
+    return renderShell(
+      layout,
+      fakeCityInstances(),
+      [],
+      fakeRunGateway([queuedBuild]),
+      fakePricingGateway(versions()),
+    );
+  }
+
+  it('lists the pricing versions under the open instance version with their states', async () => {
+    open('#/lab/geneva-3km.v1');
+
+    expect(await screen.findByRole('button', { name: 'Version A ✓ result' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Balance first B ◷ queued · 2nd$/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Lower floor C ✕ failed$/ })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'New version draft' })).toBeVisible();
+    expect(screen.getAllByRole('button', { name: '+ New pricing version' })).toHaveLength(2);
+    const menu = screen.getByRole('complementary', { name: 'Menu' });
+    expect(within(menu).getByRole('button', { name: '+ New pricing version' })).toBeVisible();
+  });
+
+  it('opens a draft or a queued version at its L-2 route and a result at its result route', async () => {
+    open('#/lab/geneva-3km.v1');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'New version draft' }));
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v1/pricing/D');
+
+    await user.click(screen.getByRole('button', { name: /^Balance first B/ }));
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v1/pricing/B');
+
+    await user.click(screen.getByRole('button', { name: 'Version A ✓ result' }));
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v1/result/A');
+    expect(screen.getByRole('button', { name: 'Version A ✓ result' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  it('starts a draft from "+ New pricing version" and opens its route', async () => {
+    open('#/lab/geneva-3km.v1');
+
+    const menu = await screen.findByRole('complementary', { name: 'Menu' });
+    await userEvent.click(
+      await within(menu).findByRole('button', { name: '+ New pricing version' }),
+    );
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1/pricing/E');
+    });
+    expect(await screen.findByRole('heading', { name: 'Pricing goals' })).toBeVisible();
+  });
+
+  it('shows the pricing goals card at the L-2 route, with the breadcrumb and no map', async () => {
+    open('#/lab/geneva-3km.v1/pricing/D');
+
+    expect(await screen.findByRole('heading', { name: 'Pricing goals' })).toBeVisible();
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent(
+      'Geneva 3 km v1 › Pricing versions › New version',
+    );
+    expect(screen.getByRole('button', { name: 'New version draft' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('button', { name: 'Instance set-up' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hide map' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show map' })).not.toBeInTheDocument();
+  });
+
+  it('brings the map back on L-1 without having changed the stored choice', async () => {
+    const { saved } = open('#/lab/geneva-3km.v1/pricing/D');
+    await screen.findByRole('heading', { name: 'Pricing goals' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Instance set-up' }));
+
+    expect(await screen.findByRole('separator')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hide map' })).toBeInTheDocument();
+    expect(saved).toEqual([]);
+  });
+
+  it('keeps the map hidden on L-1 when the stored choice is hidden', async () => {
+    open('#/lab/geneva-3km.v1/pricing/D', { ...DEFAULT_LAYOUT, mapShown: false });
+    await screen.findByRole('heading', { name: 'Pricing goals' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Instance set-up' }));
+
+    expect(await screen.findByRole('button', { name: 'Show map' })).toBeInTheDocument();
+  });
+
+  it('says nothing is there for an unknown letter', async () => {
+    open('#/lab/geneva-3km.v1/pricing/Q');
+
+    expect(
+      await screen.findByText(
+        'Nothing at this link: Geneva 3 km v1 has no Version Q. It may have been deleted.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('keeps the result route recognised with an empty card for story 3.9', async () => {
+    open('#/lab/geneva-3km.v1/result/A');
+
+    expect(await screen.findByLabelText('Breadcrumb')).toHaveTextContent(
+      'Geneva 3 km v1 › Pricing versions › Version A',
+    );
+    expect(screen.queryByRole('heading', { name: 'Pricing goals' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nothing at this link/)).not.toBeInTheDocument();
+  });
+
+  it('reads "Available when the instance is built." at the L-2 route of a version that is not built', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1/pricing/A';
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({
+        menu: () =>
+          Promise.resolve([
+            {
+              id: 'geneva-3km',
+              name: 'Geneva 3 km',
+              datasetId: 'geneva-2026-11-26',
+              versions: [
+                {
+                  id: 'geneva-3km.v1',
+                  number: 1,
+                  status: 'sealed' as const,
+                  state: 'building' as const,
+                  pricingVersionCount: 0,
+                  pricingVersionLetters: [],
+                },
+              ],
+            },
+          ]),
+      }),
+    );
+
+    expect(await screen.findAllByText('Available when the instance is built.')).toHaveLength(2);
+    expect(screen.queryByRole('heading', { name: 'Pricing goals' })).not.toBeInTheDocument();
+  });
+
+  it('shows the banner on L-2 when pricing runs are off', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1/pricing/D';
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances(),
+      [],
+      fakeRunGateway(),
+      fakePricingGateway(versions()),
+      {
+        ...status,
+        components: [{ name: 'solver', state: 'limited', reason: 'size-limited' }],
+        canRunPricing: {
+          allowed: false,
+          reasons: [{ component: 'solver', reason: 'size-limited' }],
+        },
+      },
+    );
+
+    expect(
+      await screen.findAllByText(
+        /Pricing runs are off: this machine has Gurobi's size-limited licence/,
+      ),
+    ).toHaveLength(2);
+    expect(
+      screen.getByRole('button', { name: 'Run the pricing model · 08:00–09:00' }),
+    ).toBeDisabled();
   });
 });

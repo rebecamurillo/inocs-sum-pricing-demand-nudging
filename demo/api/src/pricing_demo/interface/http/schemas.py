@@ -917,6 +917,12 @@ class PricingVersionPatch(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=120,
+        description="The version's name, trimmed; it may not be blank.",
+    )
     cost_bike_chf: ParameterNumber = _UNSET
     lowest_price_chf: ParameterNumber = _UNSET
     ridership_weight: ParameterNumber = _UNSET
@@ -926,11 +932,21 @@ class PricingVersionPatch(BaseModel):
     max_displayed_options: ParameterNumber = _UNSET
     flat_price_per_ride_chf: ParameterNumber = _UNSET
 
+    @field_validator("name")
+    @classmethod
+    def _trimmed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("The name may not be blank.")
+        return trimmed
+
     def changes(self) -> dict[str, Number]:
-        return {name: getattr(self, name) for name in self.model_fields_set}
+        return {name: getattr(self, name) for name in self.model_fields_set if name in GOAL_NAMES}
 
 
-assert set(PricingVersionPatch.model_fields) == set(GOAL_NAMES)
+assert set(PricingVersionPatch.model_fields) - {"name"} == set(GOAL_NAMES)
 
 
 class PricingGoalsResource(BaseModel):
@@ -951,6 +967,11 @@ class PricingPeriodResource(BaseModel):
     label: str
 
 
+class PricingVersionRef(BaseModel):
+    id: str
+    letter: str
+
+
 class PricingVersionResource(BaseModel):
     id: str
     instance_version_id: str
@@ -961,6 +982,14 @@ class PricingVersionResource(BaseModel):
         description="Derived from the status and the version's last run."
     )
     based_on_id: str | None
+    kept_from: PricingVersionRef | None = Field(
+        description="The sealed version whose fare, parking fee, options shown and flat price "
+        "this draft kept; null when it started from the default values."
+    )
+    last_duration_s: float | None = Field(
+        description="Seconds the pricing model last took on this instance's data set and "
+        "radius, or null when it has not run there."
+    )
     created_at: datetime
     sealed_at: datetime | None
     goals: PricingGoalsResource
@@ -978,6 +1007,12 @@ class PricingVersionResource(BaseModel):
             status=version.status,
             state=view.state,
             based_on_id=version.based_on_id,
+            kept_from=(
+                PricingVersionRef(id=view.kept_from[0], letter=view.kept_from[1])
+                if view.kept_from
+                else None
+            ),
+            last_duration_s=view.last_duration_s,
             created_at=version.created_at,
             sealed_at=version.sealed_at,
             goals=PricingGoalsResource(

@@ -156,6 +156,9 @@ class PricingVersion:
     goals: PricingGoals
     created_at: datetime
     sealed_at: datetime | None = None
+    # The sealed version whose fare, parking fee, options shown and flat price this draft kept;
+    # None when it started from the fallback values or that version was deleted.
+    kept_from_id: str | None = None
 
 
 @dataclass(frozen=True)

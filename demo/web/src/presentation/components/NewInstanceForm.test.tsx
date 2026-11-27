@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
 import { fakeCityInstances, sampleDraft } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import type { CityDataset } from '../../domain/map';
 import type { LabRoute } from '../../domain/route';
@@ -30,6 +31,7 @@ function mount(
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances: fakeCityInstances(overrides),
     runs: fakeRunGateway(),
+    pricing: fakePricingGateway(),
   };
   render(
     <QueryClientProvider

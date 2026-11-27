@@ -1876,6 +1876,20 @@
             ],
             "title": "Max Displayed Options"
           },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The version's name, trimmed; it may not be blank.",
+            "title": "Name"
+          },
           "pt_fare_chf": {
             "anyOf": [
               {
@@ -1919,6 +1933,24 @@
         "title": "PricingVersionPatch",
         "type": "object"
       },
+      "PricingVersionRef": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "letter": {
+            "title": "Letter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "letter"
+        ],
+        "title": "PricingVersionRef",
+        "type": "object"
+      },
       "PricingVersionResource": {
         "properties": {
           "based_on_id": {
@@ -1947,6 +1979,29 @@
           "instance_version_id": {
             "title": "Instance Version Id",
             "type": "string"
+          },
+          "kept_from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PricingVersionRef"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The sealed version whose fare, parking fee, options shown and flat price this draft kept; null when it started from the default values."
+          },
+          "last_duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Seconds the pricing model last took on this instance's data set and radius, or null when it has not run there.",
+            "title": "Last Duration S"
           },
           "letter": {
             "title": "Letter",
@@ -2012,6 +2067,8 @@
           "status",
           "state",
           "based_on_id",
+          "kept_from",
+          "last_duration_s",
           "created_at",
           "sealed_at",
           "goals",
@@ -4709,7 +4766,7 @@
                 }
               }
             },
-            "description": "A value is not a JSON number, or a name is not a goal"
+            "description": "A value is not a JSON number, a field is not a goal or the name, or the name is blank"
           },
           "500": {
             "content": {
@@ -4722,7 +4779,7 @@
             "description": "Unexpected error"
           }
         },
-        "summary": "Change the goals of a draft; the answer reports every rule",
+        "summary": "Change the goals or the name of a draft; the answer reports every rule",
         "tags": [
           "pricing-versions"
         ]

@@ -9,6 +9,7 @@ import {
   samplePlan,
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
+import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
 import {
   fakeRunGateway,
   sampleBuildSteps,
@@ -99,6 +100,7 @@ function mount(options: {
       ...options.cityInstances,
     }),
     runs,
+    pricing: fakePricingGateway(),
   };
   const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

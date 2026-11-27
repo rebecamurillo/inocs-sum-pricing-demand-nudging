@@ -222,7 +222,7 @@ export interface paths {
         delete: operations["deletePricingVersion"];
         options?: never;
         head?: never;
-        /** Change the goals of a draft; the answer reports every rule */
+        /** Change the goals or the name of a draft; the answer reports every rule */
         patch: operations["updatePricingVersion"];
         trace?: never;
     };
@@ -1105,12 +1105,24 @@ export interface components {
             lowest_price_chf?: number;
             /** Max Displayed Options */
             max_displayed_options?: number;
+            /**
+             * Name
+             * @description The version's name, trimmed; it may not be blank.
+             */
+            name?: string | null;
             /** Pt Fare Chf */
             pt_fare_chf?: number;
             /** Ridership Weight */
             ridership_weight?: number;
             /** Station Balance Weight */
             station_balance_weight?: number;
+        };
+        /** PricingVersionRef */
+        PricingVersionRef: {
+            /** Id */
+            id: string;
+            /** Letter */
+            letter: string;
         };
         /** PricingVersionResource */
         PricingVersionResource: {
@@ -1126,6 +1138,13 @@ export interface components {
             id: string;
             /** Instance Version Id */
             instance_version_id: string;
+            /** @description The sealed version whose fare, parking fee, options shown and flat price this draft kept; null when it started from the default values. */
+            kept_from: components["schemas"]["PricingVersionRef"] | null;
+            /**
+             * Last Duration S
+             * @description Seconds the pricing model last took on this instance's data set and radius, or null when it has not run there.
+             */
+            last_duration_s: number | null;
             /** Letter */
             letter: string;
             /** Name */
@@ -2641,7 +2660,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A value is not a JSON number, or a name is not a goal */
+            /** @description A value is not a JSON number, a field is not a goal or the name, or the name is blank */
             422: {
                 headers: {
                     [name: string]: unknown;

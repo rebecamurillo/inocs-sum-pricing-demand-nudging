@@ -134,6 +134,27 @@
   background: var(--tint-2);
 }
 
+.primary {
+  font: inherit;
+  color: #ffffff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  padding: 0.125rem 0.875rem;
+  cursor: pointer;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--blue-d);
+}
+
+.primary:disabled {
+  color: var(--ink-2);
+  background: var(--tint);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
 .button[aria-pressed='true'] {
   background: var(--tint);
 }

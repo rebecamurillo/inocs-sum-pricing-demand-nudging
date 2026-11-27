@@ -1,8 +1,9 @@
 from dataclasses import replace
+from datetime import timedelta
 
 import pytest
 
-from pricing_demo.domain.runs import RunKind, RunState
+from pricing_demo.domain.runs import RunKind, RunState, StepState
 from pricing_demo.domain.system_status import ComponentName, ComponentStatus, SystemStatus
 from pricing_demo.domain.traveller_simulation import BalancedScore, SimulationRule
 from tests.support.builds import unavailable
@@ -108,7 +109,7 @@ def test_a_patch_refuses_what_is_not_a_goal_or_a_number(instances_app: CityInsta
     instances_app.client.post(LIST, json={})
     path = "/api/v1/pricing-versions/geneva-3km.v1.A"
 
-    assert instances_app.client.patch(path, json={"name": "x"}).status_code == 422
+    assert instances_app.client.patch(path, json={"letter": "Z"}).status_code == 422
     assert instances_app.client.patch(path, json={"pt_fare_chf": "2"}).status_code == 422
 
 
@@ -502,3 +503,69 @@ def test_the_version_stays_a_result_while_a_simulation_run_is_queued(
 
     assert body["state"] == "result"
     assert instances_app.client.post(runs_path(version)).json()["code"] == "already_run"
+
+
+def test_a_patch_stores_a_name_and_refuses_a_blank_one(instances_app: CityInstancesApp) -> None:
+    built(instances_app)
+    instances_app.client.post(LIST, json={})
+    path = "/api/v1/pricing-versions/geneva-3km.v1.A"
+
+    renamed = instances_app.client.patch(path, json={"name": "  Cheaper  "})
+
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == "Cheaper"
+    assert instances_app.client.get(path).json()["name"] == "Cheaper"
+    for blank in ("", "   "):
+        assert instances_app.client.patch(path, json={"name": blank}).status_code == 422
+    assert instances_app.client.get(path).json()["name"] == "Cheaper"
+
+
+def test_kept_from_names_the_version_the_kept_values_came_from(
+    instances_app: CityInstancesApp,
+) -> None:
+    built(instances_app)
+    first = instances_app.client.post(LIST, json={}).json()
+    assert first["kept_from"] is None
+    sealed_pricing_version(instances_app.rig, first["id"], RunState.SUCCEEDED)
+
+    second = instances_app.client.post(LIST, json={}).json()
+    copy = instances_app.client.post(LIST, json={"based_on": second["id"]}).json()
+
+    assert second["kept_from"] == {"id": first["id"], "letter": "A"}
+    assert copy["kept_from"] == {"id": second["id"], "letter": "B"}
+    read = instances_app.client.get(f"/api/v1/pricing-versions/{second['id']}").json()
+    assert read["kept_from"] == {"id": first["id"], "letter": "A"}
+
+
+def test_last_duration_is_null_then_the_seconds_of_a_done_pricing_step(
+    instances_app: CityInstancesApp,
+) -> None:
+    built(instances_app)
+    instances_app.rig.pricing.read_durations_from(instances_app.rig.instances)
+    version = instances_app.client.post(LIST, json={}).json()
+    path = f"/api/v1/pricing-versions/{version['id']}"
+    assert instances_app.client.get(path).json()["last_duration_s"] is None
+
+    sealed_pricing_version(instances_app.rig, version["id"], RunState.SUCCEEDED)
+    instances_app.rig.runs.update(
+        _only_run_id(instances_app),
+        lambda run: replace(
+            run,
+            steps=(
+                replace(
+                    run.steps[0],
+                    state=StepState.DONE,
+                    started_at=run.queued_at,
+                    finished_at=run.queued_at + timedelta(seconds=42),
+                ),
+            ),
+        ),
+    )
+
+    assert instances_app.client.get(path).json()["last_duration_s"] == 42
+    assert instances_app.client.get(LIST).json()["items"][0]["last_duration_s"] == 42
+
+
+def _only_run_id(app: CityInstancesApp) -> str:
+    (run,) = [r for r in app.rig.runs.list_by_states(list(RunState)) if r.kind is RunKind.PRICING]
+    return run.id

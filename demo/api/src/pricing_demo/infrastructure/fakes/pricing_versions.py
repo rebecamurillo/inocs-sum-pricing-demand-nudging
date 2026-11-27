@@ -15,7 +15,7 @@ from pricing_demo.domain.pricing_versions import (
     pricing_version_id,
     pricing_version_state,
 )
-from pricing_demo.domain.runs import Run, RunKind, RunState
+from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.infrastructure.fakes.showcase import InMemoryShowcase
@@ -49,6 +49,12 @@ class FakePricingVersions:
         self._versions: dict[str, PricingVersion] = {}
         self._periods: dict[str, list[str]] = {}
         self._next_index: dict[str, int] = {}
+        self._duration_instances = instances
+
+    def read_durations_from(self, instances: InMemoryCityInstances) -> None:
+        """Let `last_pricing_model_duration_s` find a version's data set and radius, without
+        making `create_draft` check the instance version (the other tests need none)."""
+        self._duration_instances = instances
 
     def create_draft(
         self,
@@ -58,6 +64,7 @@ class FakePricingVersions:
         period_id: str,
         based_on_id: str | None,
         created_at: datetime,
+        kept_from_id: str | None = None,
     ) -> PricingVersion:
         if self._instances is not None and self._instances.get_version(instance_version_id) is None:
             raise InstanceVersionNotFound(instance_version_id)
@@ -75,6 +82,7 @@ class FakePricingVersions:
             name=name or f"Version {letter}",
             status="draft",
             based_on_id=based_on_id,
+            kept_from_id=kept_from_id,
             goals=goals,
             created_at=created_at,
         )
@@ -134,15 +142,52 @@ class FakePricingVersions:
         sealed = [v for v in self._of(instance_version_id) if v.status == "sealed"]
         return sealed[-1] if sealed else None
 
-    def update_draft(self, version_id: str, changes: Mapping[str, Number]) -> PricingVersion:
+    def update_draft(
+        self, version_id: str, changes: Mapping[str, Number], name: str | None = None
+    ) -> PricingVersion:
         version = self._versions.get(version_id)
         if version is None:
             raise PricingVersionNotFound(version_id)
         if version.status == "sealed":
             raise VersionSealed(version_id)
-        updated = replace(version, goals=version.goals.replacing(dict(changes)))
+        updated = replace(
+            version,
+            goals=version.goals.replacing(dict(changes)),
+            name=version.name if name is None else name,
+        )
         self._versions[version_id] = updated
         return updated
+
+    def last_pricing_model_duration_s(self, dataset_id: str, radius_m: float) -> float | None:
+        instances = self._duration_instances
+        if instances is None:
+            return None
+        best: tuple[datetime, float] | None = None
+        for run in self._runs.list_by_states(list(RunState)):
+            version = self._versions.get(run.subject.id)
+            if run.kind is not RunKind.PRICING or version is None:
+                continue
+            instance_version = instances.get_version(version.instance_version_id)
+            instance = (
+                instances.get_instance(instance_version.instance_id) if instance_version else None
+            )
+            if instance_version is None or instance is None:
+                continue
+            if (
+                instance.dataset_id != dataset_id
+                or instance_version.parameters.radius_m != radius_m
+            ):
+                continue
+            for item in run.steps:
+                if item.step is not StepName.PRICING_MODEL or item.state is not StepState.DONE:
+                    continue
+                if item.started_at is None or item.finished_at is None:
+                    continue
+                seconds = (item.finished_at - item.started_at).total_seconds()
+                best = (
+                    max(best, (item.finished_at, seconds)) if best else (item.finished_at, seconds)
+                )
+        return best[1] if best else None
 
     def delete(self, version_id: str) -> None:
         if version_id not in self._versions:
@@ -194,6 +239,8 @@ class FakePricingVersions:
         for other_id, other in list(self._versions.items()):
             if other.based_on_id in ids:
                 self._versions[other_id] = replace(other, based_on_id=None)
+            if other.kept_from_id in ids:
+                self._versions[other_id] = replace(self._versions[other_id], kept_from_id=None)
 
     def seal(self, version_id: str, at: datetime) -> None:
         """What queueing a run does to a draft; tests use it to get a sealed version."""

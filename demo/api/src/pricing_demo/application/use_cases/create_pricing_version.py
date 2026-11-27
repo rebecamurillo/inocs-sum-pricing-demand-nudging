@@ -43,9 +43,11 @@ class CreatePricingVersion:
             if source is None or source.instance_version_id != instance_version_id:
                 raise UnknownBasedOn(based_on_id)
             goals = duplicated_goals(source.goals)
+            kept_from_id: str | None = based_on_id
         else:
             previous = self._pricing.previous_sealed(instance_version_id)
             goals = new_draft_goals(previous.goals if previous else None)
+            kept_from_id = previous.id if previous else None
         version = self._pricing.create_draft(
             instance_version_id,
             name,
@@ -53,5 +55,6 @@ class CreatePricingVersion:
             f"{instance_version_id}.{FIRST_PERIOD_KEY}",
             based_on_id,
             self._clock.now(),
+            kept_from_id,
         )
         return build_view(version, "draft", self._instances, self._pricing)

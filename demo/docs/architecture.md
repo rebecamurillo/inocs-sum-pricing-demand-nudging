@@ -629,6 +629,21 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   progress, the silent runner, or, when a build ended while another view was open, "✓ {name}
   ready · Open"; the menu rows read `● building`, `◷ queued · 2nd`, `✕ failed`. Under
   `prefers-reduced-motion` only the ● spinner stops.
+- The pricing goals (L-2). `PricingGateway` (port; `HttpPricingGateway` reads and writes
+  `/instance-versions/{id}/pricing-versions` and `/pricing-versions/{id}`, and posts `/runs`; an
+  in-memory fake in `fake-pricing-gateway.ts`) feeds `application/use-cases/edit-pricing-draft.ts`
+  and the hooks of `presentation/hooks/usePricingVersions.ts`. `LabShell` resolves
+  `#/lab/{instance version}/pricing/{letter}` like an instance link, shows `PricingGoalsForm` (and
+  "Available when the instance is built." for a version that is not built) and hides the map pane
+  without changing the stored choice; the `result` route is recognised and its card is empty until
+  story 3.9. Every sentence and figure (cost message, weight bars, ranking line, example ride,
+  number line, rules lines, banners, menu states) is a pure function of
+  `domain/pricing-goals-text.ts`. The form saves through the generic `useAutosave` (one `PATCH` 500 ms
+  after the last change; the Name rides in the same map) and "Run the pricing model" awaits the
+  flushed save before the `POST`. `PricingDetailsPanel` is the 400 px "How the model reads these
+  values" panel. A pricing version also carries `kept_from` (the sealed version its kept values came
+  from; column `pricing_versions.kept_from_id`) and `last_duration_s` (the last done `pricing_model`
+  step on the same data set and radius).
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

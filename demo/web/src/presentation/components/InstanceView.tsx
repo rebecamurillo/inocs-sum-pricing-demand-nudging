@@ -18,6 +18,9 @@ import {
 import { circleBounds } from '../../domain/map';
 import { useInstanceGeometry, useInstanceView, useRouteFailures } from '../hooks/useCityInstances';
 import { useEditAsNewVersion, type OpenedDraft } from '../hooks/useEditAsNewVersion';
+import { useNewPricingVersion } from '../hooks/useNewPricingVersion';
+import { NEW_PRICING_VERSION } from '../../domain/pricing-goals-text';
+import type { LabRoute } from '../../domain/route';
 import { UNROUTED_COLOUR, l1Layers, unroutedPairLayer } from '../map/l1-layers';
 import { useMapFit, useMapLayers, useMapLegend, type LegendEntry } from '../map/MapContext';
 import { BuildingView } from './BuildingView';
@@ -134,15 +137,20 @@ function SavedInstance({
   view,
   advancedView,
   onOpenDraft,
+  onNavigate,
 }: {
   view: InstanceViewValue;
   advancedView: boolean;
   onOpenDraft?: (draft: OpenedDraft) => void;
+  onNavigate?: (route: LabRoute) => void;
 }) {
   const { version, instanceName, dataset, pricingVersionCount, pricingVersionLetters } = view;
   const geometry = useInstanceGeometry(version.id).data ?? null;
   const [shown, setShown] = useState<ReadonlySet<number>>(new Set());
   const editing = useEditAsNewVersion(version, onOpenDraft);
+  const pricing = useNewPricingVersion(version, (route) => {
+    onNavigate?.(route);
+  });
   const failures = useRouteFailures(version.routes, false).data;
 
   const declaration = useMemo(
@@ -236,6 +244,16 @@ function SavedInstance({
       ))}
       <p className={styles.closing}>{NEVER_CHANGED}</p>
       <div className={styles.actions}>
+        {version.state === 'ready' && (
+          <button
+            type="button"
+            className={styles.primary}
+            disabled={pricing.pending}
+            onClick={pricing.start}
+          >
+            {NEW_PRICING_VERSION}
+          </button>
+        )}
         <button
           type="button"
           className={styles.button}
@@ -252,6 +270,7 @@ function SavedInstance({
         />
       </div>
       {editing.error !== null && <p className={styles.error}>{editing.error}</p>}
+      {pricing.error !== null && <p className={styles.error}>{pricing.error}</p>}
     </div>
   );
 }
@@ -261,10 +280,12 @@ export function InstanceView({
   versionId,
   advancedView,
   onOpenDraft,
+  onNavigate,
 }: {
   versionId: string;
   advancedView: boolean;
   onOpenDraft?: (draft: OpenedDraft) => void;
+  onNavigate?: (route: LabRoute) => void;
 }) {
   const query = useInstanceView(versionId);
   if (query.isPending) return <LoadingCard />;
@@ -279,5 +300,12 @@ export function InstanceView({
     return <BuildingView view={query.data} advancedView={advancedView} />;
   }
   if (state === 'cancelled') return <CancelledCard view={query.data} onOpenDraft={onOpenDraft} />;
-  return <SavedInstance view={query.data} advancedView={advancedView} onOpenDraft={onOpenDraft} />;
+  return (
+    <SavedInstance
+      view={query.data}
+      advancedView={advancedView}
+      onOpenDraft={onOpenDraft}
+      onNavigate={onNavigate}
+    />
+  );
 }

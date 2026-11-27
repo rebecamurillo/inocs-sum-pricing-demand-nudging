@@ -14,6 +14,8 @@ async function holdsAtEverySize(
   page: Page,
   card: ReturnType<Page['getByRole']> | null,
   runLine: string | RegExp = 'No run in progress',
+  // L-2 has no map: its card takes the full width.
+  withMap = true,
 ) {
   const aa = page.getByRole('button', { name: 'Larger text for a projector' });
 
@@ -39,7 +41,9 @@ async function holdsAtEverySize(
       await expect(page.getByText(runLine)).toBeInViewport({ ratio: 1 });
       await expect(aa).toBeInViewport({ ratio: 1 });
       // The map pane is part of the held view (the e2e stack has no basemap file: ground colour).
-      await expect(page.getByRole('region', { name: 'Map' })).toBeInViewport({ ratio: 1 });
+      if (withMap) {
+        await expect(page.getByRole('region', { name: 'Map' })).toBeInViewport({ ratio: 1 });
+      }
       if (card !== null) await expect(card).toBeInViewport();
       await aa.click();
     }
@@ -163,6 +167,25 @@ test.describe('Lab', () => {
     ).toBeVisible();
     await holdsAtEverySize(page, page.getByRole('main'));
     await page.getByRole('button', { name: 'Keep' }).click();
+
+    // L-2: a new version, the lowest price under the cost, and the details panel open.
+    await page.goto(`/#/lab/${version}/pricing/A`);
+    await page.reload();
+    await expect(page.getByRole('heading', { name: 'Pricing goals' })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+
+    await page.getByRole('textbox', { name: 'Lowest price of a ride' }).fill('0.40');
+    await expect(page.getByText('Incentive: the lowest price is under the cost.')).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+
+    await page.getByRole('button', { name: 'ⓘ Explain step 2' }).click();
+    await expect(page.getByRole('tab', { name: '2 Cost and price' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+    await page.getByRole('tab', { name: '3 Weights' }).click();
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
   });
 
   test('Lab · L-1 saved holds at 1440, 1280 and 1280 × 720 with Aa', async ({
@@ -181,23 +204,38 @@ test.describe('Lab', () => {
   test('Lab · under reduced motion the shell has no transition or animation time', async ({
     browser,
     baseURL,
+    request,
+    control,
   }) => {
     const context = await browser.newContext({ reducedMotion: 'reduce', baseURL });
     const page = await context.newPage();
     await page.goto('/');
     await expect(page.getByText('Dynamic pricing · Lab')).toBeVisible();
 
-    const durations = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('body *')).flatMap((element) => {
-        const style = getComputedStyle(element);
-        return [style.transitionDuration, style.animationDuration];
-      }),
-    );
+    const noTime = async () => {
+      const durations = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('body *')).flatMap((element) => {
+          const style = getComputedStyle(element);
+          return [style.transitionDuration, style.animationDuration];
+        }),
+      );
+      expect(durations.length).toBeGreaterThan(0);
+      for (const duration of durations) {
+        expect(duration.split(',').every((part) => part.trim() === '0s')).toBe(true);
+      }
+    };
+    await noTime();
 
-    expect(durations.length).toBeGreaterThan(0);
-    for (const duration of durations) {
-      expect(duration.split(',').every((part) => part.trim() === '0s')).toBe(true);
-    }
+    // The details panel of L-2 opens without a transition.
+    const { version } = await buildFakeInstance(request, control);
+    await createPricingVersion(request, version);
+    await page.goto(`/#/lab/${version}/pricing/A`);
+    await page.reload();
+    await page.getByRole('button', { name: 'ⓘ Explain step 3' }).click();
+    await expect(
+      page.getByRole('complementary', { name: 'How the model reads these values' }),
+    ).toBeVisible();
+    await noTime();
     await context.close();
   });
 });

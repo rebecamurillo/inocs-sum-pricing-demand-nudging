@@ -15,6 +15,8 @@ class PricingVersionView:
     state: PricingState
     periods: tuple[InstancePeriod, ...]
     rules: tuple[PricingRuleResult, ...]
+    kept_from: tuple[str, str] | None  # id and letter of the version the kept values came from
+    last_duration_s: float | None  # the last pricing model step on this data set and radius
 
 
 def build_view(
@@ -29,4 +31,21 @@ def build_view(
         for period in instances.periods_of(version.instance_version_id)
         if period.id in period_ids
     )
-    return PricingVersionView(version, state, periods, tuple(check_pricing_rules(version.goals)))
+    kept = pricing.get(version.kept_from_id) if version.kept_from_id else None
+    instance_version = instances.get_version(version.instance_version_id)
+    instance = instances.get_instance(instance_version.instance_id) if instance_version else None
+    duration = (
+        pricing.last_pricing_model_duration_s(
+            instance.dataset_id, instance_version.parameters.radius_m
+        )
+        if instance_version and instance
+        else None
+    )
+    return PricingVersionView(
+        version,
+        state,
+        periods,
+        tuple(check_pricing_rules(version.goals)),
+        (kept.id, kept.letter) if kept else None,
+        duration,
+    )

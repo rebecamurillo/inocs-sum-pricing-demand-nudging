@@ -14,11 +14,13 @@ class UpdatePricingVersion:
         self._instances = instances
         self._pricing = pricing
 
-    def execute(self, version_id: str, changes: Mapping[str, Number]) -> PricingVersionView:
+    def execute(
+        self, version_id: str, changes: Mapping[str, Number], name: str | None = None
+    ) -> PricingVersionView:
         version = self._pricing.get(version_id)
         if version is None:
             raise PricingVersionNotFound(version_id)
         if version.status == "sealed":
             raise VersionSealed(version_id)
-        updated = self._pricing.update_draft(version_id, changes)
+        updated = self._pricing.update_draft(version_id, changes, name)
         return build_view(updated, "draft", self._instances, self._pricing)

@@ -1,7 +1,7 @@
 from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 
-from sqlalchemy import Connection, Engine, delete, func, insert, select, update
+from sqlalchemy import Connection, Engine, delete, extract, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.domain.builds import DraftChanged, RunActive
@@ -18,7 +18,7 @@ from pricing_demo.domain.pricing_versions import (
     pricing_version_id,
     pricing_version_state,
 )
-from pricing_demo.domain.runs import Run, RunKind, RunState
+from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
 from pricing_demo.infrastructure.persistence.run_repository import (
     run_of,
     run_values,
@@ -27,6 +27,7 @@ from pricing_demo.infrastructure.persistence.run_repository import (
     steps_query,
 )
 from pricing_demo.infrastructure.persistence.tables import (
+    city_instances,
     instance_versions,
     pricing_version_periods,
     pricing_version_simulations,
@@ -51,6 +52,7 @@ def _version(row) -> PricingVersion:  # type: ignore[no-untyped-def]
         name=row.name,
         status=row.status,
         based_on_id=row.based_on_id,
+        kept_from_id=row.kept_from_id,
         goals=PricingGoals(
             **{name: getattr(row, name) for name in GOAL_NAMES},
             flat_price_kind=row.flat_price_kind,
@@ -68,6 +70,7 @@ def pricing_version_values(version: PricingVersion) -> dict[str, object]:
         "name": version.name,
         "status": version.status,
         "based_on_id": version.based_on_id,
+        "kept_from_id": version.kept_from_id,
         **version.goals.as_dict(),
         "flat_price_kind": version.goals.flat_price_kind,
         "created_at": version.created_at,
@@ -87,6 +90,7 @@ class PostgresPricingVersions:
         period_id: str,
         based_on_id: str | None,
         created_at: datetime,
+        kept_from_id: str | None = None,
     ) -> PricingVersion:
         with self._engine.begin() as connection:
             # The row lock serialises two drafts of one instance version, and a deletion of it:
@@ -112,6 +116,14 @@ class PostgresPricingVersions:
                 is None
             ):
                 raise UnknownBasedOn(based_on_id)
+            # The version the kept values came from may have been deleted since the use case
+            # read it: the draft then keeps the values and names no source.
+            if kept_from_id is not None and kept_from_id != based_on_id:
+                kept_from_id = connection.execute(
+                    select(pricing_versions.c.id)
+                    .where(pricing_versions.c.id == kept_from_id)
+                    .with_for_update(key_share=True)
+                ).scalar()
             connection.execute(
                 update(instance_versions)
                 .where(instance_versions.c.id == instance_version_id)
@@ -125,6 +137,7 @@ class PostgresPricingVersions:
                 name=name or f"Version {letter}",
                 status="draft",
                 based_on_id=based_on_id,
+                kept_from_id=kept_from_id,
                 goals=goals,
                 created_at=created_at,
             )
@@ -181,7 +194,9 @@ class PostgresPricingVersions:
             ).first()
         return _version(row) if row else None
 
-    def update_draft(self, version_id: str, changes: Mapping[str, Number]) -> PricingVersion:
+    def update_draft(
+        self, version_id: str, changes: Mapping[str, Number], name: str | None = None
+    ) -> PricingVersion:
         with self._engine.begin() as connection:
             status = connection.execute(
                 select(pricing_versions.c.status)
@@ -192,16 +207,46 @@ class PostgresPricingVersions:
                 raise PricingVersionNotFound(version_id)
             if status == "sealed":
                 raise VersionSealed(version_id)
-            if changes:
+            values = {**changes, **({} if name is None else {"name": name})}
+            if values:
                 connection.execute(
                     update(pricing_versions)
                     .where(pricing_versions.c.id == version_id)
-                    .values(**changes)
+                    .values(**values)
                 )
             row = connection.execute(
                 select(pricing_versions).where(pricing_versions.c.id == version_id)
             ).one()
         return _version(row)
+
+    def last_pricing_model_duration_s(self, dataset_id: str, radius_m: float) -> float | None:
+        seconds = extract("epoch", run_steps.c.finished_at - run_steps.c.started_at)
+        query = (
+            select(seconds)
+            .select_from(
+                run_steps.join(runs, runs.c.id == run_steps.c.run_id)
+                .join(pricing_versions, pricing_versions.c.id == runs.c.pricing_version_id)
+                .join(
+                    instance_versions,
+                    instance_versions.c.id == pricing_versions.c.instance_version_id,
+                )
+                .join(city_instances, city_instances.c.id == instance_versions.c.instance_id)
+            )
+            .where(
+                runs.c.kind == RunKind.PRICING.value,
+                run_steps.c.step == StepName.PRICING_MODEL.value,
+                run_steps.c.state == StepState.DONE.value,
+                run_steps.c.started_at.is_not(None),
+                run_steps.c.finished_at.is_not(None),
+                city_instances.c.dataset_id == dataset_id,
+                instance_versions.c.radius_m == radius_m,
+            )
+            .order_by(run_steps.c.finished_at.desc(), run_steps.c.id.desc())
+            .limit(1)
+        )
+        with self._engine.connect() as connection:
+            found = connection.execute(query).scalar()
+        return None if found is None else float(found)
 
     def latest_run(self, version_id: str) -> Run | None:
         query = (

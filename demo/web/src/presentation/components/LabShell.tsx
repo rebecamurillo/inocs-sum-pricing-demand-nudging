@@ -8,7 +8,10 @@ import {
 } from '../../domain/layout';
 import { NEW_INSTANCE_ACTION, NO_CITY_DATA } from '../../domain/draft-text';
 import { breadcrumb, periodChip } from '../../domain/l1-text';
+import { pricingBreadcrumb, pricingVersionName } from '../../domain/pricing-goals-text';
+import { pricingVersionId } from '../../domain/pricing-version';
 import type { LabRoute } from '../../domain/route';
+import { PRICING_VERSIONS_OFF } from '../../domain/run-text';
 import {
   instanceLabel,
   missingInstanceVersionLabel,
@@ -18,6 +21,7 @@ import { useInstanceMenu, useInstanceView, useNewInstanceBasis } from '../hooks/
 import { useActiveRuns, useEndedBuild } from '../hooks/useRuns';
 import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
+import { usePricingVersion } from '../hooks/usePricingVersions';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { MapPane } from '../map/MapPane';
 import { MapProvider } from '../map/MapContext';
@@ -27,6 +31,7 @@ import { InstanceMenu } from './InstanceMenu';
 import { DraftForm } from './DraftForm';
 import { InstanceView, type OpenedDraft } from './InstanceView';
 import { NewInstanceForm } from './NewInstanceForm';
+import { PricingGoalsForm } from './PricingGoalsForm';
 import { RunLine } from './RunLine';
 import styles from './LabShell.module.css';
 
@@ -133,23 +138,33 @@ export function LabShell() {
   const mapShare = layout.mapShare(EMPTY_LAB_VIEW);
 
   // An instance link is a view only when the menu lists that version; every other link is unknown.
+  const linkedRoute =
+    route.kind === 'instance' || route.kind === 'pricing' || route.kind === 'result' ? route : null;
   const linkedEntry =
-    route.kind === 'instance'
-      ? entries.find((entry) => entry.id === route.instance.instanceId)
-      : undefined;
+    linkedRoute === null
+      ? undefined
+      : entries.find((entry) => entry.id === linkedRoute.instance.instanceId);
   const linkedVersion =
-    route.kind === 'instance'
-      ? linkedEntry?.versions.find((version) => version.number === route.instance.version)
-      : undefined;
+    linkedRoute === null
+      ? undefined
+      : linkedEntry?.versions.find((version) => version.number === linkedRoute.instance.version);
+  // L-2 and L-3 have no map: the pane and its grip go, the stored preference stays.
+  const pricingRoute = route.kind === 'pricing' || route.kind === 'result' ? route : null;
+  const pricingOpen = usePricingVersion(
+    pricingRoute !== null && linkedVersion !== undefined
+      ? pricingVersionId(linkedVersion.id, pricingRoute.letter)
+      : null,
+  ).data;
   const openVersion =
     linkedEntry !== undefined && linkedVersion !== undefined
       ? { instanceId: linkedEntry.id, versionId: linkedVersion.id }
       : null;
   // A link naming an instance version waits for the menu; only an answered menu says it is unknown.
-  const menuPending = route.kind === 'instance' && menu.isPending;
-  const menuFailed = route.kind === 'instance' && menu.isError;
+  const menuPending = linkedRoute !== null && menu.isPending;
+  const menuFailed = linkedRoute !== null && menu.isError;
   const unknownLink =
     route.kind === 'lab' || openVersion !== null || menuPending || menuFailed ? null : route;
+  const noMap = pricingRoute !== null && openVersion !== null;
   const current: MenuChoice | null =
     openVersion !== null
       ? null
@@ -164,9 +179,7 @@ export function LabShell() {
     current === 'instances';
   const queuedPlaces = new Map(
     activeRuns.flatMap((run) =>
-      run.state === 'queued' &&
-      run.queuePosition !== null &&
-      run.subject.type === 'instance_version'
+      run.state === 'queued' && run.queuePosition !== null
         ? [[run.subject.id, run.queuePosition + 1] as const]
         : [],
     ),
@@ -232,8 +245,9 @@ export function LabShell() {
   };
 
   const menuWidth = menuOpen ? `${String(MENU_WIDTH_PX)}px` : '0px';
-  const gripWidth = mapShown ? `${String(GRIP_WIDTH_PX)}px` : '0px';
-  const mapWidth = mapShown ? `calc((100% - ${menuWidth}) * ${String(mapShare / 100)})` : '0px';
+  const mapVisible = mapShown && !noMap;
+  const gripWidth = mapVisible ? `${String(GRIP_WIDTH_PX)}px` : '0px';
+  const mapWidth = mapVisible ? `calc((100% - ${menuWidth}) * ${String(mapShare / 100)})` : '0px';
 
   return (
     <div className={styles.shell}>
@@ -286,9 +300,11 @@ export function LabShell() {
                   <InstanceMenu
                     entries={entries}
                     open={openVersion}
-                    setupCurrent={openVersion !== null}
+                    setupCurrent={openVersion !== null && route.kind === 'instance'}
+                    currentLetter={pricingRoute?.letter ?? null}
                     queued={queuedPlaces}
                     onOpenVersion={openVersionRow}
+                    onNavigate={navigate}
                     onInstanceDeleted={() => {
                       setCreating(false);
                       navigate({ kind: 'lab', period: null });
@@ -348,21 +364,31 @@ export function LabShell() {
             )}
             <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
               {linkedEntry !== undefined && linkedVersion !== undefined && openVersion !== null
-                ? breadcrumb(linkedEntry.name, linkedVersion.number)
+                ? pricingRoute === null
+                  ? breadcrumb(linkedEntry.name, linkedVersion.number)
+                  : pricingBreadcrumb(
+                      linkedEntry.name,
+                      linkedVersion.number,
+                      pricingOpen === undefined || pricingOpen === null
+                        ? `Version ${pricingRoute.letter}`
+                        : pricingVersionName(pricingOpen),
+                    )
                 : choiceLabels[current ?? 'instances']}
             </nav>
             {firstPeriod !== undefined && (
               <span className={styles.chip}>{periodChip(firstPeriod.label)}</span>
             )}
-            <button
-              type="button"
-              className={styles.barButton}
-              onClick={() => {
-                layout.setMapShown(!mapShown);
-              }}
-            >
-              {mapShown ? 'Hide map' : 'Show map'}
-            </button>
+            {!noMap && (
+              <button
+                type="button"
+                className={styles.barButton}
+                onClick={() => {
+                  layout.setMapShown(!mapShown);
+                }}
+              >
+                {mapShown ? 'Hide map' : 'Show map'}
+              </button>
+            )}
             <button
               type="button"
               className={styles.barButton}
@@ -379,7 +405,21 @@ export function LabShell() {
           <main className={styles.card}>
             {openVersion !== null ? (
               // Keyed by version: rows shown on the map and the open table go with the version.
-              linkedVersion?.status === 'draft' ? (
+              pricingRoute !== null ? (
+                linkedVersion?.state !== 'ready' ? (
+                  <p className={styles.cardText}>{PRICING_VERSIONS_OFF}</p>
+                ) : pricingRoute.kind === 'pricing' ? (
+                  <PricingGoalsForm
+                    key={`${openVersion.versionId}.${pricingRoute.letter}`}
+                    instanceVersionId={openVersion.versionId}
+                    instanceId={openVersion.instanceId}
+                    number={linkedVersion.number}
+                    letter={pricingRoute.letter}
+                    advancedView={advancedView}
+                    onNavigate={navigate}
+                  />
+                ) : null
+              ) : linkedVersion?.status === 'draft' ? (
                 <DraftForm
                   key={openVersion.versionId}
                   versionId={openVersion.versionId}
@@ -393,6 +433,7 @@ export function LabShell() {
                   versionId={openVersion.versionId}
                   advancedView={advancedView}
                   onOpenDraft={openDraft}
+                  onNavigate={navigate}
                 />
               )
             ) : creating ? (
@@ -415,7 +456,7 @@ export function LabShell() {
             )}
           </main>
 
-          {mapShown && (
+          {mapVisible && (
             <>
               {/* A focusable separator is a widget (WAI-ARIA window splitter); the rules do not know it. */}
               {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
@@ -439,7 +480,7 @@ export function LabShell() {
           )}
 
           {/* Hiding the map hides the pane; the map instance stays mounted. */}
-          <MapPane shown={mapShown} datasetId={linkedEntry?.datasetId ?? null} />
+          <MapPane shown={mapVisible} datasetId={linkedEntry?.datasetId ?? null} />
         </div>
       </MapProvider>
       <Footer />

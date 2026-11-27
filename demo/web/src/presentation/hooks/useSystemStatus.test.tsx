@@ -3,6 +3,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
 import type { SystemStatus } from '../../domain/system-status';
@@ -32,6 +33,7 @@ describe('useSystemStatus', () => {
       basemap: { exists: () => Promise.resolve(false), url: () => '' },
       cityInstances: emptyCityInstances,
       runs: fakeRunGateway(),
+      pricing: fakePricingGateway(),
     };
     const client = new QueryClient();
     const wrapper = ({ children }: { children: ReactNode }) => (

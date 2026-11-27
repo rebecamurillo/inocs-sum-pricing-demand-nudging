@@ -39,7 +39,7 @@ from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstanc
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersions
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
-from tests.support.runs import T0, later, make_run
+from tests.support.runs import T0, later, make_run, step
 
 DATASET = fake_city_dataset("geneva-2026-11-26", T0)
 PARAMETERS = parameters_from_defaults(FAKE_FINGERPRINT.defaults, DATASET.preset)
@@ -410,3 +410,84 @@ def test_the_active_run_of_any_kind_is_found(env: Env, kind: RunKind, state: Run
 
     assert env.pricing.active_run_id(version) == "r-active"
     assert env.pricing.active_run_id(other) is None
+
+
+def test_the_source_of_the_kept_values_is_stored_and_cleared_with_its_deletion(env: Env) -> None:
+    source = env.draft()
+    kept = env.pricing.create_draft(VERSION, None, GOALS, PERIOD, None, T0, source)
+
+    assert kept.kept_from_id == source
+    assert stored(env, kept.id).kept_from_id == source
+    assert stored(env, source).kept_from_id is None
+
+    env.pricing.delete(source)
+
+    assert stored(env, kept.id).kept_from_id is None
+
+
+def test_a_draft_takes_a_new_name_and_keeps_its_goals(env: Env) -> None:
+    version = env.draft()
+
+    renamed = env.pricing.update_draft(version, {"cost_bike_chf": 0.7}, name="Cheaper")
+
+    assert (renamed.name, renamed.goals.cost_bike_chf) == ("Cheaper", 0.7)
+    assert env.pricing.update_draft(version, {}, name="Again").name == "Again"
+    assert env.pricing.update_draft(version, {"cost_bike_chf": 0.8}).name == "Again"
+    env.seal(version)
+    with pytest.raises(VersionSealed):
+        env.pricing.update_draft(version, {}, name="Late")
+
+
+def _model_run(
+    env: Env, run_id: str, version_id: str, seconds: float, at: int, state: StepState
+) -> None:
+    started = later(at)
+    env.runs.add(
+        make_run(
+            run_id,
+            kind=RunKind.PRICING,
+            subject_id=version_id,
+            state=RunState.SUCCEEDED,
+            queued_at=started,
+            steps=(
+                step(
+                    1,
+                    StepName.PRICING_MODEL,
+                    state,
+                    started_at=started,
+                    finished_at=later(at + seconds),
+                ),
+            ),
+        )
+    )
+
+
+def test_the_last_pricing_model_duration_is_the_latest_done_step_of_the_same_radius(
+    env: Env,
+) -> None:
+    version = env.draft()
+    env.seal(version)
+    other = InstanceVersion(
+        "geneva-5km.v1", "geneva-5km", 1, None, "draft", replace(PARAMETERS, radius_m=5000), T0, T0
+    )
+    env.instances.create(
+        CityInstance("geneva-5km", "Geneva 5 km", DATASET.id, 2, T0),
+        other,
+        first_period(other.id, DATASET),
+    )
+    far = env.pricing.create_draft(other.id, None, GOALS, f"{other.id}.mon-08", None, T0).id
+    env.seal(far)
+    radius = PARAMETERS.radius_m
+    assert env.pricing.last_pricing_model_duration_s(DATASET.id, radius) is None
+
+    _model_run(env, "r1", version, 120, 10, StepState.DONE)
+    _model_run(env, "r2", version, 5, 200, StepState.KEPT)
+    _model_run(env, "r3", far, 999, 300, StepState.DONE)
+
+    assert env.pricing.last_pricing_model_duration_s(DATASET.id, radius) == 120
+    assert env.pricing.last_pricing_model_duration_s(DATASET.id, 5000) == 999
+    assert env.pricing.last_pricing_model_duration_s("other-dataset", radius) is None
+
+    _model_run(env, "r4", version, 90, 400, StepState.DONE)
+
+    assert env.pricing.last_pricing_model_duration_s(DATASET.id, radius) == 90

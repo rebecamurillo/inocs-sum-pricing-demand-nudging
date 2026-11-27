@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
+import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
 import type { CityDataset } from '../../domain/map';
@@ -34,6 +35,7 @@ function gatewaysFor(datasets: CityDataset[], served: boolean): Gateways {
     },
     cityInstances: emptyCityInstances,
     runs: fakeRunGateway(),
+    pricing: fakePricingGateway(),
   };
 }
 

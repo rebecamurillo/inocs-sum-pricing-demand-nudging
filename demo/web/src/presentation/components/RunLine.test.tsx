@@ -3,6 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
+import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
 import {
   fakeRunGateway,
   sampleBuildSteps,
@@ -58,6 +59,7 @@ function mount(
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances: emptyCityInstances,
     runs,
+    pricing: fakePricingGateway(),
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = (open: string | null) => (

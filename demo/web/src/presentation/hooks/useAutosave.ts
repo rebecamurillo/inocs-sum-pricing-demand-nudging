@@ -3,9 +3,9 @@ import type { ParameterChanges } from '../../application/ports/city-instance-gat
 
 export const AUTOSAVE_DELAY_MS = 500;
 
-export interface Autosave {
+export interface Autosave<C extends object = ParameterChanges> {
   /** Adds changes to the pending ones and restarts the 500 ms wait. */
-  schedule: (changes: ParameterChanges) => void;
+  schedule: (changes: C) => void;
   /**
    * Sends what is pending now and resolves when every send so far has answered; rejects when
    * the last send failed again, whose changes stay pending.
@@ -22,11 +22,11 @@ export interface Autosave {
  * the answers arrive in the order of the changes. A change still pending when the form closes
  * is sent then.
  */
-export function useAutosave(
-  send: (changes: ParameterChanges) => Promise<unknown>,
+export function useAutosave<C extends object = ParameterChanges>(
+  send: (changes: C) => Promise<unknown>,
   delayMs: number = AUTOSAVE_DELAY_MS,
-): Autosave {
-  const pending = useRef<ParameterChanges>({});
+): Autosave<C> {
+  const pending = useRef<C>({} as C);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const settled = useRef<Promise<void>>(Promise.resolve());
   const sendRef = useRef(send);
@@ -44,7 +44,7 @@ export function useAutosave(
 
   const sendPending = useCallback((): Promise<void> => {
     const changes = pending.current;
-    pending.current = {};
+    pending.current = {} as C;
     const at = generation.current;
     const sent = settled.current
       .then(() => sendRef.current(changes))
@@ -74,7 +74,7 @@ export function useAutosave(
   }, [stop, sendPending]);
 
   const schedule = useCallback(
-    (changes: ParameterChanges) => {
+    (changes: C) => {
       pending.current = { ...pending.current, ...changes };
       stop();
       timer.current = setTimeout(() => {
@@ -86,7 +86,7 @@ export function useAutosave(
 
   const cancel = useCallback(() => {
     stop();
-    pending.current = {};
+    pending.current = {} as C;
     generation.current += 1;
   }, [stop]);
 

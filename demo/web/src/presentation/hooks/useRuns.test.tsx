@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
+import { fakePricingGateway } from '../../application/ports/fake-pricing-gateway';
 import {
   fakeRunGateway,
   sampleBuildSteps,
@@ -32,6 +33,7 @@ function setup(runs = fakeRunGateway([sampleRunningBuild])) {
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances: emptyCityInstances,
     runs,
+    pricing: fakePricingGateway(),
   };
   const client = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (

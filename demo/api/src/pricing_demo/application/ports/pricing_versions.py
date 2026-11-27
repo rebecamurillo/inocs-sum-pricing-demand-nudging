@@ -18,10 +18,12 @@ class PricingVersions(Protocol):
         period_id: str,
         based_on_id: str | None,
         created_at: datetime,
+        kept_from_id: str | None = None,
     ) -> PricingVersion:
         """Take `next_pricing_letter` of the instance version and increment it under a row
         lock, in one transaction with the insert of the draft (named `Version {letter}` when
-        `name` is None) and its period. Raises `InstanceVersionNotFound`, and `UnknownBasedOn`
+        `name` is None) and its period, remembering `kept_from_id`, the version whose values
+        it kept. Raises `InstanceVersionNotFound`, and `UnknownBasedOn`
         when `based_on_id` is not (or no longer) a pricing version of the instance version."""
         ...
 
@@ -39,9 +41,17 @@ class PricingVersions(Protocol):
         """The sealed pricing version of the instance version with the highest letter."""
         ...
 
-    def update_draft(self, version_id: str, changes: Mapping[str, Number]) -> PricingVersion:
-        """Set the named goals, leaving the others as stored. Raises `PricingVersionNotFound`
-        and `VersionSealed`."""
+    def update_draft(
+        self, version_id: str, changes: Mapping[str, Number], name: str | None = None
+    ) -> PricingVersion:
+        """Set the named goals, leaving the others as stored, and the name when given. Raises
+        `PricingVersionNotFound` and `VersionSealed`."""
+        ...
+
+    def last_pricing_model_duration_s(self, dataset_id: str, radius_m: float) -> float | None:
+        """The seconds of the most recent finished `pricing_model` step of a pricing run on an
+        instance version with this data set and radius; a step that kept its output (no work)
+        does not count. None when there is none."""
         ...
 
     def latest_run(self, version_id: str) -> Run | None:

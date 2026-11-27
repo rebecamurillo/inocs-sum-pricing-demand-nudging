@@ -1,0 +1,214 @@
+.panel {
+  flex: 0 0 400px;
+  box-sizing: border-box;
+  width: 400px;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.head h3 {
+  margin: 0;
+  font-size: 1.05em;
+}
+
+.head h3:focus-visible {
+  outline-offset: 4px;
+}
+
+.close {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.tabs button {
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.tabs button[aria-selected='true'] {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom-color: var(--blue);
+}
+
+section h4 {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 1em;
+}
+
+section p {
+  margin: 0 0 0.375rem;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0 0.375rem;
+  font-size: 0.7em;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+  background: #f5e27a;
+  border-radius: 4px;
+}
+
+.source,
+.caption {
+  margin: 0.75rem 0 0;
+  color: var(--ink-2);
+  font-size: 0.85em;
+}
+
+.caption {
+  margin-top: 0.25rem;
+}
+
+/* The number line: CHF per bike ride; the markers sit above and below the axis. */
+.line {
+  position: relative;
+  height: 5.25rem;
+  margin: 0.5rem 0.75rem 0;
+}
+
+.axis {
+  position: absolute;
+  top: 1.5rem;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ink-2);
+}
+
+.band {
+  position: absolute;
+  top: 1.25rem;
+  right: 0;
+  height: 0.5rem;
+  background: var(--green);
+  border-radius: 2px;
+}
+
+.loss {
+  position: absolute;
+  top: 1.25rem;
+  height: 0.5rem;
+  background: repeating-linear-gradient(135deg, var(--red-ink) 0 2px, var(--red-tint) 2px 5px);
+  border: 1px solid var(--red-ink);
+  box-sizing: border-box;
+}
+
+.markCost,
+.markLowest {
+  position: absolute;
+  width: 0;
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+
+.markCost {
+  top: 0;
+  height: 1.75rem;
+  border-left: 2px solid var(--ink);
+}
+
+.markCost span {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translateX(-50%);
+}
+
+.markLowest {
+  top: 1.75rem;
+  height: 1rem;
+  border-left: 2px solid var(--blue);
+}
+
+.markLowest span {
+  position: absolute;
+  bottom: -0.1rem;
+  left: 0;
+  transform: translate(-50%, 100%);
+  color: var(--blue);
+}
+
+.tick {
+  position: absolute;
+  top: 4rem;
+  font-size: 0.7em;
+  color: var(--ink-2);
+  transform: translateX(-50%);
+}
+
+/* The example ride: three bars on one scale; a negative part is drawn left of zero. */
+.parts {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+
+.part {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6rem 3.75rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9em;
+}
+
+.track {
+  position: relative;
+  height: 0.75rem;
+  background: var(--tint-2);
+  border-radius: 2px;
+}
+
+.track i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ink-2);
+}
+
+.track[data-negative='true'] i {
+  background: repeating-linear-gradient(135deg, var(--red-ink) 0 2px, var(--red-tint) 2px 5px);
+  border: 1px solid var(--red-ink);
+  box-sizing: border-box;
+}
+
+.amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.25rem 0 0.5rem;
+  padding-top: 0.25rem;
+  font-weight: 700;
+  border-top: 1px solid var(--line);
+}

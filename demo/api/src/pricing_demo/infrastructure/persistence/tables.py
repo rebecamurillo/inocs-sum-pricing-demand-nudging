@@ -301,6 +301,11 @@ pricing_versions = Table(
     Column("name", Text, nullable=False),
     Column("status", Text, nullable=False),
     Column("based_on_id", Text, ForeignKey("pricing_versions.id", ondelete="SET NULL")),
+    Column(
+        "kept_from_id",
+        Text,
+        ForeignKey("pricing_versions.id", ondelete="SET NULL", name="fk_kept_from"),
+    ),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("sealed_at", DateTime(timezone=True)),
     *(Column(name, Double, nullable=False) for name in PRICING_GOAL_COLUMNS),
