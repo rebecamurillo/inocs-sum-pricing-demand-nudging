@@ -1,0 +1,6 @@
+stop_id,stop_name,stop_lat,stop_lon
+SA,Alpha,46.20800,6.14500
+SB,Beta,46.20820,6.14560
+SC,Gamma,46.20330,6.15300
+SD,Delta,46.20310,6.15360
+SF,Far away,46.30000,6.30000

@@ -33,8 +33,10 @@ from pricing_demo.application.errors import (
 from pricing_demo.application.ingest_step import StepIngestion
 from pricing_demo.application.ports.bike_station_feed import BikeStationFeed
 from pricing_demo.application.ports.bus_shape_matcher import BusShapeMatcher
+from pricing_demo.application.ports.city_preparation import CityPreparation
 from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.ports.component_probe import ComponentProbe
+from pricing_demo.application.ports.feed_shapes import FeedShapes
 from pricing_demo.application.ports.package_fingerprints import PackageFingerprintReader
 from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
@@ -86,11 +88,13 @@ from pricing_demo.infrastructure.persistence.route_failures import PostgresRoute
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
+from pricing_demo.infrastructure.pricing_model.city_preparation import PackageCityPreparation
 from pricing_demo.infrastructure.pricing_model.package_fingerprint import (
     PackageFingerprintReader as PackageSourcesReader,
 )
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
 from pricing_demo.infrastructure.pricing_model.solver_probe import SolverProbe
+from pricing_demo.infrastructure.pricing_model.stage_child import StageChild
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
 from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphBuilder
 from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
@@ -152,22 +156,23 @@ def register_build_steps(
     graph: FileGraphFingerprints,
     fake_settings: PostgresFakeSettings | None,
 ) -> None:
-    """The executor and keeper of the four build steps. The real city preparation is built
-    with the pricing-model adapter (story 2-7): until then a real build fails at its first
-    step with `stage_error`."""
-    if settings.adapters != "fake" or fake_settings is None:
-        return
+    """The executor and keeper of the four build steps. The real city preparation runs steps
+    1, 2 and 4 of the package in a child process; its routes step is story 2-8 and ends
+    `stage_error` until then."""
     files = LocalArtifactStore(settings.data_dir)
     read_model = PostgresReadModel(engine)
     route_failures = PostgresRouteFailures(engine)
     # The fake city has one route with a timetable shape and one without.
-    feed_shapes = (
-        FakeFeedShapes(frozenset({"1"}))
-        if settings.adapters == "fake"
-        else GtfsFeedShapes(settings.data_dir)
-    )
+    preparation: CityPreparation
+    feed_shapes: FeedShapes
+    if fake_settings is not None:
+        preparation = FakeCityPreparation(fake_settings, waiter)
+        feed_shapes = FakeFeedShapes(frozenset({"1"}))
+    else:
+        preparation = PackageCityPreparation(settings.data_dir, StageChild())
+        feed_shapes = GtfsFeedShapes(settings.data_dir)
     executor = BuildStepExecutor(
-        FakeCityPreparation(fake_settings, waiter),
+        preparation,
         files,
         PostgresArtifacts(engine),
         repository,

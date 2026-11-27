@@ -61,7 +61,7 @@ STEP_OUTPUTS: Mapping[StepName, tuple[str, ...]] = {
     StepName.AREA: ("stations.json",),
     StepName.HUBS: ("hubs.geojson", "stations_hubs.geojson", "hub_polygons.geojson"),
     StepName.ROUTES: ("od_routes.json", "od_geometry.json"),
-    StepName.TRAVELLERS_AND_BIKES: ("Instance_1.json",),
+    StepName.TRAVELLERS_AND_BIKES: ("Instance_1.json", "option_bike_legs.json"),
 }
 
 # The upstream files a step needs in its working directory, under the names the package

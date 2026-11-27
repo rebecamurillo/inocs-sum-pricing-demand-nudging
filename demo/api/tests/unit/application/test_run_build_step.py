@@ -397,3 +397,49 @@ def test_the_run_keeps_the_failure_rate_of_a_routes_step_that_is_kept() -> None:
     stored = rig.builds.runs.get(first.id)
     assert stored is not None
     assert stored.failure_pct == 8.0
+
+
+def test_the_log_excerpt_and_peak_memory_of_the_preparation_reach_the_done_outcome() -> None:
+    rig = Rig()
+    rig.preparation.outcomes = {
+        AREA: StepOutcome.done({"rows": 1}, log_excerpt="the log", peak_rss_bytes=2048)
+    }
+    run = queued(rig)
+
+    outcome = rig.execute(run, AREA)
+
+    assert outcome.failure_code is None
+    assert (outcome.log_excerpt, outcome.peak_rss_bytes) == ("the log", 2048)
+
+
+def test_the_log_excerpt_of_a_failed_preparation_is_returned_as_it_is() -> None:
+    rig = Rig()
+    rig.preparation.outcomes = {
+        AREA: StepOutcome.failed("stage_error", "x", log_excerpt="tb", peak_rss_bytes=1)
+    }
+    run = queued(rig)
+
+    outcome = rig.execute(run, AREA)
+
+    assert (outcome.failure_code, outcome.log_excerpt, outcome.peak_rss_bytes) == (
+        "stage_error",
+        "tb",
+        1,
+    )
+
+
+def test_a_failed_ingestion_keeps_the_log_excerpt_and_peak_memory_of_the_preparation() -> None:
+    rig, spy = with_spy()
+    rig.preparation.outcomes = {
+        AREA: StepOutcome.done({"rows": 1}, log_excerpt="the log", peak_rss_bytes=2048)
+    }
+    run = queued(rig)
+    spy.failing = True
+
+    outcome = rig.execute(run, AREA)
+
+    assert (outcome.failure_code, outcome.log_excerpt, outcome.peak_rss_bytes) == (
+        "stage_error",
+        "the log",
+        2048,
+    )

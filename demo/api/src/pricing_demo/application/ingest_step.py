@@ -66,11 +66,18 @@ class StepIngestion:
             return IngestionBatch(key, step, counts)
         instance = self._read(artifact, "Instance_1.json")
         routes = upstream[StepName.ROUTES]
+        # An artefact stored before the bike legs were written has no such file: null.
+        bike_legs = (
+            self._read(artifact, "option_bike_legs.json")
+            if any(item.name == "option_bike_legs.json" for item in artifact.files)
+            else None
+        )
         options = rows.route_options_from(
             self._read(routes, "od_routes.json"),
             self._read(routes, "od_geometry.json"),
             instance,
             self._feed_shapes.routes_with_shapes(dataset),
+            bike_legs,
         )
         return IngestionBatch(
             key,

@@ -229,3 +229,28 @@ def test_the_headline_counts_are_five_inputs_in_screen_order() -> None:
 def test_a_malformed_file_raises_a_value_error(reader) -> None:  # type: ignore[no-untyped-def]
     with pytest.raises(ValueError, match="not in the expected shape"):
         reader()
+
+
+def test_the_bike_legs_are_set_by_arc_id_and_null_without_the_map(city: FakeCity) -> None:
+    args = (city.files["od_routes.json"], city.files["od_geometry.json"])
+    instance = city.files["Instance_1.json"]
+
+    without = rows.route_options_from(*args, instance, SHAPES)
+    with_map = rows.route_options_from(*args, instance, SHAPES, city.files["option_bike_legs.json"])
+
+    assert {item.bike_legs for item in without} == {None}
+    assert {item.bike_legs for item in with_map if item.mode == "pt_bike"} == {1}
+    assert {item.bike_legs for item in with_map if item.mode != "pt_bike"} == {0}
+
+
+def test_a_bike_leg_count_that_is_not_an_integer_is_malformed(city: FakeCity) -> None:
+    first = next(iter(city.files["option_bike_legs.json"]))
+
+    with pytest.raises(ValueError, match="not in the expected shape"):
+        rows.route_options_from(
+            city.files["od_routes.json"],
+            city.files["od_geometry.json"],
+            city.files["Instance_1.json"],
+            SHAPES,
+            {first: "two"},  # type: ignore[dict-item]
+        )

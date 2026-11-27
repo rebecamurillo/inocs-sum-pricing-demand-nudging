@@ -19,14 +19,38 @@ class StepOutcome:
     failure_code: str | None = None
     failure_reason: str | None = None
     stopped: bool = False
+    # What a child process left: the log's excerpt and the peak memory it used (ARCHITECTURE.md
+    # § 4.5). Null for an executor that runs no child.
+    log_excerpt: str | None = None
+    peak_rss_bytes: int | None = None
 
     @classmethod
-    def done(cls, counts: Mapping[str, Any] | None = None) -> Self:
-        return cls(counts=dict(counts or {}))
+    def done(
+        cls,
+        counts: Mapping[str, Any] | None = None,
+        *,
+        log_excerpt: str | None = None,
+        peak_rss_bytes: int | None = None,
+    ) -> Self:
+        return cls(
+            counts=dict(counts or {}), log_excerpt=log_excerpt, peak_rss_bytes=peak_rss_bytes
+        )
 
     @classmethod
-    def failed(cls, code: str, reason: str) -> Self:
-        return cls(failure_code=code, failure_reason=reason)
+    def failed(
+        cls,
+        code: str,
+        reason: str,
+        *,
+        log_excerpt: str | None = None,
+        peak_rss_bytes: int | None = None,
+    ) -> Self:
+        return cls(
+            failure_code=code,
+            failure_reason=reason,
+            log_excerpt=log_excerpt,
+            peak_rss_bytes=peak_rss_bytes,
+        )
 
     @classmethod
     def stopped_on_signal(cls) -> Self:

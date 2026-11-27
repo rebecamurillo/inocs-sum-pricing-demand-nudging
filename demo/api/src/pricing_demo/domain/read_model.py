@@ -76,8 +76,8 @@ class RouteLeg:
 
 @dataclass(frozen=True)
 class RouteOptionRow:
-    """The parser columns (`bike_legs`, `bike_time_min` ...) are not part of the row: the
-    package's parser fills them (story 2-7), they stay null until then."""
+    """`bike_legs` is filled from the package's parser through `option_bike_legs.json`; the
+    other parser columns (`bike_time_min` ...) are not part of the row and stay null."""
 
     arc_id: str
     origin_hub: str
@@ -88,6 +88,7 @@ class RouteOptionRow:
     total_distance_m: float
     legs: tuple[RouteLeg, ...]
     geometry: Any
+    bike_legs: int | None = None
 
 
 @dataclass(frozen=True)
@@ -160,7 +161,7 @@ def stations_from(stations_json: Any) -> tuple[StationRow, ...]:
 
 def hubs_from(hubs_geojson: Any, polygons_geojson: Any) -> tuple[HubRow, ...]:
     outlines = {
-        str(item["properties"]["hub_id"]): item["geometry"]
+        str(item["properties"]["cluster"]): item["geometry"]
         for item in _features(polygons_geojson, "hub_polygons.geojson")
     }
     try:
@@ -186,7 +187,7 @@ def station_hubs_from(stations_hubs_geojson: Any) -> tuple[StationHubRow, ...]:
     try:
         rows = tuple(
             StationHubRow(
-                str(feature["properties"]["station_id"]), str(feature["properties"]["hub_id"])
+                str(feature["properties"]["identifier"]), str(feature["properties"]["hub_id"])
             )
             for feature in _features(stations_hubs_geojson, "stations_hubs.geojson")
         )
@@ -241,12 +242,13 @@ def route_options_from(
     od_geometry: Any,
     instance: Any,
     routes_with_shapes: Collection[str],
+    bike_legs: Mapping[str, int] | None = None,
 ) -> tuple[RouteOptionRow, ...]:
     """The options of the instance: each arc of `od_routes.json` that the instance kept, with
     its pair, its mode (the list it sits in), its legs and its geometry."""
     try:
         in_instance = {
-            mode: {arc["arc_id"] for arc in instance[name]}
+            mode: {arc["arc_id"] for arc in _instance_arcs(instance[name])}
             for mode, name in INSTANCE_ARC_LISTS.items()
         }
         geometries = {item["arc_id"]: item["legs_geometry"] for item in od_geometry["geometries"]}
@@ -267,11 +269,28 @@ def route_options_from(
                             arc["total_distance_m"],
                             _legs(arc, routes_with_shapes),
                             geometries.get(arc["arc_id"], []),
+                            _bike_legs(bike_legs, str(arc["arc_id"])),
                         )
                     )
     except (KeyError, TypeError) as error:
         raise _malformed("od_routes.json, od_geometry.json or Instance_1.json", error) from error
     return tuple(sorted(rows, key=lambda row: row.arc_id))
+
+
+def _instance_arcs(found: Any) -> list[Any]:
+    """The package writes the arcs of an instance as one list per pair, keyed `{from}_{to}`."""
+    if isinstance(found, Mapping):
+        return [arc for arcs in found.values() for arc in arcs]
+    return list(found)
+
+
+def _bike_legs(found: Mapping[str, int] | None, arc_id: str) -> int | None:
+    if found is None or arc_id not in found:
+        return None
+    value = found[arc_id]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise _malformed("option_bike_legs.json", TypeError(f"arc {arc_id}: {value!r}"))
+    return value
 
 
 def station_bikes_from(instance: Any) -> tuple[StationBikesRow, ...]:
@@ -344,7 +363,10 @@ def instance_counts(instance: Any) -> dict[str, Any]:
             "hub_pairs": len(instance["OD_pairs"]),
             "travellers": instance["info"]["total_demand"],
             "bike_stations": len(instance["bike_stations"]["station_list"]),
-            "options": {mode: len(instance[name]) for mode, name in INSTANCE_ARC_LISTS.items()},
+            "options": {
+                mode: len(_instance_arcs(instance[name]))
+                for mode, name in INSTANCE_ARC_LISTS.items()
+            },
         }
     except (KeyError, TypeError) as error:
         raise _malformed("Instance_1.json", error) from error

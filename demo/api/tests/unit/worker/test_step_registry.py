@@ -1,5 +1,6 @@
 import pytest
 
+from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
@@ -291,3 +292,49 @@ def test_a_keeper_that_raises_lets_the_executor_run_the_step(rig: Rig) -> None:
 
     assert log == ["r1:area", "r1:hubs", "r1:routes", "r1:travellers_and_bikes"]
     assert rig.stored().state is RunState.SUCCEEDED
+
+
+class ChildExecutor:
+    """An executor that ran a child process: it returns the child's log and peak memory."""
+
+    def __init__(self, outcome: StepOutcome) -> None:
+        self._outcome = outcome
+
+    def execute(self, run: Run, step: RunStep, stop: StopSignal) -> StepOutcome:
+        return self._outcome
+
+
+def test_the_log_excerpt_and_peak_memory_of_a_done_step_land_on_the_step(rig: Rig) -> None:
+    rig.registry.register(
+        StepName.AREA,
+        ChildExecutor(StepOutcome.done({"rows": 1}, log_excerpt="the log", peak_rss_bytes=4096)),
+    )
+    rig.runs.add(make_run("r1", steps=(step(1, StepName.AREA),)))
+
+    rig.process.execute()
+
+    done = rig.stored().steps[0]
+    assert (done.log_excerpt, done.peak_rss_bytes) == ("the log", 4096)
+
+
+def test_the_log_excerpt_and_peak_memory_of_a_failed_step_land_on_the_step(rig: Rig) -> None:
+    rig.registry.register(
+        StepName.AREA,
+        ChildExecutor(StepOutcome.failed("stage_error", "x", log_excerpt="tb", peak_rss_bytes=9)),
+    )
+    rig.runs.add(make_run("r1", steps=(step(1, StepName.AREA),)))
+
+    rig.process.execute()
+
+    failed = rig.stored().steps[0]
+    assert (failed.state, failed.log_excerpt, failed.peak_rss_bytes) == (StepState.FAILED, "tb", 9)
+
+
+def test_a_step_that_ran_no_child_keeps_no_log_and_no_peak_memory(rig: Rig) -> None:
+    rig.registry.register(StepName.AREA, RecordingExecutor([]))
+    rig.runs.add(make_run("r1", steps=(step(1, StepName.AREA),)))
+
+    rig.process.execute()
+
+    done = rig.stored().steps[0]
+    assert (done.log_excerpt, done.peak_rss_bytes) == (None, None)

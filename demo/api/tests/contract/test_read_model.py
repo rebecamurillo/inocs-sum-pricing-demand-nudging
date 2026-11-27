@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy import Engine
 
 from pricing_demo.application.ports.artifacts import Artifact
@@ -22,6 +23,8 @@ class Store:
     read_model: ReadModel
     # PostgreSQL keeps a foreign key from every row to its artefact.
     add_artifact: Callable[[str, StepName], None]
+    # The `bike_legs` kept for each option (arc id) of a key: the port has no reader for options.
+    bike_legs_of: Callable[[str], dict[str, int | None]]
 
 
 @pytest.fixture(
@@ -32,7 +35,14 @@ class Store:
 )
 def store(request: pytest.FixtureRequest) -> Store:
     if request.param == "fake":
-        return Store(InMemoryReadModel(), lambda key, step: None)
+        memory = InMemoryReadModel()
+        return Store(
+            memory,
+            lambda key, step: None,
+            lambda key: {
+                item.arc_id: item.bike_legs for item in memory._batches[key].route_options
+            },
+        )
     from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
     from pricing_demo.infrastructure.persistence.package_fingerprints import (
         PostgresPackageFingerprints,
@@ -50,7 +60,15 @@ def store(request: pytest.FixtureRequest) -> Store:
             )
         )
 
-    return Store(PostgresReadModel(engine), add_artifact)
+    def bike_legs_of(key: str) -> dict[str, int | None]:
+        with engine.connect() as connection:
+            found = connection.execute(
+                sa.text("select arc_id, bike_legs from route_options where instance_key = :key"),
+                {"key": key},
+            )
+            return {str(row[0]): row[1] for row in found}
+
+    return Store(PostgresReadModel(engine), add_artifact, bike_legs_of)
 
 
 @pytest.fixture
@@ -136,6 +154,32 @@ def test_the_last_step_stores_every_table_of_its_instance(store: Store, city: Fa
         "car": 24,
     }
     assert len(store.read_model.hub_pairs("k-instance")) == 24
+
+
+def test_a_stored_route_option_keeps_its_bike_legs(store: Store, city: FakeCity) -> None:
+    store.add_artifact("k-instance", StepName.TRAVELLERS_AND_BIKES)
+    instance = city.files["Instance_1.json"]
+    options = rows.route_options_from(
+        city.files["od_routes.json"],
+        city.files["od_geometry.json"],
+        instance,
+        {"1"},
+        city.files["option_bike_legs.json"],
+    )
+
+    store.read_model.ingest(
+        IngestionBatch(
+            "k-instance",
+            StepName.TRAVELLERS_AND_BIKES,
+            rows.instance_counts(instance),
+            route_options=options,
+        )
+    )
+
+    kept = store.bike_legs_of("k-instance")
+    assert kept == city.files["option_bike_legs.json"]
+    assert {legs for arc, legs in kept.items() if arc.endswith("b")} == {1}
+    assert {legs for arc, legs in kept.items() if not arc.endswith("b")} == {0}
 
 
 def test_ingesting_a_key_again_replaces_its_rows(store: Store, city: FakeCity) -> None:

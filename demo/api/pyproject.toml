@@ -65,7 +65,7 @@ files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["sum_nsm_dynamic_pricing.*", "gurobipy.*"]
+module = ["sum_nsm_dynamic_pricing.*", "gurobipy.*", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -73,7 +73,7 @@ testpaths = ["tests"]
 addopts = [
   "--strict-markers",
   "-m",
-  "not integration and not live",
+  "not integration and not live and not characterisation",
   "--cov=pricing_demo.domain",
   "--cov=pricing_demo.application",
   "--cov-fail-under=90",
@@ -81,6 +81,7 @@ addopts = [
 filterwarnings = ["error"]
 markers = [
   "integration: needs a throwaway PostgreSQL given by PRICING_DEMO_TEST_DATABASE_URL",
+  "characterisation: runs the unmodified pricing package on committed fixtures (make test-model); needs no licence, trip planner or internet",
   "live: needs the real package, a Gurobi licence and a running OpenTripPlanner",
 ]
 

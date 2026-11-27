@@ -1,10 +1,11 @@
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from pricing_demo.application.ingest_step import StepIngestion
-from pricing_demo.application.ports.artifacts import Artifact
+from pricing_demo.application.ports.artifacts import Artifact, StoredFile
 from pricing_demo.domain.build_plan import STEP_OUTPUTS
 from pricing_demo.domain.runs import StepName
 from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
@@ -49,7 +50,7 @@ class Rig:
             f"k-{step.value}",
             step,
             {},
-            (),
+            tuple(StoredFile(name, "0" * 64, 1) for name in STEP_OUTPUTS[step]),
             f"artifacts/{step.value}/k-{step.value}",
             "f" * 64,
             datetime(2026, 11, 26, tzinfo=T0.tzinfo),
@@ -142,3 +143,31 @@ def test_a_malformed_file_stores_nothing(tmp_path: Path) -> None:
         rig.ingest(StepName.AREA)
 
     assert not rig.read_model.is_ingested("k-area")
+
+
+def test_the_options_carry_the_bike_legs_the_package_parser_counted(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+
+    rig.ingest(StepName.TRAVELLERS_AND_BIKES)
+
+    options = rig.read_model._batches["k-travellers_and_bikes"].route_options
+    expected = rig.city.files["option_bike_legs.json"]
+    assert {item.arc_id: item.bike_legs for item in options} == {
+        arc: expected[arc] for arc in (item.arc_id for item in options)
+    }
+    assert {item.bike_legs for item in options if item.mode == "pt_bike"} == {1}
+    assert {item.bike_legs for item in options if item.mode != "pt_bike"} == {0}
+
+
+def test_an_artefact_stored_without_the_file_has_null_bike_legs(tmp_path: Path) -> None:
+    rig = Rig(tmp_path)
+    stored = rig.artifacts[StepName.TRAVELLERS_AND_BIKES]
+    rig.artifacts[StepName.TRAVELLERS_AND_BIKES] = replace(
+        stored, files=tuple(item for item in stored.files if item.name == "Instance_1.json")
+    )
+
+    rig.ingest(StepName.TRAVELLERS_AND_BIKES)
+
+    options = rig.read_model._batches["k-travellers_and_bikes"].route_options
+    assert options
+    assert {item.bike_legs for item in options} == {None}

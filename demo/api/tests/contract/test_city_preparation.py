@@ -1,8 +1,10 @@
-"""The CityPreparation port: one suite, run against the fake (the real adapter joins it with
-story 2-7 as a `characterisation` parameter)."""
+"""The CityPreparation port: one suite. The tests on `rig` pin the fake's fixed city; the tests
+on `port` run against the fake and against the real adapter (marker `characterisation`)."""
 
 import json
+import shutil
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,7 @@ from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparati
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from pricing_demo.infrastructure.waiter import SystemWaiter
+from tests.characterisation.rig import FIXTURES, make_city
 from tests.support.runs import T0
 
 DATASET = fake_city_dataset("geneva-2026-11-26", T0)
@@ -84,6 +87,12 @@ def test_the_files_have_the_fields_of_the_package(rig: Rig, tmp_path: Path) -> N
     hub = read(tmp_path, "hubs.geojson")["features"][0]["properties"]
     assert set(hub) == {"hub_id", "label", "bike_stations", "pt_stations", "lines"}
     assert read(tmp_path, "stations_hubs.geojson")["features"][0]["geometry"]["type"] == "Point"
+    assert set(read(tmp_path, "stations_hubs.geojson")["features"][0]["properties"]) == {
+        "identifier",
+        "station_type",
+        "hub_id",
+    }
+    assert set(read(tmp_path, "hub_polygons.geojson")["features"][0]["properties"]) == {"cluster"}
     assert read(tmp_path, "hub_polygons.geojson")["features"][0]["geometry"]["type"] == "Polygon"
     pair = read(tmp_path, "od_routes.json")["od_results"][0]
     assert {"from_id", "to_id", "arc_pt_bike", "arc_pt_only", "arc_car"} <= set(pair)
@@ -419,3 +428,93 @@ def test_a_failure_at_a_pair_the_city_does_not_request_is_ignored(rig: Rig, tmp_
 
     assert reported == []
     assert outcome.counts["hub_pairs_with_routes"] == 24
+
+
+class PortRig:
+    """The port under test, with what each implementation needs to run steps 1, 2 and 4."""
+
+    def __init__(self, port: CityPreparation, request: Callable[..., PreparationRequest]) -> None:
+        self.port = port
+        self.request = request
+
+    def prepare(
+        self, folder: Path, step: StepName, stop: threading.Event | None = None
+    ) -> StepOutcome:
+        return self.port.prepare(
+            self.request(folder, step), lambda done, total: None, stop or threading.Event()
+        )
+
+    def routes(self, folder: Path) -> None:
+        """What the routes step leaves for step 4."""
+        raise NotImplementedError
+
+
+class FakePortRig(PortRig):
+    def __init__(self) -> None:
+        rig = Rig(
+            FakeCityPreparation(InMemoryFakeSettings(), SystemWaiter()), InMemoryFakeSettings()
+        )
+        super().__init__(rig.port, rig.request)
+        self._rig = rig
+
+    def routes(self, folder: Path) -> None:
+        self._rig.prepare(folder, StepName.ROUTES)
+
+
+class RealPortRig(PortRig):
+    def __init__(self, tmp_path: Path) -> None:
+        self._city = make_city(tmp_path / "data", None, FIXTURES / "gbfs_station_information.json")
+        super().__init__(self._city.port, self._city.request)
+
+    def routes(self, folder: Path) -> None:
+        shutil.copyfile(FIXTURES / "od_routes.json", folder / "od_routes.json")
+        shutil.copyfile(FIXTURES / "od_geometry.json", folder / "od_geometry.json")
+
+
+@pytest.fixture(
+    params=[
+        pytest.param("fake", id="fake"),
+        pytest.param("real", id="real", marks=pytest.mark.characterisation),
+    ]
+)
+def port(request: pytest.FixtureRequest, tmp_path: Path) -> PortRig:
+    return FakePortRig() if request.param == "fake" else RealPortRig(tmp_path)
+
+
+def test_steps_1_2_and_4_write_their_outputs_with_the_fields_of_the_package(
+    port: PortRig, tmp_path: Path
+) -> None:
+    folder = tmp_path / "w"
+    for step in (StepName.AREA, StepName.HUBS):
+        assert port.prepare(folder, step).failure_code is None
+    port.routes(folder)
+
+    outcome = port.prepare(folder, StepName.TRAVELLERS_AND_BIKES)
+
+    assert outcome.failure_code is None, outcome.failure_reason
+    for step in (StepName.AREA, StepName.HUBS, StepName.TRAVELLERS_AND_BIKES):
+        for name in STEP_OUTPUTS[step]:
+            assert read(folder, name), name
+    station = read(folder, "stations.json")["stations"][0]
+    assert set(station) == {"station_id", "type", "name", "lat", "lon"}
+    hub = read(folder, "hubs.geojson")["features"][0]["properties"]
+    assert set(hub) == {"hub_id", "label", "bike_stations", "pt_stations", "lines"}
+    instance = read(folder, "Instance_1.json")
+    assert {"OD_pairs", "bike_stations", "arcs_pt_bike", "arcs_pt_only", "car_paths"} <= set(
+        instance
+    )
+    assert all(isinstance(item["demand"], int) for item in instance["OD_pairs"])
+    legs = read(folder, "option_bike_legs.json")
+    assert all(isinstance(value, int) for value in legs.values())
+
+
+def test_a_stop_set_before_the_step_ends_it_stopped_with_no_output(
+    port: PortRig, tmp_path: Path
+) -> None:
+    stop = threading.Event()
+    stop.set()
+
+    outcome = port.prepare(tmp_path / "w", StepName.AREA, stop)
+
+    assert outcome.stopped is True
+    assert not (tmp_path / "w" / "stations.json").exists()

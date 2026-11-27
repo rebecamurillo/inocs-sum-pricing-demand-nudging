@@ -120,6 +120,7 @@ class PostgresReadModel:
                             for leg in row.legs
                         ],
                         "geometry": row.geometry,
+                        "bike_legs": row.bike_legs,
                     }
                     for row in batch.route_options
                 ],

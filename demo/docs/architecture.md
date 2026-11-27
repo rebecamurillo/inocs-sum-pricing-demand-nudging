@@ -88,7 +88,8 @@ api/
       config/                  settings read from the environment
       persistence/             engine, the shared metadata, repositories, component reports,
                                the fake settings, migrations/
-      pricing_model/           the package gateway: the package and solver probes (worker only)
+      pricing_model/           the package gateway: the probes, the city preparation and its
+                               stage child (stage_runner.py is the child's entry; worker only)
       trip_planner/            the OpenTripPlanner client
       fakes/                   every fake adapter, one module per kind
     interface/
@@ -102,6 +103,7 @@ api/
     contract/                  one suite per port, run against the fake and the real adapter
     integration/               adapters against a real PostgreSQL (marker: integration)
     live/                      the real package, solver and trip planner (marker: live)
+    characterisation/          the unmodified package on committed fixtures (marker: characterisation)
     architecture/              tests of the rules a linter cannot express
 ```
 
@@ -142,6 +144,23 @@ package's (`P_bar`, `theta`, file layouts), runs it, and turns what it writes in
 objects. A fake adapter (in `infrastructure/fakes/`, like every fake) returns deterministic
 data and is what every test and the e2e stack use; `PRICING_DEMO_ADAPTERS=fake|real` selects
 the set in the composition root. Storage is the real PostgreSQL in both sets.
+
+Steps 1, 2 and 4 run in a stage child. The worker writes a spec file (`stage-spec.json`: the
+step, the working directory, the worker's pid, the package's settings) and starts
+`python -m pricing_demo.infrastructure.pricing_model.stage_runner {spec.json}` in its own
+session and process group, with the step's working directory as current directory and its output
+in `stdout.log` and `stderr.log` there. The child installs a handler on the logger
+`sum_nsm_dynamic_pricing` that appends JSON lines to `progress.jsonl`, runs the package, and
+leaves `outcome.json` (`status` and `counts`, or the exception's type, message and traceback);
+it exits on its own when its parent pid changes (checked every 2 s). The worker reaps it only
+through `os.wait4`, which also gives its peak memory, and maps what it left: `done` with counts,
+`instance_unbalanced` for the package's second validation failure, `stage_error` for any other
+exception ("{type}: {message}", the traceback only in the log), `killed` for a signal the worker
+did not send. A cancel sends SIGTERM to the process group, SIGKILL after 10 s, and the working
+directory is deleted. The run step stores `log_excerpt` (the whole log up to 256 KiB, else the
+first and last 128 KiB) and `peak_rss_bytes`. Step 4 also writes `option_bike_legs.json`, the
+bike-leg count of each option from the package's own parser. The routes step has no real adapter
+yet.
 
 What the package cannot do as it stands is recorded in [`model-notes.md`](model-notes.md)
 and worked around in the adapter, never in the package.

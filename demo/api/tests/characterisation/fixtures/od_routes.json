@@ -1,0 +1,221 @@
+{
+ "generated_at": "2025-01-01T00:00:00Z",
+ "od_results": [
+  {
+   "from_id": 1,
+   "to_id": 0,
+   "arc_pt_bike": [
+    {
+     "arc_id": "a1b",
+     "total_travel_time_s": 147.8,
+     "total_transfer_time_s": 0,
+     "total_distance_m": 840.0,
+     "legs": [
+      {
+       "mode": "BICYCLE",
+       "duration_s": 17.8,
+       "distance_m": 80.0,
+       "line_publicCode": {},
+       "from_place": "Bike Alpha",
+       "to_place": "Bike Beta",
+       "rented_bike": true,
+       "leg_idx": 0
+      },
+      {
+       "mode": "BUS",
+       "duration_s": 116.7,
+       "distance_m": 700.0,
+       "line_publicCode": {
+        "publicCode": "1"
+       },
+       "from_place": "Beta",
+       "to_place": "Delta",
+       "rented_bike": false,
+       "leg_idx": 1
+      },
+      {
+       "mode": "BICYCLE",
+       "duration_s": 13.3,
+       "distance_m": 60.0,
+       "line_publicCode": {},
+       "from_place": "Bike Delta",
+       "to_place": "Bike Gamma",
+       "rented_bike": true,
+       "leg_idx": 2
+      }
+     ]
+    },
+    {
+     "arc_id": "a2b",
+     "total_travel_time_s": 134.5,
+     "total_transfer_time_s": 0,
+     "total_distance_m": 780.0,
+     "legs": [
+      {
+       "mode": "BICYCLE",
+       "duration_s": 17.8,
+       "distance_m": 80.0,
+       "line_publicCode": {},
+       "from_place": "Bike Alpha",
+       "to_place": "Bike Beta",
+       "rented_bike": true,
+       "leg_idx": 0
+      },
+      {
+       "mode": "BUS",
+       "duration_s": 116.7,
+       "distance_m": 700.0,
+       "line_publicCode": {
+        "publicCode": "1"
+       },
+       "from_place": "Beta",
+       "to_place": "Delta",
+       "rented_bike": false,
+       "leg_idx": 1
+      }
+     ]
+    }
+   ],
+   "arc_pt_only": [
+    {
+     "arc_id": "a1p",
+     "total_travel_time_s": 116.7,
+     "total_transfer_time_s": 13.3,
+     "total_distance_m": 780.0,
+     "legs": [
+      {
+       "mode": "FOOT",
+       "duration_s": 13.3,
+       "distance_m": 80.0,
+       "line_publicCode": {},
+       "from_place": "Alpha",
+       "to_place": "Beta",
+       "rented_bike": false,
+       "leg_idx": 0
+      },
+      {
+       "mode": "BUS",
+       "duration_s": 116.7,
+       "distance_m": 700.0,
+       "line_publicCode": {
+        "publicCode": "1"
+       },
+       "from_place": "Beta",
+       "to_place": "Gamma",
+       "rented_bike": false,
+       "leg_idx": 1
+      }
+     ]
+    }
+   ],
+   "arc_car": [
+    {
+     "arc_id": "a1c",
+     "total_travel_time_s": 133.3,
+     "total_transfer_time_s": 0,
+     "total_distance_m": 800.0,
+     "legs": [
+      {
+       "mode": "CAR",
+       "duration_s": 133.3,
+       "distance_m": 800.0,
+       "line_publicCode": {},
+       "from_place": "Alpha",
+       "to_place": "Gamma",
+       "rented_bike": false,
+       "leg_idx": 0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "from_id": 0,
+   "to_id": 1,
+   "arc_pt_bike": [
+    {
+     "arc_id": "a3b",
+     "total_travel_time_s": 132.3,
+     "total_transfer_time_s": 0,
+     "total_distance_m": 770.0,
+     "legs": [
+      {
+       "mode": "BICYCLE",
+       "duration_s": 15.6,
+       "distance_m": 70.0,
+       "line_publicCode": {},
+       "from_place": "Bike Gamma",
+       "to_place": "Bike Delta",
+       "rented_bike": true,
+       "leg_idx": 0
+      },
+      {
+       "mode": "TRAM",
+       "duration_s": 116.7,
+       "distance_m": 700.0,
+       "line_publicCode": {
+        "publicCode": "1"
+       },
+       "from_place": "Delta",
+       "to_place": "Beta",
+       "rented_bike": false,
+       "leg_idx": 1
+      }
+     ]
+    }
+   ],
+   "arc_pt_only": [
+    {
+     "arc_id": "a2p",
+     "total_travel_time_s": 116.7,
+     "total_transfer_time_s": 11.7,
+     "total_distance_m": 770.0,
+     "legs": [
+      {
+       "mode": "FOOT",
+       "duration_s": 11.7,
+       "distance_m": 70.0,
+       "line_publicCode": {},
+       "from_place": "Gamma",
+       "to_place": "Delta",
+       "rented_bike": false,
+       "leg_idx": 0
+      },
+      {
+       "mode": "TRAM",
+       "duration_s": 116.7,
+       "distance_m": 700.0,
+       "line_publicCode": {
+        "publicCode": "1"
+       },
+       "from_place": "Delta",
+       "to_place": "Alpha",
+       "rented_bike": false,
+       "leg_idx": 1
+      }
+     ]
+    }
+   ],
+   "arc_car": [
+    {
+     "arc_id": "a2c",
+     "total_travel_time_s": 133.3,
+     "total_transfer_time_s": 0,
+     "total_distance_m": 800.0,
+     "legs": [
+      {
+       "mode": "CAR",
+       "duration_s": 133.3,
+       "distance_m": 800.0,
+       "line_publicCode": {},
+       "from_place": "Gamma",
+       "to_place": "Alpha",
+       "rented_bike": false,
+       "leg_idx": 0
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

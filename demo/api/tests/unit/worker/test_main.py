@@ -18,9 +18,11 @@ from pricing_demo.infrastructure.config.settings import (
 )
 from pricing_demo.infrastructure.fakes.bike_station_feed import FixtureBikeStationFeed
 from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatcher
+from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
+from pricing_demo.infrastructure.pricing_model.city_preparation import PackageCityPreparation
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
 from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphBuilder
 from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
@@ -286,17 +288,21 @@ def test_the_graph_is_built_by_compose_in_both_adapter_sets(tmp_path: Path, adap
     assert use_case._folder._path == tmp_path / "graph"  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize(("adapters", "registered"), [("fake", True), ("real", False)])
-def test_only_the_fake_adapter_set_registers_the_build_steps(
-    tmp_path: Path, adapters: str, registered: bool
+@pytest.mark.parametrize(
+    ("adapters", "preparation"), [("fake", FakeCityPreparation), ("real", PackageCityPreparation)]
+)
+def test_each_adapter_set_registers_the_build_steps_with_its_own_preparation(
+    tmp_path: Path, adapters: str, preparation: type
 ) -> None:
     built = build_worker(settings_for(tmp_path, adapters=adapters))
     built.engine.dispose()
 
     registry = built.worker._process._registry
     for step in BUILD_STEPS:
-        assert (registry.executor_for(step) is not None) is registered
-        assert (registry.keeper_for(step) is not None) is registered
+        executor = registry.executor_for(step)
+        assert isinstance(executor, BuildStepExecutor)
+        assert isinstance(executor._preparation, preparation)
+        assert registry.keeper_for(step) is not None
     assert registry.executor_for(StepName.PRICING_MODEL) is None
 
 

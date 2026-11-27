@@ -4,6 +4,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from functools import partial
+from typing import Any
 
 from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.ports.run_queue import RunQueue
@@ -168,14 +169,20 @@ class ProcessNextRun:
             marked = _replace_step(
                 run,
                 position,
-                lambda item: replace(transition_step(item, StepState.FAILED, now), reason=reason),
+                lambda item: replace(
+                    transition_step(item, StepState.FAILED, now),
+                    reason=reason,
+                    **_child_output(outcome),
+                ),
             )
             return fail(marked, now, RunFailure(failed_step.step.value, code, reason))
         return _replace_step(
             run,
             position,
             lambda item: replace(
-                transition_step(item, StepState.DONE, now), counts=dict(outcome.counts)
+                transition_step(item, StepState.DONE, now),
+                counts=dict(outcome.counts),
+                **_child_output(outcome),
             ),
         )
 
@@ -245,6 +252,16 @@ class ProcessNextRun:
             current = self._queue.get(run_id)
             if current is not None and current.cancel_requested_at is not None:
                 stop.set()
+
+
+def _child_output(outcome: StepOutcome) -> dict[str, Any]:
+    """The log excerpt and peak memory a child process left, only when it left them."""
+    found: dict[str, Any] = {}
+    if outcome.log_excerpt is not None:
+        found["log_excerpt"] = outcome.log_excerpt
+    if outcome.peak_rss_bytes is not None:
+        found["peak_rss_bytes"] = outcome.peak_rss_bytes
+    return found
 
 
 def _replace_step(run: Run, position: int, change) -> Run:  # type: ignore[no-untyped-def]

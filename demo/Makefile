@@ -32,7 +32,7 @@ WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_
 # with this.
 ON_SIGNAL = trap 'exit 130' INT; trap 'exit 143' TERM
 
-.PHONY: help install check test test-integration e2e contract format dev worker city-data otp-graph up down live-smoke
+.PHONY: help install check test test-model test-integration e2e contract format dev worker city-data otp-graph up down live-smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -74,6 +74,9 @@ check: ## The quality gate: formats, lint, types, layers, tests, contract freshn
 test: ## Unit and contract tests of the API and the web app
 	uv --directory api run pytest
 	npm --prefix web run test
+
+test-model: ## The characterisation tests of the pricing package (no licence, trip planner or internet)
+	uv --directory api run pytest -m characterisation --no-cov
 
 test-integration: ## API tests against a throwaway PostgreSQL in Docker (port INTEGRATION_DB_PORT)
 	@set -e; \

@@ -10,6 +10,7 @@ The rules that bind every change are in `AGENTS.md` (rules 3, 4 and 7).
 | Unit | a rule, a calculation, a use case, a component, in isolation with fakes | `api/tests/unit/`, `web/src/**/*.test.ts(x)` | `make check`, `make test` | nothing |
 | Contract | a fake and its real adapter behave the same way behind a port | `api/tests/contract/` | the fake, and the real adapters' unreachable cases: `make check`; the rest: `make test-integration` or `make live-smoke` | in `make check`: nothing |
 | Architecture | the rules a linter cannot express (which routes exist in which mode, that the API process never loads the package) | `api/tests/architecture/` | `make check` | nothing |
+| Characterisation | what the unmodified package writes and the adapter depends on: the files and fields of steps 1, 2 and 4, integer demand, the sign of `delta_ia`, the bike-leg count, the Geneva stop, station and hub counts | `api/tests/characterisation/` | `make test-model`; the CI job `model` | the package's dependencies; no licence, trip planner or internet |
 | Integration | repositories, migrations and the worker's claim, lease and cancellation against a real PostgreSQL | `api/tests/integration/` | `make test-integration` | Docker |
 | End-to-end | a user's scenario through the browser, the API and the database | `e2e/tests/` | `make e2e` | Docker |
 | Live smoke | the real package, solver and trip planner answer | `api/tests/live/` | `make live-smoke` | licence, OpenTripPlanner |
@@ -42,6 +43,24 @@ limited) and the same assertions run on all of them. The report store (`Componen
 the fake settings store each have their suite (`contract/test_component_reports.py`,
 `contract/test_fake_settings.py`): in memory always, PostgreSQL under `integration`. A fake that drifts from the real adapter fails
 here. Adding a port means adding its fake and its suite in the same change.
+
+## Characterisation tests
+
+They run the unmodified package, through the real `CityPreparation` and its child process, on
+committed fixtures: a synthetic GTFS feed, a GBFS file and a routes file under
+`api/tests/characterisation/fixtures/` (inside `demo/`, so `demo/.gitattributes` keeps them out
+of Git LFS), and the Geneva feed of `Geneva_Complete_Link_Instances_and_Optimization/` read in
+place. They carry the marker `characterisation`: `make check` collects them and runs none
+(`not integration and not live and not characterisation`); `make test-model` runs them, locally
+and in the CI job `model`.
+
+They pin what the demonstrator depends on, so that a change of the package that breaks it fails
+here (ARCHITECTURE.md § 11.2): tests 1 and 8 now (the files and fields of steps 1, 2 and 4; the
+bike-leg count; integer demand; the sign of `delta_ia`: -1 where a bike is taken), tests 2 to 4
+with story 2-8 (the routes step). The golden numbers (the stop, bike-station and hub counts of the
+Geneva feed at 500 m) are fixed at the first run and change only with a change of the package or
+the feed, the reason in the commit. The real `CityPreparation` joins the port's contract suite
+under this marker (the `port` fixture of `contract/test_city_preparation.py`).
 
 ## Integration tests
 

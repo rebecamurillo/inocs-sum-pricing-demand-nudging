@@ -192,7 +192,7 @@ def _hubs_files() -> dict[str, dict[str, Any]]:
             {
                 "type": "Feature",
                 "geometry": {"type": "Polygon", "coordinates": [ring]},
-                "properties": {"hub_id": hub_id},
+                "properties": {"cluster": hub_id},
             }
         )
     for item in stations():
@@ -201,9 +201,8 @@ def _hubs_files() -> dict[str, dict[str, Any]]:
                 "type": "Feature",
                 "geometry": _point(item.lat, item.lon),
                 "properties": {
-                    "station_id": item.station_id,
-                    "type": item.kind,
-                    "name": item.name,
+                    "identifier": item.station_id,
+                    "station_type": "bike" if item.kind == "bs" else "pt",
                     "hub_id": item.hub_id,
                 },
             }
@@ -341,6 +340,10 @@ def _instance(
         inventory[station] = capacity
     positions = hub_positions()
     pairs, bike_arcs, public_arcs, car_arcs = [], [], [], []
+    # The package keeps the arcs of an instance per pair, keyed `{from}_{to}`.
+    bike_by_pair: dict[str, Any] = {}
+    public_by_pair: dict[str, Any] = {}
+    car_by_pair: dict[str, Any] = {}
     for result in routes["od_results"]:
         demand = rng.randint(int(parameters.min_demand), int(parameters.max_demand))
         pairs.append(
@@ -353,6 +356,10 @@ def _instance(
                 ),
             }
         )
+        key = f"{result['from_id']}_{result['to_id']}"
+        bike_by_pair[key] = result["arc_pt_bike"]
+        public_by_pair[key] = result["arc_pt_only"]
+        car_by_pair[key] = result["arc_car"]
         bike_arcs += result["arc_pt_bike"]
         public_arcs += result["arc_pt_only"]
         car_arcs += result["arc_car"]
@@ -369,9 +376,9 @@ def _instance(
             "station_inventory": inventory,
         },
         "OD_pairs": pairs,
-        "arcs_pt_bike": bike_arcs,
-        "arcs_pt_only": public_arcs,
-        "car_paths": car_arcs,
+        "arcs_pt_bike": bike_by_pair,
+        "arcs_pt_only": public_by_pair,
+        "car_paths": car_by_pair,
         "delta_ia": {
             arc["arc_id"]: {bike_ids[i % len(bike_ids)]: -1} for i, arc in enumerate(bike_arcs)
         },
@@ -404,6 +411,8 @@ class FakeCityPreparation:
         route_failed: RouteFailed = ignore_route_failure,
     ) -> StepOutcome:
         step = request.step
+        if stop.is_set():
+            return StepOutcome.stopped_on_signal()
         if self._config().get("hold_at") == step.value and not self._hold(request.run_id, stop):
             return StepOutcome.stopped_on_signal()
         failure = self._config().get("fail_at")
@@ -443,6 +452,17 @@ class FakeCityPreparation:
         )
         instance, counts = _instance(request, routes)
         _write(request.working_dir, "Instance_1.json", instance)
+        # What the package's parser counts: BICYCLE legs of a pt_bike arc, 0 for the others.
+        bike_legs = {
+            arc["arc_id"]: sum(1 for leg in arc["legs"] if leg["mode"] == "BICYCLE")
+            for arcs in instance["arcs_pt_bike"].values()
+            for arc in arcs
+        }
+        for key in ("arcs_pt_only", "car_paths"):
+            for arcs in instance[key].values():
+                for arc in arcs:
+                    bike_legs[arc["arc_id"]] = 0
+        _write(request.working_dir, "option_bike_legs.json", bike_legs)
         return StepOutcome.done(counts)
 
     def _config(self) -> Mapping[str, Any]:

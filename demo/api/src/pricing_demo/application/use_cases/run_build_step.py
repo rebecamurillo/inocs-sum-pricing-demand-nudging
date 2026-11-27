@@ -137,7 +137,17 @@ class BuildStepExecutor:
         # Another run may have stored the same key first; its row is the artefact (its run's
         # failures and reported counts are the ones the read model and the summary read).
         stored_artifact = self._artifacts.get(key) or artifact
-        return self._ingest(run, step, stored_artifact, dataset, plan, version, planned)
+        return self._ingest(
+            run,
+            step,
+            stored_artifact,
+            dataset,
+            plan,
+            version,
+            planned,
+            outcome.log_excerpt,
+            outcome.peak_rss_bytes,
+        )
 
     def _ingest(
         self,
@@ -148,6 +158,8 @@ class BuildStepExecutor:
         plan: BuildPlan,
         version: InstanceVersion,
         planned: PlannedStep,
+        log_excerpt: str | None = None,
+        peak_rss_bytes: int | None = None,
     ) -> StepOutcome:
         """Ingest the stored artefact, then link it: the link exists only for an ingested
         artefact. A failure here fails the step and leaves the artefact where it is."""
@@ -161,11 +173,17 @@ class BuildStepExecutor:
             counts = self._ingestion.ingest(artifact, dataset, upstream)
         except Exception as error:
             logger.exception("The ingestion of step %s of run %s failed", step.step.value, run.id)
-            return StepOutcome.failed(STAGE_ERROR, f"{type(error).__name__}: {error}")
+            # The child's log is what tells why its files could not be read: keep it.
+            return StepOutcome.failed(
+                STAGE_ERROR,
+                f"{type(error).__name__}: {error}",
+                log_excerpt=log_excerpt,
+                peak_rss_bytes=peak_rss_bytes,
+            )
         self._artifacts.link(version.id, step.step, planned.period_id, artifact.input_key)
         if step.step is StepName.ROUTES:
             self._set_failure_pct(run.id, counts)
-        return StepOutcome.done(counts)
+        return StepOutcome.done(counts, log_excerpt=log_excerpt, peak_rss_bytes=peak_rss_bytes)
 
     def _set_failure_pct(self, run_id: str, counts: Mapping[str, Any]) -> None:
         pct = counts["failure_pct"]
