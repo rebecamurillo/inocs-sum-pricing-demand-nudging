@@ -88,3 +88,18 @@ class VersionNotBuilt(DomainError):
         super().__init__(
             f"The version {version_id} has no stored build: its four steps are not all built."
         )
+
+
+class SolveNotFound(DomainError):
+    def __init__(self, solve_id: str) -> None:
+        self.solve_id = solve_id
+        super().__init__(f"There is no stored solve {solve_id}.")
+
+
+class SolveNotVerifiable(DomainError):
+    """The stored solve or its simulations cannot be re-run: something they name is missing or
+    is a rule the worker cannot build."""
+
+    def __init__(self, solve_id: str, reason: str) -> None:
+        self.solve_id = solve_id
+        super().__init__(f"The solve {solve_id} cannot be verified: {reason}.")

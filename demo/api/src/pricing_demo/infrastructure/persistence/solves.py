@@ -6,7 +6,7 @@ from sqlalchemy import Engine, null, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.application.ports.artifacts import Artifact
-from pricing_demo.application.ports.solves import SolveRecord, StoredResultSummary
+from pricing_demo.application.ports.solves import SolveRecord, SolveRef, StoredResultSummary
 from pricing_demo.domain.derived_result import ResultNumbers
 from pricing_demo.domain.pricing_keys import solve_id
 from pricing_demo.domain.solves import Solve, SolveProvenance, SolveQuality, SolveRow
@@ -209,6 +209,14 @@ class PostgresSolves:
         with self._engine.connect() as connection:
             row = connection.execute(query).first()
         return None if row is None else _record(row)
+
+    def find(self, solve_id: str) -> SolveRef | None:
+        query = select(solves.c.pricing_version_id, solves.c.period_id, solves.c.input_key).where(
+            solves.c.id == solve_id
+        )
+        with self._engine.connect() as connection:
+            row = connection.execute(query).first()
+        return None if row is None else SolveRef(solve_id, row[0], row[1], row[2])
 
     @staticmethod
     def _insert_summary(connection: Any, summary: StoredResultSummary) -> None:

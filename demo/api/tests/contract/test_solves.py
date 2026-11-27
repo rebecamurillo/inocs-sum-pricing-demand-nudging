@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.application.ports.artifacts import Artifact, Artifacts, StoredFile
 from pricing_demo.application.ports.pricing_versions import PricingVersions
-from pricing_demo.application.ports.solves import Solves, StoredResultSummary
+from pricing_demo.application.ports.solves import SolveRef, Solves, StoredResultSummary
 from pricing_demo.domain.derived_result import DERIVATION_VERSION, ResultNumbers
 from pricing_demo.domain.numbers import Number
 from pricing_demo.domain.pricing_versions import new_draft_goals
@@ -138,6 +138,17 @@ def test_a_stored_solve_is_known_by_its_key_and_gives_its_rows_in_arc_order(env:
     assert env.solves.rows("other") == []
     assert env.solves.solve_key_of(version, PERIOD) == KEY
     assert env.solves.solve_key_of(version, "elsewhere") is None
+
+
+def test_a_solve_is_found_by_its_id_and_an_unknown_id_is_not(env: Env) -> None:
+    version = env.new_version("A")
+    env.store(version)
+
+    assert env.solves.find(f"{version}.mon-08") == SolveRef(
+        f"{version}.mon-08", version, PERIOD, KEY
+    )
+    assert env.solves.find(f"{version}.tue-08") is None
+    assert env.solves.find("other") is None
 
 
 def test_the_version_keeps_the_quality_and_provenance_of_its_solve(env: Env) -> None:

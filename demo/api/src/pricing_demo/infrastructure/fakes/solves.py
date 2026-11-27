@@ -3,7 +3,8 @@ from collections.abc import Collection, Mapping
 from datetime import datetime
 
 from pricing_demo.application.ports.artifacts import Artifact
-from pricing_demo.application.ports.solves import SolveRecord, StoredResultSummary
+from pricing_demo.application.ports.solves import SolveRecord, SolveRef, StoredResultSummary
+from pricing_demo.domain.pricing_keys import solve_id
 from pricing_demo.domain.solves import Solve, SolveOd, SolveRow
 from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
 
@@ -86,6 +87,13 @@ class InMemorySolves:
     def solve_of(self, pricing_version_id: str, period_id: str) -> SolveRecord | None:
         with self._lock:
             return self._versions.get((pricing_version_id, period_id))
+
+    def find(self, solve: str) -> SolveRef | None:
+        with self._lock:
+            for (version_id, period_id), record in self._versions.items():
+                if solve_id(version_id, period_id.rsplit(".", 1)[1]) == solve:
+                    return SolveRef(solve, version_id, period_id, record.key)
+        return None
 
     # What the artefacts' collection and the deletion of a version do; the port has no such
     # methods.

@@ -6,7 +6,10 @@ from pricing_demo.application.ports.simulations import (
     SimulationLink,
     SimulationSummary,
     StoredSimulation,
+    StoredSimulationRows,
 )
+from pricing_demo.domain.solve_verification import simulation_rows
+from pricing_demo.domain.traveller_simulation import SimulationRule
 
 
 def _slot(link: SimulationLink) -> tuple[str, str, str, str, int]:
@@ -94,6 +97,25 @@ class InMemorySimulations:
             len(out.stations_empty),
             len(out.stations_full),
             found.created_at,
+        )
+
+    def stored_of(self, key: str) -> StoredSimulationRows | None:
+        with self._lock:
+            found = self._simulations.get(key)
+        if found is None:
+            return None
+        out = found.outputs
+        return StoredSimulationRows(
+            key,
+            SimulationRule(out.rule_id, out.rule_version, out.parameters),
+            found.scheme_kind,
+            found.instance_key,
+            found.solve_key,
+            found.flat_price_kind,
+            found.flat_price_amount_chf,
+            found.pt_fare_chf,
+            found.car_parking_fee_chf,
+            simulation_rows(out),
         )
 
     def remove_unlinked(self) -> int:

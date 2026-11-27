@@ -29,6 +29,8 @@ from pricing_demo.application.errors import (
     InvalidTimetable,
     NoCityDataYet,
     OtherTimetableInGraphFolder,
+    SolveNotFound,
+    SolveNotVerifiable,
     StreetExtractNotFound,
     UnknownCityDataset,
     VersionNotBuilt,
@@ -62,11 +64,13 @@ from pricing_demo.application.use_cases.run_simulation_step import TravellerSimu
 from pricing_demo.application.use_cases.run_worker import RunWorker
 from pricing_demo.application.use_cases.show_basemap_bounds import ShowBasemapBounds
 from pricing_demo.application.use_cases.verify_build import VerifyBuild
+from pricing_demo.application.use_cases.verify_solve import VerifySolve
 from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.build_verification import report_lines
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.runs import StepName
+from pricing_demo.domain.solve_verification import report_lines as solve_report_lines
 from pricing_demo.domain.system_status import PROBED_COMPONENTS, ComponentName
 from pricing_demo.domain.traveller_simulation import BalancedScore, SimulationRule
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
@@ -241,6 +245,18 @@ def lock_sha256(lock: Path) -> str:
         return "unavailable"
 
 
+def build_pricing_solver(
+    settings: Settings, fake_settings: PostgresFakeSettings | None, waiter: Waiter
+) -> PricingSolver:
+    """The adapter of the pricing model's solve, by adapter set: the pricing run and `verify`
+    choose it here, so they cannot drift."""
+    if fake_settings is not None:
+        return FakePricingSolver(fake_settings, waiter)
+    return PackagePricingSolver(
+        StageChild(), version("pricing_demo"), lock_sha256(DEMO_DIR / "api" / "uv.lock")
+    )
+
+
 def register_pricing_steps(
     settings: Settings,
     registry: StepRegistry,
@@ -264,13 +280,7 @@ def register_pricing_steps(
     solves = PostgresSolves(engine)
     pricing_versions = PostgresPricingVersions(engine)
     (solver_probe,) = [item for item in probes if item.component is ComponentName.SOLVER]
-    solver: PricingSolver = (
-        FakePricingSolver(fake_settings, waiter)
-        if fake_settings is not None
-        else PackagePricingSolver(
-            StageChild(), version("pricing_demo"), lock_sha256(DEMO_DIR / "api" / "uv.lock")
-        )
-    )
+    solver = build_pricing_solver(settings, fake_settings, waiter)
     pricing_model = PricingModelStepExecutor(
         solver,
         solver_probe,
@@ -465,6 +475,22 @@ def build_verify_build(settings: Settings, engine: Engine) -> VerifyBuild:
     )
 
 
+def build_verify_solve(settings: Settings, engine: Engine) -> VerifySolve:
+    """Reads the stored solve and simulations; the re-solve goes through the same solver as a
+    pricing run."""
+    fake_settings = PostgresFakeSettings(engine) if settings.adapters == "fake" else None
+    return VerifySolve(
+        PostgresSolves(engine),
+        PostgresPricingVersions(engine),
+        PostgresSimulations(engine),
+        PostgresArtifacts(engine),
+        LocalArtifactStore(settings.data_dir),
+        PostgresReadModel(engine),
+        build_pricing_solver(settings, fake_settings, SystemWaiter()),
+        SystemClock(),
+    )
+
+
 def build_show_basemap_bounds(engine: Engine) -> ShowBasemapBounds:
     return ShowBasemapBounds(PostgresCityDatasets(engine))
 
@@ -495,6 +521,13 @@ def parser() -> argparse.ArgumentParser:
         "with the stored build",
     )
     verifying.add_argument("version", help="the instance version, e.g. geneva-3km.v1")
+    verifying_solve = commands.add_parser(
+        "verify",
+        help="re-run a stored solve and its simulations and compare them with the stored rows",
+    )
+    verifying_solve.add_argument(
+        "solve", help="the solve id, {pricing version}.{period key}, e.g. geneva-3km.v1.B.mon-08"
+    )
     return root
 
 
@@ -528,10 +561,38 @@ def run_verify_build(args: argparse.Namespace, settings: Settings, engine: Engin
     return 0 if result.comparison.matches else 1
 
 
+def run_verify(args: argparse.Namespace, settings: Settings, engine: Engine) -> int:
+    """Print one line per difference and per compared table, the durations and the verdict:
+    exit 0 when everything matches, 1 when something differs, 2 when the solve cannot be verified
+    or the re-solve fails or is stopped (reason on stderr). Nothing is written to the database."""
+    stop = threading.Event()
+    # SIGINT and SIGTERM stop the re-run: a stopped re-run is a failure and leaves no folder.
+    signal.signal(signal.SIGTERM, lambda signum, frame: stop.set())
+    signal.signal(signal.SIGINT, lambda signum, frame: stop.set())
+    try:
+        result = build_verify_solve(settings, engine).execute(args.solve, stop)
+    except (SolveNotFound, SolveNotVerifiable) as error:
+        print(str(error), file=sys.stderr)
+        return 2
+    except Exception as error:
+        # Exit 1 means "the rows differ": any other error is a run that could not verify.
+        print(f"verify {args.solve}: {error!r}", file=sys.stderr)
+        return 2
+    if result.failure is not None:
+        code, reason = result.failure
+        print(f"verify {args.solve}: the re-run failed ({code}): {reason}", file=sys.stderr)
+        return 2
+    assert result.verification is not None
+    for line in solve_report_lines(args.solve, result.verification):
+        print(line)
+    return 0 if result.verification.matches else 1
+
+
 def run_command(args: argparse.Namespace, settings: Settings) -> int:
     """Run one city data command; prints the new id (the manifest's path for `otp-graph`, the id
-    and the box for `basemap-bounds`, the report of `verify-build`), or the reason on stderr
-    (exit 1; exit 2 for `verify-build`, whose exit 1 is a build that differs)."""
+    and the box for `basemap-bounds`, the report of `verify-build` and `verify`), or the reason
+    on stderr (exit 1; exit 2 for `verify-build` and `verify`, whose exit 1 is a result that
+    differs)."""
     engine = create_db_engine(settings.database_url)
     try:
         if args.command == "import-city-data":
@@ -542,6 +603,8 @@ def run_command(args: argparse.Namespace, settings: Settings) -> int:
             return 0
         elif args.command == "verify-build":
             return run_verify_build(args, settings, engine)
+        elif args.command == "verify":
+            return run_verify(args, settings, engine)
         elif args.command == "basemap-bounds":
             shown = build_show_basemap_bounds(engine).execute(args.dataset)
             area = shown.area

@@ -31,6 +31,16 @@ class StoredResultSummary:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class SolveRef:
+    """A version's `solves` row named by its id, `{pricing version}.{period key}`."""
+
+    solve_id: str
+    pricing_version_id: str
+    period_id: str
+    key: str
+
+
 class Solves(Protocol):
     """The solves of the pricing model. A solve is named by the input key of its artefact; each
     pricing version has its own `solves` row for its period, which points to that artefact."""
@@ -82,4 +92,8 @@ class Solves(Protocol):
 
     def solve_of(self, pricing_version_id: str, period_id: str) -> SolveRecord | None:
         """The version's `solves` row for the period."""
+        ...
+
+    def find(self, solve_id: str) -> SolveRef | None:
+        """The version and period a `solves.id` names, and the key it points to."""
         ...

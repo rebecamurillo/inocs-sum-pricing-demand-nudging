@@ -4,7 +4,8 @@ from datetime import datetime
 from typing import Literal, Protocol
 
 from pricing_demo.domain.derived_result import SimulationSummary
-from pricing_demo.domain.traveller_simulation import SimulationOutputs
+from pricing_demo.domain.solve_verification import SimulationRows
+from pricing_demo.domain.traveller_simulation import SimulationOutputs, SimulationRule
 
 __all__ = ["SimulationSummary"]
 
@@ -57,6 +58,22 @@ class LinkedSimulation:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class StoredSimulationRows:
+    """What a stored simulation read and what it wrote: its rule, scheme, inputs and rows."""
+
+    key: str
+    rule: SimulationRule
+    scheme_kind: Literal["model_prices", "flat"]
+    instance_key: str
+    solve_key: str | None
+    flat_price_kind: str | None
+    flat_price_amount_chf: float | None
+    pt_fare_chf: float
+    car_parking_fee_chf: float
+    rows: SimulationRows
+
+
 class Simulations(Protocol):
     def is_stored(self, key: str) -> bool: ...
 
@@ -78,6 +95,11 @@ class Simulations(Protocol):
     def summary_of(self, key: str) -> SimulationSummary | None:
         """What the stored simulation says about itself: its rule, its travellers, its bike
         rides and revenue, its empty and full stations."""
+        ...
+
+    def stored_of(self, key: str) -> StoredSimulationRows | None:
+        """The stored simulation's rule, prices and child rows (read only); the order of the
+        rows is the store's."""
         ...
 
     def remove_unlinked(self) -> int:

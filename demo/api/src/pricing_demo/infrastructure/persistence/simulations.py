@@ -9,7 +9,16 @@ from pricing_demo.application.ports.simulations import (
     SimulationLink,
     SimulationSummary,
     StoredSimulation,
+    StoredSimulationRows,
 )
+from pricing_demo.domain.solve_verification import (
+    ChoiceRow,
+    ModeRow,
+    PairRow,
+    SimulationRows,
+    StationRow,
+)
+from pricing_demo.domain.traveller_simulation import SimulationRule
 from pricing_demo.infrastructure.persistence.tables import (
     pricing_version_simulations,
     simulation_choices,
@@ -140,6 +149,53 @@ class PostgresSimulations:
             row.stations_empty,
             row.stations_full,
             row.created_at,
+        )
+
+    def stored_of(self, key: str) -> StoredSimulationRows | None:
+        with self._engine.connect() as connection:
+            row = connection.execute(
+                select(simulations).where(simulations.c.simulation_key == key)
+            ).first()
+            if row is None:
+                return None
+
+            def child(table: Any) -> list[Any]:
+                return list(connection.execute(select(table).where(table.c.simulation_key == key)))
+
+            rows = SimulationRows(
+                tuple(ModeRow(item.mode, item.travellers) for item in child(simulation_modes)),
+                tuple(
+                    ChoiceRow(
+                        item.origin_hub,
+                        item.destination_hub,
+                        item.arc_id,
+                        item.mode,
+                        item.travellers,
+                        item.price_chf,
+                        item.displaced,
+                    )
+                    for item in child(simulation_choices)
+                ),
+                tuple(
+                    PairRow(item.origin_hub, item.destination_hub, item.unserved)
+                    for item in child(simulation_pairs)
+                ),
+                tuple(
+                    StationRow(item.station_id, item.bikes_end, item.empty, item.full)
+                    for item in child(simulation_stations)
+                ),
+            )
+        return StoredSimulationRows(
+            key,
+            SimulationRule(row.rule_id, row.rule_version, dict(row.rule_parameters)),
+            row.price_scheme,
+            row.instance_key,
+            row.solve_key,
+            row.flat_price_kind,
+            row.flat_price_amount_chf,
+            row.pt_fare_chf,
+            row.car_parking_fee_chf,
+            rows,
         )
 
     def remove_unlinked(self) -> int:

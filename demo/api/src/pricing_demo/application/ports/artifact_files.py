@@ -41,5 +41,6 @@ class ArtifactFiles(Protocol):
         ...
 
     def remove_working_dirs_except(self, run_ids: Collection[str]) -> None:
-        """Remove every `runs/{id}/` whose id is not in `run_ids`."""
+        """Remove every `runs/{id}/` whose id is not in `run_ids`, except the `runs/verify-{uuid}/`
+        of a `verify` command, which removes its own."""
         ...

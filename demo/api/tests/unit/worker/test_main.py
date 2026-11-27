@@ -1,5 +1,6 @@
 import os
 import socket
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -8,6 +9,8 @@ import pytest
 from pricing_demo.application.errors import (
     NoCityDataYet,
     OtherTimetableInGraphFolder,
+    SolveNotFound,
+    SolveNotVerifiable,
     VersionNotBuilt,
 )
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
@@ -18,10 +21,13 @@ from pricing_demo.application.use_cases.show_basemap_bounds import (
     ShowBasemapBounds,
 )
 from pricing_demo.application.use_cases.verify_build import VerifyResult
+from pricing_demo.application.use_cases.verify_solve import VerifySolveResult
 from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.build_verification import FileComparison
 from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.runs import StepName
+from pricing_demo.domain.solve_verification import SolveVerification, compare_solve_rows
+from pricing_demo.domain.solves import SolveRow
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
 from pricing_demo.domain.traveller_simulation import SimulationRule
 from pricing_demo.infrastructure.config.settings import (
@@ -592,6 +598,124 @@ def test_verify_build_rebuilds_with_the_preparation_of_the_adapter_set(
         engine.dispose()
 
     assert isinstance(verifying._preparation, preparation)
+
+
+def solve_verification(match: bool) -> VerifySolveResult:
+    rows = [SolveRow("1b", "A", "B", "PT+Bike", 1.0, 4.0, 1.5, 3.5, 0.0, 0.0)]
+    changed = [replace(rows[0], bike_price=1.6)]
+    return VerifySolveResult(
+        SolveVerification((compare_solve_rows(rows, rows if match else changed),))
+    )
+
+
+def test_verify_parses_its_solve_id() -> None:
+    args = worker_main.parser().parse_args(["verify", "geneva-3km.v1.B.mon-08"])
+
+    assert (args.command, args.solve) == ("verify", "geneva-3km.v1.B.mon-08")
+
+
+@pytest.mark.parametrize(("match", "code"), [(True, 0), (False, 1)])
+def test_verify_prints_the_report_and_exits_zero_or_one(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    match: bool,
+    code: int,
+) -> None:
+    class Verifying:
+        def execute(self, solve_id: str, stop: object) -> VerifySolveResult:
+            assert solve_id == "v.v1.B.mon-08"
+            return solve_verification(match)
+
+    monkeypatch.setattr(worker_main, "build_verify_solve", lambda s, e: Verifying())
+
+    exit_code = worker_main.run_command(
+        worker_main.parser().parse_args(["verify", "v.v1.B.mon-08"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == code
+    assert captured.err == ""
+    assert captured.out.splitlines()[-1] == (
+        f"verify v.v1.B.mon-08: {'match' if match else 'differ'}"
+    )
+    if not match:
+        assert captured.out.splitlines()[0] == (
+            "solve_rows [A>B 1b] bike_price: stored 1.5, re-run 1.6"
+        )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        SolveNotFound("v.v1.B.mon-08"),
+        SolveNotVerifiable("v.v1.B.mon-08", "no simulation is stored for it"),
+        FileNotFoundError("Instance_1.json"),
+    ],
+)
+def test_verify_exits_two_with_the_reason_on_stderr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    error: Exception,
+) -> None:
+    class Refusing:
+        def execute(self, solve_id: str, stop: object) -> VerifySolveResult:
+            raise error
+
+    monkeypatch.setattr(worker_main, "build_verify_solve", lambda s, e: Refusing())
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["verify", "v.v1.B.mon-08"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert captured.out == ""
+    assert captured.err != ""
+
+
+def test_verify_exits_two_naming_the_code_of_a_failed_re_solve(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class Failing:
+        def execute(self, solve_id: str, stop: object) -> VerifySolveResult:
+            return VerifySolveResult(failure=("solver_no_solution", "status INFEASIBLE"))
+
+    monkeypatch.setattr(worker_main, "build_verify_solve", lambda s, e: Failing())
+
+    code = worker_main.run_command(
+        worker_main.parser().parse_args(["verify", "v.v1.B.mon-08"]), settings_for(tmp_path)
+    )
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert captured.out == ""
+    assert "solver_no_solution" in captured.err
+    assert "status INFEASIBLE" in captured.err
+
+
+def test_main_returns_the_code_of_verify(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(worker_main, "run_command", lambda args, settings: 1)
+
+    assert worker_main.main(["verify", "v.v1.B.mon-08"]) == 1
+
+
+@pytest.mark.parametrize(
+    ("adapters", "solver"), [("fake", FakePricingSolver), ("real", PackagePricingSolver)]
+)
+def test_verify_re_solves_with_the_solver_of_the_adapter_set(
+    tmp_path: Path, adapters: str, solver: type
+) -> None:
+    engine = create_db_engine(settings_for(tmp_path).database_url)
+    try:
+        verifying = worker_main.build_verify_solve(
+            settings_for(tmp_path, adapters=adapters), engine
+        )
+    finally:
+        engine.dispose()
+
+    assert isinstance(verifying._solver, solver)
 
 
 def test_the_fake_set_reads_the_staged_rule_and_the_real_set_keeps_its_own() -> None:

@@ -16,6 +16,7 @@ from pricing_demo.application.ports.simulations import (
 )
 from pricing_demo.domain.pricing_versions import new_draft_goals
 from pricing_demo.domain.read_model import OptionStationDeltaRow, StationBikesRow
+from pricing_demo.domain.solve_verification import simulation_rows
 from pricing_demo.domain.traveller_simulation import (
     BalancedScore,
     FlatPrice,
@@ -23,6 +24,7 @@ from pricing_demo.domain.traveller_simulation import (
     SimulationOption,
     SimulationOutputs,
     SimulationPair,
+    SimulationRule,
 )
 from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersions
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
@@ -165,6 +167,40 @@ def test_a_stored_simulation_has_its_child_rows_and_its_link(env: Env) -> None:
     assert env.simulations.is_stored("sim-2") is False
     assert env.children("sim-1") == (3, len(out.options), len(out.unserved_per_pair), 2)
     assert env.simulations.links_of(version) == [link(version, "sim-1")]
+
+
+def test_a_stored_simulation_gives_back_its_rule_prices_and_rows(env: Env) -> None:
+    version = env.new_version("A")
+    env.simulations.store(
+        [stored("sim-flat"), stored("sim-model", "model_prices")],
+        [link(version, "sim-flat"), link(version, "sim-model", "model_prices")],
+    )
+
+    flat = env.simulations.stored_of("sim-flat")
+    model = env.simulations.stored_of("sim-model")
+
+    assert flat is not None
+    assert model is not None
+    assert flat.rule == SimulationRule(
+        "balanced-score", 1, {"price_weight": 0.5, "time_weight": 0.5}
+    )
+    assert flat.scheme_kind == "flat"
+    assert (flat.instance_key, flat.solve_key) == ("i" * 64, None)
+    assert (flat.flat_price_kind, flat.flat_price_amount_chf) == ("per_ride", 1.0)
+    assert (flat.pt_fare_chf, flat.car_parking_fee_chf) == (2.0, 2.8)
+    # The order of the rows is the store's: compared as sets of rows.
+    expected = simulation_rows(outputs())
+    assert sorted(flat.rows.modes) == sorted(expected.modes)
+    assert sorted(flat.rows.choices) == sorted(expected.choices)
+    assert sorted(flat.rows.pairs) == sorted(expected.pairs)
+    assert sorted(flat.rows.stations) == sorted(expected.stations)
+    assert model.scheme_kind == "model_prices"
+    assert (model.solve_key, model.flat_price_kind, model.flat_price_amount_chf) == (
+        "s" * 64,
+        None,
+        None,
+    )
+    assert env.simulations.stored_of("other") is None
 
 
 def test_a_stored_key_is_left_as_it_is_and_the_new_link_is_added(env: Env) -> None:

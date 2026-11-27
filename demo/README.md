@@ -59,7 +59,7 @@ the live set-up are maintainer commands: neither `make check` nor `make e2e` run
 
 ## Measurements
 
-The measurement procedure is M-1 to M-3 of `ARCHITECTURE.md` § 12 (in the project folder,
+The measurement procedure is M-1 to M-5 of `ARCHITECTURE.md` § 12 (in the project folder,
 `initiatives/dynamic-pricing-demonstrator/`). M-1 to M-6 are a maintainer follow-up after
 delivery (`ARCHITECTURE.md` § 12, Q-10 closed for this version).
 
@@ -71,6 +71,14 @@ delivery (`ARCHITECTURE.md` § 12, Q-10 closed for this version).
   rebuild 3 km with `PRICING_DEMO_OTP_WORKERS` 1, 4 and 8 with reuse off. Read each step's
   duration, its pair counts and `failure_pct` from `/api/v1/runs/{id}`, and the failed queries
   from `/api/v1/runs/{id}/route-failures`.
+- **M-4**: run the default pricing goals on each instance; read the solution time, the gap, the
+  status, `time_limit_reached` and `peak_rss_bytes` of step 5 and the duration of step 5b (the
+  two simulations); look for a `C:\b_b_gurobi` folder in a working directory. It shows whether
+  the package's 7 200 s limit is reached at 3 km, whether node files work on macOS and how long
+  the traveller simulation takes on each instance size.
+- **M-5**: `verify {solve}` twice on the 3 km result (below), and `verify-build` on 3 km. It
+  shows the reproducibility claims of `ARCHITECTURE.md` § 9. It needs a full Gurobi licence and
+  the running trip planner: it is the maintainer's, never part of `make check` or `make e2e`.
 
 To show that a build is reproducible, rebuild an instance version from scratch and compare it
 with the stored one:
@@ -86,6 +94,25 @@ When a trip-planner query failed in either build, the routes and travellers step
 hub pairs both builds have and list the others. Exit status: 0 when everything compared
 matches, 1 when something differs, 2 when the version is unknown or not built, or a rebuild
 step fails (the reason is on stderr).
+
+To show that a stored solve is reproducible, solve it again and compare it with the stored one:
+
+```sh
+uv --directory api run pricing-demo-worker verify geneva-3km.v1.B.mon-08
+```
+
+The argument is the `solves.id`, `{pricing version}.{period key}`. The command solves the period
+again with the version's goals, the period's stored instance and the package fingerprint the
+stored solve recorded, in `var/data/runs/verify-{uuid}/` (deleted at the end), and simulates
+again every simulation stored for the version and period (each scheme, each rule) with the
+stored simulation's own rule, prices, fare and parking fee, so a simulation difference is the
+rule's, not the solve's. It writes nothing to the database. It prints one line per difference
+(the table, the scheme for a simulation table, the key, the field and both values), one line per
+compared table with its row count and verdict, the duration of the new solve and of each new
+simulation (M-4), and a last line `verify {solve id}: match` or `: differ`. Exit status: 0 when
+everything matches, 1 when something differs, 2 when the solve cannot be verified (unknown id,
+no stored rows or simulation, a rule the worker cannot build) or the new solve fails or is
+stopped (the reason is on stderr). On a real solve it needs a full Gurobi licence (M-5).
 
 To change a port or another per-machine value, copy `.env.example` to `.env` and edit it. Every
 variable has a default; the stack starts without a `.env` file.
@@ -111,6 +138,7 @@ Run from this folder; `make help` lists them.
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
 | `make live-smoke` | checks the real package, solver and trip planner: the licence is `available` and a 500 m instance solves end to end (the maintainer's, with a full licence) |
 | `uv --directory api run pricing-demo-worker verify-build {instance version}` | rebuilds steps 1-4 of a built version with reuse off in a scratch folder and compares the file hashes with the stored build; exit 0 only when they match |
+| `uv --directory api run pricing-demo-worker verify {solve id}` | solves a stored solve again in a scratch folder, simulates its stored simulations again and compares the rows with the stored ones; exit 0 only when they match |
 
 `make dev` and `make up` use the same database container and the same host ports; run one at a
 time. `make e2e` uses its own project, ports and in-memory database, so it runs beside either.

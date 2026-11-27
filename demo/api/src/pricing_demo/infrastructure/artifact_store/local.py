@@ -9,6 +9,7 @@ from typing import Any
 
 from pricing_demo.application.ports.artifacts import StoredFile
 from pricing_demo.domain.runs import StepName
+from pricing_demo.domain.solve_verification import VERIFY_RUN_PREFIX
 
 READ_ONLY_FILE = 0o444
 READ_ONLY_FOLDER = 0o555
@@ -105,6 +106,10 @@ class LocalArtifactStore:
             return
         keep = set(run_ids)
         for folder in runs.iterdir():
+            # A `verify` folder is no run's: it is left to the command, which removes it at the
+            # end; a re-solve outlasts the collection's ten minutes.
+            if folder.name.startswith(VERIFY_RUN_PREFIX):
+                continue
             if folder.name not in keep and folder.is_dir() and not folder.is_symlink():
                 self._remove_tree(folder)
 

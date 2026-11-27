@@ -225,6 +225,16 @@ hashes, or the hub pairs both builds have when a query failed in either (options
 ids). It writes no artefact, link, read-model row, route failure or run. Exit status: 0 match,
 1 differ, 2 the version is unknown or not built, or a step failed.
 
+A fifth worker command, `pricing-demo-worker verify {solve id}`, is the maintainer's proof that a
+stored solve is reproducible. `VerifySolve` finds the solve (`Solves.find`), reads its rows, the
+version's goals and the fingerprint the solve recorded, solves again through the `PricingSolver`
+of the adapter set (the one factory `build_pricing_solver`, shared with the pricing run) in
+`{data_dir}/runs/verify-{uuid}/` (removed on every path), and simulates again each simulation
+linked to the version and period from what it stored (`Simulations.stored_of`: rule, prices, rows)
+with the stored solve's rows or the flat price. `domain/solve_verification.py` compares the rows
+table by table (exact floats, a row on one side only is a difference). It writes no row. Exit
+status: 0 match, 1 differ, 2 the solve cannot be verified or the new solve failed or was stopped.
+
 The GTFS copy is shaped: after copying, the import hands the copy and the `.osm.pbf` to the
 `BusShapeMatcher` port, and `ZipTimetableShapes` writes the tool's `shapes.txt` and the
 `shape_id` of the bus trips (route types 3 and 700-799) into the copy; every other entry stays
@@ -451,7 +461,8 @@ and every 10 minutes (`COLLECT_EVERY`, on the injected clock) it deletes, one tr
 artefact, each `artifacts` row no `instance_version_steps` row references (its read-model rows
 go with it by `ON DELETE CASCADE`; the link is checked again under a row lock, so an artefact
 linked meanwhile stays), then its read-only folder under `var/data/artifacts/`, and the
-`var/data/runs/{run}/` working directories of runs that no longer exist. While any run is
+`var/data/runs/{run}/` working directories of runs that no longer exist (never a
+`runs/verify-{uuid}/`: the `verify` command removes its own). While any run is
 queued or running no artefact is removed: a step stores an artefact before it links it, and a
 step that keeps or re-ingests an unreferenced artefact reads it before it links it. A folder is
 renamed away (`{key}.removing-…`) before it is removed, so a removal that stops half-way never
