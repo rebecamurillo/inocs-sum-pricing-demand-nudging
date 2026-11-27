@@ -1,9 +1,13 @@
 import threading
 from collections.abc import Collection, Mapping, Sequence
+from typing import TYPE_CHECKING
 
 from pricing_demo.application.ports.artifacts import Artifact
 from pricing_demo.domain.runs import StepName
 from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
+
+if TYPE_CHECKING:
+    from pricing_demo.infrastructure.fakes.solves import InMemorySolves
 
 
 class InMemoryArtifacts:
@@ -17,6 +21,15 @@ class InMemoryArtifacts:
         self._artifacts: dict[str, Artifact] = {}
         self._links: dict[tuple[str, StepName, str | None], str] = {}
         self._lock = threading.Lock()
+        self._solves: InMemorySolves | None = None
+
+    def attach_solves(self, solves: "InMemorySolves") -> None:
+        """The solves whose keys count as referenced, and whose rows go with an artefact."""
+        self._solves = solves
+
+    def _referenced(self) -> set[str]:
+        solved = self._solves.referenced_keys() if self._solves is not None else set()
+        return {*self._links.values(), *solved}
 
     def stored_keys(self, keys: Collection[str]) -> set[str]:
         with self._lock:
@@ -52,16 +65,18 @@ class InMemoryArtifacts:
 
     def unreferenced(self) -> Sequence[Artifact]:
         with self._lock:
-            linked = set(self._links.values())
+            linked = self._referenced()
             return [a for key, a in sorted(self._artifacts.items()) if key not in linked]
 
     def remove(self, key: str) -> bool:
         with self._lock:
-            if key not in self._artifacts or key in set(self._links.values()):
+            if key not in self._artifacts or key in self._referenced():
                 return False
             del self._artifacts[key]
         if self._read_model is not None:
             self._read_model.drop(key)
+        if self._solves is not None:
+            self._solves.drop_key(key)
         return True
 
     def clear(self) -> None:

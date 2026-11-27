@@ -35,6 +35,11 @@ STEP_NAMES = (
     "traveller_simulation",
 )
 BUILD_STEP_NAMES = ("area", "hubs", "routes", "travellers_and_bikes")
+ARTIFACT_STEP_NAMES = (*BUILD_STEP_NAMES, "pricing_model")
+SOLVE_ROW_TYPES = ("PT+Bike", "PT-Only", "Car")
+PRICE_SCHEMES = ("model_prices", "flat")
+SIMULATION_ADAPTERS = ("domain", "package")
+ROUTE_MODES = ("pt_bike", "pt_only", "car")
 VERSION_STATUSES = ("draft", "sealed")
 PRICING_GOAL_COLUMNS = (
     "cost_bike_chf",
@@ -86,6 +91,8 @@ workers = Table(
     Column("heartbeat_at", DateTime(timezone=True), nullable=False),
     # No foreign key: the e2e reset truncates both tables independently.
     Column("package_fingerprint", Text),
+    # The id, version and parameters of the traveller simulation rule the worker uses.
+    Column("simulation_rule", JSONB),
 )
 
 runs = Table(
@@ -340,7 +347,7 @@ artifacts = Table(
     Column("reported_counts", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
     Column("counts", JSONB),
     Column("ingested_at", DateTime(timezone=True)),
-    CheckConstraint(one_of("step", BUILD_STEP_NAMES), name="step"),
+    CheckConstraint(one_of("step", ARTIFACT_STEP_NAMES), name="step"),
 )
 
 # The artefact of each step of a version. The period is null for the steps that have none, so
@@ -455,7 +462,7 @@ route_options = Table(
     Column("parking_time_min", Double),
     Column("car_cost_chf", Double),
     PrimaryKeyConstraint("instance_key", "arc_id", name="pk_route_options"),
-    CheckConstraint(one_of("mode", ("pt_bike", "pt_only", "car")), name="mode"),
+    CheckConstraint(one_of("mode", ROUTE_MODES), name="mode"),
 )
 
 station_bikes = Table(
@@ -499,4 +506,186 @@ route_failures = Table(
     CheckConstraint(one_of("kind", ("technical", "no_route")), name="kind"),
     CheckConstraint("attempts >= 1", name="attempts"),
     Index("ix_route_failures_run_id", "run_id"),
+)
+
+
+# The result of the pricing model for one pricing version and period. Two versions with the same
+# solver inputs point to one artefact (`input_key`); each has its own row, which carries the
+# quality and the provenance of the solve it reuses.
+solves = Table(
+    "solves",
+    metadata,
+    Column("id", Text, primary_key=True),
+    Column("pricing_version_id", Text, ForeignKey("pricing_versions.id"), nullable=False),
+    Column("period_id", Text, ForeignKey("instance_periods.id"), nullable=False),
+    Column("input_key", Text, ForeignKey("artifacts.input_key"), nullable=False),
+    Column("solver_status", Integer, nullable=False),
+    Column("solver_status_name", Text, nullable=False),
+    Column("objective_value", Double),
+    Column("gap_pct", Double),
+    Column("solution_time_s", Double),
+    Column("sol_count", Integer, nullable=False),
+    Column("time_limit_reached", Boolean, nullable=False),
+    Column("gurobi_version", Text, nullable=False),
+    Column("licence_kind", Text, nullable=False),
+    Column("solver_parameters", JSONB, nullable=False),
+    Column("package_fingerprint", Text, nullable=False),
+    Column("demonstrator_version", Text, nullable=False),
+    Column("dependency_lock_sha256", Text, nullable=False),
+    Column("platform", Text, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("pricing_version_id", "period_id", name="uq_solves_pricing_version_id"),
+)
+
+
+def _solve_key(name: str = "solve_key") -> Column[str]:
+    return Column(name, Text, ForeignKey("artifacts.input_key", ondelete="CASCADE"), nullable=False)
+
+
+solve_rows = Table(
+    "solve_rows",
+    metadata,
+    _solve_key(),
+    Column("arc_id", Text, nullable=False),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("type", Text, nullable=False),
+    Column("nu", Double, nullable=False),
+    Column("flow", Double, nullable=False),
+    Column("bike_price", Double),
+    Column("total_price", Double),
+    Column("z_value", Double),
+    Column("relaxation_difference", Double),
+    PrimaryKeyConstraint("solve_key", "arc_id", name="pk_solve_rows"),
+    CheckConstraint(one_of("type", SOLVE_ROW_TYPES), name="type"),
+)
+
+solve_ods = Table(
+    "solve_ods",
+    metadata,
+    _solve_key(),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("gamma", Double, nullable=False),
+    PrimaryKeyConstraint("solve_key", "origin_hub", "destination_hub", name="pk_solve_ods"),
+)
+
+# A simulation is content-keyed: its key hashes what it read, so a row is never overwritten and
+# no foreign key points at the keys it names. The links say which pricing version uses it.
+simulations = Table(
+    "simulations",
+    metadata,
+    Column("simulation_key", Text, primary_key=True),
+    Column("instance_key", Text, nullable=False),
+    Column("period_id", Text, nullable=False),
+    Column("rule_id", Text, nullable=False),
+    Column("rule_version", Integer, nullable=False),
+    Column("rule_parameters", JSONB, nullable=False),
+    Column("price_scheme", Text, nullable=False),
+    Column("solve_key", Text),
+    Column("flat_price_kind", Text),
+    Column("flat_price_amount_chf", Double),
+    Column("pt_fare_chf", Double, nullable=False),
+    Column("car_parking_fee_chf", Double, nullable=False),
+    Column("travellers", Integer, nullable=False),
+    Column("displaced", Integer, nullable=False),
+    Column("unserved", Integer, nullable=False),
+    Column("bike_rides", Integer, nullable=False),
+    Column("bike_revenue_chf", Double, nullable=False),
+    Column("stations_empty", Integer, nullable=False),
+    Column("stations_full", Integer, nullable=False),
+    Column("adapter", Text, nullable=False),
+    Column("package_fingerprint", Text),
+    Column("demonstrator_version", Text, nullable=False),
+    Column("duration_s", Double, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    CheckConstraint(one_of("price_scheme", PRICE_SCHEMES), name="price_scheme"),
+    CheckConstraint(one_of("adapter", SIMULATION_ADAPTERS), name="adapter"),
+)
+
+
+def _simulation_key() -> Column[str]:
+    return Column(
+        "simulation_key",
+        Text,
+        ForeignKey("simulations.simulation_key", ondelete="CASCADE"),
+        nullable=False,
+    )
+
+
+simulation_modes = Table(
+    "simulation_modes",
+    metadata,
+    _simulation_key(),
+    Column("mode", Text, nullable=False),
+    Column("travellers", Integer, nullable=False),
+    PrimaryKeyConstraint("simulation_key", "mode", name="pk_simulation_modes"),
+    CheckConstraint(one_of("mode", ROUTE_MODES), name="mode"),
+)
+
+simulation_choices = Table(
+    "simulation_choices",
+    metadata,
+    _simulation_key(),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("arc_id", Text, nullable=False),
+    Column("mode", Text, nullable=False),
+    Column("travellers", Integer, nullable=False),
+    Column("price_chf", Double, nullable=False),
+    Column("displaced", Integer, nullable=False),
+    PrimaryKeyConstraint(
+        "simulation_key", "origin_hub", "destination_hub", "arc_id", name="pk_simulation_choices"
+    ),
+    CheckConstraint(one_of("mode", ROUTE_MODES), name="mode"),
+)
+
+simulation_pairs = Table(
+    "simulation_pairs",
+    metadata,
+    _simulation_key(),
+    Column("origin_hub", Text, nullable=False),
+    Column("destination_hub", Text, nullable=False),
+    Column("unserved", Integer, nullable=False),
+    PrimaryKeyConstraint(
+        "simulation_key", "origin_hub", "destination_hub", name="pk_simulation_pairs"
+    ),
+)
+
+simulation_stations = Table(
+    "simulation_stations",
+    metadata,
+    _simulation_key(),
+    Column("station_id", Text, nullable=False),
+    Column("bikes_end", Double, nullable=False),
+    Column("empty", Boolean, nullable=False),
+    Column("full", Boolean, nullable=False),
+    PrimaryKeyConstraint("simulation_key", "station_id", name="pk_simulation_stations"),
+)
+
+pricing_version_simulations = Table(
+    "pricing_version_simulations",
+    metadata,
+    # Named by hand: the generated name would exceed PostgreSQL's 63 characters.
+    Column(
+        "pricing_version_id",
+        Text,
+        ForeignKey("pricing_versions.id", name="fk_pvs_pricing_version_id_pricing_versions"),
+        nullable=False,
+    ),
+    Column("period_id", Text, ForeignKey("instance_periods.id"), nullable=False),
+    Column("price_scheme", Text, nullable=False),
+    Column("rule_id", Text, nullable=False),
+    Column("rule_version", Integer, nullable=False),
+    Column("simulation_key", Text, ForeignKey("simulations.simulation_key"), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    PrimaryKeyConstraint(
+        "pricing_version_id",
+        "period_id",
+        "price_scheme",
+        "rule_id",
+        "rule_version",
+        name="pk_pricing_version_simulations",
+    ),
+    CheckConstraint(one_of("price_scheme", PRICE_SCHEMES), name="price_scheme"),
 )

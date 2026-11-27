@@ -31,8 +31,8 @@ class E2ETestSeam(Protocol):
         ...
 
     def set_pricing_model(self, settings: Mapping[str, object]) -> None:
-        """Set what the fake pricing model does: `fail_at`, `hold_at`, `routes_pace_ms` and
-        `route_failures`."""
+        """Set what the fake pricing model does: `fail_at`, `hold_at`, `routes_pace_ms`,
+        `route_failures` and `licence_kind`."""
         ...
 
     def release_run(self, run_id: str) -> None:
@@ -63,6 +63,9 @@ def build_test_control_router(seam: E2ETestSeam) -> APIRouter:
         # until a test names a failed query.
         if not values["route_failures"]:
             del values["route_failures"]
+        # The same for `licence_kind`: the stored settings name a kind only when a test does.
+        if values["licence_kind"] is None:
+            del values["licence_kind"]
         seam.set_pricing_model(values)
         return Response(status_code=204)
 

@@ -16,13 +16,34 @@ def test_each_build_step_can_be_failed_and_held(step: str) -> None:
 @pytest.mark.parametrize(
     "body",
     [
-        {"fail_at": {"step": "pricing_model", "code": "stage_error"}},
+        {"fail_at": {"step": "traveller_simulation", "code": "stage_error"}},
         {"hold_at": "traveller_simulation"},
     ],
 )
 def test_a_step_the_fake_pricing_model_does_not_play_is_refused(body: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         PricingModelSettings.model_validate(body)
+
+
+def test_the_pricing_model_step_can_be_failed_but_not_held() -> None:
+    settings = PricingModelSettings.model_validate(
+        {"fail_at": {"step": "pricing_model", "code": "solver_no_solution"}}
+    )
+
+    assert settings.model_dump(mode="json")["fail_at"]["step"] == "pricing_model"
+    with pytest.raises(ValidationError):
+        PricingModelSettings.model_validate({"hold_at": "pricing_model"})
+
+
+@pytest.mark.parametrize("kind", ["full", "limited"])
+def test_a_licence_kind_is_accepted_and_defaults_to_none(kind: str) -> None:
+    assert PricingModelSettings.model_validate({}).licence_kind is None
+    assert PricingModelSettings.model_validate({"licence_kind": kind}).licence_kind == kind
+
+
+def test_a_licence_kind_other_than_full_or_limited_is_refused() -> None:
+    with pytest.raises(ValidationError):
+        PricingModelSettings.model_validate({"licence_kind": "trial"})
 
 
 def test_route_failures_are_accepted_and_default_to_none() -> None:

@@ -1,4 +1,5 @@
 from pricing_demo.domain.runs import RunState
+from pricing_demo.domain.system_status import ComponentName, ComponentStatus, SystemStatus
 from tests.support.pricing_versions import built_in_memory, sealed_pricing_version
 from tests.unit.interface.http.conftest import CityInstancesApp
 
@@ -197,3 +198,119 @@ def test_the_flag_also_deletes_a_version(instances_app: CityInstancesApp) -> Non
 
     assert instances_app.client.delete(path).status_code == 204
     assert instances_app.client.get("/api/v1/pricing-versions/geneva-3km.v1.A").status_code == 404
+
+
+def runs_path(version_id: str) -> str:
+    return f"/api/v1/pricing-versions/{version_id}/runs"
+
+
+def a_draft(app: CityInstancesApp) -> str:
+    built(app)
+    return str(app.client.post(LIST, json={}).json()["id"])
+
+
+def test_running_a_draft_answers_202_with_the_run_and_its_location(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+
+    response = instances_app.client.post(runs_path(version))
+
+    assert response.status_code == 202
+    body = response.json()
+    assert response.headers["Location"] == f"/api/v1/runs/{body['id']}"
+    assert (body["kind"], body["state"]) == ("pricing", "queued")
+    assert body["subject"] == {"type": "pricing_version", "id": version}
+    assert [(item["step"], item["state"]) for item in body["steps"]] == [
+        ("pricing_model", "pending"),
+        ("traveller_simulation", "pending"),
+    ]
+    sealed = instances_app.client.get(f"/api/v1/pricing-versions/{version}").json()
+    assert (sealed["status"], sealed["state"]) == ("sealed", "queued")
+
+
+def test_an_unknown_version_answers_404(instances_app: CityInstancesApp) -> None:
+    response = instances_app.client.post(runs_path("geneva-3km.v1.Q"))
+
+    assert (response.status_code, response.json()["code"]) == (404, "pricing_version_not_found")
+
+
+def test_a_draft_that_breaks_a_rule_answers_409_naming_each_value_and_seals_nothing(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+    instances_app.client.patch(
+        f"/api/v1/pricing-versions/{version}", json={"pt_fare_chf": -1, "max_displayed_options": 0}
+    )
+
+    response = instances_app.client.post(runs_path(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "rule_broken")
+    failures = response.json()["pricing_failures"]
+    assert [(item["field"], item["value"]) for item in failures] == [
+        ("pt_fare_chf", -1),
+        ("max_displayed_options", 0),
+    ]
+    assert all("now" in item["message"] for item in failures)
+    assert instances_app.client.get(f"/api/v1/pricing-versions/{version}").json()["status"] == (
+        "draft"
+    )
+
+
+def test_a_version_with_an_active_run_answers_409_run_active_with_the_run(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+    first = instances_app.client.post(runs_path(version)).json()
+
+    response = instances_app.client.post(runs_path(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "run_active")
+    assert response.json()["run_id"] == first["id"]
+
+
+def test_a_version_whose_last_run_succeeded_answers_409_already_run(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+    instances_app.rig.pricing.seal(version, instances_app.clock.now())
+    sealed_pricing_version(instances_app.rig, version, RunState.SUCCEEDED)
+
+    response = instances_app.client.post(runs_path(version))
+
+    assert (response.status_code, response.json()["code"]) == (409, "already_run")
+
+
+def test_a_failed_run_is_run_again_with_the_same_request(instances_app: CityInstancesApp) -> None:
+    version = a_draft(instances_app)
+    instances_app.rig.pricing.seal(version, instances_app.clock.now())
+    sealed_pricing_version(instances_app.rig, version, RunState.FAILED)
+
+    response = instances_app.client.post(runs_path(version))
+
+    assert response.status_code == 202
+    assert response.json()["state"] == "queued"
+
+
+def test_a_component_the_run_needs_blocks_it_with_503_naming_the_reasons(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+    instances_app.status.value = SystemStatus.of(
+        [
+            ComponentStatus.limited(ComponentName.SOLVER, "Size-limited Gurobi licence.")
+            if name is ComponentName.SOLVER
+            else ComponentStatus.ready(name)
+            for name in ComponentName
+        ]
+    )
+
+    response = instances_app.client.post(runs_path(version))
+
+    assert (response.status_code, response.json()["code"]) == (503, "component_unavailable")
+    assert response.json()["reasons"] == [
+        {"component": "solver", "reason": "Size-limited Gurobi licence."}
+    ]
+    assert instances_app.client.get(f"/api/v1/pricing-versions/{version}").json()["status"] == (
+        "draft"
+    )

@@ -42,7 +42,7 @@ export class TestControl {
     return id;
   }
 
-  /** Set what the fake pricing model does (`fail_at`, `hold_at`, `routes_pace_ms`, `route_failures`). */
+  /** Set what the fake pricing model does (`fail_at`, `hold_at`, `routes_pace_ms`, `route_failures`, `licence_kind`). */
   async setPricingModel(settings: Record<string, unknown>): Promise<void> {
     await this.expectNoContent(
       await this.request.put('/api/test-control/pricing-model', { data: settings }),

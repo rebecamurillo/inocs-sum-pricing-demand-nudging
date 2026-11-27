@@ -1,6 +1,7 @@
+from collections.abc import Mapping
 from datetime import datetime
 
-from sqlalchemy import Engine, func
+from sqlalchemy import Engine, func, null
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.infrastructure.persistence.tables import workers
@@ -17,8 +18,9 @@ class PostgresWorkerRegistry:
         pid: int,
         at: datetime,
         package_fingerprint: str | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None:
-        self._upsert(worker_id, host, pid, at, at, package_fingerprint)
+        self._upsert(worker_id, host, pid, at, at, package_fingerprint, simulation_rule)
 
     def heartbeat(
         self,
@@ -28,8 +30,9 @@ class PostgresWorkerRegistry:
         started_at: datetime,
         at: datetime,
         package_fingerprint: str | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None:
-        self._upsert(worker_id, host, pid, started_at, at, package_fingerprint)
+        self._upsert(worker_id, host, pid, started_at, at, package_fingerprint, simulation_rule)
 
     def _upsert(
         self,
@@ -39,6 +42,7 @@ class PostgresWorkerRegistry:
         started_at: datetime,
         at: datetime,
         package_fingerprint: str | None,
+        simulation_rule: Mapping[str, object] | None,
     ) -> None:
         statement = insert(workers).values(
             id=worker_id,
@@ -47,6 +51,8 @@ class PostgresWorkerRegistry:
             started_at=started_at,
             heartbeat_at=at,
             package_fingerprint=package_fingerprint,
+            # SQL null, not JSON null: a heartbeat without a rule keeps the row's.
+            simulation_rule=dict(simulation_rule) if simulation_rule is not None else null(),
         )
         statement = statement.on_conflict_do_update(
             index_elements=["id"],
@@ -55,10 +61,13 @@ class PostgresWorkerRegistry:
                 "pid": statement.excluded.pid,
                 "started_at": statement.excluded.started_at,
                 "heartbeat_at": statement.excluded.heartbeat_at,
-                # A heartbeat that knows no fingerprint (the one a running step writes) keeps
-                # the row's.
+                # A heartbeat that knows no fingerprint or rule (the one a running step writes)
+                # keeps the row's.
                 "package_fingerprint": func.coalesce(
                     statement.excluded.package_fingerprint, workers.c.package_fingerprint
+                ),
+                "simulation_rule": func.coalesce(
+                    statement.excluded.simulation_rule, workers.c.simulation_rule
                 ),
             },
         )

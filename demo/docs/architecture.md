@@ -84,6 +84,7 @@ api/
       ports/                   one Protocol per module
       use_cases/               one use case per module: a class with execute()
       step_registry.py         the executor of each step, filled by the worker's composition root
+      run_step_writes.py       the writes of a step's key, reason and counts through the run queue
     infrastructure/
       config/                  settings read from the environment
       persistence/             engine, the shared metadata, repositories, component reports,
@@ -283,6 +284,60 @@ transaction (`run_active` while a run of it is queued or running). `DELETE` of a
 version or of a city instance answers 409 `has_pricing_versions` (with `pricing_version_ids`)
 while pricing versions exist, unless `?including_pricing_versions=true` is sent.
 
+### Pricing runs: the pricing model, then the simulation
+
+`POST /api/v1/pricing-versions/{id}/runs` (`RunPricingVersion`) checks, in this order, that the
+version exists (`pricing_version_not_found`), that a draft breaks no rule (`rule_broken`, whose
+problem document carries `pricing_failures`), that no run of it is queued or running
+(`run_active`), that its last run has not succeeded (`already_run`) and that `can_run_pricing`
+holds (`component_unavailable`: storage, the runner, the package and the solver; the trip planner
+is not needed). It then, in one transaction (`PricingVersions.queue_run`, under the version's row
+lock), seals the draft when its goals are still the ones checked and inserts a `pricing` run with
+two `pending` steps on the version's period, `pricing_model` (number 5) and
+`traveller_simulation` (5b); the answer is 202 with the run and `Location: /api/v1/runs/{id}`.
+"Run again" is the same request on a sealed version whose last run failed or was cancelled.
+
+The worker registers two executors (`worker/main.py`, `register_pricing_steps`); each is also the
+step's keeper.
+
+- `PricingModelStepExecutor` computes the solve's key (`domain/pricing_keys.py`: the seven solver
+  goals, the fixed solver inputs, the period's step-4 artefact key and the package fingerprint;
+  the flat price is not an input) and writes it to the run step. A stored solve with that key
+  (`Solves.is_stored`) makes the step `kept` ("kept: these goals were already solved on this
+  instance") and gives the version its own `solves` row (`Solves.link_stored`). Otherwise it
+  probes the solver again and reports the answer (a `limited` solver fails the step with
+  `solver_size_limited`, an `unavailable` one with `stage_error`), copies the period's
+  `Instance_1.json` into a working directory, solves through the `PricingSolver` port, stores the
+  named output files as an artefact of step `pricing_model` and, in one transaction
+  (`Solves.store`), the artefact row, the rows of `solve_rows` (a `PT+Bike` row only for an offered
+  option, `PT-Only` and `Car` rows for every option), the `gamma` of each hub pair in `solve_ods`
+  and the version's `solves` row (quality and provenance). A failed store is `stage_error`; the
+  working directory stays after a failure.
+- `TravellerSimulationStepExecutor` builds the simulation's instance from the read model
+  (`domain/simulation_inputs.py`), runs the rule behind the `TravellerSimulation` port
+  (`BalancedScore`, `balanced-score` v1, provisional until Q-39) with the model's prices and with
+  the flat price, and stores in one transaction (`Simulations.store`) each new simulation with its
+  four child tables and both links of `pricing_version_simulations`. A simulation is content-keyed
+  (`simulation_key`: the period, the rule with its version and parameters, the scheme, the solve
+  key or the flat price, the fare and the parking fee), so versions of one period with the same
+  flat price, fare and parking fee share one `flat` row; a stored key is reused and, when both
+  are stored, the step is `kept` ("kept: already simulated with the same prices and rule"). A
+  stopped step writes nothing; a broken check fails it with `simulation_check_failed` and the
+  solve stays. A car option needs its cost and parking time, which step 4's ingestion now stores
+  in `route_options`; an artefact ingested earlier has nulls, and its simulation fails with
+  `stage_error`.
+
+A run succeeds only when both steps are done or kept. Outside the fake adapter set no executor is
+registered for `pricing_model` until its real adapter exists (story 3-4), and its step fails with
+"no step executor is registered"; the simulation is the demonstrator's own domain code and runs in
+both sets. The worker records the rule it chose (`{id, version, parameters}`) on its
+`workers.simulation_rule`. The fake `PricingSolver` (`infrastructure/fakes/pricing_solver.py`)
+computes its rows from a fixed formula of the version's goals, offers fewer options than the flat
+scheme does (none from hub `H6`) and labels its provenance `fake`.
+
+Deleting a pricing version also removes its `solves` rows and its links to simulations
+(`pricing_version_simulations`) in the same transaction.
+
 ### Builds and the artefact store
 
 `POST /api/v1/instance-versions/{id}/builds` (`BuildInstanceVersion`) checks, in this order,
@@ -347,8 +402,11 @@ linked meanwhile stays), then its read-only folder under `var/data/artifacts/`, 
 queued or running no artefact is removed: a step stores an artefact before it links it, and a
 step that keeps or re-ingests an unreferenced artefact reads it before it links it. A folder is
 renamed away (`{key}.removing-…`) before it is removed, so a removal that stops half-way never
-leaves a partial folder under the key's name. A failure is logged, the pass goes on, and the next tick tries again. Epic 3 extends the
-collection to solves and simulations.
+leaves a partial folder under the key's name. A failure is logged, the pass goes on, and the next tick tries again. An artefact a `solves`
+row references (`solves.input_key`) is not unreferenced, and removing one removes its `solve_rows` and
+`solve_ods` by cascade. The same pass first removes the simulations no `pricing_version_simulations`
+row links (`Simulations.remove_unlinked`, their child rows cascade), under the same rule that no
+run is active.
 
 ### Read model
 

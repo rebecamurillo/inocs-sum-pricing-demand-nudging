@@ -1,5 +1,6 @@
 import threading
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import datetime, timedelta
 
 import pytest
@@ -35,6 +36,7 @@ class Rig:
         self,
         runs: InMemoryRunRepository | None = None,
         collect: CollectUnreferenced | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None:
         self.runs = runs or InMemoryRunRepository()
         self.workers = InMemoryWorkerRegistry()
@@ -57,6 +59,7 @@ class Rig:
             self.waiter,
             quiet_fingerprint(self.clock),
             collect=collect,
+            simulation_rule=simulation_rule,
         )
 
     def stop_at(self, seconds: float) -> None:
@@ -627,3 +630,24 @@ def test_a_worker_without_a_collection_runs_as_before(rig: Rig) -> None:
     rig.worker.run(rig.until)
 
     assert rig.waiter.calls == 2
+
+
+RULE = {"id": "balanced-score", "version": 1, "parameters": {"price_weight": 0.5}}
+
+
+def test_the_worker_registers_its_simulation_rule_and_every_heartbeat_repeats_it() -> None:
+    rig = Rig(simulation_rule=RULE)
+
+    rig.worker.start()
+
+    assert rig.workers.rows["w-1"].simulation_rule == RULE
+    rig.workers.rows["w-1"] = replace(rig.workers.rows["w-1"], simulation_rule=None)
+    rig.stop_at(6)
+    rig.worker.run(rig.until)
+    assert rig.workers.rows["w-1"].simulation_rule == RULE
+
+
+def test_a_worker_without_a_rule_registers_none(rig: Rig) -> None:
+    rig.worker.start()
+
+    assert rig.workers.rows["w-1"].simulation_rule is None

@@ -1,12 +1,16 @@
 from collections.abc import Collection, Mapping, Sequence
 from typing import Any
 
-from sqlalchemy import Engine, delete, exists, select
+from sqlalchemy import Connection, Engine, delete, exists, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.application.ports.artifacts import Artifact, StoredFile
 from pricing_demo.domain.runs import StepName
-from pricing_demo.infrastructure.persistence.tables import artifacts, instance_version_steps
+from pricing_demo.infrastructure.persistence.tables import (
+    artifacts,
+    instance_version_steps,
+    solves,
+)
 
 
 def _artifact(row: Any) -> Artifact:
@@ -41,7 +45,8 @@ class PostgresArtifacts:
 
     def unreferenced(self) -> Sequence[Artifact]:
         query = select(artifacts).where(
-            ~exists().where(instance_version_steps.c.input_key == artifacts.c.input_key)
+            ~exists().where(instance_version_steps.c.input_key == artifacts.c.input_key),
+            ~exists().where(solves.c.input_key == artifacts.c.input_key),
         )
         with self._engine.connect() as connection:
             return [
@@ -63,10 +68,21 @@ class PostgresArtifacts:
             ).scalar()
             if linked is not None:
                 return False
+            solved = connection.execute(
+                select(solves.c.input_key).where(solves.c.input_key == key).limit(1)
+            ).scalar()
+            if solved is not None:
+                return False
             connection.execute(delete(artifacts).where(artifacts.c.input_key == key))
         return True
 
     def add(self, artifact: Artifact) -> None:
+        with self._engine.begin() as connection:
+            self.add_in(connection, artifact)
+
+    @staticmethod
+    def add_in(connection: Connection, artifact: Artifact) -> None:
+        """`add` inside the caller's transaction."""
         statement = (
             insert(artifacts)
             .values(
@@ -85,8 +101,7 @@ class PostgresArtifacts:
             )
             .on_conflict_do_nothing(index_elements=["input_key"])
         )
-        with self._engine.begin() as connection:
-            connection.execute(statement)
+        connection.execute(statement)
 
     def link(self, version_id: str, step: StepName, period_id: str | None, key: str) -> None:
         statement = insert(instance_version_steps).values(

@@ -97,6 +97,10 @@ class RouteOptionRow:
     legs: tuple[RouteLeg, ...]
     geometry: Any
     bike_legs: int | None = None
+    # A car option's cost and parking time, read from the instance's car arc; null for the
+    # other modes and for an artefact ingested before they were stored.
+    car_cost_chf: float | None = None
+    parking_time_min: float | None = None
 
 
 @dataclass(frozen=True)
@@ -271,12 +275,17 @@ def route_options_from(
             for mode, name in INSTANCE_ARC_LISTS.items()
         }
         geometries = {item["arc_id"]: item["legs_geometry"] for item in od_geometry["geometries"]}
+        car_fields = {
+            arc["arc_id"]: (arc.get("total_travel_cost"), arc.get("parking_time_min"))
+            for arc in _instance_arcs(instance["car_paths"])
+        }
         rows: list[RouteOptionRow] = []
         for pair in od_routes["od_results"]:
             for mode, name in ROUTE_ARC_LISTS.items():
                 for arc in pair[name]:
                     if arc["arc_id"] not in in_instance[mode]:
                         continue
+                    car_cost, parking = car_fields[arc["arc_id"]] if mode == "car" else (None, None)
                     rows.append(
                         RouteOptionRow(
                             str(arc["arc_id"]),
@@ -289,6 +298,8 @@ def route_options_from(
                             _legs(arc, routes_with_shapes),
                             geometries.get(arc["arc_id"], []),
                             _bike_legs(bike_legs, str(arc["arc_id"])),
+                            car_cost,
+                            parking,
                         )
                     )
     except (KeyError, TypeError) as error:

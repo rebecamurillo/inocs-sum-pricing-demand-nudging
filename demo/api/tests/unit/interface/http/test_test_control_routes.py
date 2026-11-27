@@ -159,6 +159,22 @@ def test_a_failed_route_query_of_an_unknown_kind_is_refused(faked: Faked, field:
     assert response.json()["errors"][0]["field"].startswith(f"route_failures.0.{field}")
 
 
+def test_the_licence_kind_is_stored_only_when_given(faked: Faked) -> None:
+    faked.client.put(PRICING_MODEL, json={"licence_kind": "limited"})
+    assert faked.settings.read()["pricing_model"]["licence_kind"] == "limited"  # type: ignore[index]
+
+    faked.client.put(PRICING_MODEL, json={})
+
+    assert "licence_kind" not in faked.settings.read()["pricing_model"]  # type: ignore[operator]
+
+
+def test_the_pricing_model_step_can_be_failed_through_the_route(faked: Faked) -> None:
+    body = {"fail_at": {"step": "pricing_model", "code": "solver_size_limited"}}
+
+    assert faked.client.put(PRICING_MODEL, json=body).status_code == 204
+    assert faked.settings.read()["pricing_model"]["fail_at"] == body["fail_at"]  # type: ignore[index]
+
+
 def test_an_empty_body_sets_the_defaults_of_the_pricing_model(faked: Faked) -> None:
     faked.client.put(PRICING_MODEL, json={"hold_at": "area"})
 

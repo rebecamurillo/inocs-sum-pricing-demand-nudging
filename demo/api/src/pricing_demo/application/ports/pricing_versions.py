@@ -4,6 +4,7 @@ from typing import Protocol
 
 from pricing_demo.domain.city_instances import Number
 from pricing_demo.domain.pricing_versions import PricingGoals, PricingVersion, PricingVersionSummary
+from pricing_demo.domain.runs import Run
 
 
 class PricingVersions(Protocol):
@@ -43,10 +44,22 @@ class PricingVersions(Protocol):
         and `VersionSealed`."""
         ...
 
+    def latest_run(self, version_id: str) -> Run | None:
+        """The version's most recently queued run, with its steps."""
+        ...
+
+    def queue_run(self, run: Run, seal_at: datetime | None, checked: PricingGoals | None) -> None:
+        """In one transaction under the version's row lock: seal the draft when `seal_at` is
+        given (only when its goals still equal `checked`; `DraftChanged` otherwise), then store
+        the run with its steps. Raises `PricingVersionNotFound`, and `RunActive` when the
+        version already has a queued or running run; nothing is stored then."""
+        ...
+
     def delete(self, version_id: str) -> None:
-        """In one transaction, remove the version with its periods and its finished runs (their
-        steps). Raises `PricingVersionNotFound`, and `RunActive` while a run of it is queued or
-        running; nothing is removed then. The instance version's next letter never decreases."""
+        """In one transaction, remove the version with its periods, its solves, its links to
+        simulations and its finished runs (their steps). Raises `PricingVersionNotFound`, and
+        `RunActive` while a run of it is queued or running; nothing is removed then. The
+        instance version's next letter never decreases."""
         ...
 
     def letters_by_instance_version(

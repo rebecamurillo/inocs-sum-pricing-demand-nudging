@@ -5,7 +5,9 @@ from fastapi import APIRouter, Response
 from pricing_demo.application.use_cases.create_pricing_version import CreatePricingVersion
 from pricing_demo.application.use_cases.delete_pricing_version import DeletePricingVersion
 from pricing_demo.application.use_cases.get_pricing_version import GetPricingVersion
+from pricing_demo.application.use_cases.get_run import GetRun
 from pricing_demo.application.use_cases.list_pricing_versions import ListPricingVersions
+from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
 from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.interface.http.schemas import (
     CreatePricingVersionRequest,
@@ -13,6 +15,7 @@ from pricing_demo.interface.http.schemas import (
     PricingVersionPatch,
     PricingVersionResource,
     ProblemDetails,
+    RunResource,
 )
 
 Responses = dict[int | str, dict[str, Any]]
@@ -32,6 +35,8 @@ def build_pricing_versions_router(
     get: GetPricingVersion,
     update: UpdatePricingVersion,
     delete: DeletePricingVersion,
+    run_version: RunPricingVersion,
+    get_run: GetRun,
 ) -> APIRouter:
     router = APIRouter(prefix="/api/v1", tags=["pricing-versions"])
 
@@ -113,5 +118,37 @@ def build_pricing_versions_router(
     def delete_route(pricing_version_id: str) -> Response:
         delete.execute(pricing_version_id)
         return Response(status_code=204)
+
+    @router.post(
+        "/pricing-versions/{pricing_version_id}/runs",
+        operation_id="runPricingVersion",
+        summary="Seal a draft and queue its pricing run, or queue the run again after a failure",
+        status_code=202,
+        response_model=RunResource,
+        responses={
+            202: {
+                "description": "The pricing run is queued; the body is the run",
+                "headers": {
+                    "Location": {
+                        "description": "The run",
+                        "schema": {"type": "string"},
+                    }
+                },
+            },
+            **NOT_FOUND,
+            409: _problem(
+                "`rule_broken` (the draft breaks a rule: `pricing_failures` lists each with its "
+                "goal and value), `run_active` (`run_id` is the run) or `already_run`"
+            ),
+            503: _problem(
+                "`component_unavailable`: `reasons` names each component the run needs and lacks"
+            ),
+            **UNEXPECTED,
+        },
+    )
+    def run_route(pricing_version_id: str, response: Response) -> RunResource:
+        run = run_version.execute(pricing_version_id)
+        response.headers["Location"] = f"/api/v1/runs/{run.id}"
+        return RunResource.from_view(get_run.execute(run.id))
 
     return router

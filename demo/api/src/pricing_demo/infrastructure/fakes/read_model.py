@@ -4,7 +4,15 @@ from dataclasses import replace
 from typing import Any
 
 from pricing_demo.application.ports.read_model import IngestionBatch
-from pricing_demo.domain.read_model import HubPairRow, HubRow, RoutePairRow, StationRow
+from pricing_demo.domain.read_model import (
+    HubPairRow,
+    HubRow,
+    OptionStationDeltaRow,
+    RouteOptionRow,
+    RoutePairRow,
+    StationBikesRow,
+    StationRow,
+)
 
 
 class InMemoryReadModel:
@@ -46,6 +54,20 @@ class InMemoryReadModel:
         if batch is None:
             return []
         return sorted(batch.route_pairs, key=lambda row: (row.origin_hub, row.destination_hub))
+
+    def route_options(self, key: str) -> list[RouteOptionRow]:
+        batch = self._batch(key)
+        return sorted(batch.route_options, key=lambda row: row.arc_id) if batch else []
+
+    def station_bikes(self, key: str) -> list[StationBikesRow]:
+        batch = self._batch(key)
+        return sorted(batch.station_bikes, key=lambda row: row.station_id) if batch else []
+
+    def option_station_deltas(self, key: str) -> list[OptionStationDeltaRow]:
+        batch = self._batch(key)
+        if batch is None:
+            return []
+        return sorted(batch.deltas, key=lambda row: (row.arc_id, row.station_id))
 
     def drop(self, key: str) -> None:
         """What the removal of the artefact does (its rows go with it)."""

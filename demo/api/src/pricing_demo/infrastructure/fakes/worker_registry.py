@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,6 +11,7 @@ class WorkerRow:
     started_at: datetime
     heartbeat_at: datetime
     package_fingerprint: str | None = None
+    simulation_rule: Mapping[str, object] | None = None
 
 
 class InMemoryWorkerRegistry:
@@ -25,9 +27,16 @@ class InMemoryWorkerRegistry:
         pid: int,
         at: datetime,
         package_fingerprint: str | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None:
         self.rows[worker_id] = WorkerRow(
-            worker_id, host, pid, at, at, package_fingerprint=package_fingerprint
+            worker_id,
+            host,
+            pid,
+            at,
+            at,
+            package_fingerprint=package_fingerprint,
+            simulation_rule=simulation_rule,
         )
 
     def heartbeat(
@@ -38,12 +47,20 @@ class InMemoryWorkerRegistry:
         started_at: datetime,
         at: datetime,
         package_fingerprint: str | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None:
-        # A heartbeat that knows no fingerprint (the one a running step writes) keeps the row's.
+        # A heartbeat that knows no fingerprint or rule (the one a running step writes) keeps
+        # the row's.
         known = self.rows.get(worker_id)
-        kept = package_fingerprint or (known.package_fingerprint if known else None)
         self.rows[worker_id] = WorkerRow(
-            worker_id, host, pid, started_at, at, package_fingerprint=kept
+            worker_id,
+            host,
+            pid,
+            started_at,
+            at,
+            package_fingerprint=package_fingerprint
+            or (known.package_fingerprint if known else None),
+            simulation_rule=simulation_rule or (known.simulation_rule if known else None),
         )
 
     def delete(self, worker_id: str) -> None:

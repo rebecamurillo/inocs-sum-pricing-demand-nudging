@@ -1,11 +1,14 @@
 import pytest
 
 from pricing_demo.application.ports.artifacts import Artifact, StoredFile
+from pricing_demo.application.ports.simulations import SimulationLink, StoredSimulation
 from pricing_demo.application.use_cases.collect_unreferenced import CollectUnreferenced
 from pricing_demo.domain.runs import RunState, StepName
+from pricing_demo.domain.traveller_simulation import BalancedScore, FlatPrice, SimulationInstance
 from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
+from pricing_demo.infrastructure.fakes.simulations import InMemorySimulations
 from tests.support.builds import RecordingFiles
 from tests.support.runs import T0, make_run
 
@@ -98,3 +101,48 @@ def test_nothing_to_collect_is_fine() -> None:
     collector(InMemoryArtifacts(), files, InMemoryRunRepository()).execute()
 
     assert files.removed == []
+
+
+def stored_simulation(key: str) -> StoredSimulation:
+    outputs = BalancedScore().simulate(SimulationInstance((), (), (), ()), FlatPrice(1.0, 2.0, 2.8))
+    return StoredSimulation(
+        key, "i", "p", outputs, "flat", None, "per_ride", 1.0, 2.0, 2.8, "0.1.0", 0.0, T0
+    )
+
+
+def test_the_simulations_no_pricing_version_links_go_and_the_linked_ones_stay() -> None:
+    artifacts, files, runs = InMemoryArtifacts(), RecordingFiles(), InMemoryRunRepository()
+    simulations = InMemorySimulations()
+    simulations.store(
+        [stored_simulation("kept"), stored_simulation("gone")],
+        [SimulationLink("v.A", "p", "flat", "balanced-score", 1, "kept", T0)],
+    )
+
+    CollectUnreferenced(artifacts, files, runs, simulations).execute()
+
+    assert simulations.is_stored("kept") is True
+    assert simulations.is_stored("gone") is False
+
+
+def test_no_simulation_is_removed_while_a_run_is_active() -> None:
+    artifacts, files, runs = InMemoryArtifacts(), RecordingFiles(), InMemoryRunRepository()
+    simulations = InMemorySimulations()
+    simulations.store([stored_simulation("fresh")], [])
+    runs.add(make_run("r1", state=RunState.RUNNING))
+
+    CollectUnreferenced(artifacts, files, runs, simulations).execute()
+
+    assert simulations.is_stored("fresh") is True
+
+
+def test_a_failure_to_collect_simulations_does_not_stop_the_artefacts() -> None:
+    class Failing(InMemorySimulations):
+        def remove_unlinked(self) -> int:
+            raise RuntimeError("the database went away")
+
+    artifacts, files, runs = InMemoryArtifacts(), RecordingFiles(), InMemoryRunRepository()
+    artifacts.add(artifact("gone"))
+
+    CollectUnreferenced(artifacts, files, runs, Failing()).execute()
+
+    assert files.removed == ["artifacts/area/gone"]

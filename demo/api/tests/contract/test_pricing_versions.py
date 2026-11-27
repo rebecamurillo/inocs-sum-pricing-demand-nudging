@@ -9,7 +9,7 @@ from sqlalchemy import Engine
 from pricing_demo.application.ports.city_instances import CityInstances
 from pricing_demo.application.ports.pricing_versions import PricingVersions
 from pricing_demo.application.ports.run_repository import RunRepository
-from pricing_demo.domain.builds import RunActive
+from pricing_demo.domain.builds import DraftChanged, RunActive
 from pricing_demo.domain.city_instances import (
     CityInstance,
     InstanceVersion,
@@ -24,7 +24,16 @@ from pricing_demo.domain.pricing_versions import (
     UnknownBasedOn,
     new_draft_goals,
 )
-from pricing_demo.domain.runs import RunKind, RunState
+from pricing_demo.domain.runs import (
+    Run,
+    RunKind,
+    RunState,
+    RunStep,
+    StepName,
+    StepState,
+    Subject,
+    SubjectType,
+)
 from pricing_demo.infrastructure.fakes.city_datasets import fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
@@ -254,3 +263,95 @@ def test_the_letters_of_each_instance_version(env: Env) -> None:
 
     assert env.pricing.letters_by_instance_version([VERSION, "other.v1"]) == {VERSION: ["A", "B"]}
     assert env.pricing.letters_by_instance_version([]) == {}
+
+
+def pricing_run(version_id: str, run_id: str = "r-new", at: int = 3) -> Run:
+    return Run(
+        id=run_id,
+        kind=RunKind.PRICING,
+        subject=Subject(SubjectType.PRICING_VERSION, version_id),
+        state=RunState.QUEUED,
+        queued_at=later(at),
+        steps=(
+            RunStep(1, StepName.PRICING_MODEL, period=PERIOD, input_key="k1"),
+            RunStep(2, StepName.TRAVELLER_SIMULATION, period=PERIOD),
+        ),
+    )
+
+
+def test_a_version_without_a_run_has_no_latest_run(env: Env) -> None:
+    assert env.pricing.latest_run(env.draft()) is None
+
+
+def test_the_latest_run_is_the_last_queued_with_its_steps(env: Env) -> None:
+    version = env.draft()
+    env.seal(version)
+    env.run("r-old", version, RunState.FAILED, at=1)
+    env.pricing.queue_run(pricing_run(version), None, None)
+    env.runs.update("r-new", lambda run: replace(run, state=RunState.SUCCEEDED))
+
+    latest = env.pricing.latest_run(version)
+
+    assert latest is not None
+    assert (latest.id, latest.state) == ("r-new", RunState.SUCCEEDED)
+    assert [(item.step, item.period, item.state) for item in latest.steps] == [
+        (StepName.PRICING_MODEL, PERIOD, StepState.PENDING),
+        (StepName.TRAVELLER_SIMULATION, PERIOD, StepState.PENDING),
+    ]
+    assert env.pricing.latest_run("geneva-3km.v1.Q") is None
+
+
+def test_queueing_a_run_seals_the_draft_whose_goals_are_the_ones_checked(env: Env) -> None:
+    version = env.draft()
+
+    env.pricing.queue_run(pricing_run(version), T0, GOALS)
+
+    sealed = stored(env, version)
+    assert (sealed.status, sealed.sealed_at) == ("sealed", T0)
+    assert sealed.goals == GOALS
+    run = env.runs.get("r-new")
+    assert run is not None
+    assert run.state is RunState.QUEUED
+    assert [item.input_key for item in run.steps] == ["k1", None]
+
+
+def test_a_draft_changed_since_the_check_is_not_sealed_and_no_run_is_stored(env: Env) -> None:
+    version = env.draft()
+    env.pricing.update_draft(version, {"cost_bike_chf": 9.5})
+
+    with pytest.raises(DraftChanged):
+        env.pricing.queue_run(pricing_run(version), T0, GOALS)
+
+    assert stored(env, version).status == "draft"
+    assert env.runs.get("r-new") is None
+
+
+def test_a_run_of_a_sealed_version_is_queued_without_sealing_again(env: Env) -> None:
+    version = env.draft()
+    env.seal(version)
+    env.run("r-old", version, RunState.FAILED, at=1)
+
+    env.pricing.queue_run(pricing_run(version), None, None)
+
+    assert env.runs.get("r-new") is not None
+    assert stored(env, version).status == "sealed"
+
+
+@pytest.mark.parametrize("state", [RunState.QUEUED, RunState.RUNNING])
+def test_a_second_active_run_is_refused_and_nothing_is_sealed_or_stored(
+    env: Env, state: RunState
+) -> None:
+    version = env.draft()
+    env.run("r-active", version, state, at=1)
+
+    with pytest.raises(RunActive) as refusal:
+        env.pricing.queue_run(pricing_run(version), T0, GOALS)
+
+    assert refusal.value.run_id == "r-active"
+    assert stored(env, version).status == "draft"
+    assert env.runs.get("r-new") is None
+
+
+def test_queueing_a_run_for_an_unknown_version_is_not_found(env: Env) -> None:
+    with pytest.raises(PricingVersionNotFound):
+        env.pricing.queue_run(pricing_run("geneva-3km.v1.Q"), T0, GOALS)

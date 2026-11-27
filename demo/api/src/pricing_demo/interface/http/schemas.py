@@ -116,11 +116,22 @@ def _a_build_step(value: StepName | None) -> StepName | None:
     return value
 
 
+PLAYED_FAILURE_STEPS = (*BUILD_STEPS, StepName.PRICING_MODEL)
+
+
+def _a_failing_step(value: StepName) -> StepName:
+    """The fake pricing model fails the four build steps and the pricing model step; it does
+    not play the traveller simulation, which runs in the worker's own domain code."""
+    if value not in PLAYED_FAILURE_STEPS:
+        raise ValueError(f"must be one of {', '.join(item.value for item in PLAYED_FAILURE_STEPS)}")
+    return value
+
+
 class FailAt(BaseModel):
     step: StepName
     code: str
 
-    _step_is_a_build_step = field_validator("step")(_a_build_step)
+    _step_is_one_the_fake_fails = field_validator("step")(_a_failing_step)
 
     @field_validator("code")
     @classmethod
@@ -142,13 +153,15 @@ class FakeRouteFailure(BaseModel):
 
 class PricingModelSettings(BaseModel):
     """What the fake pricing model does: fail a step with a code, hold a step until it is
-    released, pace the routes step, and fail trip-planner queries at named pairs. The defaults
-    are no failure, no hold, no pace and no failed query."""
+    released, pace the routes step, fail trip-planner queries at named pairs, and record a
+    licence kind on its solves. The defaults are no failure, no hold, no pace, no failed query
+    and a full licence."""
 
     fail_at: FailAt | None = None
     hold_at: StepName | None = None
     routes_pace_ms: int = Field(default=0, ge=0)
     route_failures: list[FakeRouteFailure] = Field(default_factory=list)
+    licence_kind: Literal["full", "limited"] | None = None
 
     _hold_is_a_build_step = field_validator("hold_at")(_a_build_step)
 
@@ -438,6 +451,24 @@ class RuleResultResource(BaseModel):
         )
 
 
+class PricingRuleResultResource(BaseModel):
+    rule: str
+    passed: bool
+    field: str = Field(description="The goal the rule checks.")
+    value: float
+    message: str = Field(description="Names the value, as a failure reads on the form.")
+
+    @classmethod
+    def from_domain(cls, result: PricingRuleResult) -> "PricingRuleResultResource":
+        return cls(
+            rule=result.rule,
+            passed=result.passed,
+            field=result.field,
+            value=result.value,
+            message=result.message,
+        )
+
+
 class ProblemDetails(BaseModel):
     """An error, as a problem document (RFC 9457)."""
 
@@ -456,6 +487,11 @@ class ProblemDetails(BaseModel):
     reasons: list[BlockingReasonResponse] | None = Field(
         default=None,
         description="The components that block the action, on a component_unavailable answer.",
+    )
+    pricing_failures: list[PricingRuleResultResource] | None = Field(
+        default=None,
+        description="The rules the pricing draft breaks, each with its goal and value, on a "
+        "rule_broken conflict of a pricing version.",
     )
     run_id: str | None = Field(
         default=None, description="The queued or running run, on a run_active conflict."
@@ -867,24 +903,6 @@ class PricingPeriodResource(BaseModel):
     id: str
     key: str
     label: str
-
-
-class PricingRuleResultResource(BaseModel):
-    rule: str
-    passed: bool
-    field: str = Field(description="The goal the rule checks.")
-    value: float
-    message: str = Field(description="Names the value, as a failure reads on the form.")
-
-    @classmethod
-    def from_domain(cls, result: PricingRuleResult) -> "PricingRuleResultResource":
-        return cls(
-            rule=result.rule,
-            passed=result.passed,
-            field=result.field,
-            value=result.value,
-            message=result.message,
-        )
 
 
 class PricingVersionResource(BaseModel):

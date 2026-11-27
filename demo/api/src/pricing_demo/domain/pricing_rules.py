@@ -1,8 +1,10 @@
 """The rules a pricing version's goals are checked against. Rules report; they never correct."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from pricing_demo.domain.city_instances import Number
+from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.pricing_versions import PricingGoals
 
 # The plain name of each amount, as the form labels it.
@@ -25,6 +27,12 @@ class PricingRuleResult:
     field: str
     value: Number
     message: str
+
+
+class PricingRuleBroken(DomainError):
+    def __init__(self, failures: Sequence[PricingRuleResult]) -> None:
+        self.failures = tuple(failures)
+        super().__init__(f"{len(self.failures)} rule(s) of the pricing draft are broken.")
 
 
 def _shown(value: Number) -> str:

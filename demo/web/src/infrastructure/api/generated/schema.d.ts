@@ -226,6 +226,23 @@ export interface paths {
         patch: operations["updatePricingVersion"];
         trace?: never;
     };
+    "/api/v1/pricing-versions/{pricing_version_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seal a draft and queue its pricing run, or queue the run again after a failure */
+        post: operations["runPricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/runs": {
         parameters: {
             query?: never;
@@ -939,6 +956,11 @@ export interface components {
              * @description The rules the draft breaks, on a rule_broken conflict.
              */
             failures?: components["schemas"]["RuleResultResource"][] | null;
+            /**
+             * Pricing Failures
+             * @description The rules the pricing draft breaks, each with its goal and value, on a rule_broken conflict of a pricing version.
+             */
+            pricing_failures?: components["schemas"]["PricingRuleResultResource"][] | null;
             /**
              * Pricing Version Ids
              * @description The pricing versions that block a deletion, in letter order, on a has_pricing_versions conflict.
@@ -2171,6 +2193,75 @@ export interface operations {
             };
             /** @description Unexpected error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    runPricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pricing run is queued; the body is the run */
+            202: {
+                headers: {
+                    /** @description The run */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `rule_broken` (the draft breaks a rule: `pricing_failures` lists each with its goal and value), `run_active` (`run_id` is the run) or `already_run` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `component_unavailable`: `reasons` names each component the run needs and lacks */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

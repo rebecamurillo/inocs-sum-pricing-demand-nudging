@@ -261,6 +261,8 @@ class CityInstancesApp:
                         GetPricingVersion(self.instances, self.rig.pricing),
                         UpdatePricingVersion(self.instances, self.rig.pricing),
                         DeletePricingVersion(self.rig.pricing),
+                        self.rig.run_pricing,
+                        GetRun(self.runs, self.clock),
                     ),
                 ],
             ),

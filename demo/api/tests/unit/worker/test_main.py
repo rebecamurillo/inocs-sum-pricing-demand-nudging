@@ -11,6 +11,8 @@ from pricing_demo.application.errors import (
     VersionNotBuilt,
 )
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
+from pricing_demo.application.use_cases.run_pricing_step import PricingModelStepExecutor
+from pricing_demo.application.use_cases.run_simulation_step import TravellerSimulationStepExecutor
 from pricing_demo.application.use_cases.show_basemap_bounds import (
     BasemapBounds,
     ShowBasemapBounds,
@@ -21,6 +23,7 @@ from pricing_demo.domain.build_verification import FileComparison
 from pricing_demo.domain.city_instances import InstanceVersionNotFound
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.system_status import PROBED_COMPONENTS
+from pricing_demo.domain.traveller_simulation import BalancedScore
 from pricing_demo.infrastructure.config.settings import (
     DEFAULT_GTFS,
     DEFAULT_OSM_DIR,
@@ -32,6 +35,7 @@ from pricing_demo.infrastructure.fakes.bus_shape_matcher import FakeBusShapeMatc
 from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets, fake_city_dataset
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
+from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.pricing_model.city_preparation import PackageCityPreparation
@@ -316,7 +320,47 @@ def test_each_adapter_set_registers_the_build_steps_with_its_own_preparation(
         assert isinstance(executor, BuildStepExecutor)
         assert isinstance(executor._preparation, preparation)
         assert registry.keeper_for(step) is not None
+
+
+def test_the_fake_set_registers_both_pricing_steps(tmp_path: Path) -> None:
+    built = build_worker(settings_for(tmp_path, adapters="fake"))
+    built.engine.dispose()
+
+    registry = built.worker._process._registry
+    model = registry.executor_for(StepName.PRICING_MODEL)
+    simulation = registry.executor_for(StepName.TRAVELLER_SIMULATION)
+    assert isinstance(model, PricingModelStepExecutor)
+    assert isinstance(model._solver, FakePricingSolver)
+    assert registry.keeper_for(StepName.PRICING_MODEL) is model
+    assert isinstance(simulation, TravellerSimulationStepExecutor)
+    assert isinstance(simulation._rule, BalancedScore)
+    assert registry.keeper_for(StepName.TRAVELLER_SIMULATION) is simulation
+
+
+def test_the_real_set_registers_only_the_simulation_step_until_the_solver_has_an_adapter(
+    tmp_path: Path,
+) -> None:
+    built = build_worker(settings_for(tmp_path, adapters="real"))
+    built.engine.dispose()
+
+    registry = built.worker._process._registry
     assert registry.executor_for(StepName.PRICING_MODEL) is None
+    assert registry.keeper_for(StepName.PRICING_MODEL) is None
+    assert isinstance(
+        registry.executor_for(StepName.TRAVELLER_SIMULATION), TravellerSimulationStepExecutor
+    )
+
+
+@pytest.mark.parametrize("adapters", ["fake", "real"])
+def test_the_worker_records_the_simulation_rule_it_chose(tmp_path: Path, adapters: str) -> None:
+    built = build_worker(settings_for(tmp_path, adapters=adapters))
+    built.engine.dispose()
+
+    assert built.worker._simulation_rule == {
+        "id": "balanced-score",
+        "version": 1,
+        "parameters": {"price_weight": 0.5, "time_weight": 0.5},
+    }
 
 
 def test_the_fake_worker_reports_and_plans_with_the_same_graph_fingerprints(

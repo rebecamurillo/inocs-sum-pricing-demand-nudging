@@ -11,9 +11,10 @@ import signal
 import socket
 import sys
 import threading
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
+from importlib.metadata import version
 from pathlib import Path
 from types import FrameType
 
@@ -53,6 +54,8 @@ from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverI
 from pricing_demo.application.use_cases.refresh_bike_stations import RefreshBikeStations
 from pricing_demo.application.use_cases.report_components import ReportComponents
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
+from pricing_demo.application.use_cases.run_pricing_step import PricingModelStepExecutor
+from pricing_demo.application.use_cases.run_simulation_step import TravellerSimulationStepExecutor
 from pricing_demo.application.use_cases.run_worker import RunWorker
 from pricing_demo.application.use_cases.show_basemap_bounds import ShowBasemapBounds
 from pricing_demo.application.use_cases.verify_build import VerifyBuild
@@ -60,7 +63,9 @@ from pricing_demo.domain.build_plan import BUILD_STEPS
 from pricing_demo.domain.build_verification import report_lines
 from pricing_demo.domain.city_datasets import DisjointAreas
 from pricing_demo.domain.city_instances import InstanceVersionNotFound
-from pricing_demo.domain.system_status import PROBED_COMPONENTS
+from pricing_demo.domain.runs import StepName
+from pricing_demo.domain.system_status import PROBED_COMPONENTS, ComponentName
+from pricing_demo.domain.traveller_simulation import BalancedScore
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
 from pricing_demo.infrastructure.artifact_store.scratch import LocalScratchBuilds
 from pricing_demo.infrastructure.city_data.feed_shapes import GtfsFeedShapes
@@ -81,6 +86,7 @@ from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
 from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
 from pricing_demo.infrastructure.fakes.package_fingerprints import FakePackageFingerprintReader
+from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
 from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
 from pricing_demo.infrastructure.persistence.city_datasets import PostgresCityDatasets
 from pricing_demo.infrastructure.persistence.city_instances import PostgresCityInstances
@@ -90,9 +96,12 @@ from pricing_demo.infrastructure.persistence.fake_settings import PostgresFakeSe
 from pricing_demo.infrastructure.persistence.package_fingerprints import (
     PostgresPackageFingerprints,
 )
+from pricing_demo.infrastructure.persistence.pricing_versions import PostgresPricingVersions
 from pricing_demo.infrastructure.persistence.read_model import PostgresReadModel
 from pricing_demo.infrastructure.persistence.route_failures import PostgresRouteFailures
 from pricing_demo.infrastructure.persistence.run_repository import PostgresRunRepository
+from pricing_demo.infrastructure.persistence.simulations import PostgresSimulations
+from pricing_demo.infrastructure.persistence.solves import PostgresSolves
 from pricing_demo.infrastructure.persistence.worker_registry import PostgresWorkerRegistry
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.pricing_model.city_preparation import PackageCityPreparation
@@ -209,6 +218,63 @@ def register_build_steps(
         registry.register(step, executor, executor)
 
 
+def simulation_rule_record(rule: BalancedScore) -> Mapping[str, object]:
+    """The id, version and parameters of the traveller simulation rule, as the worker records
+    them on its `workers` row."""
+    return {"id": rule.rule_id, "version": rule.rule_version, "parameters": dict(rule.parameters)}
+
+
+def register_pricing_steps(
+    settings: Settings,
+    registry: StepRegistry,
+    engine: Engine,
+    repository: PostgresRunRepository,
+    clock: Clock,
+    identity: WorkerIdentity,
+    fingerprint: RecordPackageFingerprint,
+    graph: FileGraphFingerprints,
+    fake_settings: PostgresFakeSettings | None,
+    probes: Sequence[ComponentProbe],
+    rule: BalancedScore,
+) -> None:
+    """The two steps of a pricing run. The pricing model has no real adapter yet (story 3-4):
+    outside the fake set no executor is registered for it, and its step fails with the
+    registry's reason. The traveller simulation is the demonstrator's own domain code and runs
+    in both sets (`balanced-score`, provisional until the model's author states the rule)."""
+    files = LocalArtifactStore(settings.data_dir)
+    artifacts = PostgresArtifacts(engine)
+    solves = PostgresSolves(engine)
+    pricing_versions = PostgresPricingVersions(engine)
+    if fake_settings is not None:
+        (solver_probe,) = [item for item in probes if item.component is ComponentName.SOLVER]
+        pricing_model = PricingModelStepExecutor(
+            FakePricingSolver(fake_settings),
+            solver_probe,
+            PostgresComponentReports(engine),
+            identity.id,
+            files,
+            artifacts,
+            solves,
+            pricing_versions,
+            repository,
+            WorkerBuildSources(fingerprint.current, graph),
+            clock,
+        )
+        registry.register(StepName.PRICING_MODEL, pricing_model, pricing_model)
+    simulation = TravellerSimulationStepExecutor(
+        rule,
+        pricing_versions,
+        artifacts,
+        solves,
+        PostgresSimulations(engine),
+        PostgresReadModel(engine),
+        repository,
+        clock,
+        version("pricing_demo"),
+    )
+    registry.register(StepName.TRAVELLER_SIMULATION, simulation, simulation)
+
+
 def build_worker(settings: Settings) -> BuiltWorker:
     """Choose the adapters and wire them. Nothing here connects to the database."""
     settings.data_dir.mkdir(parents=True, exist_ok=True)
@@ -228,6 +294,21 @@ def build_worker(settings: Settings) -> BuiltWorker:
     register_build_steps(
         settings, registry, engine, repository, clock, waiter, fingerprint, graph, fake_settings
     )
+    probes = build_probes(settings, engine, fake_settings)
+    rule = BalancedScore()
+    register_pricing_steps(
+        settings,
+        registry,
+        engine,
+        repository,
+        clock,
+        identity,
+        fingerprint,
+        graph,
+        fake_settings,
+        probes,
+        rule,
+    )
     logger.info("Adapter set: %s; data directory: %s", settings.adapters, settings.data_dir)
     worker = RunWorker(
         identity,
@@ -235,7 +316,7 @@ def build_worker(settings: Settings) -> BuiltWorker:
         RecoverInterruptedRuns(repository, clock),
         ProcessNextRun(repository, registry, workers, identity, clock, waiter),
         ReportComponents(
-            build_probes(settings, engine, fake_settings),
+            probes,
             PostgresComponentReports(engine),
             identity.id,
             clock,
@@ -246,8 +327,12 @@ def build_worker(settings: Settings) -> BuiltWorker:
         waiter,
         fingerprint,
         collect=CollectUnreferenced(
-            PostgresArtifacts(engine), LocalArtifactStore(settings.data_dir), repository
+            PostgresArtifacts(engine),
+            LocalArtifactStore(settings.data_dir),
+            repository,
+            PostgresSimulations(engine),
         ),
+        simulation_rule=simulation_rule_record(rule),
     )
     return BuiltWorker(worker, identity, engine)
 

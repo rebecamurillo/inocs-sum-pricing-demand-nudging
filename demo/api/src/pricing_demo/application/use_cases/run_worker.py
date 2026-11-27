@@ -1,5 +1,6 @@
 import logging
 import threading
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 
 from pricing_demo.application.ports.clock import Clock
@@ -35,7 +36,9 @@ class RunWorker:
     The recovery runs at the start and again every `RECOVERY_EVERY`, idle or while a run
     executes; it never recovers the run this worker has in hand. The components are reported
     at the start and again every `report_every`, in the same way; a failed report is logged
-    and tried again at the next tick.
+    and tried again at the next tick. The worker records the id, version and parameters of the
+    traveller simulation rule it uses on its `workers` row, at its start and with each
+    heartbeat.
     """
 
     def __init__(
@@ -51,6 +54,7 @@ class RunWorker:
         fingerprint: RecordPackageFingerprint,
         *,
         collect: CollectUnreferenced | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None:
         self._identity = identity
         self._workers = workers
@@ -64,6 +68,7 @@ class RunWorker:
         self._last_recovery: datetime | None = None
         self._last_report: datetime | None = None
         self._collect = collect
+        self._simulation_rule = simulation_rule
         self._last_collection: datetime | None = None
 
     def start(self) -> None:
@@ -74,6 +79,7 @@ class RunWorker:
             identity.pid,
             self._clock.now(),
             self._fingerprint.execute(),
+            self._simulation_rule,
         )
         self._report_if_due()
         self._recover_now(None)
@@ -154,4 +160,5 @@ class RunWorker:
             identity.started_at,
             at,
             self._fingerprint.execute(),
+            self._simulation_rule,
         )

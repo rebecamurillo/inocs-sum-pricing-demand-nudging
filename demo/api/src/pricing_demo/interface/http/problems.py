@@ -45,7 +45,9 @@ from pricing_demo.domain.city_instances import (
 )
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.failure_codes import UnknownFailureCode
+from pricing_demo.domain.pricing_rules import PricingRuleBroken
 from pricing_demo.domain.pricing_versions import (
+    AlreadyRun,
     HasPricingVersions,
     InstanceNotBuilt,
     PricingVersionNotFound,
@@ -63,6 +65,7 @@ from pricing_demo.domain.traveller_simulation import SimulationCheckFailed
 from pricing_demo.interface.http.schemas import (
     BlockingReasonResponse,
     FieldError,
+    PricingRuleResultResource,
     ProblemDetails,
     RuleResultResource,
 )
@@ -98,7 +101,7 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     ),
     RunNotFound: Problem(404, "run_not_found", "The run does not exist"),
     RunAlreadyFinished: Problem(409, "run_finished", "The run has already finished"),
-    # No route reaches the simulation yet; the worker records the code as the step's failure.
+    # No route runs the simulation: the worker records the code as the step's failure.
     SimulationCheckFailed: Problem(
         500, "simulation_check_failed", "The traveller simulation broke its check"
     ),
@@ -142,6 +145,8 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     RuleBroken: Problem(409, "rule_broken", "The draft breaks a rule"),
     RunActive: Problem(409, "run_active", "The version has a queued or running run"),
     AlreadyBuilt: Problem(409, "already_built", "The version is already built"),
+    PricingRuleBroken: Problem(409, "rule_broken", "The pricing draft breaks a rule"),
+    AlreadyRun: Problem(409, "already_run", "The pricing version already has its result"),
     PricingVersionNotFound: Problem(
         404, "pricing_version_not_found", "The pricing version does not exist"
     ),
@@ -177,6 +182,7 @@ def problem_response(
     reasons: list[BlockingReasonResponse] | None = None,
     run_id: str | None = None,
     pricing_version_ids: list[str] | None = None,
+    pricing_failures: list[PricingRuleResultResource] | None = None,
 ) -> JSONResponse:
     body = ProblemDetails(
         type=PROBLEM_TYPE_BASE + problem.code.replace("_", "-"),
@@ -188,6 +194,7 @@ def problem_response(
         draft_id=draft_id,
         failures=failures,
         reasons=reasons,
+        pricing_failures=pricing_failures,
         run_id=run_id,
         pricing_version_ids=pricing_version_ids,
     )
@@ -215,6 +222,9 @@ def _domain_error(request: Request, error: Exception) -> JSONResponse:
         else None,
         reasons=[BlockingReasonResponse.from_domain(item) for item in error.reasons]
         if isinstance(error, ComponentUnavailable)
+        else None,
+        pricing_failures=[PricingRuleResultResource.from_domain(item) for item in error.failures]
+        if isinstance(error, PricingRuleBroken)
         else None,
         run_id=error.run_id if isinstance(error, RunActive) else None,
         pricing_version_ids=list(error.pricing_version_ids)

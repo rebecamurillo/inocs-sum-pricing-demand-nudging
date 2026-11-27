@@ -5,7 +5,16 @@ from typing import Any
 from sqlalchemy import Connection, Engine, Table, delete, insert, select, update
 
 from pricing_demo.application.ports.read_model import IngestionBatch
-from pricing_demo.domain.read_model import HubPairRow, HubRow, RoutePairRow, StationRow
+from pricing_demo.domain.read_model import (
+    HubPairRow,
+    HubRow,
+    OptionStationDeltaRow,
+    RouteLeg,
+    RouteOptionRow,
+    RoutePairRow,
+    StationBikesRow,
+    StationRow,
+)
 from pricing_demo.infrastructure.persistence.tables import (
     artifacts,
     hub_pairs,
@@ -134,6 +143,8 @@ class PostgresReadModel:
                         ],
                         "geometry": row.geometry,
                         "bike_legs": row.bike_legs,
+                        "parking_time_min": row.parking_time_min,
+                        "car_cost_chf": row.car_cost_chf,
                     }
                     for row in batch.route_options
                 ],
@@ -227,6 +238,55 @@ class PostgresReadModel:
             .order_by(route_pairs.c.origin_hub, route_pairs.c.destination_hub)
         )
         return [RoutePairRow(row.origin_hub, row.destination_hub) for row in self._rows(query)]
+
+    def route_options(self, key: str) -> list[RouteOptionRow]:
+        query = (
+            select(route_options)
+            .where(route_options.c.instance_key == key)
+            .order_by(route_options.c.arc_id)
+        )
+        return [
+            RouteOptionRow(
+                row.arc_id,
+                row.origin_hub,
+                row.destination_hub,
+                row.mode,
+                row.total_travel_time_s,
+                row.total_transfer_time_s,
+                row.total_distance_m,
+                tuple(
+                    RouteLeg(leg["mode"], leg["duration_s"], leg["distance_m"], leg["line_kind"])
+                    for leg in row.legs
+                ),
+                row.geometry,
+                row.bike_legs,
+                row.car_cost_chf,
+                row.parking_time_min,
+            )
+            for row in self._rows(query)
+        ]
+
+    def station_bikes(self, key: str) -> list[StationBikesRow]:
+        query = (
+            select(station_bikes)
+            .where(station_bikes.c.instance_key == key)
+            .order_by(station_bikes.c.station_id)
+        )
+        return [
+            StationBikesRow(row.station_id, row.capacity, row.inventory_start)
+            for row in self._rows(query)
+        ]
+
+    def option_station_deltas(self, key: str) -> list[OptionStationDeltaRow]:
+        query = (
+            select(option_station_deltas)
+            .where(option_station_deltas.c.instance_key == key)
+            .order_by(option_station_deltas.c.arc_id, option_station_deltas.c.station_id)
+        )
+        return [
+            OptionStationDeltaRow(row.arc_id, row.station_id, row.delta)
+            for row in self._rows(query)
+        ]
 
     def _rows(self, query: Any) -> Iterable[Any]:
         with self._engine.connect() as connection:

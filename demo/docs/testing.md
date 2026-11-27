@@ -110,8 +110,10 @@ e2e/
   Tests do not depend on each other's order.
 - **The test-control API** (`/api/test-control/…`) exists only when the API runs with the
   fake adapters. It resets stored data and sets what the fakes answer (a component
-  unavailable or, for the solver, limited; a run that fails at a named step; failed route
-  queries at named hub pairs). An
+  unavailable or, for the solver, limited; a run that fails at a named step, a build step or
+  `pricing_model` (`fail_at`; `hold_at` holds a build step only); the licence kind the fake
+  solver records on its solves (`licence_kind`, `full` unless a test sets `limited`); failed
+  route queries at named hub pairs). An
   architecture test asserts it is not mounted with the real adapters. It is the only test
   seam: a scenario never stubs the network in the browser.
 - **Fakes are set through `fake_settings`.** The API and the worker are two processes, so the

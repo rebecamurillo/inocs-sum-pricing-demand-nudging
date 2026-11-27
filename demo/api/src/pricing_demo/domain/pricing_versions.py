@@ -55,6 +55,14 @@ class HasPricingVersions(DomainError):
         )
 
 
+class AlreadyRun(DomainError):
+    """The version is sealed and its last run succeeded: its result exists."""
+
+    def __init__(self, version_id: str) -> None:
+        self.version_id = version_id
+        super().__init__(f"The pricing version {version_id} already has its result.")
+
+
 class SealedWithoutRun(DomainError):
     """A sealed pricing version always has a run: sealing and queueing are one transaction."""
 

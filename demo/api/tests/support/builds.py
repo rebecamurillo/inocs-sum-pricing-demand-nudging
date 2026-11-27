@@ -24,6 +24,7 @@ from pricing_demo.application.ports.read_model import IngestionBatch
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
+from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
 from pricing_demo.domain.build_plan import STEP_OUTPUTS
 from pricing_demo.domain.city_datasets import CityDataset
 from pricing_demo.domain.city_instances import (
@@ -50,6 +51,8 @@ from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersio
 from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
+from pricing_demo.infrastructure.fakes.simulations import InMemorySimulations
+from pricing_demo.infrastructure.fakes.solves import InMemorySolves
 from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.persistence.artifacts import PostgresArtifacts
 from pricing_demo.infrastructure.persistence.builds import PostgresBuilds
@@ -122,7 +125,11 @@ class MemoryBuilds:
         self.feed_shapes = FakeFeedShapes(frozenset({"1"}))
         self.built = BuiltCounts(self.artifacts, self.read_model, self.route_failures)
         self.runs = InMemoryRunRepository()
-        self.pricing = FakePricingVersions(self.runs)
+        self.solves = InMemorySolves(self.artifacts)
+        self.simulations = InMemorySimulations()
+        self.pricing = FakePricingVersions(
+            self.runs, solves=self.solves, simulations=self.simulations
+        )
         self.builds = InMemoryBuilds(
             self.runs, self.instances, self.artifacts, self.route_failures, self.pricing
         )
@@ -136,6 +143,7 @@ class MemoryBuilds:
         self.build = BuildInstanceVersion(
             self.instances, self.datasets, self.builds, self.planning, self.ids, self.clock
         )
+        self.run_pricing = RunPricingVersion(self.pricing, self.status, self.ids, self.clock)
 
     def add_draft(self, *changes: tuple[str, float]) -> InstanceVersion:
         """The data set, the instance `geneva-3km` and its first draft, valid unless the

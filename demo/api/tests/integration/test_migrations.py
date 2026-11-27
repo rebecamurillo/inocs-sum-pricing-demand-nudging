@@ -11,6 +11,19 @@ from tests.support.database import ALEMBIC_INI, migrate_to_head
 pytestmark = pytest.mark.integration
 
 BASELINE = "7c1f3a9e2b40"
+PRICING_VERSIONS = "f2c6a9d4b871"
+# Story 3-3: the solves, the simulations and the links of a pricing version to them.
+NEW_TABLES = (
+    "solves",
+    "solve_rows",
+    "solve_ods",
+    "simulations",
+    "simulation_modes",
+    "simulation_choices",
+    "simulation_pairs",
+    "simulation_stations",
+    "pricing_version_simulations",
+)
 
 
 def test_storage_is_unavailable_before_the_migrations_are_applied(empty_database: Engine) -> None:
@@ -51,6 +64,7 @@ def test_the_head_creates_the_tables_of_the_runs(migrated_database: Engine) -> N
         "route_pairs",
         "pricing_versions",
         "pricing_version_periods",
+        *NEW_TABLES,
     }
 
 
@@ -86,6 +100,7 @@ def test_the_migration_goes_down_and_up_again(migrated_database: Engine) -> None
         "route_pairs",
         "pricing_versions",
         "pricing_version_periods",
+        *NEW_TABLES,
     }
     assert StorageProbe(migrated_database).check().state is ComponentState.AVAILABLE
 
@@ -108,3 +123,38 @@ def test_the_fake_settings_table_holds_one_row_at_most(migrated_database: Engine
 
     with pytest.raises(IntegrityError), migrated_database.begin() as connection:
         connection.execute(text("INSERT INTO fake_settings (id, settings) VALUES (2, '{}')"))
+
+
+def test_the_solves_and_simulations_migration_goes_down_and_up_again(
+    migrated_database: Engine,
+) -> None:
+    command.downgrade(Config(str(ALEMBIC_INI)), PRICING_VERSIONS)
+
+    tables = set(inspect(migrated_database).get_table_names())
+    assert not tables & set(NEW_TABLES)
+    assert "simulation_rule" not in {
+        column["name"] for column in inspect(migrated_database).get_columns("workers")
+    }
+
+    migrate_to_head()
+
+    assert set(NEW_TABLES) <= set(inspect(migrated_database).get_table_names())
+    assert "simulation_rule" in {
+        column["name"] for column in inspect(migrated_database).get_columns("workers")
+    }
+
+
+def test_the_solves_are_unique_per_pricing_version_and_period(migrated_database: Engine) -> None:
+    constraints = inspect(migrated_database).get_unique_constraints("solves")
+
+    assert [item["column_names"] for item in constraints] == [["pricing_version_id", "period_id"]]
+
+
+def test_an_artefact_of_the_pricing_model_step_is_accepted_and_another_name_is_not(
+    migrated_database: Engine,
+) -> None:
+    checks = inspect(migrated_database).get_check_constraints("artifacts")
+
+    (step_check,) = [item for item in checks if item["name"] == "ck_artifacts_step"]
+    assert "pricing_model" in step_check["sqltext"]
+    assert "traveller_simulation" not in step_check["sqltext"]

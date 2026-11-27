@@ -2,8 +2,9 @@ from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 
 from sqlalchemy import Connection, Engine, delete, func, insert, select, update
+from sqlalchemy.exc import IntegrityError
 
-from pricing_demo.domain.builds import RunActive
+from pricing_demo.domain.builds import DraftChanged, RunActive
 from pricing_demo.domain.city_instances import InstanceVersionNotFound, Number, VersionSealed
 from pricing_demo.domain.pricing_versions import (
     GOAL_NAMES,
@@ -16,14 +17,25 @@ from pricing_demo.domain.pricing_versions import (
     pricing_version_id,
     pricing_version_state,
 )
-from pricing_demo.domain.runs import RunState
+from pricing_demo.domain.runs import Run, RunKind, RunState
+from pricing_demo.infrastructure.persistence.run_repository import (
+    run_of,
+    run_values,
+    step_values,
+    steps_of,
+    steps_query,
+)
 from pricing_demo.infrastructure.persistence.tables import (
     instance_versions,
     pricing_version_periods,
+    pricing_version_simulations,
     pricing_versions,
     run_steps,
     runs,
+    solves,
 )
+
+ACTIVE_SUBJECT_INDEX = "uq_runs_active_subject"
 
 # "B" before "AA": a longer letter is a later one.
 LETTER_ORDER = (func.length(pricing_versions.c.letter), pricing_versions.c.letter)
@@ -189,6 +201,61 @@ class PostgresPricingVersions:
             ).one()
         return _version(row)
 
+    def latest_run(self, version_id: str) -> Run | None:
+        query = (
+            select(runs)
+            .where(runs.c.kind == RunKind.PRICING.value, runs.c.pricing_version_id == version_id)
+            .order_by(runs.c.queued_at.desc(), runs.c.id.desc())
+            .limit(1)
+        )
+        with self._engine.connect() as connection:
+            row = connection.execute(query).mappings().first()
+            if row is None:
+                return None
+            steps = steps_of(connection.execute(steps_query([row["id"]])).mappings())
+        return run_of(row, steps.get(row["id"], ()))
+
+    def queue_run(self, run: Run, seal_at: datetime | None, checked: PricingGoals | None) -> None:
+        version_id = run.subject.id
+        try:
+            with self._engine.begin() as connection:
+                # The row lock orders this request after a concurrent edit or deletion of the
+                # draft, and before any that comes later (they lock the same row).
+                status = connection.execute(
+                    select(pricing_versions.c.status)
+                    .where(pricing_versions.c.id == version_id)
+                    .with_for_update()
+                ).scalar()
+                if status is None:
+                    raise PricingVersionNotFound(version_id)
+                if seal_at is not None and status == "draft":
+                    seal = update(pricing_versions).where(pricing_versions.c.id == version_id)
+                    if checked is not None:
+                        # Seal only the values the rules were checked on.
+                        seal = seal.where(
+                            *(
+                                pricing_versions.c[name] == value
+                                for name, value in checked.as_dict().items()
+                            )
+                        )
+                    sealed = connection.execute(seal.values(status="sealed", sealed_at=seal_at))
+                    if sealed.rowcount == 0:
+                        raise DraftChanged(version_id)
+                # A draft another request sealed meanwhile is not sealed again; the run that
+                # request queued then refuses this insert (`uq_runs_active_subject`).
+                connection.execute(insert(runs).values(run_values(run)))
+                connection.execute(
+                    insert(run_steps), [step_values(run.id, item) for item in run.steps]
+                )
+        except IntegrityError as error:
+            if getattr(getattr(error.orig, "diag", None), "constraint_name", None) != (
+                ACTIVE_SUBJECT_INDEX
+            ):
+                raise
+            with self._engine.connect() as connection:
+                active = active_run_of(connection, [version_id])
+            raise RunActive(active or "") from error
+
     def delete(self, version_id: str) -> None:
         with self._engine.begin() as connection:
             locked = connection.execute(
@@ -242,13 +309,20 @@ def active_run_of(connection: Connection, pricing_version_ids: list[str]) -> str
 
 def remove_pricing_versions(connection: Connection, ids: list[str]) -> None:
     """Inside the transaction that holds the rows: refuse while a run is active, then remove
-    the runs (steps first) and the versions (periods cascade); runs go before the versions
-    so the foreign key of `runs.pricing_version_id` never blocks an allowed deletion."""
+    the versions' solves and links to simulations, the runs (steps first) and the versions
+    (periods cascade); runs go before the versions so the foreign key of
+    `runs.pricing_version_id` never blocks an allowed deletion."""
     if not ids:
         return
     active = active_run_of(connection, ids)
     if active is not None:
         raise RunActive(active)
+    connection.execute(
+        delete(pricing_version_simulations).where(
+            pricing_version_simulations.c.pricing_version_id.in_(ids)
+        )
+    )
+    connection.execute(delete(solves).where(solves.c.pricing_version_id.in_(ids)))
     run_ids = select(runs.c.id).where(runs.c.pricing_version_id.in_(ids))
     connection.execute(delete(run_steps).where(run_steps.c.run_id.in_(run_ids)))
     connection.execute(delete(runs).where(runs.c.pricing_version_id.in_(ids)))

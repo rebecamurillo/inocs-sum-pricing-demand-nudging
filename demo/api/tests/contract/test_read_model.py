@@ -220,3 +220,41 @@ def test_the_rows_of_two_keys_stay_apart(store: Store, city: FakeCity) -> None:
 
     assert len(store.read_model.hubs("k-hubs")) == 6
     assert store.read_model.hubs("k-other") == []
+
+
+def test_the_options_the_bikes_and_the_deltas_are_read_back_in_order(
+    store: Store, city: FakeCity
+) -> None:
+    store.add_artifact("k-instance", StepName.TRAVELLERS_AND_BIKES)
+    instance = city.files["Instance_1.json"]
+    options = rows.route_options_from(
+        city.files["od_routes.json"],
+        city.files["od_geometry.json"],
+        instance,
+        {"1"},
+        city.files["option_bike_legs.json"],
+    )
+    bikes = rows.station_bikes_from(instance)
+    deltas = rows.deltas_from(instance)
+    store.read_model.ingest(
+        IngestionBatch(
+            "k-instance",
+            StepName.TRAVELLERS_AND_BIKES,
+            rows.instance_counts(instance),
+            route_options=options,
+            station_bikes=bikes,
+            deltas=deltas,
+        )
+    )
+
+    found = store.read_model.route_options("k-instance")
+
+    assert found == sorted(options, key=lambda row: row.arc_id)
+    cars = [item for item in found if item.mode == "car"]
+    assert cars
+    assert all(item.car_cost_chf is not None and item.parking_time_min is not None for item in cars)
+    assert store.read_model.station_bikes("k-instance") == list(bikes)
+    assert store.read_model.option_station_deltas("k-instance") == list(deltas)
+    assert store.read_model.route_options("other") == []
+    assert store.read_model.station_bikes("other") == []
+    assert store.read_model.option_station_deltas("other") == []

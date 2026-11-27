@@ -1670,6 +1670,21 @@
             "description": "The rules the draft breaks, on a rule_broken conflict.",
             "title": "Failures"
           },
+          "pricing_failures": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PricingRuleResultResource"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The rules the pricing draft breaks, each with its goal and value, on a rule_broken conflict of a pricing version.",
+            "title": "Pricing Failures"
+          },
           "pricing_version_ids": {
             "anyOf": [
               {
@@ -3698,6 +3713,96 @@
           }
         },
         "summary": "Change the goals of a draft; the answer reports every rule",
+        "tags": [
+          "pricing-versions"
+        ]
+      }
+    },
+    "/api/v1/pricing-versions/{pricing_version_id}/runs": {
+      "post": {
+        "operationId": "runPricingVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "pricing_version_id",
+            "required": true,
+            "schema": {
+              "title": "Pricing Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResource"
+                }
+              }
+            },
+            "description": "The pricing run is queued; the body is the run",
+            "headers": {
+              "Location": {
+                "description": "The run",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No pricing version has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`rule_broken` (the draft breaks a rule: `pricing_failures` lists each with its goal and value), `run_active` (`run_id` is the run) or `already_run`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`component_unavailable`: `reasons` names each component the run needs and lacks"
+          }
+        },
+        "summary": "Seal a draft and queue its pricing run, or queue the run again after a failure",
         "tags": [
           "pricing-versions"
         ]

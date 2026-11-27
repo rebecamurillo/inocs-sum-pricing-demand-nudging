@@ -74,9 +74,12 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
 - A problem document may carry one named extension member that identifies what the request
   conflicts with or what blocks it: `draft_id` on `draft_exists` (the draft the instance
   already has), `run_id` on `run_active` (the run in progress), `failures` on `rule_broken`
-  (each broken rule with both values it compares), `reasons` on `component_unavailable`
+  (each broken rule with both values it compares), `pricing_failures` on `rule_broken` of a
+  pricing version (each broken rule with its goal, value and message), `reasons` on
+  `component_unavailable`
   (each missing component with its reason) and `pricing_version_ids` on `has_pricing_versions`
-  (the pricing versions that block a deletion, in letter order).
+  (the pricing versions that block a deletion, in letter order). `already_run` (409) has no
+  extension member: the version's result exists.
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

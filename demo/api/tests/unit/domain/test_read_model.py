@@ -267,3 +267,49 @@ def test_a_bike_leg_count_that_is_not_an_integer_is_malformed(city: FakeCity) ->
             SHAPES,
             {first: "two"},  # type: ignore[dict-item]
         )
+
+
+def test_a_car_option_carries_its_cost_and_parking_time_from_the_instance(city: FakeCity) -> None:
+    instance = city.files["Instance_1.json"]
+    car_arcs = [arc for arcs in instance["car_paths"].values() for arc in arcs]
+    assert all("total_travel_cost" in arc and "parking_time_min" in arc for arc in car_arcs)
+
+    options = rows.route_options_from(
+        city.files["od_routes.json"], city.files["od_geometry.json"], instance, SHAPES
+    )
+
+    by_arc = {arc["arc_id"]: arc for arc in car_arcs}
+    cars = [item for item in options if item.mode == "car"]
+    assert len(cars) == len(car_arcs)
+    for option in cars:
+        assert option.car_cost_chf == by_arc[option.arc_id]["total_travel_cost"]
+        assert option.parking_time_min == by_arc[option.arc_id]["parking_time_min"]
+    assert all(
+        (item.car_cost_chf, item.parking_time_min) == (None, None)
+        for item in options
+        if item.mode != "car"
+    )
+
+
+def test_an_instance_whose_car_arcs_have_no_cost_gives_null(city: FakeCity) -> None:
+    instance = city.files["Instance_1.json"]
+    bare = {
+        **instance,
+        "car_paths": {
+            pair: [
+                {
+                    key: value
+                    for key, value in arc.items()
+                    if key not in ("total_travel_cost", "parking_time_min")
+                }
+                for arc in arcs
+            ]
+            for pair, arcs in instance["car_paths"].items()
+        },
+    }
+
+    options = rows.route_options_from(
+        city.files["od_routes.json"], city.files["od_geometry.json"], bare, SHAPES
+    )
+
+    assert {(o.car_cost_chf, o.parking_time_min) for o in options} == {(None, None)}

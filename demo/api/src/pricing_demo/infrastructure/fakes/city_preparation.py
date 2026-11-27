@@ -320,6 +320,17 @@ def _without_failed(
     return {"od_results": kept}, {"geometries": geometries}
 
 
+def _with_car_costs(arc: Mapping[str, Any], parameters: Any) -> dict[str, Any]:
+    """The two fields the package writes on a car arc of an instance (`generator.py:156-161`),
+    here from a fixed formula that draws nothing from the seeded generator: the parking time is
+    the middle of the park-time range, the cost 0.2 CHF a kilometre plus 1 CHF."""
+    return {
+        **arc,
+        "parking_time_min": (parameters.min_park_time_min + parameters.max_park_time_min) / 2,
+        "total_travel_cost": arc["total_distance_m"] / 1000 * 0.2 + 1.0,
+    }
+
+
 def _instance(
     request: PreparationRequest, routes: Mapping[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -357,12 +368,13 @@ def _instance(
             }
         )
         key = f"{result['from_id']}_{result['to_id']}"
+        cars = [_with_car_costs(arc, parameters) for arc in result["arc_car"]]
         bike_by_pair[key] = result["arc_pt_bike"]
         public_by_pair[key] = result["arc_pt_only"]
-        car_by_pair[key] = result["arc_car"]
+        car_by_pair[key] = cars
         bike_arcs += result["arc_pt_bike"]
         public_arcs += result["arc_pt_only"]
-        car_arcs += result["arc_car"]
+        car_arcs += cars
     instance: dict[str, Any] = {
         "random_seed": int(parameters.seed),
         "info": {

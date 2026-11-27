@@ -36,6 +36,7 @@ from pricing_demo.application.use_cases.list_route_failures import ListRouteFail
 from pricing_demo.application.use_cases.list_route_pairs import ListRoutePairs
 from pricing_demo.application.use_cases.list_runs import ListRuns
 from pricing_demo.application.use_cases.list_stations import ListStations
+from pricing_demo.application.use_cases.run_pricing_version import RunPricingVersion
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
 from pricing_demo.application.use_cases.update_pricing_version import UpdatePricingVersion
 from pricing_demo.domain.city_datasets import GENEVA_SLUG, dataset_id_for
@@ -198,6 +199,13 @@ def create_application(settings: Settings) -> FastAPI:
                 GetPricingVersion(instances, pricing_versions),
                 UpdatePricingVersion(instances, pricing_versions),
                 DeletePricingVersion(pricing_versions),
+                RunPricingVersion(
+                    pricing_versions,
+                    get_system_status.execute,
+                    UuidV7Source(),
+                    clock,
+                ),
+                GetRun(run_repository, clock),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock),

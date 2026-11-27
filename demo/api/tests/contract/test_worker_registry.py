@@ -1,6 +1,6 @@
 """The WorkerRegistry port: one suite, run against the fake and the PostgreSQL adapter."""
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -23,6 +23,7 @@ class Registry:
     delete: Callable[[str], None]
     fingerprint: Callable[[str], str | None]
     latest_heartbeat: Callable[[], datetime | None] | None = None
+    rule: Callable[[str], Mapping[str, object] | None] | None = None
 
 
 def fake_registry() -> Iterator[Registry]:
@@ -38,7 +39,11 @@ def fake_registry() -> Iterator[Registry]:
         found = fake.rows.get(worker_id)
         return None if found is None else found.package_fingerprint
 
-    yield Registry(fake, row, fake.delete, fingerprint)
+    def rule(worker_id: str) -> Mapping[str, object] | None:
+        found = fake.rows.get(worker_id)
+        return None if found is None else found.simulation_rule
+
+    yield Registry(fake, row, fake.delete, fingerprint, None, rule)
 
 
 @pytest.fixture
@@ -60,12 +65,19 @@ def postgres_registry(migrated_database: Engine) -> Registry:
                 select(workers.c.package_fingerprint).where(workers.c.id == worker_id)
             ).scalar()
 
+    def rule(worker_id: str) -> Mapping[str, object] | None:
+        with migrated_database.connect() as connection:
+            return connection.execute(
+                select(workers.c.simulation_rule).where(workers.c.id == worker_id)
+            ).scalar()
+
     return Registry(
         PostgresWorkerRegistry(migrated_database),
         row,
         delete,
         fingerprint,
         PostgresRunRepository(migrated_database).latest_worker_heartbeat,
+        rule,
     )
 
 
@@ -155,6 +167,50 @@ def test_a_heartbeat_after_the_row_was_deleted_writes_the_fingerprint_it_knows(
     registry.port.heartbeat("w-1", "host-a", 1, T0, later(5), "abc")
 
     assert registry.fingerprint("w-1") == "abc"
+
+
+RULE = {"id": "balanced-score", "version": 1, "parameters": {"price_weight": 0.5}}
+
+
+def rule_of(registry: Registry, worker_id: str) -> Mapping[str, object] | None:
+    assert registry.rule is not None
+    return registry.rule(worker_id)
+
+
+def test_the_row_carries_the_simulation_rule_of_the_worker(registry: Registry) -> None:
+    registry.port.register("w-1", "host-a", 1, T0, None, RULE)
+
+    assert rule_of(registry, "w-1") == RULE
+
+    other = {**RULE, "version": 2}
+    registry.port.heartbeat("w-1", "host-a", 1, T0, later(5), None, other)
+
+    assert rule_of(registry, "w-1") == other
+
+
+def test_a_worker_without_a_rule_has_none(registry: Registry) -> None:
+    registry.port.register("w-1", "host-a", 1, T0)
+
+    assert rule_of(registry, "w-1") is None
+
+
+def test_a_heartbeat_that_knows_no_rule_keeps_the_rows(registry: Registry) -> None:
+    registry.port.register("w-1", "host-a", 1, T0, None, RULE)
+
+    registry.port.heartbeat("w-1", "host-a", 1, T0, later(5))
+
+    assert rule_of(registry, "w-1") == RULE
+
+
+def test_a_heartbeat_after_the_row_was_deleted_writes_the_rule_it_knows(
+    registry: Registry,
+) -> None:
+    registry.port.register("w-1", "host-a", 1, T0, None, RULE)
+    registry.delete("w-1")
+
+    registry.port.heartbeat("w-1", "host-a", 1, T0, later(5), None, RULE)
+
+    assert rule_of(registry, "w-1") == RULE
 
 
 @pytest.mark.integration

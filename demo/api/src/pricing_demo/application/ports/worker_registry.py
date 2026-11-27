@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -13,7 +14,8 @@ class WorkerIdentity:
 
 class WorkerRegistry(Protocol):
     """The `workers` rows. Both calls write the whole row, so a heartbeat re-creates a row
-    that was deleted meanwhile (the e2e reset)."""
+    that was deleted meanwhile (the e2e reset). A heartbeat without a fingerprint or a simulation
+    rule keeps the row's."""
 
     def register(
         self,
@@ -22,6 +24,7 @@ class WorkerRegistry(Protocol):
         pid: int,
         at: datetime,
         package_fingerprint: str | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None: ...
 
     def heartbeat(
@@ -32,4 +35,5 @@ class WorkerRegistry(Protocol):
         started_at: datetime,
         at: datetime,
         package_fingerprint: str | None = None,
+        simulation_rule: Mapping[str, object] | None = None,
     ) -> None: ...
