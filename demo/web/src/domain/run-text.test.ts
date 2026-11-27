@@ -36,6 +36,7 @@ const step = (overrides: Partial<RunStep>): RunStep => ({
   finishedAt: null,
   counts: {},
   progress: null,
+  lastDurationS: null,
   ...overrides,
 });
 
@@ -351,6 +352,12 @@ describe('cancelling', () => {
     });
   });
 
+  it('writes the confirmation of a pricing run with "duplicate it"', () => {
+    expect(cancelQuestion('Version C', false, 'pricing')).toBe(
+      'Cancel this run? The running step stops and is not stored; steps already done are kept. Version C stays in the menu as cancelled: you can run it again or duplicate it.',
+    );
+  });
+
   it('writes the cancelled card', () => {
     expect(cancelledCard('Routes', new Date('2026-11-12T10:00:00Z'))).toBe(
       'Run cancelled during Routes on 12 Nov 2026. Steps before it are kept.',
@@ -400,5 +407,6 @@ describe('the menu and the run line', () => {
     );
     expect(subjectName(subject('instance_version', 'other.v1'), entries)).toBe('other.v1');
     expect(subjectName(subject('pricing_version', 'pv-1'), entries)).toBe('pv-1');
+    expect(subjectName(subject('pricing_version', 'geneva-3km.v2.C'), entries)).toBe('Version C');
   });
 });

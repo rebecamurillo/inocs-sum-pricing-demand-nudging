@@ -569,3 +569,25 @@ def test_last_duration_is_null_then_the_seconds_of_a_done_pricing_step(
 def _only_run_id(app: CityInstancesApp) -> str:
     (run,) = [r for r in app.rig.runs.list_by_states(list(RunState)) if r.kind is RunKind.PRICING]
     return run.id
+
+
+def test_run_id_is_null_on_a_draft_and_names_the_latest_run_after_each_run(
+    instances_app: CityInstancesApp,
+) -> None:
+    version = a_draft(instances_app)
+    path = f"/api/v1/pricing-versions/{version}"
+    assert instances_app.client.get(path).json()["run_id"] is None
+
+    first = instances_app.client.post(runs_path(version)).json()["id"]
+
+    assert instances_app.client.get(path).json()["run_id"] == first
+    assert instances_app.client.get(LIST).json()["items"][0]["run_id"] == first
+
+    instances_app.rig.runs.update(
+        first,
+        lambda run: replace(run, state=RunState.FAILED, finished_at=run.queued_at),
+    )
+    second = instances_app.client.post(runs_path(version)).json()["id"]
+
+    assert second != first
+    assert instances_app.client.get(path).json()["run_id"] == second

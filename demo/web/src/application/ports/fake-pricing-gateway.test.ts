@@ -31,6 +31,19 @@ describe('the in-memory pricing gateway', () => {
     expect(second.keptFrom).toEqual({ id: 'geneva-3km.v1.A', letter: 'A' });
   });
 
+  it('starts a duplicate from the goals of the version it names and keeps the run id of a run', async () => {
+    const { gateway, versions } = fakePricing([
+      samplePricingDraft({ id: 'geneva-3km.v1.A', letter: 'A', goals: { pt_fare_chf: 3 } }),
+    ]);
+
+    const copy = await gateway.create('geneva-3km.v1', 'geneva-3km.v1.A');
+    await gateway.run(copy.id);
+
+    expect(copy.basedOnId).toBe('geneva-3km.v1.A');
+    expect(copy.goals.pt_fare_chf).toBe(3);
+    expect(versions().find((version) => version.id === copy.id)?.runId).toBe('run-pricing-B');
+  });
+
   it('keeps a patched value and name as sent and answers the rules', async () => {
     const { gateway } = fakePricing([samplePricingDraft()]);
 

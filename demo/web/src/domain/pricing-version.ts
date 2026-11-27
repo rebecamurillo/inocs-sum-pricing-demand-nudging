@@ -34,6 +34,10 @@ export interface PricingVersion {
   readonly name: string;
   readonly status: 'draft' | 'sealed';
   readonly state: PricingVersionState;
+  /** The version this one was duplicated from; null when it is based on none. */
+  readonly basedOnId: string | null;
+  /** The version's latest pricing run; null for a draft. */
+  readonly runId: string | null;
   /** The sealed version whose fare, parking fee, options and flat price this draft kept. */
   readonly keptFrom: { readonly id: string; readonly letter: string } | null;
   readonly goals: PricingGoals;

@@ -171,7 +171,7 @@ def rig(migrated_database: Engine, tmp_path: Path) -> Rig:
         route_failures,
     )
     model = PricingModelStepExecutor(
-        FakePricingSolver(settings),
+        FakePricingSolver(settings, FakeWaiter(FixedClock(T0))),
         FakeProbe(ComponentName.SOLVER, settings),
         reports,
         "w-1",

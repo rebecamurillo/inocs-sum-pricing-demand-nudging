@@ -65,6 +65,8 @@ export function samplePricingDraft(
     name: 'Version D',
     status: 'draft',
     state: 'draft',
+    basedOnId: null,
+    runId: null,
     keptFrom: { id: 'geneva-3km.v1.C', letter: 'C' },
     goals,
     rules: pricingRulesOf(goals),
@@ -108,16 +110,22 @@ export function fakePricing(initial: readonly PricingVersion[] = []): FakePricin
     list: (instanceVersionId) =>
       Promise.resolve(stored.filter((version) => version.instanceVersionId === instanceVersionId)),
     get: (id) => Promise.resolve(stored.find((version) => version.id === id) ?? null),
-    create: (instanceVersionId) => {
-      const letter = String.fromCharCode('A'.charCodeAt(0) + stored.length);
+    create: (instanceVersionId, basedOn) => {
+      const used = new Set(stored.map((version) => version.letter));
+      let at = 0;
+      while (used.has(String.fromCharCode('A'.charCodeAt(0) + at))) at += 1;
+      const letter = String.fromCharCode('A'.charCodeAt(0) + at);
       const sealed = stored.filter((version) => version.status === 'sealed');
       const kept = sealed[sealed.length - 1];
+      const source = basedOn === undefined ? undefined : stored.find((item) => item.id === basedOn);
       const created = samplePricingDraft({
         id: pricingVersionId(instanceVersionId, letter),
         instanceVersionId,
         letter,
         name: `Version ${letter}`,
+        basedOnId: source?.id ?? null,
         keptFrom: kept === undefined ? null : { id: kept.id, letter: kept.letter },
+        ...(source === undefined ? {} : { goals: source.goals }),
       });
       stored = [...stored, created];
       return Promise.resolve(created);
@@ -148,8 +156,9 @@ export function fakePricing(initial: readonly PricingVersion[] = []): FakePricin
       if (found.rules.some((rule) => !rule.passed)) {
         return Promise.resolve({ kind: 'refused', detail: 'The draft breaks a rule.' });
       }
-      replace({ ...found, status: 'sealed', state: 'queued' });
-      return Promise.resolve({ kind: 'queued', runId: `run-pricing-${found.letter}` });
+      const runId = `run-pricing-${found.letter}`;
+      replace({ ...found, status: 'sealed', state: 'queued', runId });
+      return Promise.resolve({ kind: 'queued', runId });
     },
   };
   return { gateway, versions: () => stored };

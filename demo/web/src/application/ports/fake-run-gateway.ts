@@ -12,6 +12,7 @@ export function sampleStep(
     finishedAt: null,
     counts: {},
     progress: null,
+    lastDurationS: null,
     ...overrides,
   };
 }

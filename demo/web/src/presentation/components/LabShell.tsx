@@ -9,7 +9,7 @@ import {
 import { NEW_INSTANCE_ACTION, NO_CITY_DATA } from '../../domain/draft-text';
 import { breadcrumb, periodChip } from '../../domain/l1-text';
 import { pricingBreadcrumb, pricingVersionName } from '../../domain/pricing-goals-text';
-import { pricingVersionId } from '../../domain/pricing-version';
+import { pricingVersionId, type PricingVersionState } from '../../domain/pricing-version';
 import type { LabRoute } from '../../domain/route';
 import { PRICING_VERSIONS_OFF } from '../../domain/run-text';
 import {
@@ -18,7 +18,7 @@ import {
   nothingAtThisLink,
 } from '../../domain/unknown-link';
 import { useInstanceMenu, useInstanceView, useNewInstanceBasis } from '../hooks/useCityInstances';
-import { useActiveRuns, useEndedBuild } from '../hooks/useRuns';
+import { useActiveRuns, useEndedRun } from '../hooks/useRuns';
 import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { usePricingVersion } from '../hooks/usePricingVersions';
@@ -32,8 +32,12 @@ import { DraftForm } from './DraftForm';
 import { InstanceView, type OpenedDraft } from './InstanceView';
 import { NewInstanceForm } from './NewInstanceForm';
 import { PricingGoalsForm } from './PricingGoalsForm';
+import { PricingRunView } from './PricingRunView';
 import { RunLine } from './RunLine';
 import styles from './LabShell.module.css';
+
+/** The states of a sealed version whose L-2 is the run's card, not the goals form. */
+const SHOWN_AS_RUN: readonly PricingVersionState[] = ['queued', 'running', 'failed', 'cancelled'];
 
 const MENU_WIDTH_PX = 264;
 const GRIP_WIDTH_PX = 8;
@@ -155,6 +159,16 @@ export function LabShell() {
       ? pricingVersionId(linkedVersion.id, pricingRoute.letter)
       : null,
   ).data;
+  // The run card stays for a version that gets its result under it: the run list and the
+  // version can answer before the card's own run does, and the card opens the result route.
+  const [runCardId, setRunCardId] = useState<string | null>(null);
+  const showsRunCard =
+    route.kind === 'pricing' &&
+    pricingOpen != null &&
+    (SHOWN_AS_RUN.includes(pricingOpen.state) ||
+      (pricingOpen.state === 'result' && runCardId === pricingOpen.id));
+  const runCardNow = showsRunCard ? pricingOpen.id : null;
+  if (runCardNow !== runCardId) setRunCardId(runCardNow);
   const openVersion =
     linkedEntry !== undefined && linkedVersion !== undefined
       ? { instanceId: linkedEntry.id, versionId: linkedVersion.id }
@@ -186,8 +200,22 @@ export function LabShell() {
   );
   const openedView = useInstanceView(openVersion?.versionId ?? null).data ?? null;
   // Held here, not in the run line: the line is unmounted while the menu is closed.
-  const endedBuild = useEndedBuild(openVersion?.versionId ?? null);
+  const openPricingId =
+    pricingRoute !== null && openVersion !== null
+      ? pricingVersionId(openVersion.versionId, pricingRoute.letter)
+      : null;
+  const endedRun = useEndedRun([openVersion?.versionId ?? null, openPricingId]);
   const firstPeriod = openedView?.version.periods[0];
+
+  const openResult = (instanceId: string, number: number, letter: string) => {
+    setCreating(false);
+    navigate({
+      kind: 'result',
+      instance: { instanceId, version: number },
+      letter,
+      period: null,
+    });
+  };
 
   const openVersionRow = (instanceId: string, number: number) => {
     setCreating(false);
@@ -343,8 +371,10 @@ export function LabShell() {
                   className={styles.runLine}
                   entries={entries}
                   openVersionId={openVersion?.versionId ?? null}
+                  openPricingId={openPricingId}
                   onOpen={openVersionRow}
-                  tracker={endedBuild}
+                  onOpenResult={openResult}
+                  tracker={endedRun}
                 />
               </div>
             </aside>
@@ -409,15 +439,27 @@ export function LabShell() {
                 linkedVersion?.state !== 'ready' ? (
                   <p className={styles.cardText}>{PRICING_VERSIONS_OFF}</p>
                 ) : pricingRoute.kind === 'pricing' ? (
-                  <PricingGoalsForm
-                    key={`${openVersion.versionId}.${pricingRoute.letter}`}
-                    instanceVersionId={openVersion.versionId}
-                    instanceId={openVersion.instanceId}
-                    number={linkedVersion.number}
-                    letter={pricingRoute.letter}
-                    advancedView={advancedView}
-                    onNavigate={navigate}
-                  />
+                  showsRunCard ? (
+                    <PricingRunView
+                      key={`${openVersion.versionId}.${pricingRoute.letter}`}
+                      instanceVersionId={openVersion.versionId}
+                      instanceId={openVersion.instanceId}
+                      number={linkedVersion.number}
+                      letter={pricingRoute.letter}
+                      advancedView={advancedView}
+                      onNavigate={navigate}
+                    />
+                  ) : (
+                    <PricingGoalsForm
+                      key={`${openVersion.versionId}.${pricingRoute.letter}`}
+                      instanceVersionId={openVersion.versionId}
+                      instanceId={openVersion.instanceId}
+                      number={linkedVersion.number}
+                      letter={pricingRoute.letter}
+                      advancedView={advancedView}
+                      onNavigate={navigate}
+                    />
+                  )
                 ) : null
               ) : linkedVersion?.status === 'draft' ? (
                 <DraftForm

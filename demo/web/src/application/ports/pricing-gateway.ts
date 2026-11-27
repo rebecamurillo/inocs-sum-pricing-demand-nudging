@@ -10,8 +10,8 @@ export interface PricingGateway {
   list(instanceVersionId: string): Promise<PricingVersion[]>;
   /** One pricing version; null when the API has none by this id. */
   get(id: string): Promise<PricingVersion | null>;
-  /** Starts a draft on a built instance version. */
-  create(instanceVersionId: string): Promise<PricingVersion>;
+  /** Starts a draft on a built instance version; with `basedOn`, a copy of that version's goals. */
+  create(instanceVersionId: string, basedOn?: string): Promise<PricingVersion>;
   /** Stores the goals (and the name) as sent; the answer carries every rule result. */
   patch(id: string, changes: PricingChanges): Promise<PricingVersion>;
   /** Removes a draft. */

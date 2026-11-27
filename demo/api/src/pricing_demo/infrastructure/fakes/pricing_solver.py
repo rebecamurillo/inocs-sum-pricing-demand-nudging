@@ -4,8 +4,8 @@ output shapes, with no licence behind it (ARCHITECTURE.md § 11.1).
 The solve covers the PT + bike options the model offers, at a price; the model offers fewer
 options than the flat scheme does (no option from hub H6, and at most `max_displayed_options`
 per pair), so the two simulations can differ. What it does besides is read from the
-`pricing_model` entry of the fake settings: fail the `pricing_model` step with a code, and
-record the licence kind on the solve.
+`pricing_model` entry of the fake settings: hold the `pricing_model` step until its run is
+released, fail it with a code, and record the licence kind on the solve.
 """
 
 import json
@@ -14,6 +14,7 @@ from typing import Any
 
 from pricing_demo.application.ports.pricing_solver import SolveOutcome, SolveRequest
 from pricing_demo.application.ports.step_executor import StopSignal
+from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.domain.failure_codes import failure_reason
 from pricing_demo.domain.runs import StepName
 from pricing_demo.domain.solves import (
@@ -24,6 +25,7 @@ from pricing_demo.domain.solves import (
     SolveRow,
 )
 from pricing_demo.infrastructure.fakes.component_probe import FakeSettingsSource
+from pricing_demo.infrastructure.fakes.hold import hold_until_released
 from pricing_demo.infrastructure.pricing_model.solve_reading import package_parameters
 
 SOLUTION_FILE = "solution.json"
@@ -75,12 +77,17 @@ def _package_summary(rows: list[SolveRow]) -> dict[str, object]:
 class FakePricingSolver:
     """Passes the same contract suite as the real adapter (story 3-4 adds that one)."""
 
-    def __init__(self, settings: FakeSettingsSource) -> None:
+    def __init__(self, settings: FakeSettingsSource, waiter: Waiter) -> None:
         self._settings = settings
+        self._waiter = waiter
 
     def solve(self, request: SolveRequest, stop: StopSignal) -> SolveOutcome:
         if stop.is_set():
             return SolveOutcome(stopped=True)
+        held = self._config().get("hold_at") == StepName.PRICING_MODEL.value
+        if held and not hold_until_released(self._settings, self._waiter, request.run_id, stop):
+            return SolveOutcome(stopped=True)
+        # Read after the hold: a scenario sets the failure while the step is held.
         config = self._config()
         failure = config.get("fail_at")
         if isinstance(failure, dict) and failure.get("step") == StepName.PRICING_MODEL.value:

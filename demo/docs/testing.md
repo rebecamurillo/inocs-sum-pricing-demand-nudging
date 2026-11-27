@@ -111,7 +111,9 @@ e2e/
 - **The test-control API** (`/api/test-control/…`) exists only when the API runs with the
   fake adapters. It resets stored data and sets what the fakes answer (a component
   unavailable or, for the solver, limited; a run that fails at a named step, a build step or
-  `pricing_model` (`fail_at`; `hold_at` holds a build step only); the licence kind the fake
+  `pricing_model` (`fail_at`; `hold_at` holds a build step or `pricing_model`, until `POST
+  /api/test-control/runs/{id}/release` or a cancellation; the traveller simulation is neither
+  failed nor held); the licence kind the fake
   solver records on its solves (`licence_kind`, `full` unless a test sets `limited`); the
   traveller simulation rule the worker uses (`simulation_rule`: `version`, `price_weight`,
   `time_weight`, `balanced-score` v1 with 0.5 and 0.5 unless a test stages another; the version

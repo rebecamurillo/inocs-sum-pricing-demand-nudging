@@ -344,10 +344,12 @@ describe('menu rows', () => {
   const version = (overrides: Partial<PricingVersion>): PricingVersion => ({
     id: 'geneva-3km.v1.A',
     instanceVersionId: 'geneva-3km.v1',
-    letter: 'A',
     name: 'Version A',
+    letter: 'A',
     status: 'draft',
     state: 'draft',
+    basedOnId: null,
+    runId: null,
     keptFrom: null,
     goals: defaults,
     rules: [],

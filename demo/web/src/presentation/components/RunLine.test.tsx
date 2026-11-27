@@ -29,6 +29,14 @@ const entries: InstanceMenuEntry[] = [
         pricingVersionCount: 0,
         pricingVersionLetters: [],
       },
+      {
+        id: 'geneva-3km.v1',
+        number: 1,
+        status: 'sealed',
+        state: 'ready',
+        pricingVersionCount: 1,
+        pricingVersionLetters: ['C'],
+      },
     ],
   },
 ];
@@ -51,7 +59,9 @@ function mount(
   runs = fakeRunGateway([live()]),
   openVersionId: string | null = null,
   onOpen = vi.fn(),
+  openPricingId: string | null = null,
 ) {
+  const onOpenResult = vi.fn();
   const gateways: Gateways = {
     systemStatus: { load: () => Promise.reject(new Error('not called')) },
     layoutPreferences: { load: vi.fn(), save: vi.fn() },
@@ -65,7 +75,13 @@ function mount(
   const view = (open: string | null) => (
     <QueryClientProvider client={client}>
       <GatewaysProvider gateways={gateways}>
-        <RunLine entries={entries} openVersionId={open} onOpen={onOpen} />
+        <RunLine
+          entries={entries}
+          openVersionId={open}
+          openPricingId={openPricingId}
+          onOpen={onOpen}
+          onOpenResult={onOpenResult}
+        />
       </GatewaysProvider>
     </QueryClientProvider>
   );
@@ -73,6 +89,7 @@ function mount(
   return {
     runs,
     onOpen,
+    onOpenResult,
     client,
     rerender: (open: string | null) => {
       rendered.rerender(view(open));
@@ -205,5 +222,73 @@ describe('RunLine', () => {
     await waitFor(() => {
       expect(screen.getByText('No run in progress')).toBeVisible();
     });
+  });
+});
+
+describe('RunLine · a pricing run', () => {
+  const pricing = (overrides: Partial<Run> = {}): Run => ({
+    ...live(),
+    id: 'run-pricing-C',
+    kind: 'pricing',
+    subject: { type: 'pricing_version', id: 'geneva-3km.v1.C' },
+    steps: [],
+    ...overrides,
+  });
+
+  it('names the running version with its clock and the queue behind it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const queued = pricing({ id: 'run-q', state: 'queued', queuePosition: 1, startedAt: null });
+    mount(fakeRunGateway([pricing(), queued]));
+
+    expect(await screen.findByText(/^● Version C running · 4 min \d+ s · 1 queued$/)).toBeVisible();
+  });
+
+  it('says the runner is not answering and stops the clock', async () => {
+    mount(
+      fakeRunGateway([
+        pricing({ runner: { alive: false, lastHeartbeatAt: new Date('2026-11-27T10:00:00Z') } }),
+      ]),
+    );
+
+    expect(await screen.findByText('● Version C · the runner is not answering')).toBeVisible();
+  });
+
+  it('says the result is ready when the run ended elsewhere, and "Open" opens the result route', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const { runs, onOpenResult } = mount(fakeRunGateway([pricing()]));
+    await screen.findByText(/^● Version C running/);
+
+    runs.put(pricing({ state: 'succeeded' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(await screen.findByText(/^✓ Version C: result ready ·/)).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Open' }));
+
+    expect(onOpenResult).toHaveBeenCalledWith('geneva-3km', 1, 'C');
+    expect(screen.getByText('No run in progress')).toBeVisible();
+  });
+
+  it('says nothing of a run that ended while its own view was open', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { runs } = mount(
+      fakeRunGateway([pricing()]),
+      'geneva-3km.v1',
+      vi.fn(),
+      'geneva-3km.v1.C',
+    );
+    await screen.findByText(/^● Version C running/);
+
+    runs.put(pricing({ state: 'succeeded' }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('No run in progress')).toBeVisible();
+    });
+    expect(screen.queryByText(/result ready/)).not.toBeInTheDocument();
   });
 });

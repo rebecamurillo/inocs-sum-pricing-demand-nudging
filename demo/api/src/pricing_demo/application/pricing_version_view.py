@@ -17,6 +17,7 @@ class PricingVersionView:
     rules: tuple[PricingRuleResult, ...]
     kept_from: tuple[str, str] | None  # id and letter of the version the kept values came from
     last_duration_s: float | None  # the last pricing model step on this data set and radius
+    run_id: str | None = None  # the version's latest pricing run
 
 
 def build_view(
@@ -41,6 +42,7 @@ def build_view(
         if instance_version and instance
         else None
     )
+    latest_run = pricing.latest_run(version.id)
     return PricingVersionView(
         version,
         state,
@@ -48,4 +50,5 @@ def build_view(
         tuple(check_pricing_rules(version.goals)),
         (kept.id, kept.letter) if kept else None,
         duration,
+        latest_run.id if latest_run else None,
     )

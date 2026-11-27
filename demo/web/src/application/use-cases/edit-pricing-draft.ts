@@ -13,6 +13,14 @@ export function newPricingVersion(
   return pricing.create(instanceVersionId);
 }
 
+/** "Duplicate": a draft on the same instance version with the goals of `version`. */
+export function duplicatePricingVersion(
+  { pricing }: Gateways,
+  version: Pick<PricingVersion, 'id' | 'instanceVersionId'>,
+): Promise<PricingVersion> {
+  return pricing.create(version.instanceVersionId, version.id);
+}
+
 export function savePricingDraft(
   { pricing }: Gateways,
   id: string,

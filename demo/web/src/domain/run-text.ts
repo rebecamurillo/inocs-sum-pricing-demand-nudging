@@ -221,11 +221,12 @@ export const OPEN_LOG = "Open the run's log";
 
 // ---- cancelling -----------------------------------------------------------------------------
 
-export function cancelQuestion(name: string, queued: boolean): string {
+export function cancelQuestion(name: string, queued: boolean, kind: RunKind = 'build'): string {
   const what = queued
     ? 'Cancel this run? Nothing has run yet.'
     : 'Cancel this run? The running step stops and is not stored; steps already done are kept.';
-  return `${what} ${name} stays in the menu as cancelled: you can run it again or edit it as a new version.`;
+  const then = kind === 'build' ? 'edit it as a new version' : 'duplicate it';
+  return `${what} ${name} stays in the menu as cancelled: you can run it again or ${then}.`;
 }
 
 export function cancelLabels(queued: boolean): {
@@ -273,6 +274,15 @@ export function subjectName(
     for (const entry of entries) {
       const version = entry.versions.find((candidate) => candidate.id === run.subject.id);
       if (version !== undefined) return `${entry.name} v${String(version.number)}`;
+    }
+  }
+  if (run.subject.type === 'pricing_version') {
+    // A pricing version's id is `{instance version}.{letter}`.
+    for (const entry of entries) {
+      const owner = entry.versions.find((candidate) =>
+        run.subject.id.startsWith(`${candidate.id}.`),
+      );
+      if (owner !== undefined) return `Version ${run.subject.id.slice(owner.id.length + 1)}`;
     }
   }
   return run.subject.id;

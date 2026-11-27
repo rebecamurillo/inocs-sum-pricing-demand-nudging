@@ -16,6 +16,8 @@ export interface RunStep {
   readonly counts: Readonly<Record<string, unknown>>;
   /** Pairs routed out of the pairs to route, while the routes step runs. */
   readonly progress: { readonly done: number; readonly total: number } | null;
+  /** Seconds the step last took on this run's instance (the pricing model step); null otherwise. */
+  readonly lastDurationS: number | null;
 }
 
 export interface RunFailure {

@@ -1,4 +1,5 @@
 import type { InstanceMenuEntry } from '../../domain/city-instance';
+import { runLineResultReady } from '../../domain/pricing-run-text';
 import {
   elapsedSeconds,
   NO_RUN,
@@ -8,7 +9,7 @@ import {
   subjectName,
 } from '../../domain/run-text';
 import styles from './RunLine.module.css';
-import { type EndedBuildTracker, useActiveRuns, useEndedBuild, useNow } from '../hooks/useRuns';
+import { type EndedRunTracker, useActiveRuns, useEndedRun, useNow } from '../hooks/useRuns';
 
 /**
  * The menu's run line: the run in progress with its clock and the runs queued behind it, the
@@ -17,21 +18,27 @@ import { type EndedBuildTracker, useActiveRuns, useEndedBuild, useNow } from '..
 export function RunLine({
   entries,
   openVersionId,
+  openPricingId = null,
   onOpen,
+  onOpenResult,
   className,
   tracker,
 }: {
   entries: readonly InstanceMenuEntry[];
   /** The version whose L-1 is the open view; null for any other view. */
   openVersionId: string | null;
+  /** The id of the pricing version whose L-2 or result is the open view; null for any other view. */
+  openPricingId?: string | null;
   onOpen: (instanceId: string, number: number) => void;
+  /** "Open" on a pricing run that ended: the result route of the version. */
+  onOpenResult?: (instanceId: string, number: number, letter: string) => void;
   className?: string;
-  /** The ended build, remembered by a component that stays mounted while the menu is closed. */
-  tracker?: EndedBuildTracker;
+  /** The ended run, remembered by a component that stays mounted while the menu is closed. */
+  tracker?: EndedRunTracker;
 }) {
   const { runs, answeredAt } = useActiveRuns();
   // Without a tracker from a component that stays mounted, the line remembers on its own.
-  const own = useEndedBuild(openVersionId, tracker === undefined);
+  const own = useEndedRun([openVersionId, openPricingId], tracker === undefined);
   const { ended, clear } = tracker ?? own;
 
   const running = runs.find((run) => run.state === 'running');
@@ -41,7 +48,11 @@ export function RunLine({
   const now = useNow(ticking, answeredAt);
 
   let text = NO_RUN;
-  let open: { readonly instanceId: string; readonly number: number } | null = null;
+  let open: {
+    readonly instanceId: string;
+    readonly number: number;
+    readonly letter: string | null;
+  } | null = null;
   if (head !== null) {
     const name = subjectName(head, entries);
     text = !head.runner.alive
@@ -54,15 +65,25 @@ export function RunLine({
             queued.length,
             head.kind,
           );
-  } else if (ended !== null && openVersionId !== ended.versionId) {
-    const name = subjectName(
-      { subject: { type: 'instance_version', id: ended.versionId } },
-      entries,
-    );
-    text = runLineReady(name);
+  } else if (ended !== null && ![openVersionId, openPricingId].includes(ended.subject.id)) {
+    text =
+      ended.subject.type === 'pricing_version'
+        ? runLineResultReady(subjectName(ended, entries))
+        : runLineReady(subjectName(ended, entries));
     for (const entry of entries) {
-      const version = entry.versions.find((candidate) => candidate.id === ended.versionId);
-      if (version !== undefined) open = { instanceId: entry.id, number: version.number };
+      for (const version of entry.versions) {
+        if (ended.subject.type === 'instance_version' && version.id === ended.subject.id) {
+          open = { instanceId: entry.id, number: version.number, letter: null };
+        }
+        const prefix = `${version.id}.`;
+        if (ended.subject.type === 'pricing_version' && ended.subject.id.startsWith(prefix)) {
+          open = {
+            instanceId: entry.id,
+            number: version.number,
+            letter: ended.subject.id.slice(prefix.length),
+          };
+        }
+      }
     }
   }
 
@@ -78,7 +99,8 @@ export function RunLine({
             className={styles.open}
             onClick={() => {
               clear();
-              onOpen(open.instanceId, open.number);
+              if (open.letter === null) onOpen(open.instanceId, open.number);
+              else onOpenResult?.(open.instanceId, open.number, open.letter);
             }}
           >
             Open

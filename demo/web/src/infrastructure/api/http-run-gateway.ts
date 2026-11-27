@@ -31,6 +31,7 @@ function toRun(wire: Schemas['RunResource']): Run {
       counts: step.counts,
       progress:
         step.progress === null ? null : { done: step.progress.done, total: step.progress.total },
+      lastDurationS: step.last_duration_s,
     })),
     failure:
       wire.failure === null

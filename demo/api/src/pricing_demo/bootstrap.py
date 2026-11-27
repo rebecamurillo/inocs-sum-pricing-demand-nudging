@@ -15,6 +15,7 @@ from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.result_lookup import ResultLookup
+from pricing_demo.application.step_durations import StepDurations
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
@@ -166,6 +167,7 @@ def create_application(settings: Settings) -> FastAPI:
     instances = PostgresCityInstances(engine)
     builds = PostgresBuilds(engine)
     pricing_versions = PostgresPricingVersions(engine)
+    durations = StepDurations(pricing_versions, instances)
     simulations = PostgresSimulations(engine)
     artifacts = PostgresArtifacts(engine)
     read_model = PostgresReadModel(engine)
@@ -205,7 +207,7 @@ def create_application(settings: Settings) -> FastAPI:
                 DeleteInstanceVersion(builds),
                 DeleteCityInstance(builds),
                 BuildInstanceVersion(instances, datasets, builds, planning, UuidV7Source(), clock),
-                GetRun(run_repository, clock),
+                GetRun(run_repository, clock, durations),
                 ListStations(instances, artifacts, read_model),
                 ListHubs(instances, artifacts, read_model),
                 ListHubPairs(instances, artifacts, read_model),
@@ -223,7 +225,7 @@ def create_application(settings: Settings) -> FastAPI:
                     UuidV7Source(),
                     clock,
                 ),
-                GetRun(run_repository, clock),
+                GetRun(run_repository, clock, durations),
                 SimulatePricingVersion(
                     pricing_versions,
                     simulations,
@@ -250,10 +252,10 @@ def create_application(settings: Settings) -> FastAPI:
                 MarkShowcase(lookup, showcase, clock), GetShowcase(showcase, lookup, instances)
             ),
             build_runs_router(
-                ListRuns(run_repository, clock),
-                GetRun(run_repository, clock),
+                ListRuns(run_repository, clock, durations),
+                GetRun(run_repository, clock, durations),
                 GetRunLog(run_repository),
-                CancelRun(run_repository, clock),
+                CancelRun(run_repository, clock, durations),
                 ListRouteFailures(run_repository, route_failures),
             ),
         ],

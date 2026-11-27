@@ -1153,6 +1153,11 @@ export interface components {
             periods: components["schemas"]["PricingPeriodResource"][];
             /** Rules */
             rules: components["schemas"]["PricingRuleResultResource"][];
+            /**
+             * Run Id
+             * @description The id of the version's latest pricing run; null for a draft.
+             */
+            run_id: string | null;
             /** Sealed At */
             sealed_at: string | null;
             /**

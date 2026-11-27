@@ -142,22 +142,16 @@ class ComponentAnswerRequest(BaseModel):
     reason: str | None = None
 
 
-def _a_build_step(value: StepName | None) -> StepName | None:
-    """The fake pricing model only plays the four build steps: another step would be accepted
-    and never acted on, so a test naming it would silently run the happy path."""
-    if value is not None and value not in BUILD_STEPS:
-        raise ValueError(f"must be one of {', '.join(item.value for item in BUILD_STEPS)}")
-    return value
+PLAYED_STEPS = (*BUILD_STEPS, StepName.PRICING_MODEL)
 
 
-PLAYED_FAILURE_STEPS = (*BUILD_STEPS, StepName.PRICING_MODEL)
-
-
-def _a_failing_step(value: StepName) -> StepName:
-    """The fake pricing model fails the four build steps and the pricing model step; it does
-    not play the traveller simulation, which runs in the worker's own domain code."""
-    if value not in PLAYED_FAILURE_STEPS:
-        raise ValueError(f"must be one of {', '.join(item.value for item in PLAYED_FAILURE_STEPS)}")
+def _a_played_step[T: StepName | None](value: T) -> T:
+    """The fake pricing model fails and holds the four build steps and the pricing model step;
+    it plays neither for the traveller simulation, which runs in the worker's own domain code:
+    another step would be accepted and never acted on, so a test naming it would silently run
+    the happy path."""
+    if value is not None and value not in PLAYED_STEPS:
+        raise ValueError(f"must be one of {', '.join(item.value for item in PLAYED_STEPS)}")
     return value
 
 
@@ -165,7 +159,7 @@ class FailAt(BaseModel):
     step: StepName
     code: str
 
-    _step_is_one_the_fake_fails = field_validator("step")(_a_failing_step)
+    _step_is_one_the_fake_fails = field_validator("step")(_a_played_step)
 
     @field_validator("code")
     @classmethod
@@ -209,7 +203,7 @@ class PricingModelSettings(BaseModel):
     licence_kind: Literal["full", "limited"] | None = None
     simulation_rule: StagedSimulationRule | None = None
 
-    _hold_is_a_build_step = field_validator("hold_at")(_a_build_step)
+    _hold_is_a_played_step = field_validator("hold_at")(_a_played_step)
 
 
 class RunSubject(BaseModel):
@@ -242,11 +236,11 @@ class RunStepResource(BaseModel):
     finished_at: datetime | None
     counts: dict[str, Any]
     progress: StepProgress | None
-    last_duration_s: float | None
+    last_duration_s: float | None  # the pricing model step of a pricing run; else null
     reason: str | None
 
     @classmethod
-    def from_domain(cls, step: RunStep) -> "RunStepResource":
+    def from_domain(cls, step: RunStep, last_duration_s: float | None = None) -> "RunStepResource":
         has_progress = step.progress_done is not None and step.progress_total is not None
         return cls(
             step=step.step,
@@ -259,7 +253,7 @@ class RunStepResource(BaseModel):
             progress=StepProgress(done=step.progress_done, total=step.progress_total)
             if has_progress
             else None,
-            last_duration_s=None,
+            last_duration_s=last_duration_s,
             reason=step.reason,
         )
 
@@ -307,7 +301,10 @@ class RunResource(BaseModel):
             server_time=view.server_time,
             queue_position=view.queue_position,
             runner=RunnerResource.from_domain(view.runner),
-            steps=[RunStepResource.from_domain(item) for item in run.steps],
+            steps=[
+                RunStepResource.from_domain(item, view.step_durations.get(item.step))
+                for item in run.steps
+            ],
             failure=RunFailureResource.from_domain(run.failure) if run.failure else None,
             failure_pct=run.failure_pct if run.kind is RunKind.BUILD else None,
         )
@@ -982,6 +979,9 @@ class PricingVersionResource(BaseModel):
         description="Derived from the status and the version's last run."
     )
     based_on_id: str | None
+    run_id: str | None = Field(
+        description="The id of the version's latest pricing run; null for a draft."
+    )
     kept_from: PricingVersionRef | None = Field(
         description="The sealed version whose fare, parking fee, options shown and flat price "
         "this draft kept; null when it started from the default values."
@@ -1007,6 +1007,7 @@ class PricingVersionResource(BaseModel):
             status=version.status,
             state=view.state,
             based_on_id=version.based_on_id,
+            run_id=view.run_id,
             kept_from=(
                 PricingVersionRef(id=view.kept_from[0], letter=view.kept_from[1])
                 if view.kept_from

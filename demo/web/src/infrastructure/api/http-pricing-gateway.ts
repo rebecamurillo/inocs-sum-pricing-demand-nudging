@@ -24,6 +24,8 @@ function toVersion(wire: Schemas['PricingVersionResource']): PricingVersion {
     name: wire.name,
     status: wire.status,
     state: wire.state,
+    basedOnId: wire.based_on_id,
+    runId: wire.run_id,
     keptFrom:
       wire.kept_from === null ? null : { id: wire.kept_from.id, letter: wire.kept_from.letter },
     goals: toGoals(wire.goals),
@@ -77,9 +79,13 @@ export class HttpPricingGateway implements PricingGateway {
     return toVersion(answer.body as Schemas['PricingVersionResource']);
   }
 
-  async create(instanceVersionId: string): Promise<PricingVersion> {
+  async create(instanceVersionId: string, basedOn?: string): Promise<PricingVersion> {
     const path = `${apiRoot}/instance-versions/${encodeURIComponent(instanceVersionId)}/pricing-versions`;
-    const answer = await this.call('POST', path, {});
+    const answer = await this.call(
+      'POST',
+      path,
+      basedOn === undefined ? {} : { based_on: basedOn },
+    );
     if (answer.status !== 201) throw unexpected(answer.status, answer.body, path);
     return toVersion(answer.body as Schemas['PricingVersionResource']);
   }

@@ -25,14 +25,16 @@ def test_a_step_the_fake_pricing_model_does_not_play_is_refused(body: dict[str, 
         PricingModelSettings.model_validate(body)
 
 
-def test_the_pricing_model_step_can_be_failed_but_not_held() -> None:
+def test_the_pricing_model_step_can_be_failed_and_held() -> None:
     settings = PricingModelSettings.model_validate(
-        {"fail_at": {"step": "pricing_model", "code": "solver_no_solution"}}
+        {
+            "fail_at": {"step": "pricing_model", "code": "solver_no_solution"},
+            "hold_at": "pricing_model",
+        }
     )
 
-    assert settings.model_dump(mode="json")["fail_at"]["step"] == "pricing_model"
-    with pytest.raises(ValidationError):
-        PricingModelSettings.model_validate({"hold_at": "pricing_model"})
+    dumped = settings.model_dump(mode="json")
+    assert (dumped["fail_at"]["step"], dumped["hold_at"]) == ("pricing_model", "pricing_model")
 
 
 @pytest.mark.parametrize("kind", ["full", "limited"])

@@ -142,7 +142,10 @@ test.describe('Pricing · run', () => {
       menu.getByRole('button', { name: /^Version A (◷ queued|● running|✓ result)/ }),
     ).toBeVisible();
     await expect(menu.getByRole('button', { name: 'New version draft' })).toHaveCount(0);
-    await expect(lowest).toHaveAttribute('readonly', '');
+    // The L-2 route turns into the run's card (or, once the fake run has finished, the result
+    // route of Version A opens): the goals form is gone either way.
+    await expect(page).toHaveURL(new RegExp(`#/lab/${escaped(built.version)}/(pricing|result)/A$`));
+    await expect(lowest).toHaveCount(0);
 
     // "Discard draft" on another draft asks, deletes it and opens L-1.
     await menu.getByRole('button', { name: '+ New pricing version' }).click();
@@ -252,5 +255,132 @@ test.describe('Pricing · run', () => {
     const again = await simulatePricingVersion(request, version.id);
     expect(again.status()).toBe(409);
     expect(((await again.json()) as Problem).code).toBe('simulation_current');
+  });
+
+  test('L-2 · running a version shows the pricing model and the traveller simulation with their elapsed time; a second version queues', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, PRICING_DISTANCE_M);
+    await control.setPricingModel({ hold_at: 'pricing_model' });
+    const first = await createPricingVersion(request, built.version);
+    const menu = page.getByRole('complementary', { name: 'Menu' });
+
+    await page.goto(`/#/lab/${built.version}/pricing/${first.letter}`);
+    await page.reload();
+    await page.getByRole('button', { name: 'Run the pricing model · 08:00–09:00' }).click();
+
+    // Step 5 runs (held by the fake), with its clock; 5b waits.
+    await expect(
+      page.getByText(
+        'The pricing model is setting the bike prices for Monday 08:00–09:00; then the travellers are simulated.',
+      ),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByText(/^✓ City instance · Geneva 3 km v1 · \d[\d ]* hub pairs with routes$/),
+    ).toBeVisible();
+    const step5 = page.getByText(/5 Pricing model — running for \d+ s/);
+    await expect(step5).toBeVisible();
+    const clock = async () => /running for (\d+) s/.exec((await step5.textContent()) ?? '')?.[1];
+    const before = await clock();
+    await expect.poll(clock, { message: 'the elapsed clock ticks' }).not.toBe(before);
+    await expect(
+      page.getByText(
+        "5b Traveller simulation — waiting · with Version A's prices, then with the flat price 1.00 CHF · placeholder rule: half price, half travel time",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText('The result opens when both steps are done.')).toBeVisible();
+    await expect(
+      page.getByText(
+        'It continues if you open another page, and you can queue another version meanwhile.',
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Running…' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Cancel run' })).toBeVisible();
+    // No finished version lies below Version A.
+    await expect(page.getByRole('button', { name: /meanwhile$/ })).toHaveCount(0);
+    await expect(menu.getByRole('button', { name: /^Version A ● running$/ })).toBeVisible();
+    await expect(page.getByText(/^● Version A running · /)).toBeVisible();
+    expect(await page.content()).not.toMatch(/time limit/i);
+
+    // A second version queued meanwhile.
+    const second = await createPricingVersion(request, built.version);
+    const queued = await runPricingVersion(request, second.id);
+    expect(queued.status()).toBe(202);
+    await expect(menu.getByRole('button', { name: /^Version B ◷ queued · 2nd$/ })).toBeVisible();
+    await expect(page.getByText(/^● Version A running · .* · 1 queued$/)).toBeVisible();
+    await menu.getByRole('button', { name: /^Version B/ }).click();
+    await expect(page).toHaveURL(new RegExp(`#/lab/${escaped(built.version)}/pricing/B$`));
+    await expect(
+      page.getByText(
+        'Queued, 2nd in line: Version A is running. Runs go one at a time; this one starts when the run before it ends.',
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove from the queue' })).toBeVisible();
+
+    // Version A's run is released: its result route opens on its own view.
+    await menu.getByRole('button', { name: /^Version A/ }).click();
+    await expect(step5).toBeVisible();
+    const running = (await (await request.get(`/api/v1/pricing-versions/${first.id}`)).json()) as {
+      run_id: string;
+    };
+    await control.releaseRun(running.run_id);
+    await expect(page).toHaveURL(new RegExp(`#/lab/${escaped(built.version)}/result/A$`), {
+      timeout: 30_000,
+    });
+  });
+
+  test('L-2 · cancelling a run, running it again and a failed step name what happened and keep the way on', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, PRICING_DISTANCE_M);
+    await control.setPricingModel({ hold_at: 'pricing_model' });
+    const version = await createPricingVersion(request, built.version);
+    expect((await runPricingVersion(request, version.id)).status()).toBe(202);
+
+    await page.goto(`/#/lab/${built.version}/pricing/${version.letter}`);
+    await page.reload();
+    await expect(page.getByText(/5 Pricing model — running for/)).toBeVisible({ timeout: 30_000 });
+
+    // The confirmation is in place; "Keep running" goes back, "Cancel the run" stops the run.
+    await page.getByRole('button', { name: 'Cancel run' }).click();
+    await expect(
+      page.getByText(
+        'Cancel this run? The running step stops and is not stored; steps already done are kept. Version A stays in the menu as cancelled: you can run it again or duplicate it.',
+      ),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Keep running' }).click();
+    await expect(page.getByRole('button', { name: 'Cancel run' })).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel run' }).click();
+    await page.getByRole('button', { name: 'Cancel the run' }).click();
+    await expect(
+      page.getByText(
+        /^Run cancelled during Pricing model on \d{1,2} [A-Z][a-z]{2} \d{4}\. Steps before it are kept\.$/,
+      ),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Run again', exact: true })).toBeVisible();
+
+    // "Duplicate" starts a draft based on it and opens its L-2.
+    await page.getByRole('button', { name: 'Duplicate' }).click();
+    await expect(page).toHaveURL(new RegExp(`#/lab/${escaped(built.version)}/pricing/B$`));
+    await expect(page.getByRole('heading', { name: 'Pricing goals' })).toBeVisible();
+
+    // "Run again" queues the version again; this time the pricing model fails.
+    await control.setPricingModel({
+      fail_at: { step: 'pricing_model', code: 'solver_no_solution' },
+    });
+    await page.goto(`/#/lab/${built.version}/pricing/A`);
+    await page.getByRole('button', { name: 'Run again', exact: true }).click();
+    await expect(
+      page.getByText(
+        'Pricing model failed: the solver ended without a solution (no set of prices meets every constraint). Steps before it are kept.',
+      ),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Run again from Pricing model' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Duplicate' })).toBeVisible();
+    expect(await page.content()).not.toMatch(/time limit/i);
   });
 });

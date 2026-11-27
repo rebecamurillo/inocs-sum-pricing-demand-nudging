@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import {
   discardPricingDraft,
+  duplicatePricingVersion,
   newPricingVersion,
   runPricingVersion,
   savePricingDraft,
@@ -9,6 +10,7 @@ import {
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
 import { useGateways } from './gateways';
 import { INSTANCE_MENU_KEY } from './useCityInstances';
+import type { Run } from '../../domain/run';
 import { ACTIVE_RUNS_KEY, useActiveRuns } from './useRuns';
 
 export const pricingListKey = (instanceVersionId: string | null) =>
@@ -54,6 +56,24 @@ export function usePricingVersion(id: string | null) {
   });
 }
 
+/** Reads the version, the lists and the run list again when the followed run changes state. */
+export function usePricingRunSync(run: Run | null) {
+  const client = useQueryClient();
+  const previous = useRef<string | null>(null);
+  const signature =
+    run === null ? null : `${run.id}:${run.state}:${run.steps.map((step) => step.state).join(',')}`;
+  useEffect(() => {
+    if (signature === null) return;
+    const before = previous.current;
+    previous.current = signature;
+    if (before === null || before === signature) return;
+    void client.invalidateQueries({ queryKey: ['pricing-list'] });
+    void client.invalidateQueries({ queryKey: ['pricing-version'] });
+    void client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
+    void client.invalidateQueries({ queryKey: ACTIVE_RUNS_KEY });
+  }, [signature, client]);
+}
+
 /** The writes of the pricing form and of "+ New pricing version"; each refreshes what it changed. */
 export function usePricingActions() {
   const { pricing } = useGateways();
@@ -73,6 +93,16 @@ export function usePricingActions() {
 
   const create = useMutation({
     mutationFn: (instanceVersionId: string) => newPricingVersion(gateways, instanceVersionId),
+    onSuccess: async (version) => {
+      client.setQueryData<PricingVersion | null>(pricingVersionKey(version.id), version);
+      await Promise.all([
+        refetchList(version.instanceVersionId),
+        client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY }),
+      ]);
+    },
+  });
+  const duplicate = useMutation({
+    mutationFn: (version: PricingVersion) => duplicatePricingVersion(gateways, version),
     onSuccess: async (version) => {
       client.setQueryData<PricingVersion | null>(pricingVersionKey(version.id), version);
       await Promise.all([
@@ -106,6 +136,7 @@ export function usePricingActions() {
 
   return {
     create,
+    duplicate,
     discard,
     run,
     /** One `PATCH`; the answer replaces the cached version. */

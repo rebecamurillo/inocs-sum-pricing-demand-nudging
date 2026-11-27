@@ -29,10 +29,9 @@ from pricing_demo.domain.city_datasets import GENEVA_PRESET
 from pricing_demo.domain.failure_codes import failure_reason
 from pricing_demo.domain.read_model import RouteFailure
 from pricing_demo.domain.runs import StepName
+from pricing_demo.infrastructure.fakes.hold import hold_until_released
 
 METRES_PER_DEGREE_LATITUDE = 111_320.0
-# How often a held step looks for its release.
-HOLD_POLL_S = 0.05
 
 # East and north of the preset centre, in metres. H1 and H2 are 300 m apart: both of their
 # pairs are under the default minimum trip distance (500 m).
@@ -425,7 +424,9 @@ class FakeCityPreparation:
         step = request.step
         if stop.is_set():
             return StepOutcome.stopped_on_signal()
-        if self._config().get("hold_at") == step.value and not self._hold(request.run_id, stop):
+        if self._config().get("hold_at") == step.value and not hold_until_released(
+            self._settings, self._waiter, request.run_id, stop
+        ):
             return StepOutcome.stopped_on_signal()
         failure = self._config().get("fail_at")
         if isinstance(failure, dict) and failure.get("step") == step.value:
@@ -495,16 +496,6 @@ class FakeCityPreparation:
                 RouteFailure(*pair, item["query"], item["kind"], item["message"], attempts),
             )
         return list(found.values())
-
-    def _hold(self, run_id: str, stop: StopSignal) -> bool:
-        """Wait until the run is released; False when the step was stopped first."""
-        never = threading.Event()
-        while not stop.is_set():
-            released = self._settings.read().get("released_runs")
-            if isinstance(released, list) and run_id in released:
-                return True
-            self._waiter.wait(HOLD_POLL_S, never)
-        return False
 
     def _pace(self, progress: Progress, stop: StopSignal) -> bool:
         pace_ms = int(self._config().get("routes_pace_ms") or 0)

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
@@ -21,6 +21,7 @@ import {
   fakeRunGateway,
   sampleBuildSteps,
   sampleRunningBuild,
+  sampleStep,
 } from '../../application/ports/fake-run-gateway';
 import type { RunGateway } from '../../application/ports/run-gateway';
 import { DEFAULT_LAYOUT, type LayoutPreferencesValue } from '../../domain/layout';
@@ -1087,6 +1088,84 @@ describe('LabShell · pricing versions', () => {
         'Nothing at this link: Geneva 3 km v1 has no Version Q. It may have been deleted.',
       ),
     ).toBeVisible();
+  });
+
+  it('shows the run card at the L-2 route of a queued, a failed and a cancelled version, not the goals form', async () => {
+    const withRuns = [
+      sampleSealedPricing({
+        id: 'geneva-3km.v1.B',
+        letter: 'B',
+        name: 'Balance first',
+        state: 'queued',
+        runId: 'run-pricing-B',
+      }),
+      sampleSealedPricing({
+        id: 'geneva-3km.v1.C',
+        letter: 'C',
+        name: 'Lower floor',
+        state: 'failed',
+        runId: 'run-pricing-C',
+      }),
+      sampleSealedPricing({
+        id: 'geneva-3km.v1.E',
+        letter: 'E',
+        name: 'Cheaper',
+        state: 'cancelled',
+        runId: 'run-pricing-E',
+      }),
+    ];
+    const run = (letter: string, state: 'failed' | 'cancelled') => ({
+      ...sampleRunningBuild,
+      id: `run-pricing-${letter}`,
+      kind: 'pricing' as const,
+      state,
+      finishedAt: new Date('2026-11-27T10:00:00Z'),
+      subject: { type: 'pricing_version' as const, id: `geneva-3km.v1.${letter}` },
+      steps: [
+        sampleStep({
+          step: 'pricing_model',
+          number: 5,
+          state: state === 'failed' ? 'failed' : 'cancelled',
+        }),
+        sampleStep({ step: 'traveller_simulation', number: 6 }),
+      ],
+      failure:
+        state === 'failed'
+          ? { step: 'pricing_model', code: 'solver_size_limited', reason: 'x' }
+          : null,
+    });
+    const gateway = fakeRunGateway([queuedBuild, run('C', 'failed'), run('E', 'cancelled')]);
+    const render = (hash: string) => {
+      window.location.hash = hash;
+      return renderShell(
+        DEFAULT_LAYOUT,
+        fakeCityInstances(),
+        [],
+        gateway,
+        fakePricingGateway(withRuns),
+      );
+    };
+
+    render('#/lab/geneva-3km.v1/pricing/B');
+    expect(await screen.findByText(/^5 Pricing model — waiting/)).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Running…' })).toBeDisabled();
+    expect(screen.queryByRole('heading', { name: 'Pricing goals' })).not.toBeInTheDocument();
+    cleanup();
+
+    render('#/lab/geneva-3km.v1/pricing/C');
+    expect(
+      await screen.findByText(
+        "Pricing model failed: Gurobi's size-limited licence cannot solve this instance. Steps before it are kept.",
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Run again from Pricing model' })).toBeVisible();
+    cleanup();
+
+    render('#/lab/geneva-3km.v1/pricing/E');
+    expect(
+      await screen.findByText(/^Run cancelled during Pricing model on 27 Nov 2026\./),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Duplicate' })).toBeVisible();
   });
 
   it('keeps the result route recognised with an empty card for story 3.9', async () => {

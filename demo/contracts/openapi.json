@@ -2025,6 +2025,18 @@
             "title": "Rules",
             "type": "array"
           },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The id of the version's latest pricing run; null for a draft.",
+            "title": "Run Id"
+          },
           "sealed_at": {
             "anyOf": [
               {
@@ -2067,6 +2079,7 @@
           "status",
           "state",
           "based_on_id",
+          "run_id",
           "kept_from",
           "last_duration_s",
           "created_at",

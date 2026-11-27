@@ -9,7 +9,8 @@ const wire = {
   name: 'Version B',
   status: 'draft',
   state: 'draft',
-  based_on_id: null,
+  based_on_id: 'geneva-3km.v1.A',
+  run_id: 'run-9',
   kept_from: { id: 'geneva-3km.v1.A', letter: 'A' },
   last_duration_s: 404.5,
   created_at: '2026-11-27T10:00:00Z',
@@ -54,6 +55,8 @@ describe('HttpPricingGateway', () => {
       instanceVersionId: 'geneva-3km.v1',
       keptFrom: { id: 'geneva-3km.v1.A', letter: 'A' },
       lastDurationS: 404.5,
+      basedOnId: 'geneva-3km.v1.A',
+      runId: 'run-9',
       state: 'draft',
     });
     expect(version?.goals.max_displayed_options).toBe(10);
@@ -92,6 +95,16 @@ describe('HttpPricingGateway', () => {
     expect(path).toBe('/api/v1/instance-versions/geneva-3km.v1/pricing-versions');
     expect(init?.method).toBe('POST');
     expect(init?.body).toBe('{}');
+  });
+
+  it('posts a duplicate with the version it is based on', async () => {
+    const fetchImpl = answering(201, wire);
+
+    await new HttpPricingGateway(fetchImpl).create('geneva-3km.v1', 'geneva-3km.v1.A');
+
+    expect(JSON.parse(fetchImpl.mock.calls[0]?.[1]?.body as string)).toEqual({
+      based_on: 'geneva-3km.v1.A',
+    });
   });
 
   it('patches the goals and the name as sent', async () => {

@@ -2,6 +2,7 @@ from typing import Any
 
 import pytest
 
+from pricing_demo.domain.pricing_versions import new_draft_goals
 from pricing_demo.domain.runs import (
     RunFailure,
     RunKind,
@@ -270,3 +271,85 @@ def test_the_contract_declares_the_four_routes_and_the_text_log(runs_app: RunsAp
         "Location"
         in paths["/api/v1/runs/{run_id}/cancellation"]["put"]["responses"]["202"]["headers"]
     )
+
+
+def _a_pricing_run(runs_app: RunsApp, run_id: str, queued_at: float, seconds: float | None) -> str:
+    """A pricing run of a built version; with `seconds` its pricing model step is done."""
+    runs_app.rig.add_draft()
+    version = runs_app.rig.pricing.create_draft(
+        "geneva-3km.v1",
+        None,
+        new_draft_goals(None),
+        "geneva-3km.v1.mon-08",
+        None,
+        T0,
+    )
+    steps = (
+        (
+            step(
+                1,
+                StepName.PRICING_MODEL,
+                StepState.DONE,
+                started_at=later(queued_at),
+                finished_at=later(queued_at + seconds),
+            ),
+        )
+        if seconds is not None
+        else None
+    )
+    runs_app.repository.add(
+        make_run(
+            run_id,
+            kind=RunKind.PRICING,
+            subject_id=version.id,
+            state=RunState.SUCCEEDED if seconds is not None else RunState.QUEUED,
+            queued_at=later(queued_at),
+            steps=steps,
+        )
+    )
+    return version.id
+
+
+def test_a_pricing_runs_model_step_carries_the_last_duration_on_its_instance(
+    runs_app: RunsApp,
+) -> None:
+    _a_pricing_run(runs_app, "done", 10, 75)
+
+    # The same version's run again: nothing but the earlier done step is known.
+    runs_app.repository.add(
+        make_run(
+            "again",
+            kind=RunKind.PRICING,
+            subject_id="geneva-3km.v1.A",
+            queued_at=later(500),
+        )
+    )
+
+    body = runs_app.client.get("/api/v1/runs/again").json()
+
+    assert [(item["step"], item["last_duration_s"]) for item in body["steps"]] == [
+        ("pricing_model", 75)
+    ]
+    listed = runs_app.client.get("/api/v1/runs?state=queued").json()["items"]
+    assert listed[0]["steps"][0]["last_duration_s"] == 75
+
+
+def test_a_pricing_runs_model_step_has_no_duration_before_any_earlier_run(
+    runs_app: RunsApp,
+) -> None:
+    _a_pricing_run(runs_app, "first", 10, None)
+
+    body = runs_app.client.get("/api/v1/runs/first").json()
+
+    assert body["steps"][0]["last_duration_s"] is None
+
+
+def test_build_steps_keep_a_null_last_duration_next_to_a_pricing_runs_duration(
+    runs_app: RunsApp,
+) -> None:
+    _a_pricing_run(runs_app, "done", 10, 75)
+    runs_app.repository.add(make_run("build-2", queued_at=later(600)))
+
+    body = runs_app.client.get("/api/v1/runs/build-2").json()
+
+    assert {item["last_duration_s"] for item in body["steps"]} == {None}

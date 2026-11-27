@@ -113,28 +113,34 @@ export function stepSignature(run: Run | null): string {
     : run.steps.map((step) => `${String(step.number)}${step.state[0] ?? ''}`).join('');
 }
 
-export interface EndedBuild {
+export interface EndedRun {
   readonly runId: string;
-  readonly versionId: string;
+  /** The version the run was for: a build's instance version or a pricing version. */
+  readonly subject: { readonly type: 'instance_version' | 'pricing_version'; readonly id: string };
 }
 
-export interface EndedBuildTracker {
-  /** The build that succeeded while another view was open; null when there is none to tell. */
-  readonly ended: EndedBuild | null;
+export interface EndedRunTracker {
+  /** The run that succeeded while another view was open; null when there is none to tell. */
+  readonly ended: EndedRun | null;
   readonly clear: () => void;
 }
 
 /**
- * Remembers the build the run line last showed as running; when it leaves the run list and
- * succeeded, it is the ended build until its L-1 is opened or another run shows. Held by a
+ * Remembers the run the run line last showed as running (a build or a pricing run); when it
+ * leaves the run list and succeeded, it is the ended run until the subject's own view is open
+ * (`openSubjectIds`: its L-1, its L-2 or its result route) or another run shows. Held by a
  * component that stays mounted, so that closing the menu does not forget it.
  */
-export function useEndedBuild(openVersionId: string | null, enabled = true): EndedBuildTracker {
+export function useEndedRun(
+  openSubjectIds: readonly (string | null)[],
+  enabled = true,
+): EndedRunTracker {
   const { runs: gateway } = useGateways();
   const { runs } = useActiveRuns();
   const refresh = useRefreshAll();
-  const [ended, setEnded] = useState<EndedBuild | null>(null);
-  const watched = useRef<EndedBuild | null>(null);
+  const client = useQueryClient();
+  const [ended, setEnded] = useState<EndedRun | null>(null);
+  const watched = useRef<EndedRun | null>(null);
   const running = runs.find((run) => run.state === 'running');
   const head = running ?? runs.find((run) => run.state === 'queued') ?? null;
 
@@ -143,7 +149,13 @@ export function useEndedBuild(openVersionId: string | null, enabled = true): End
     const before = watched.current;
     if (before !== null && !runs.some((run) => run.id === before.runId)) {
       watched.current = null;
-      void refresh(before.versionId);
+      void (before.subject.type === 'instance_version'
+        ? refresh(before.subject.id)
+        : Promise.all([
+            refresh(null),
+            client.invalidateQueries({ queryKey: ['pricing-list'] }),
+            client.invalidateQueries({ queryKey: ['pricing-version'] }),
+          ]));
       loadRun({ runs: gateway }, before.runId).then(
         (run) => {
           if (run.state === 'succeeded') setEnded(before);
@@ -151,14 +163,16 @@ export function useEndedBuild(openVersionId: string | null, enabled = true): End
         () => undefined,
       );
     }
-    if (running?.subject.type === 'instance_version') {
-      watched.current = { runId: running.id, versionId: running.subject.id };
+    if (running !== undefined) {
+      watched.current = { runId: running.id, subject: running.subject };
     }
     // `refresh` is rebuilt each render; the run list is what says a run ended.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runs, enabled]);
 
-  if (ended !== null && (head !== null || openVersionId === ended.versionId)) setEnded(null);
+  if (ended !== null && (head !== null || openSubjectIds.includes(ended.subject.id))) {
+    setEnded(null);
+  }
 
   return {
     ended,
@@ -177,7 +191,12 @@ export function useRunActions(versionId: string) {
     mutationFn: (runId: string) => cancelRun({ runs }, runId),
     onSuccess: async (answer) => {
       client.setQueryData(runKey(answer.id), { run: answer, answeredAt: Date.now() });
-      await refresh(versionId);
+      await Promise.all([
+        refresh(versionId),
+        // A pricing run's version leaves `queued` or `running` for `cancelled`.
+        client.invalidateQueries({ queryKey: ['pricing-list'] }),
+        client.invalidateQueries({ queryKey: ['pricing-version'] }),
+      ]);
     },
   });
   const again = useMutation({

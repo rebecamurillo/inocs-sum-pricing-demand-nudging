@@ -80,8 +80,10 @@ describe('HttpRunGateway', () => {
       state: 'running',
       counts: { queries_failed: 2 },
       progress: { done: 12, total: 48 },
+      lastDurationS: 61,
       finishedAt: null,
     });
+    expect(run.steps[1]?.lastDurationS).toBeNull();
     expect(run.steps[1]?.finishedAt?.toISOString()).toBe('2026-11-27T10:02:00.000Z');
   });
 

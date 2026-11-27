@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.result_lookup import ResultLookup
+from pricing_demo.application.step_durations import StepDurations
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
@@ -52,7 +53,6 @@ from pricing_demo.infrastructure.fakes.package_fingerprints import (
     InMemoryPackageFingerprints,
 )
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
-from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from pricing_demo.interface.http.app import create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
@@ -180,18 +180,21 @@ class RunsApp:
     """An app with the run routes on an in-memory repository and a fixed clock."""
 
     def __init__(self) -> None:
-        self.repository = InMemoryRunRepository()
+        self.rig = MemoryBuilds()
+        self.rig.pricing.read_durations_from(self.rig.instances)
+        self.repository = self.rig.runs
         self.route_failures = InMemoryRouteFailures()
         self.clock = FixedClock(SERVER_TIME)
+        durations = StepDurations(self.rig.pricing, self.rig.instances)
         self.client = TestClient(
             create_app(
                 api_version=API_VERSION,
                 routers=[
                     build_runs_router(
-                        ListRuns(self.repository, self.clock),
-                        GetRun(self.repository, self.clock),
+                        ListRuns(self.repository, self.clock, durations),
+                        GetRun(self.repository, self.clock, durations),
                         GetRunLog(self.repository),
-                        CancelRun(self.repository, self.clock),
+                        CancelRun(self.repository, self.clock, durations),
                         ListRouteFailures(self.repository, self.route_failures),
                     )
                 ],

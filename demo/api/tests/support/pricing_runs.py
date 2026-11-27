@@ -16,10 +16,12 @@ from pricing_demo.domain.runs import Run, RunState, StepName
 from pricing_demo.domain.system_status import ComponentName
 from pricing_demo.domain.traveller_simulation import BalancedScore
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
+from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
 from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
+from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from pricing_demo.infrastructure.fakes.worker_registry import InMemoryWorkerRegistry
 from tests.support.builds import SLUG, MemoryBuilds, build_fake_city
 from tests.support.runs import T0
@@ -41,7 +43,7 @@ class PricingRig:
         self.reports = InMemoryComponentReports()
         self.registry = StepRegistry()
         self.model = PricingModelStepExecutor(
-            FakePricingSolver(self.settings),
+            FakePricingSolver(self.settings, FakeWaiter(FixedClock(T0))),
             FakeProbe(ComponentName.SOLVER, self.settings),
             self.reports,
             "w-1",

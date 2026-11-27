@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
-import { createPricingVersion } from '../support/pricing';
+import { createPricingVersion, runPricingVersion } from '../support/pricing';
 
 const viewports = [
   { width: 1440, height: 900 },
@@ -188,6 +188,57 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
   });
 
+  // A second scenario for the run states of L-2: the first holds every other built view and
+  // already fills its time budget.
+  test('Lab · every L-2 run state holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control);
+    await createPricingVersion(request, version);
+    await createPricingVersion(request, version);
+
+    // L-2 running, queued, the cancel confirmation, cancelled and failed: Version A held at its
+    // pricing model step, Version B queued behind it.
+    await control.setPricingModel({ hold_at: 'pricing_model' });
+    const [versionA, versionB] = [`${version}.A`, `${version}.B`];
+    const runA = (await (await runPricingVersion(request, versionA)).json()) as { id: string };
+    expect((await runPricingVersion(request, versionB)).status()).toBe(202);
+    const runningLine = /^● Version A running · /;
+    await page.goto(`/#/lab/${version}/pricing/A`);
+    await page.reload();
+    await expect(page.getByText(/5 Pricing model — running for/)).toBeVisible({ timeout: 30_000 });
+    await holdsAtEverySize(page, page.getByRole('main'), runningLine, false);
+
+    await page.getByRole('button', { name: 'Cancel run' }).click();
+    await expect(page.getByRole('button', { name: 'Cancel the run' })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), runningLine, false);
+    await page.getByRole('button', { name: 'Keep running' }).click();
+
+    await page.goto(`/#/lab/${version}/pricing/B`);
+    await page.reload();
+    await expect(page.getByText(/^Queued, 2nd in line: Version A is running\./)).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), runningLine, false);
+    await page.getByRole('button', { name: 'Remove from the queue' }).click();
+    await expect(page.getByRole('button', { name: 'Keep', exact: true })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), runningLine, false);
+    await page.getByRole('button', { name: 'Remove from the queue' }).click();
+    await expect(
+      page.getByText(/^Run cancelled during Pricing model on \d{1,2} [A-Z][a-z]{2} \d{4}\./),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), runningLine, false);
+
+    // Version A's held step fails once it is released.
+    await control.setPricingModel({
+      fail_at: { step: 'pricing_model', code: 'solver_no_solution' },
+    });
+    await control.releaseRun(runA.id);
+    await page.goto(`/#/lab/${version}/pricing/A`);
+    await expect(page.getByText(/^Pricing model failed: /)).toBeVisible({ timeout: 30_000 });
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+  });
+
   test('Lab · L-1 saved holds at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
@@ -236,6 +287,18 @@ test.describe('Lab', () => {
       page.getByRole('complementary', { name: 'How the model reads these values' }),
     ).toBeVisible();
     await noTime();
+
+    // L-2 running: the spinner stops, the elapsed clock stays.
+    await control.setPricingModel({ hold_at: 'pricing_model' });
+    expect((await runPricingVersion(request, `${version}.A`)).status()).toBe(202);
+    await page.goto(`/#/lab/${version}/pricing/A`);
+    await page.reload();
+    const step5 = page.getByText(/5 Pricing model — running for \d+ s/);
+    await expect(step5).toBeVisible({ timeout: 30_000 });
+    await noTime();
+    const clock = async () => /running for (\d+) s/.exec((await step5.textContent()) ?? '')?.[1];
+    const before = await clock();
+    await expect.poll(clock, { message: 'the elapsed clock still ticks' }).not.toBe(before);
     await context.close();
   });
 });

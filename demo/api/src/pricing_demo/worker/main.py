@@ -245,6 +245,7 @@ def register_pricing_steps(
     engine: Engine,
     repository: PostgresRunRepository,
     clock: Clock,
+    waiter: Waiter,
     identity: WorkerIdentity,
     fingerprint: RecordPackageFingerprint,
     graph: FileGraphFingerprints,
@@ -262,7 +263,7 @@ def register_pricing_steps(
     pricing_versions = PostgresPricingVersions(engine)
     (solver_probe,) = [item for item in probes if item.component is ComponentName.SOLVER]
     solver: PricingSolver = (
-        FakePricingSolver(fake_settings)
+        FakePricingSolver(fake_settings, waiter)
         if fake_settings is not None
         else PackagePricingSolver(
             StageChild(), version("pricing_demo"), lock_sha256(DEMO_DIR / "api" / "uv.lock")
@@ -324,6 +325,7 @@ def build_worker(settings: Settings) -> BuiltWorker:
         engine,
         repository,
         clock,
+        waiter,
         identity,
         fingerprint,
         graph,

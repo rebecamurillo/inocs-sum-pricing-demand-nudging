@@ -17,9 +17,12 @@ from pricing_demo.domain.pricing_keys import FIXED_SOLVER_INPUTS, SOLVER_GOALS
 from pricing_demo.domain.pricing_versions import new_draft_goals
 from pricing_demo.domain.run_recovery import STAGE_ERROR
 from pricing_demo.domain.solves import Solve, model_bike_prices
+from pricing_demo.infrastructure.fakes.clock import FixedClock
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
+from pricing_demo.infrastructure.fakes.waiter import FakeWaiter
 from tests.support.city_files import FakeCity
+from tests.support.runs import T0
 
 GOALS = {name: new_draft_goals(None).as_dict()[name] for name in SOLVER_GOALS}
 FINGERPRINT = "f" * 64
@@ -57,7 +60,7 @@ def fake_solver_rig(tmp_path: Path) -> FakeRig:
             name.unlink() if name.is_file() else shutil.rmtree(name)
     settings = InMemoryFakeSettings()
     return FakeRig(
-        FakePricingSolver(settings),
+        FakePricingSolver(settings, FakeWaiter(FixedClock(T0))),
         tmp_path,
         city.files["Instance_1.json"],
         "solution.json",

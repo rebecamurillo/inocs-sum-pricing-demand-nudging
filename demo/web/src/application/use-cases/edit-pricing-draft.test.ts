@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fakePricing, samplePricingDraft } from '../ports/fake-pricing-gateway';
 import {
   discardPricingDraft,
+  duplicatePricingVersion,
   newPricingVersion,
   runPricingVersion,
   savePricingDraft,
@@ -18,6 +19,20 @@ describe('editing a pricing draft', () => {
 
     await discardPricingDraft(gateways, draft.id);
     expect(versions()).toEqual([]);
+  });
+
+  it('duplicates a version into a draft of the same instance version with its goals', async () => {
+    const source = samplePricingDraft({
+      id: 'geneva-3km.v1.A',
+      letter: 'A',
+      goals: { pt_fare_chf: 2.4 },
+    });
+    const { gateway } = fakePricing([source]);
+
+    const copy = await duplicatePricingVersion({ pricing: gateway }, source);
+
+    expect(copy).toMatchObject({ letter: 'B', basedOnId: 'geneva-3km.v1.A', status: 'draft' });
+    expect(copy.goals.pt_fare_chf).toBe(2.4);
   });
 
   it('flushes the autosave before it posts the run', async () => {

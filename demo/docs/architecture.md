@@ -644,6 +644,20 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   values" panel. A pricing version also carries `kept_from` (the sealed version its kept values came
   from; column `pricing_versions.kept_from_id`) and `last_duration_s` (the last done `pricing_model`
   step on the same data set and radius).
+- Following a pricing run (L-2 running, queued, failed and cancelled). `LabShell` shows
+  `PricingRunView` for a sealed version whose `state` is `queued`, `running`, `failed` or
+  `cancelled` (a `draft` keeps `PricingGoalsForm`; a `result` version keeps its read-only form
+  until story 3.9). The version carries `run_id` (its latest pricing run; null for a draft) and
+  the view follows that run with `useRun`, so the clocks, the queue sentence, the runner notices
+  and the cancel confirmation work as on L-1; the pricing model step's `last_duration_s` is read
+  by `StepDurations` (API, `application/step_durations.py`) from the same data set and radius as
+  the version's own. Every sentence is built in `domain/pricing-run-text.ts` (the failure
+  reasons map the API's codes: the status of `solver_no_solution` is read from the stored
+  reason). "Duplicate" posts `based_on`; "Run again" posts the run again. When the followed run
+  succeeds the view navigates once to `#/lab/{instance version}/result/{letter}`; elsewhere
+  `useEndedRun` (the generalised `useEndedBuild`) makes `RunLine` write "✓ Version {letter}:
+  result ready · Open". The fake pricing model holds `pricing_model` through `hold_at` like a
+  build step (`infrastructure/fakes/hold.py`).
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode
