@@ -157,10 +157,14 @@ time. `make e2e` uses its own project, ports and in-memory database, so it runs 
 ## The Lab
 
 The web app is one page with one React island (`web/src/composition/LabIsland.tsx`). Opening
-it lands on `#/lab`; the routes are the hashes `#/lab`, `#/lab/{instance version}`,
+it lands on Home at `#/`, the page that says why the bike price is set per trip and leads to the
+Lab ("Open the Lab →"; the Lab's brand block has "← Home"). Home reads `GET /api/v1/showcase`
+once per visit. The Lab's routes are the hashes `#/lab`, `#/lab/{instance version}`,
 `#/lab/{instance version}/pricing/{letter}`, `#/lab/{instance version}/result/{letter}`,
 `#/lab/{instance version}/compare/{letters}` and `#/lab/traveller/{instance version}/{letter}`,
-each with an optional `?period=`. Any other hash is replaced by `#/lab`.
+each with an optional `?period=`. A malformed `#/lab…` link is replaced by `#/lab`; every other
+hash (`#/play`, `#/labx`, no hash) renders Home and is kept as typed. Home's line under the
+cards reads `MODEL_AUTHOR` and `RUN_UNMODIFIED_CONFIRMED` of `web/src/domain/footer.ts`.
 
 The footer's wording is set in `web/src/domain/footer.ts`:
 

@@ -143,10 +143,11 @@ describe('LabShell · the empty Lab', () => {
   it('has none of the elements the story leaves out', () => {
     renderShell();
 
-    for (const text of ['← Home', 'Next version', 'Simulation', 'Run unmodified']) {
+    for (const text of ['Next version', 'Simulation', 'Run unmodified']) {
       expect(screen.queryByText(text, { exact: false })).not.toBeInTheDocument();
     }
-    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getByRole('link', { name: '← Home' })).toHaveAttribute('href', '#/');
   });
 
   it('opens the off state of Compare versions and of the traveller view', async () => {
@@ -333,9 +334,9 @@ describe('LabShell · the route', () => {
     expect(window.location.hash).toBe('#/lab');
   });
 
-  it('replaces a hash that does not parse by #/lab without a history entry', () => {
+  it('replaces a malformed Lab link by #/lab without a history entry', () => {
     const before = window.history.length;
-    window.location.hash = '#/play';
+    window.location.hash = '#/lab/geneva-3km';
     const afterHashChange = window.history.length;
     renderShell();
 

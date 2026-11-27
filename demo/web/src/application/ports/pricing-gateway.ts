@@ -4,6 +4,7 @@ import type {
   PricingResult,
   StoredSimulation,
 } from '../../domain/pricing-result';
+import type { Showcase } from '../../domain/showcase';
 import type { Comparison } from '../../domain/comparison';
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
 
@@ -29,6 +30,8 @@ export interface PricingGateway {
   discard(id: string): Promise<void>;
   /** The stored result of a version; null when it has none (the API's 404 `no_result`). */
   result(id: string): Promise<PricingResult | null>;
+  /** The result marked for the home page; null when none is marked (the API's 404, either code). */
+  getShowcase(): Promise<Showcase | null>;
   /** The model's price and flow per hub pair; null when the version has no result. */
   hubPairResults(id: string): Promise<HubPairResult[] | null>;
   /** The model's bike rides and mean price per hub; null when the version has no result. */

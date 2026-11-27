@@ -31,7 +31,7 @@ test.describe('Traveller view', () => {
     const { prices: pricesC } = await quoteOf(request, `${built.version}.C`, stopA, stopB);
 
     // The menu item opens the first finished version: its link, the brief and the three rows.
-    await page.goto('/');
+    await page.goto('/#/lab');
     await page.reload();
     await page.getByRole('button', { name: 'Trip options and prices' }).click();
     await expect(page).toHaveURL(new RegExp(`#/lab/traveller/${built.version}/A$`));

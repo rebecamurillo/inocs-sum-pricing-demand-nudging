@@ -636,14 +636,16 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
 - Astro renders the page shell; everything interactive is a React island. Routing inside the
   Lab is in the URL hash, so the build stays static.
 - The Lab is one page with one island, `composition/LabIsland.tsx` (mounted with `client:only`,
-  because it reads the hash and the browser's storage). It wraps `LabShell` in the gateways
+  because it reads the hash and the browser's storage). It wraps `App` (Home or `LabShell`) in the gateways
   provider and a TanStack Query client. Server state (the system status, refetched every 10 s)
   goes through TanStack Query hooks in `presentation/hooks/` that call the use cases.
 - The router is the URL hash: `domain/route.ts` parses and serialises `#/lab…` routes
   (`#/lab/{instance version}/pricing|result/{letter}`, `compare/{letters}`,
   `traveller/{instance version}/{letter}`, each with an optional `?period=`), and
-  `presentation/hooks/useHashRoute.ts` follows `hashchange` and replaces a hash that does not
-  parse by `#/lab`.
+  `presentation/hooks/useHashRoute.ts` follows `hashchange`. A hash that is not a Lab link (none,
+  `#/`, `#/play`, `#/labx`) parses to Home and is kept; only a malformed `#/lab…` link is replaced
+  by `#/lab`. Home reads `GET /api/v1/showcase` through `getShowcase` (the pricing gateway),
+  `loadShowcase` and `useShowcase`.
 - The layout the visitor chooses (menu, map, share per view, Advanced view, Aa) goes through the
   `LayoutPreferences` port; `infrastructure/storage/` holds the one `localStorage` adapter and
   `composition/gateways.ts` hands it `window.localStorage`.

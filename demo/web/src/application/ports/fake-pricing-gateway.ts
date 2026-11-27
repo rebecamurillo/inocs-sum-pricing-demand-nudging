@@ -25,6 +25,7 @@ import {
   type PricingRule,
   type PricingVersion,
 } from '../../domain/pricing-version';
+import type { Showcase } from '../../domain/showcase';
 import type { PricingGateway } from './pricing-gateway';
 
 export const samplePricingGoals: PricingGoals = {
@@ -661,6 +662,8 @@ export function fakePricing(
     readonly simulateRefusal?: string;
     /** What the fake comparison varies per version id. */
     readonly comparison?: FakeComparisonDetails;
+    /** The home page's showcase: none (default), one, or a failure it rejects with. */
+    readonly showcase?: Showcase | null | Error;
   } = {},
 ): FakePricing {
   let stored = [...initial];
@@ -673,6 +676,10 @@ export function fakePricing(
     list: (instanceVersionId) =>
       Promise.resolve(stored.filter((version) => version.instanceVersionId === instanceVersionId)),
     get: (id) => Promise.resolve(stored.find((version) => version.id === id) ?? null),
+    getShowcase: () => {
+      const showcase = details.showcase ?? null;
+      return showcase instanceof Error ? Promise.reject(showcase) : Promise.resolve(showcase);
+    },
     result: (id) => {
       if (id in results) return Promise.resolve(results[id] ?? null);
       const found = stored.find((version) => version.id === id);

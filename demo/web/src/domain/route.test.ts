@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { compareRoute, parseRoute, serialiseRoute, travellerRoute, type LabRoute } from './route';
+import {
+  compareRoute,
+  parseRoute,
+  serialiseAppRoute,
+  serialiseRoute,
+  travellerRoute,
+  type LabRoute,
+} from './route';
 
 const instance = { instanceId: 'geneva-3km', version: 2 };
 
@@ -28,10 +35,6 @@ describe('parseRoute and serialiseRoute', () => {
   });
 
   it.each([
-    '',
-    '#',
-    '#/',
-    '#/play',
     '#/lab/',
     '#/lab/geneva-3km',
     '#/lab/geneva-3km.v0',
@@ -45,8 +48,6 @@ describe('parseRoute and serialiseRoute', () => {
     '#/lab?period=a&period=b',
     '#/lab/geneva-3km.v1/result/A/extra',
     '#/lab/Geneva.v1',
-    'lab',
-    '#/labx',
     '#/lab?period=a?period=b',
     '#/lab/geneva-3km.v1/pricing',
     '#/lab/geneva-3km.v1/pricing/b',
@@ -59,6 +60,20 @@ describe('parseRoute and serialiseRoute', () => {
     '#/lab/traveller/geneva-3km.v1/B/x',
   ])('reads %j as unparsable', (hash) => {
     expect(parseRoute(hash)).toEqual({ kind: 'unparsable' });
+  });
+
+  it.each(['', '#', '#/', '#/play', 'lab', '#/labx', '#/lab-x', '#/unknown/link'])(
+    'reads %j as Home',
+    (hash) => {
+      expect(parseRoute(hash)).toEqual({ kind: 'home' });
+    },
+  );
+
+  it('writes Home as #/ and a Lab route as its Lab hash', () => {
+    expect(serialiseAppRoute({ kind: 'home' })).toBe('#/');
+    const route = parseRoute('#/lab/geneva-3km.v1/result/B?period=mon-08') as LabRoute;
+    expect(serialiseAppRoute(route)).toBe('#/lab/geneva-3km.v1/result/B?period=mon-08');
+    expect(serialiseAppRoute({ kind: 'lab', period: null })).toBe('#/lab');
   });
 });
 

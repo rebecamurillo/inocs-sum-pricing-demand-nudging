@@ -22,9 +22,16 @@ export type LabRoute = WithPeriod &
     | { readonly kind: 'traveller'; readonly instance: InstanceVersionRef; readonly letter: string }
   );
 
-export type ParsedRoute = LabRoute | { readonly kind: 'unparsable' };
+export interface HomeRoute {
+  readonly kind: 'home';
+}
 
-const unparsable: ParsedRoute = { kind: 'unparsable' };
+export type AppRoute = LabRoute | HomeRoute;
+
+export type ParsedRoute = AppRoute | { readonly kind: 'unparsable' };
+
+const unparsable: { readonly kind: 'unparsable' } = { kind: 'unparsable' };
+const home: HomeRoute = { kind: 'home' };
 
 // One canonical spelling per route, so that serialise(parse(x)) is x for every valid link.
 const INSTANCE = /^([a-z0-9]+(?:-[a-z0-9]+)*)\.v([1-9][0-9]*)$/;
@@ -51,7 +58,10 @@ function parseLetters(segment: string | undefined): readonly string[] | null {
   return ok ? letters : null;
 }
 
-function parsePath(segments: readonly string[], period: string | null): ParsedRoute {
+function parsePath(
+  segments: readonly string[],
+  period: string | null,
+): LabRoute | typeof unparsable {
   const [first, second, third, fourth, ...rest] = segments;
   if (first === undefined) return { kind: 'lab', period };
   if (rest.length > 0) return unparsable;
@@ -79,8 +89,13 @@ function parsePath(segments: readonly string[], period: string | null): ParsedRo
   return unparsable;
 }
 
+function isLabHash(hash: string): boolean {
+  return hash === '#/lab' || hash.startsWith('#/lab?') || hash.startsWith('#/lab/');
+}
+
+/** Home for every hash that is not a Lab link; `unparsable` only for a malformed Lab link. */
 export function parseRoute(hash: string): ParsedRoute {
-  if (!hash.startsWith('#/lab')) return unparsable;
+  if (!isLabHash(hash)) return home;
   const [path = '', query, ...extra] = hash.slice('#/lab'.length).split('?');
   if (extra.length > 0) return unparsable;
 
@@ -139,4 +154,8 @@ function serialisePath(route: LabRoute): string {
 export function serialiseRoute(route: LabRoute): string {
   const query = route.period === null ? '' : `?period=${route.period}`;
   return `#/lab${serialisePath(route)}${query}`;
+}
+
+export function serialiseAppRoute(route: AppRoute): string {
+  return route.kind === 'home' ? '#/' : serialiseRoute(route);
 }

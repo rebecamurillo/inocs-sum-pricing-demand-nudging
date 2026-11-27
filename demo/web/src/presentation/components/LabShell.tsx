@@ -29,7 +29,7 @@ import {
 } from '../../domain/unknown-link';
 import { useInstanceMenu, useInstanceView, useNewInstanceBasis } from '../hooks/useCityInstances';
 import { useActiveRuns, useEndedRun } from '../hooks/useRuns';
-import { useHashRoute } from '../hooks/useHashRoute';
+import { useLabRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { usePricingVersion } from '../hooks/usePricingVersions';
 import { useSystemStatus } from '../hooks/useSystemStatus';
@@ -135,7 +135,7 @@ function NewInstanceAction({ onNew }: { onNew: () => void }) {
 }
 
 export function LabShell() {
-  const { route, navigate, replace } = useHashRoute();
+  const { route, navigate, replace } = useLabRoute();
   const layout = useLayoutPreferences();
   const [choice, setChoice] = useState<MenuChoice>('instances');
   // The new-instance form before its `POST` is a state of `#/lab`; it ends with any other link.
@@ -444,6 +444,9 @@ export function LabShell() {
                 <span className={styles.logo} aria-hidden="true" />
                 <span className={styles.brandName}>SUM</span>
                 <span className={styles.brandTitle}>Dynamic pricing · Lab</span>
+                <a href="#/" className={styles.homeLink}>
+                  ← Home
+                </a>
                 <button
                   type="button"
                   className={styles.iconButton}

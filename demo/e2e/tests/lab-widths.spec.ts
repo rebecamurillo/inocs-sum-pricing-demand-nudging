@@ -64,7 +64,7 @@ test.describe('Lab', () => {
     request,
     control,
   }) => {
-    await page.goto('/');
+    await page.goto('/#/lab');
     await expect(page.getByRole('main')).toBeVisible();
 
     await holdsAtEverySize(page, null);
@@ -72,7 +72,7 @@ test.describe('Lab', () => {
     // The new-instance form, then the edit and rule-broken states of a built instance.
     const datasetId = await control.insertCityDataset();
     await awaitPackageDefaults(request, datasetId);
-    await page.goto('/');
+    await page.goto('/#/lab');
     await page.getByRole('button', { name: '+ New', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'New city instance' })).toBeVisible();
     await holdsAtEverySize(page, page.getByRole('main'));
@@ -573,7 +573,7 @@ test.describe('Lab', () => {
   }) => {
     const context = await browser.newContext({ reducedMotion: 'reduce', baseURL });
     const page = await context.newPage();
-    await page.goto('/');
+    await page.goto('/#/lab');
     await expect(page.getByText('Dynamic pricing · Lab')).toBeVisible();
 
     const noTime = async () => {

@@ -269,3 +269,29 @@ describe('the in-memory comparison', () => {
     expect(set.pairDifferences.pairs[0]?.priceDifference.value).toBe(1);
   });
 });
+
+describe('fakePricing showcase', () => {
+  const showcase = {
+    pricingVersionId: 'geneva-3km.v1.B',
+    periodId: 'monday-08',
+    instanceVersionId: 'geneva-3km.v1',
+    instanceVersionName: 'Geneva 3 km',
+    letter: 'B',
+    markedAt: '2026-11-27T10:00:00Z',
+  };
+
+  it('has no showcase by default', async () => {
+    await expect(fakePricing().gateway.getShowcase()).resolves.toBeNull();
+  });
+
+  it('answers the showcase it was given', async () => {
+    const { gateway } = fakePricing([], {}, { showcase });
+    await expect(gateway.getShowcase()).resolves.toEqual(showcase);
+  });
+
+  it('rejects with the error it was given', async () => {
+    const failure = new Error('down');
+    const { gateway } = fakePricing([], {}, { showcase: failure });
+    await expect(gateway.getShowcase()).rejects.toBe(failure);
+  });
+});

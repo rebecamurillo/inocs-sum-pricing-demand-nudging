@@ -39,7 +39,7 @@ test.describe('Lab', () => {
   }) => {
     const datasetId = await control.insertCityDataset();
     await awaitPackageDefaults(request, datasetId);
-    await page.goto('/');
+    await page.goto('/#/lab');
 
     await page.getByRole('button', { name: '+ New city instance' }).click();
     await expect(page.getByRole('heading', { name: 'New city instance' })).toBeVisible();

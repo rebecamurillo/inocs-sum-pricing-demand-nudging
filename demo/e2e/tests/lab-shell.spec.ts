@@ -9,14 +9,14 @@ function present<T>(value: T | null): T {
 }
 
 test.describe('Lab', () => {
-  test('Lab · the shell opens on #/lab with its menu, footer and no Home link', async ({
+  test('Lab · the shell opens on #/lab with its menu, footer and ← Home', async ({
     page,
     baseURL,
   }) => {
     const requested: string[] = [];
     page.on('request', (request) => requested.push(request.url()));
 
-    await page.goto('/');
+    await page.goto('/#/lab');
 
     await expect(page).toHaveURL(/#\/lab$/);
     await expect(page.getByText('Dynamic pricing · Lab')).toBeVisible();
@@ -37,10 +37,11 @@ test.describe('Lab', () => {
     await expect(page.getByRole('contentinfo')).toContainText(
       'Pricing model: placeholder, Inria INOCS.',
     );
-    for (const absent of ['← Home', 'Next version', 'Simulation', 'Run unmodified']) {
+    for (const absent of ['Next version', 'Simulation', 'Run unmodified']) {
       await expect(page.getByText(absent)).toHaveCount(0);
     }
-    await expect(page.getByRole('link')).toHaveCount(0);
+    await expect(page.getByRole('link')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: '← Home' })).toHaveAttribute('href', '#/');
     // The menu's "+ New" and the card's primary, which a Lab without city data disables.
     await expect(page.getByRole('button', { name: '+ New', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '+ New city instance' })).toBeDisabled();
@@ -56,8 +57,8 @@ test.describe('Lab', () => {
     for (const url of requested) expect(new URL(url).origin).toBe(origin);
   });
 
-  test('Lab · a hash that is not a Lab route is replaced by #/lab', async ({ page }) => {
-    await page.goto('/#/play');
+  test('Lab · a malformed Lab link is replaced by #/lab', async ({ page }) => {
+    await page.goto('/#/lab/geneva-3km');
 
     await expect(page).toHaveURL(/#\/lab$/);
     await expect(page.getByText(emptyLabSentence)).toBeVisible();
@@ -76,7 +77,7 @@ test.describe('Lab', () => {
   });
 
   test('Lab · menu, map, share, Advanced view and Aa survive a reload', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#/lab');
     await page.getByRole('button', { name: 'Hide the menu' }).click();
     await page.getByRole('button', { name: 'Hide map' }).click();
     await page.getByRole('button', { name: 'Larger text for a projector' }).click();
@@ -105,7 +106,7 @@ test.describe('Lab', () => {
   });
 
   test('Lab · dragging the grip changes the map share, clamped at 80 %', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#/lab');
     const grip = page.getByRole('separator');
     await expect(grip).toHaveAttribute('aria-valuenow', '50');
 

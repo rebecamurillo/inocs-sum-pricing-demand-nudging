@@ -35,6 +35,7 @@ import {
   type PricingGoals,
   type PricingVersion,
 } from '../../domain/pricing-version';
+import type { Showcase } from '../../domain/showcase';
 import type { components } from './generated/schema';
 
 type Schemas = components['schemas'];
@@ -372,6 +373,22 @@ export class HttpPricingGateway implements PricingGateway {
     if (answer.status === 404) return null;
     if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
     return toVersion(answer.body as Schemas['PricingVersionResource']);
+  }
+
+  async getShowcase(): Promise<Showcase | null> {
+    const path = `${apiRoot}/showcase`;
+    const answer = await this.call('GET', path, undefined);
+    if (answer.status === 404) return null;
+    if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
+    const wire = answer.body as Schemas['ShowcaseResponse'];
+    return {
+      pricingVersionId: wire.pricing_version_id,
+      periodId: wire.period_id,
+      instanceVersionId: wire.instance_version_id,
+      instanceVersionName: wire.instance_version_name,
+      letter: wire.letter,
+      markedAt: wire.marked_at,
+    };
   }
 
   async result(id: string): Promise<PricingResult | null> {

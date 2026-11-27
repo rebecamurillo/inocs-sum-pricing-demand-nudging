@@ -700,4 +700,44 @@ describe('HttpPricingGateway', () => {
       ).rejects.toMatchObject({ code: 'no_result' });
     });
   });
+
+  describe('getShowcase', () => {
+    it('reads /showcase and maps the marked version', async () => {
+      const fetchImpl = answering(200, {
+        pricing_version_id: 'x.v1.B',
+        period_id: 'monday-08',
+        instance_version_id: 'x.v1',
+        instance_version_name: 'X',
+        letter: 'B',
+        marked_at: '2026-11-27T10:00:00Z',
+        headline: {},
+      });
+
+      const found = await new HttpPricingGateway(fetchImpl).getShowcase();
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/showcase');
+      expect(found).toEqual({
+        pricingVersionId: 'x.v1.B',
+        periodId: 'monday-08',
+        instanceVersionId: 'x.v1',
+        instanceVersionName: 'X',
+        letter: 'B',
+        markedAt: '2026-11-27T10:00:00Z',
+      });
+    });
+
+    it('answers null for a 404, whichever code', async () => {
+      for (const code of ['no_showcase', 'no_result']) {
+        const none = answering(404, { code, title: 'None', detail: 'x' });
+        expect(await new HttpPricingGateway(none).getShowcase()).toBeNull();
+      }
+    });
+
+    it('throws for another status', async () => {
+      const broken = answering(500, { code: 'boom', title: 'Boom', detail: 'It broke.' });
+      await expect(new HttpPricingGateway(broken).getShowcase()).rejects.toMatchObject({
+        code: 'boom',
+      });
+    });
+  });
 });
