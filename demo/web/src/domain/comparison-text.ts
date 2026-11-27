@@ -147,7 +147,8 @@ export function identicalInsightTitle(comparison: Comparison, x: string, y: stri
       .find((group) => group.name === 'simulated')
       ?.rows.find((item) => item.key === 'share_car');
     const change = row?.changes[letter] ?? null;
-    return change === null ? null : Math.round(change.value);
+    // Rounded as the table's change cell rounds it, so the title and the cell read the same points.
+    return change === null ? null : toChangeUnits(change.value, 0);
   };
   const price = (letter: string): string => formatAmount(flatOf(letter) ?? 0, 2);
   const head = `Versions ${x} and ${y} have the same prices; against a flat price of ${price(y)} instead of ${price(x)}`;

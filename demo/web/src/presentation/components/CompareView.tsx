@@ -4,6 +4,7 @@ import {
   initialLetters,
   olderRuleOf,
   packageCommits,
+  topPairDifferences,
   type ComparedVersion,
   type Comparison,
   type ComparisonColumn,
@@ -206,7 +207,8 @@ function CompareCard({
 }: CardProps) {
   const hubLabels = useMemo(() => new Map(hubs.map((hub) => [hub.id, hub.label])), [hubs]);
   const shown = useMemo(() => {
-    const found = comparison.pairDifferences.pairs.find(
+    // Only a pair the table lists: no line stays on the map without its "Show on map" button.
+    const found = topPairDifferences(comparison).find(
       (item) => `${item.originHub}>${item.destinationHub}` === shownPair,
     );
     return found === undefined
