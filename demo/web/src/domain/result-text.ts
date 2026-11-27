@@ -132,6 +132,11 @@ const toUnits = (value: number, digits: number): number => roundHalfAway(value *
 const amount = (value: number, digits: number): string =>
   formatUnits(toUnits(value, digits), digits);
 
+/** A number rounded half away from zero to `digits` decimals, grouped, with U+2212 for a minus. */
+export const formatAmount = amount;
+/** A value in whole units of 10^-digits, as `formatChange` takes it. */
+export const toChangeUnits = toUnits;
+
 export interface TileModelLine {
   readonly before: string;
   /** The blue tag follows `before` when the number before it is the pricing model's own. */

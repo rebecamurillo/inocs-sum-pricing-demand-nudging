@@ -1,5 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { compareVersions } from '../../application/use-cases/compare-versions';
 import {
   deletePricingVersion,
   discardPricingDraft,
@@ -18,6 +19,11 @@ import { ACTIVE_RUNS_KEY, useActiveRuns } from './useRuns';
 export const pricingListKey = (instanceVersionId: string | null) =>
   ['pricing-list', instanceVersionId] as const;
 export const pricingResultKey = (id: string | null) => ['pricing-result', id] as const;
+export const comparisonKey = (
+  instanceVersionId: string | null,
+  letters: readonly string[],
+  period: string | null,
+) => ['comparison', instanceVersionId, letters.join(','), period] as const;
 export const pricingVersionKey = (id: string | null) => ['pricing-version', id] as const;
 
 /**
@@ -48,8 +54,28 @@ export function usePricingList(instanceVersionId: string | null) {
     void client.invalidateQueries({ queryKey: ['pricing-hub-pairs'] });
     void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
     void client.invalidateQueries({ queryKey: ['pricing-simulations'] });
+    void client.invalidateQueries({ queryKey: ['comparison'] });
   }, [signature, client]);
   return query;
+}
+
+/**
+ * The comparison of the versions `letters` of an instance version. A re-read keeps the previous
+ * comparison as placeholder data so that L-4 stays under its skeleton; `letters` empty reads nothing.
+ */
+export function useComparison(
+  instanceVersionId: string | null,
+  letters: readonly string[],
+  period: string | null,
+) {
+  const { pricing } = useGateways();
+  return useQuery({
+    queryKey: comparisonKey(instanceVersionId, letters, period),
+    queryFn: () => compareVersions({ pricing }, instanceVersionId ?? '', letters, period),
+    enabled: instanceVersionId !== null && letters.length > 0,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
 }
 
 /** One pricing version; data is null when the API has none by this id. */
@@ -137,6 +163,7 @@ export function useSimulationEnd(id: string, simulationRunId: string | null) {
     watched.current = null;
     void client.invalidateQueries({ queryKey: pricingResultKey(id) });
     void client.invalidateQueries({ queryKey: pricingSimulationsKey(id) });
+    void client.invalidateQueries({ queryKey: ['comparison'] });
   }, [simulationRunId, runs, watches, client, id]);
   return {
     watch: (runId: string) => {
@@ -163,6 +190,7 @@ export function usePricingRunSync(run: Run | null) {
     void client.invalidateQueries({ queryKey: ['pricing-hub-pairs'] });
     void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
     void client.invalidateQueries({ queryKey: ['pricing-simulations'] });
+    void client.invalidateQueries({ queryKey: ['comparison'] });
     void client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
     void client.invalidateQueries({ queryKey: ACTIVE_RUNS_KEY });
   }, [signature, client]);
@@ -248,6 +276,7 @@ export function usePricingActions() {
       ]) {
         client.removeQueries({ queryKey: [prefix, version.id] });
       }
+      client.removeQueries({ queryKey: ['comparison'] });
       await Promise.all([
         refetchList(version.instanceVersionId),
         client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY }),

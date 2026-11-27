@@ -1,5 +1,6 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
+  COMPARE_VIEW,
   EMPTY_LAB_VIEW,
   RESULT_VIEW,
   GRIP_STEP,
@@ -8,6 +9,7 @@ import {
   clampMapShare,
 } from '../../domain/layout';
 import { NEW_INSTANCE_ACTION, NO_CITY_DATA } from '../../domain/draft-text';
+import { compareBreadcrumb } from '../../domain/comparison-text';
 import { breadcrumb, periodChip } from '../../domain/l1-text';
 import { pricingBreadcrumb, pricingVersionName } from '../../domain/pricing-goals-text';
 import { pricingVersionId, type PricingVersionState } from '../../domain/pricing-version';
@@ -28,6 +30,7 @@ import { MapPane } from '../map/MapPane';
 import { MapProvider } from '../map/MapContext';
 import { LoadingCard } from './LoadingCard';
 import { Footer } from './Footer';
+import { CompareView } from './CompareView';
 import { InstanceMenu } from './InstanceMenu';
 import { DraftForm } from './DraftForm';
 import { InstanceView, type OpenedDraft } from './InstanceView';
@@ -117,11 +120,13 @@ function NewInstanceAction({ onNew }: { onNew: () => void }) {
 }
 
 export function LabShell() {
-  const { route, navigate } = useHashRoute();
+  const { route, navigate, replace } = useHashRoute();
   const layout = useLayoutPreferences();
   const [choice, setChoice] = useState<MenuChoice>('instances');
   // The new-instance form before its `POST` is a state of `#/lab`; it ends with any other link.
   const [creating, setCreating] = useState(false);
+  // L-4's off state before there is a compare route: held for one instance version, as `creating` is.
+  const [compareFor, setCompareFor] = useState<string | null>(null);
   // The sentence a draft opens with when the instance already had it: (draft id, sentence).
   const [notice, setNotice] = useState<{ versionId: string; message: string } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -138,13 +143,19 @@ export function LabShell() {
   if (seenRoute !== route) {
     setSeenRoute(route);
     if (route.kind !== 'lab') setCreating(false);
+    setCompareFor(null);
   }
 
   const { menuOpen, mapShown, advancedView, largeText } = layout.preferences;
 
   // An instance link is a view only when the menu lists that version; every other link is unknown.
   const linkedRoute =
-    route.kind === 'instance' || route.kind === 'pricing' || route.kind === 'result' ? route : null;
+    route.kind === 'instance' ||
+    route.kind === 'pricing' ||
+    route.kind === 'result' ||
+    route.kind === 'compare'
+      ? route
+      : null;
   const linkedEntry =
     linkedRoute === null
       ? undefined
@@ -185,13 +196,17 @@ export function LabShell() {
     openVersion !== null &&
     linkedVersion?.state === 'ready' &&
     pricingOpen?.state === 'result';
-  const noMap = pricingRoute !== null && openVersion !== null && !resultMap;
+  const compareShown =
+    openVersion !== null && (route.kind === 'compare' || compareFor === openVersion.versionId);
+  const noMap = pricingRoute !== null && openVersion !== null && !resultMap && !compareShown;
   // L-3 keeps its own share of the work area, L-1 and the empty Lab theirs.
-  const shareKey = resultMap ? RESULT_VIEW : EMPTY_LAB_VIEW;
+  const shareKey = compareShown ? COMPARE_VIEW : resultMap ? RESULT_VIEW : EMPTY_LAB_VIEW;
   const mapShare = layout.mapShare(shareKey);
   const current: MenuChoice | null =
     openVersion !== null
-      ? null
+      ? compareShown
+        ? 'compare'
+        : null
       : unknownLink === null && !menuPending && !menuFailed
         ? choice
         : 'instances';
@@ -223,6 +238,7 @@ export function LabShell() {
 
   const openResult = (instanceId: string, number: number, letter: string) => {
     setCreating(false);
+    setCompareFor(null);
     navigate({
       kind: 'result',
       instance: { instanceId, version: number },
@@ -233,6 +249,8 @@ export function LabShell() {
 
   const openVersionRow = (instanceId: string, number: number) => {
     setCreating(false);
+    // L-4's off state ends here even when the link stays the same (no route change clears it).
+    setCompareFor(null);
     navigate({ kind: 'instance', instance: { instanceId, version: number }, period: null });
   };
 
@@ -248,6 +266,11 @@ export function LabShell() {
 
   const open = (next: MenuChoice) => {
     setCreating(false);
+    if (next === 'compare' && openVersion !== null) {
+      // With an instance version open, L-4 opens for it: its route, or the off state in place.
+      setCompareFor(openVersion.versionId);
+      return;
+    }
     setChoice(next);
     if (route.kind !== 'lab') navigate({ kind: 'lab', period: null });
   };
@@ -342,12 +365,17 @@ export function LabShell() {
                   <InstanceMenu
                     entries={entries}
                     open={openVersion}
-                    setupCurrent={openVersion !== null && route.kind === 'instance'}
-                    currentLetter={pricingRoute?.letter ?? null}
+                    setupCurrent={
+                      openVersion !== null && route.kind === 'instance' && !compareShown
+                    }
+                    currentLetter={compareShown ? null : (pricingRoute?.letter ?? null)}
                     queued={queuedPlaces}
                     simulating={simulatingIds}
                     onOpenVersion={openVersionRow}
-                    onNavigate={navigate}
+                    onNavigate={(next) => {
+                      setCompareFor(null);
+                      navigate(next);
+                    }}
                     onInstanceDeleted={() => {
                       setCreating(false);
                       navigate({ kind: 'lab', period: null });
@@ -409,15 +437,17 @@ export function LabShell() {
             )}
             <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
               {linkedEntry !== undefined && linkedVersion !== undefined && openVersion !== null
-                ? pricingRoute === null
-                  ? breadcrumb(linkedEntry.name, linkedVersion.number)
-                  : pricingBreadcrumb(
-                      linkedEntry.name,
-                      linkedVersion.number,
-                      pricingOpen === undefined || pricingOpen === null
-                        ? `Version ${pricingRoute.letter}`
-                        : pricingVersionName(pricingOpen),
-                    )
+                ? compareShown
+                  ? compareBreadcrumb(linkedEntry.name, linkedVersion.number)
+                  : pricingRoute === null
+                    ? breadcrumb(linkedEntry.name, linkedVersion.number)
+                    : pricingBreadcrumb(
+                        linkedEntry.name,
+                        linkedVersion.number,
+                        pricingOpen === undefined || pricingOpen === null
+                          ? `Version ${pricingRoute.letter}`
+                          : pricingVersionName(pricingOpen),
+                      )
                 : choiceLabels[current ?? 'instances']}
             </nav>
             {firstPeriod !== undefined && (
@@ -450,7 +480,24 @@ export function LabShell() {
           <main className={styles.card}>
             {openVersion !== null ? (
               // Keyed by version: rows shown on the map and the open table go with the version.
-              pricingRoute !== null ? (
+              compareShown ? (
+                linkedVersion?.state !== 'ready' ? (
+                  <p className={styles.cardText}>{cardTexts.compare}</p>
+                ) : (
+                  <CompareView
+                    key={openVersion.versionId}
+                    instanceVersionId={openVersion.versionId}
+                    instanceId={openVersion.instanceId}
+                    number={linkedVersion.number}
+                    letters={route.kind === 'compare' ? route.letters : null}
+                    period={route.period}
+                    advancedView={advancedView}
+                    onAdvancedView={layout.setAdvancedView}
+                    onNavigate={navigate}
+                    onReplace={replace}
+                  />
+                )
+              ) : pricingRoute !== null ? (
                 linkedVersion?.state !== 'ready' ? (
                   <p className={styles.cardText}>{PRICING_VERSIONS_OFF}</p>
                 ) : pricingRoute.kind === 'pricing' ? (
@@ -484,6 +531,9 @@ export function LabShell() {
                     letter={pricingRoute.letter}
                     advancedView={advancedView}
                     onNavigate={navigate}
+                    onCompareOff={() => {
+                      setCompareFor(openVersion.versionId);
+                    }}
                   />
                 ) : pricingOpen?.state === 'draft' ? (
                   <PricingGoalsForm

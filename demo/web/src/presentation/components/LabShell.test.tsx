@@ -1387,3 +1387,124 @@ describe('LabShell · pricing versions', () => {
     ).toBeDisabled();
   });
 });
+
+describe('LabShell · compare versions (L-4)', () => {
+  const finished = (letter: string) =>
+    sampleSealedPricing({ id: `geneva-3km.v1.${letter}`, letter, name: `Version ${letter}` });
+
+  function open(hash: string, versions = ['A', 'B', 'C'].map(finished), layout = DEFAULT_LAYOUT) {
+    window.location.hash = hash;
+    return renderShell(
+      layout,
+      fakeCityInstances(),
+      [],
+      fakeRunGateway(),
+      fakePricingGateway(versions),
+    );
+  }
+
+  it('shows L-4 on its route with its breadcrumb, the period chip, 34 % for the map and the menu item current', async () => {
+    open('#/lab/geneva-3km.v1/compare/A,B');
+
+    expect(await screen.findByText('Versions of one city instance, side by side')).toBeVisible();
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent(
+      'Geneva 3 km v1 › Compare versions',
+    );
+    expect(screen.getByRole('button', { name: 'Compare versions' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(grip()).toHaveAttribute('aria-valuenow', '34');
+    expect(
+      screen.getByRole('list', { name: 'Versions to compare' }).querySelectorAll('button'),
+    ).toHaveLength(3);
+  });
+
+  it('replaces the hash in place when a version is unticked, and keeps the history length', async () => {
+    open('#/lab/geneva-3km.v1/compare/A,B,C');
+    const user = userEvent.setup();
+    const before = window.history.length;
+
+    await user.click(await screen.findByRole('button', { name: '✓ B · Version B' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1/compare/A,C');
+    });
+    expect(window.history.length).toBe(before);
+    expect(await screen.findByRole('button', { name: 'B · Version B' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    await waitFor(() => {
+      expect(screen.queryByRole('columnheader', { name: /Version B/ })).not.toBeInTheDocument();
+    });
+  });
+
+  it('writes the one spelling of letters out of order', async () => {
+    open('#/lab/geneva-3km.v1/compare/C,A');
+    await screen.findByText('Versions of one city instance, side by side');
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1/compare/A,C');
+    });
+  });
+
+  it('opens from the menu item with an instance version open, with every finished version ticked', async () => {
+    open('#/lab/geneva-3km.v1');
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: 'Edit as a new version' });
+
+    await user.click(screen.getByRole('button', { name: 'Compare versions' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1/compare/A,B,C');
+    });
+    expect(await screen.findByRole('button', { name: '✓ A · Version A' })).toBeVisible();
+  });
+
+  it('shows the off state in place when the instance version has fewer than two finished versions', async () => {
+    open('#/lab/geneva-3km.v1', [finished('A')]);
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: 'Edit as a new version' });
+
+    await user.click(screen.getByRole('button', { name: 'Compare versions' }));
+
+    expect(
+      await screen.findByText('Compare needs two pricing versions of this city instance.'),
+    ).toBeVisible();
+    expect(
+      within(screen.getByRole('main')).getByRole('button', { name: '+ New pricing version' }),
+    ).toBeVisible();
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+  });
+
+  it('opens from the primary of L-3, and shows the off state when only one version is finished', async () => {
+    open('#/lab/geneva-3km.v1/result/B');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Compare versions →' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1/compare/A,B,C');
+    });
+    cleanup();
+
+    open('#/lab/geneva-3km.v1/result/A', [finished('A')]);
+    await user.click(await screen.findByRole('button', { name: 'Compare versions →' }));
+    expect(
+      await screen.findByText('Compare needs two pricing versions of this city instance.'),
+    ).toBeVisible();
+  });
+
+  it('says there is nothing at the link for an unknown letter and for an unknown instance version', async () => {
+    open('#/lab/geneva-3km.v1/compare/A,Z');
+    expect(
+      await screen.findByText(
+        'Nothing at this link: Geneva 3 km v1 has no Version Z. It may have been deleted.',
+      ),
+    ).toBeVisible();
+    cleanup();
+
+    open('#/lab/geneva-3km.v9/compare/A,B');
+    expect(await screen.findByText(/Nothing at this link: .* has no v9\./)).toBeVisible();
+  });
+});

@@ -1,3 +1,9 @@
+import type {
+  Comparison,
+  ComparisonGroup,
+  ComparisonRow,
+  FlatReference,
+} from '../../domain/comparison';
 import {
   GOAL_NAMES,
   type GoalComparison,
@@ -385,6 +391,197 @@ export function sampleHubResults(): HubResult[] {
   ];
 }
 
+/** What a fake comparison varies per version id: the package commit and the rule of its simulations. */
+export interface FakeComparisonDetails {
+  /** The package commit of a version's solve; `aaaaaaa0000` for the others, null for none. */
+  readonly commits?: Readonly<Record<string, string | null>>;
+  /** Versions whose simulations used an older rule, with its version number. */
+  readonly olderRule?: Readonly<Record<string, number>>;
+}
+
+const sim = (value: number, unit: string): ResultNumber => n(value, 'simulation', unit);
+
+/**
+ * A comparison of finished versions in the shape of the API's: the figures follow the letter
+ * (A has the highest car share, each later letter 8 points less), flat columns are one per
+ * (flat price, fare, parking fee, cost of one ride, rule), `best` is the lowest or highest per row.
+ */
+export function fakeComparison(
+  versions: readonly PricingVersion[],
+  details: FakeComparisonDetails = {},
+): Comparison {
+  const sorted = [...versions].sort((a, b) => a.letter.localeCompare(b.letter));
+  const letters = sorted.map((version) => version.letter);
+  const older = (version: PricingVersion) => details.olderRule?.[version.id];
+  const referenceId = (version: PricingVersion) =>
+    [
+      version.goals.flat_price_per_ride_chf,
+      version.goals.pt_fare_chf,
+      version.goals.car_parking_fee_chf,
+      version.goals.cost_bike_chf,
+      older(version) ?? 'current',
+    ].join('|');
+  const referenceIds = [...new Set(sorted.map(referenceId))];
+  const flatReferences: FlatReference[] = referenceIds.map((id) => {
+    const served = sorted.filter((version) => referenceId(version) === id);
+    const [first] = served as [PricingVersion, ...PricingVersion[]];
+    return {
+      id,
+      letters: served.map((version) => version.letter),
+      flatPrice: first.goals.flat_price_per_ride_chf,
+      fare: first.goals.pt_fare_chf,
+      parkingFee: first.goals.car_parking_fee_chf,
+      costBike: first.goals.cost_bike_chf,
+      ruleCurrent: older(first) === undefined,
+      ruleVersion: older(first) ?? 2,
+    };
+  });
+  const at = (letter: string) => letter.charCodeAt(0) - 'A'.charCodeAt(0);
+  const best = (values: Record<string, number>, direction: 'lowest' | 'highest') => {
+    const list = Object.values(values);
+    const target = direction === 'lowest' ? Math.min(...list) : Math.max(...list);
+    return list.every((value) => value === target)
+      ? []
+      : Object.keys(values).filter((letter) => values[letter] === target);
+  };
+  /** The simulated rows: the unit, the flat value, the value of a letter and which end is best. */
+  const simulatedSpecs: readonly (readonly [
+    string,
+    string,
+    number,
+    (k: number) => number,
+    'lowest' | 'highest' | null,
+  ])[] = [
+    ['share_car', 'share', 0.55, (k) => 0.5 - 0.08 * k, 'lowest'],
+    ['share_pt_only', 'share', 0.3, () => 0.3, null],
+    ['share_pt_bike', 'share', 0.15, (k) => 0.2 + 0.08 * k, null],
+    ['ridership', 'travellers', 11000, (k) => 12000 + 500 * k, 'highest'],
+    ['profit', 'chf', 3900, (k) => 4000 + (k % 2 === 0 ? 100 : 300) * (k + 1), 'highest'],
+    ['mean_bike_price', 'chf_per_bike_leg', 1, (k) => 1 - 0.05 * k, null],
+    ['stations_empty_or_full', 'stations', 26, (k) => 22 - 2 * k, 'lowest'],
+    ['displaced', 'travellers', 45, (k) => 40 + k, null],
+  ];
+  const simulatedRows: ComparisonRow[] = simulatedSpecs.map(([key, unit, flat, own, direction]) => {
+    const shares = unit === 'share';
+    const values = Object.fromEntries(letters.map((letter) => [letter, own(at(letter))]));
+    return {
+      key,
+      values: Object.fromEntries(
+        Object.entries(values).map(([letter, value]) => [letter, sim(value, unit)]),
+      ),
+      changes: Object.fromEntries(
+        Object.entries(values).map(([letter, value]) => [
+          letter,
+          sim((value - flat) * (shares ? 100 : 1), shares ? 'share_points' : unit),
+        ]),
+      ),
+      flats: Object.fromEntries(referenceIds.map((id) => [id, sim(flat, unit)])),
+      best: direction === null ? [] : best(values, direction),
+    };
+  });
+  const model = (value: number, unit: string, group: ResultNumber['group'] = 'headline') =>
+    n(value, 'model', unit, group);
+  const modelRow = (key: string, make: (letter: string) => ResultNumber): ComparisonRow => {
+    const values = Object.fromEntries(letters.map((letter) => [letter, make(letter)]));
+    const numeric = Object.fromEntries(
+      Object.entries(values).map(([letter, item]) => [letter, item.value]),
+    );
+    return {
+      key,
+      values,
+      changes: {},
+      flats: {},
+      best: key === 'ridership' ? best(numeric, 'highest') : [],
+    };
+  };
+  const goalNumber = (version: PricingVersion, name: keyof PricingGoals): ResultNumber =>
+    n(version.goals[name], 'input', name.endsWith('_chf') ? 'chf' : 'none');
+  const goalRows: ComparisonRow[] = (
+    [
+      'cost_bike_chf',
+      'lowest_price_chf',
+      'ridership_weight',
+      'station_balance_weight',
+      'flat_price_per_ride_chf',
+    ] as const
+  )
+    .filter((name) => new Set(sorted.map((version) => version.goals[name])).size > 1)
+    .map((name) => ({
+      key: name,
+      values: Object.fromEntries(
+        sorted.map((version) => [version.letter, goalNumber(version, name)]),
+      ),
+      changes: {},
+      flats: {},
+      best: [],
+    }));
+  const plain = modelRow;
+  const groups: ComparisonGroup[] = [
+    { name: 'simulated', rows: simulatedRows },
+    {
+      name: 'model',
+      rows: [
+        plain('share_car', (letter) => model(0.45 - 0.05 * at(letter), 'share')),
+        plain('share_pt_only', () => model(0.3, 'share')),
+        plain('share_pt_bike', (letter) => model(0.25 + 0.05 * at(letter), 'share')),
+        plain('ridership', (letter) => model(12281 + 100 * at(letter), 'travellers')),
+        plain('bike_price_min', () => model(0.6, 'chf_per_bike_leg')),
+        plain('bike_price_max', (letter) => model(2.4 + 0.1 * at(letter), 'chf_per_bike_leg')),
+      ],
+    },
+    {
+      name: 'derived',
+      rows: [
+        plain('profit', (letter) => n(4175 + 10 * at(letter), 'derived', 'chf')),
+        plain('revenue', () => n(9000, 'derived', 'chf')),
+        plain('cost', () => n(4800, 'derived', 'chf')),
+        plain('mean_bike_price', () => n(1.1, 'derived', 'chf_per_bike_leg')),
+        plain('rides_under_cost', () => n(120, 'derived', 'bike_rides')),
+        plain('stations_empty_or_full', (letter) => n(20 - at(letter), 'derived', 'stations')),
+      ],
+    },
+    { name: 'goals_that_differ', rows: goalRows },
+    {
+      name: 'solver',
+      rows: [
+        plain('objective_value', () => model(5100, 'none', 'advanced')),
+        plain('solution_time_s', () => model(12.34, 'seconds', 'advanced')),
+        plain('gap_pct', () => model(0.5, 'percent', 'advanced')),
+        plain('solver_status', () => model(2, 'none', 'advanced')),
+        plain('hub_pairs_with_bike_option', () => model(60, 'hub_pairs', 'advanced')),
+        plain('bike_options_offered', () => model(240, 'options', 'advanced')),
+      ],
+    },
+  ];
+  return {
+    instanceVersion: { id: sorted[0]?.instanceVersionId ?? '', name: 'Geneva 3 km v1' },
+    period: { id: 'monday-0800', name: 'Monday 08:00–09:00' },
+    versions: sorted.map((version) => ({
+      id: version.id,
+      letter: version.letter,
+      name: version.name,
+      goals: Object.fromEntries(
+        PRICING_GOAL_NAMES.map((name) => [name, goalNumber(version, name)]),
+      ),
+      flatReference: referenceId(version),
+      packageCommit:
+        version.id in (details.commits ?? {})
+          ? (details.commits?.[version.id] ?? null)
+          : 'aaaaaaa0000',
+      packageFingerprint: 'fingerprint',
+      simulations: (['model_prices', 'flat'] as const).map((priceScheme) => ({
+        priceScheme,
+        ruleCurrent: older(version) === undefined,
+        ruleVersion: older(version) ?? 2,
+      })),
+      solveKey: `solve-${version.letter}`,
+    })),
+    flatReferences,
+    groups,
+    identicalSolves: [],
+  };
+}
+
 export interface FakePricing {
   readonly gateway: PricingGateway;
   /** The versions as stored, in creation order. */
@@ -408,6 +605,8 @@ export function fakePricing(
     readonly removeRefusals?: Readonly<Record<string, 'run_active' | 'is_showcase'>>;
     /** The reason the API gives for refusing every simulation run; none: they are queued. */
     readonly simulateRefusal?: string;
+    /** What the fake comparison varies per version id. */
+    readonly comparison?: FakeComparisonDetails;
   } = {},
 ): FakePricing {
   let stored = [...initial];
@@ -447,6 +646,19 @@ export function fakePricing(
       }
       const found = stored.find((version) => version.id === id);
       return Promise.resolve(found?.state === 'result' ? sampleStoredSimulations() : null);
+    },
+    compare: (ids) => {
+      const found = ids.map((id) => stored.find((version) => version.id === id));
+      const missing = ids.filter((_, at) => found[at] === undefined);
+      if (missing.length > 0) {
+        return Promise.reject(new Error(`No pricing version ${missing.join(', ')}.`));
+      }
+      return Promise.resolve(
+        fakeComparison(
+          found.filter((version): version is PricingVersion => version !== undefined),
+          details.comparison,
+        ),
+      );
     },
     create: (instanceVersionId, basedOn) => {
       const used = new Set(stored.map((version) => version.letter));

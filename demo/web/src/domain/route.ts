@@ -97,6 +97,15 @@ export function parseRoute(hash: string): ParsedRoute {
   return parsePath(segments, period);
 }
 
+/** The compare route with its letters in letter order, each once: the one spelling every link writes. */
+export function compareRoute(
+  instance: InstanceVersionRef,
+  letters: readonly string[],
+  period: string | null,
+): LabRoute {
+  return { kind: 'compare', instance, letters: [...new Set(letters)].sort(), period };
+}
+
 export function serialiseInstance(instance: InstanceVersionRef): string {
   return `${instance.instanceId}.v${String(instance.version)}`;
 }

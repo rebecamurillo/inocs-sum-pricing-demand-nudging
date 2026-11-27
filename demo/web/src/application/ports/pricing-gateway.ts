@@ -4,6 +4,7 @@ import type {
   PricingResult,
   StoredSimulation,
 } from '../../domain/pricing-result';
+import type { Comparison } from '../../domain/comparison';
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
 
 /** `refused`: the API did not queue the run (a rule is broken, a component is missing, a run is active). */
@@ -34,6 +35,8 @@ export interface PricingGateway {
   hubResults(id: string): Promise<HubResult[] | null>;
   /** Every stored simulation of the version, the current rule's and earlier ones; null without a version. */
   simulations(id: string): Promise<StoredSimulation[] | null>;
+  /** The comparison of two to four finished versions of one instance version, for one period (the API's default when null). */
+  compare(ids: readonly string[], period: string | null): Promise<Comparison>;
   /** Seals the draft and queues its pricing run. */
   run(id: string): Promise<PricingRunQueued>;
   /** Queues a simulation run (no solve) of the version's stored result with the current rule. */

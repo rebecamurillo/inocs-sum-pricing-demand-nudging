@@ -3,6 +3,7 @@ import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../s
 import { expect, test } from '../support/fixtures';
 import {
   createPricingVersion,
+  finishVersion,
   runPricingVersion,
   runToResult,
   waitForRun,
@@ -255,6 +256,85 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'));
     await advanced.click();
     await expect(page.getByRole('heading', { level: 2, name: 'Advanced view' })).toHaveCount(0);
+  });
+
+  // A sibling scenario for L-4: the first holds every other built view and already fills its
+  // time budget (the states are added to the same family, one scenario per screen).
+  test('Lab · every L-4 state holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control, 920);
+    const main = page.getByRole('main');
+
+    // The off state: one finished version only, the menu item opens it in place.
+    await finishVersion(request, version, 'Baseline');
+    await page.goto(`/#/lab/${version}`);
+    await page.reload();
+    await page.getByRole('button', { name: 'Compare versions', exact: true }).click();
+    await expect(
+      main.getByText('Compare needs two pricing versions of this city instance.'),
+    ).toBeVisible();
+    await holdsAtEverySize(page, main);
+
+    // Two versions.
+    await finishVersion(request, version, 'Heavier ridership', { ridership_weight: 20 });
+    await page.goto(`/#/lab/${version}/compare/A,B`);
+    await page.reload();
+    await expect(main.getByTestId('compare-table')).toBeVisible();
+    await expect(main.getByRole('heading', { level: 2 })).toHaveText(/^In the simulation, /);
+    await holdsAtEverySize(page, main);
+
+    // Three versions.
+    await finishVersion(request, version, 'Higher floor', { lowest_price_chf: 0.9 });
+    await page.goto(`/#/lab/${version}/compare/A,B,C`);
+    await page.reload();
+    await expect(main.getByTestId('compare-table').getByRole('columnheader')).toHaveCount(5);
+    await holdsAtEverySize(page, main);
+
+    // Advanced view on: the solver's rows join the table; the page still does not scroll.
+    const advanced = main.getByRole('switch', { name: 'Advanced view' });
+    await advanced.click();
+    await expect(main.getByText('= Objective value')).toBeVisible();
+    await holdsAtEverySize(page, main);
+    await advanced.click();
+    await expect(main.getByText('= Objective value')).toHaveCount(0);
+
+    // Four versions with two flat columns: the table scrolls sideways inside the card, the bars
+    // wrap, the page does not scroll.
+    await finishVersion(request, version, 'Dearer flat price', { flat_price_per_ride_chf: 1.5 });
+    await page.goto(`/#/lab/${version}/compare/A,B,C,D`);
+    await page.reload();
+    const table = main.getByTestId('compare-table');
+    await expect(table.getByRole('columnheader')).toHaveCount(7);
+    await expect(table.getByRole('columnheader').nth(1)).toHaveText(/^Flat price 1\.00 CHF · for /);
+    await holdsAtEverySize(page, main);
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    // Every size ends with Aa off: switch it on for the last check.
+    await page.getByRole('button', { name: 'Larger text for a projector' }).click();
+    const scrolled = await table.evaluate((element) => ({
+      scrollable: element.scrollWidth > element.clientWidth,
+      page: document.documentElement.scrollWidth <= window.innerWidth,
+    }));
+    expect(scrolled).toEqual({ scrollable: true, page: true });
+    // The row labels stay fixed while the table scrolls sideways.
+    const label = table.getByTestId('row-label-simulated-share_car');
+    const before = await label.boundingBox();
+    await table.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    const after = await label.boundingBox();
+    expect(after?.x).toBe(before?.x);
+    // The bars wrap into rows instead of leaving the card.
+    const tops = await main
+      .getByRole('list', { name: 'Simulated split of the travellers' })
+      .getByRole('img')
+      .evaluateAll(
+        (bars) => new Set(bars.map((bar) => Math.round(bar.getBoundingClientRect().top))).size,
+      );
+    expect(tops).toBeGreaterThan(1);
   });
 
   // A second scenario for the run states of L-2: the first holds every other built view and

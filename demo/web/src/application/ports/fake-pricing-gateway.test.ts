@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  fakeComparison,
   fakePricing,
   pricingRulesOf,
   samplePricingDraft,
@@ -178,5 +179,64 @@ describe('the in-memory pricing gateway', () => {
     ).gateway;
     const stored = (await supplied.simulations('geneva-3km.v1.A')) ?? [];
     expect(stored.filter((item) => !item.ruleCurrent)).toHaveLength(2);
+  });
+});
+
+describe('the in-memory comparison', () => {
+  const finished = ['A', 'B', 'C'].map((letter) =>
+    sampleSealedPricing({ id: `geneva-3km.v1.${letter}`, letter, name: `Version ${letter}` }),
+  );
+
+  it('has one flat column for versions that share a flat price, and marks the best value', () => {
+    const found = fakeComparison(finished);
+    expect(found.flatReferences).toHaveLength(1);
+    expect(found.flatReferences[0]?.letters).toEqual(['A', 'B', 'C']);
+    const car = found.groups[0]?.rows.find((row) => row.key === 'share_car');
+    expect(car?.best).toEqual(['C']);
+    expect(found.groups.map((group) => group.name)).toEqual([
+      'simulated',
+      'model',
+      'derived',
+      'goals_that_differ',
+      'solver',
+    ]);
+  });
+
+  it('adds a flat column per flat price and lists only the goals that differ', () => {
+    const found = fakeComparison([
+      ...finished.slice(0, 2),
+      sampleSealedPricing({
+        id: 'geneva-3km.v1.C',
+        letter: 'C',
+        name: 'Version C',
+        goals: { flat_price_per_ride_chf: 1.5 },
+      }),
+    ]);
+    expect(found.flatReferences.map((reference) => reference.letters)).toEqual([['A', 'B'], ['C']]);
+    expect(found.groups[3]?.rows.map((row) => row.key)).toEqual(['flat_price_per_ride_chf']);
+  });
+
+  it('carries a settable package commit and older rule per version', async () => {
+    const { gateway } = fakePricing(
+      finished,
+      {},
+      {
+        comparison: {
+          commits: { 'geneva-3km.v1.B': 'bbbbbbb1111' },
+          olderRule: { 'geneva-3km.v1.C': 1 },
+        },
+      },
+    );
+    const found = await gateway.compare(
+      finished.map((version) => version.id),
+      null,
+    );
+    expect(found.versions.map((version) => version.packageCommit)).toEqual([
+      'aaaaaaa0000',
+      'bbbbbbb1111',
+      'aaaaaaa0000',
+    ]);
+    expect(found.versions[2]?.simulations.every((item) => !item.ruleCurrent)).toBe(true);
+    expect(found.flatReferences.map((reference) => reference.ruleCurrent)).toEqual([true, false]);
   });
 });

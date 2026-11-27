@@ -158,6 +158,22 @@ export async function runToResult(
   return (await answer.json()) as PricingResultAnswer;
 }
 
+/** Starts a version with these goals and runs it to its result; returns its id and letter. */
+export async function finishVersion(
+  request: APIRequestContext,
+  instanceVersionId: string,
+  name: string,
+  goals: Record<string, number> = {},
+): Promise<CreatedPricingVersion> {
+  const created = await createPricingVersion(request, instanceVersionId, { name });
+  if (Object.keys(goals).length > 0) {
+    const changed = await request.patch(`/api/v1/pricing-versions/${created.id}`, { data: goals });
+    expect(changed.status()).toBe(200);
+  }
+  await runToResult(request, created.id);
+  return created;
+}
+
 /** The simulation of a scheme and its travellers per mode, `[car, pt_only, pt_bike]`. */
 export function simulationOf(result: PricingResultAnswer, scheme: 'model_prices' | 'flat') {
   const found = result.simulations.find((item) => item.price_scheme === scheme);

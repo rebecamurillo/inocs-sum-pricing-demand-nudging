@@ -34,10 +34,13 @@ function mount(
     status?: SystemStatus;
     runs?: readonly Run[];
     details?: Parameters<typeof fakePricing>[2];
+    /** Other versions stored with the open one. */
+    extra?: readonly ReturnType<typeof sampleSealedPricing>[];
+    onCompareOff?: () => void;
   } = {},
 ) {
   const fake = fakePricing(
-    [version],
+    [version, ...(options.extra ?? [])],
     { 'geneva-3km.v1.A': options.result ?? samplePricingResult() },
     options.details,
   );
@@ -68,6 +71,7 @@ function mount(
             letter="A"
             advancedView={options.advancedView ?? false}
             onNavigate={onNavigate}
+            onCompareOff={options.onCompareOff}
           />
         </MapProvider>
       </GatewaysProvider>
@@ -569,18 +573,51 @@ describe('PricingResultView', () => {
   });
 
   describe('actions', () => {
-    it('holds "Duplicate" (primary) and "Delete…" only, after the goals', async () => {
+    it('holds "Compare versions →" (primary), "Duplicate" and "Delete…", after the goals', async () => {
       mount();
-      const duplicate = await screen.findByRole('button', { name: 'Duplicate' });
+      const compare = await screen.findByRole('button', { name: 'Compare versions →' });
+      const duplicate = screen.getByRole('button', { name: 'Duplicate' });
       const remove = screen.getByRole('button', { name: 'Delete…' });
       const goals = screen.getByRole('heading', { name: 'The three goals of this version' });
 
-      const bar = duplicate.parentElement ?? document.body;
+      const bar = compare.parentElement ?? document.body;
+      expect(bar).toBe(duplicate.parentElement);
       expect(bar).toBe(remove.parentElement);
-      expect(within(bar).getAllByRole('button')).toHaveLength(2);
+      const buttons = within(bar).getAllByRole('button');
+      expect(buttons).toHaveLength(3);
+      expect(buttons[0]).toBe(compare);
+      expect(compare.className).toMatch(/primary/);
+      expect(duplicate.className).not.toMatch(/primary/);
       expect(
-        goals.compareDocumentPosition(duplicate) & Node.DOCUMENT_POSITION_FOLLOWING,
+        goals.compareDocumentPosition(compare) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
+    });
+
+    it('opens L-4 with the finished versions of the instance version, the open one included', async () => {
+      const { onNavigate } = mount({
+        extra: ['B', 'C', 'D', 'E'].map((letter) =>
+          sampleSealedPricing({ id: `geneva-3km.v1.${letter}`, letter, name: `Version ${letter}` }),
+        ),
+      });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Compare versions →' }));
+
+      expect(onNavigate).toHaveBeenCalledWith({
+        kind: 'compare',
+        instance: { instanceId: 'geneva-3km', version: 1 },
+        letters: ['A', 'B', 'C', 'D'],
+        period: null,
+      });
+    });
+
+    it('asks for the off state when fewer than two versions are finished', async () => {
+      const onCompareOff = vi.fn();
+      const { onNavigate } = mount({ onCompareOff });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Compare versions →' }));
+
+      expect(onCompareOff).toHaveBeenCalledOnce();
+      expect(onNavigate).not.toHaveBeenCalled();
     });
 
     it('creates a draft from the goals and opens its L-2', async () => {

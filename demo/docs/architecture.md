@@ -734,9 +734,21 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   `PricingGateway.simulate` (a simulation run, no solve); while that run is queued or running the
   box shows its line from `useActiveRuns`, the menu row `● simulating` (`pricingMenuState`), and
   the end is seen by `usePricingList`, which reads the result again. L-3's action bar holds
-  "Duplicate" and `PricingVersionDelete`, which wraps `DeleteConfirm` (its `refusalNote` maps
+  "Compare versions →" (primary), "Duplicate" (secondary) and `PricingVersionDelete`, which wraps `DeleteConfirm` (its `refusalNote` maps
   `run_active` and `is_showcase`) over `PricingGateway.remove`; the failed and cancelled cards of
   `PricingRunView` carry the same "Delete…".
+- Comparing versions (L-4). The route `#/lab/{instance version}/compare/{letters}` is a view,
+  `CompareView`, built from one `GET /comparisons` answer: `PricingGateway.compare` (the HTTP
+  adapter maps the generated `ComparisonResponse` to `domain/comparison.ts`; the fake builds the
+  same shape from its stored versions), the use case `compareVersions` (letters to ids) and
+  `useComparison` (TanStack Query, previous answer kept as placeholder data under the skeleton;
+  a finished "Simulate {x} again" invalidates it). Every wording, the insight title, the
+  flat-column headers and the table's groups, rows and cells are pure functions of
+  `domain/comparison-text.ts`; `compareRoute` writes the letters in letter order, and ticking a
+  pill rewrites the hash in place (`useHashRoute().replace`, no history entry). `LabShell` keeps
+  the off state (fewer than two finished versions) in state keyed by the instance version, as it
+  does for `creating`, and gives L-4 its own map share (`COMPARE_VIEW`, 34 %). The stacked bars
+  and their legend are shared with L-3 in `StackedBars.tsx`.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

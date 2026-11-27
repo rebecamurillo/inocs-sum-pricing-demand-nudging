@@ -523,4 +523,126 @@ describe('HttpPricingGateway', () => {
       });
     });
   });
+
+  describe('compare', () => {
+    const number = (value: number, unit: string, source = 'simulation') => ({
+      value,
+      unit,
+      source,
+      group: 'headline',
+    });
+    const comparison = {
+      instance_version: { id: 'geneva-3km.v1', name: 'Geneva 3 km v1' },
+      period: { id: 'monday-08', name: 'Monday 08:00–09:00' },
+      versions: [
+        {
+          id: 'geneva-3km.v1.A',
+          letter: 'A',
+          name: 'Cheap',
+          goals: { flat_price_per_ride_chf: number(1, 'chf', 'input') },
+          flat_reference: 'flat-1',
+          model_split: {},
+          package: { commit: 'abcdef0123456', fingerprint: 'fp' },
+          simulations: [
+            {
+              price_scheme: 'flat',
+              rule_current: false,
+              rule_id: 'r',
+              rule_parameters: {},
+              rule_version: 1,
+              simulation_key: 'k',
+            },
+          ],
+          solve_key: 'solve-a',
+        },
+      ],
+      flat_references: [
+        {
+          id: 'flat-1',
+          letters: ['A'],
+          cost_bike_chf: number(0.6, 'chf', 'input'),
+          rule_current: false,
+          rule_id: 'r',
+          rule_parameters: {},
+          rule_version: 1,
+          simulation_key: 'k',
+          values: {
+            flat_price_per_ride_chf: number(1, 'chf', 'input'),
+            pt_fare_chf: number(2, 'chf', 'input'),
+            car_parking_fee_chf: number(2.8, 'chf', 'input'),
+          },
+        },
+      ],
+      groups: [
+        {
+          name: 'simulated',
+          rows: [
+            {
+              key: 'share_car',
+              best: ['A'],
+              values: { A: number(0.4, 'share'), B: null },
+              changes: { A: number(-5, 'share_points') },
+              flats: { 'flat-1': number(0.45, 'share') },
+            },
+          ],
+        },
+      ],
+      hub_differences: [],
+      identical_solves: [['A', 'B']],
+      pair_differences: { pairs: [] },
+    };
+
+    it('reads the ids and the period and maps columns, groups and numbers', async () => {
+      const fetchImpl = answering(200, comparison);
+
+      const found = await new HttpPricingGateway(fetchImpl).compare(
+        ['geneva-3km.v1.A', 'geneva-3km.v1.B'],
+        'monday-08',
+      );
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+        '/api/v1/comparisons?pricing_versions=geneva-3km.v1.A,geneva-3km.v1.B&period=monday-08',
+      );
+      expect(found.instanceVersion.name).toBe('Geneva 3 km v1');
+      expect(found.versions[0]).toMatchObject({
+        letter: 'A',
+        flatReference: 'flat-1',
+        packageCommit: 'abcdef0123456',
+        simulations: [{ priceScheme: 'flat', ruleCurrent: false, ruleVersion: 1 }],
+      });
+      expect(found.flatReferences[0]).toEqual({
+        id: 'flat-1',
+        letters: ['A'],
+        flatPrice: 1,
+        fare: 2,
+        parkingFee: 2.8,
+        costBike: 0.6,
+        ruleCurrent: false,
+        ruleVersion: 1,
+      });
+      const row = found.groups[0]?.rows[0];
+      expect(row?.best).toEqual(['A']);
+      expect(row?.values.B).toBeNull();
+      expect(row?.values.A?.value).toBe(0.4);
+      expect(row?.changes.A?.unit).toBe('share_points');
+      expect(row?.flats['flat-1']?.value).toBe(0.45);
+      expect(found.identicalSolves).toEqual([['A', 'B']]);
+    });
+
+    it('leaves the period out when none is given and throws the API problem otherwise', async () => {
+      const fetchImpl = answering(200, comparison);
+      await new HttpPricingGateway(fetchImpl).compare(['x.v1.A', 'x.v1.B'], null);
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+        '/api/v1/comparisons?pricing_versions=x.v1.A,x.v1.B',
+      );
+      const broken = answering(409, {
+        code: 'no_result',
+        title: 'No result',
+        detail: 'A has none.',
+      });
+      await expect(
+        new HttpPricingGateway(broken).compare(['x.v1.A', 'x.v1.B'], null),
+      ).rejects.toMatchObject({ code: 'no_result' });
+    });
+  });
 });

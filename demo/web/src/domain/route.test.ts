@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRoute, serialiseRoute, type LabRoute } from './route';
+import { compareRoute, parseRoute, serialiseRoute, type LabRoute } from './route';
 
 const instance = { instanceId: 'geneva-3km', version: 2 };
 
@@ -59,5 +59,24 @@ describe('parseRoute and serialiseRoute', () => {
     '#/lab/traveller/geneva-3km.v1/B/x',
   ])('reads %j as unparsable', (hash) => {
     expect(parseRoute(hash)).toEqual({ kind: 'unparsable' });
+  });
+});
+
+describe('the compare route', () => {
+  it('writes its letters in letter order, each once, for two to four versions', () => {
+    for (const [given, written] of [
+      [['B', 'A'], '#/lab/geneva-3km.v2/compare/A,B'],
+      [['C', 'A', 'B'], '#/lab/geneva-3km.v2/compare/A,B,C'],
+      [['D', 'B', 'C', 'A'], '#/lab/geneva-3km.v2/compare/A,B,C,D'],
+      [['B', 'A', 'B'], '#/lab/geneva-3km.v2/compare/A,B'],
+    ] as const) {
+      expect(serialiseRoute(compareRoute(instance, given, null))).toBe(written);
+    }
+  });
+
+  it('keeps the period and parses back what it wrote', () => {
+    const route = compareRoute(instance, ['C', 'A'], 'monday');
+    expect(serialiseRoute(route)).toBe('#/lab/geneva-3km.v2/compare/A,C?period=monday');
+    expect(parseRoute(serialiseRoute(route))).toEqual(route);
   });
 });

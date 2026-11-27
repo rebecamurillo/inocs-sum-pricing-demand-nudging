@@ -4,6 +4,13 @@ import type {
   PricingGateway,
   PricingRunQueued,
 } from '../../application/ports/pricing-gateway';
+import type {
+  ComparedVersion,
+  Comparison,
+  ComparisonGroup,
+  ComparisonRow,
+  FlatReference,
+} from '../../domain/comparison';
 import {
   GOAL_NAMES,
   HEADLINE_NAMES,
@@ -91,6 +98,70 @@ function toSimulation(wire: Schemas['SimulationResultResource']): SimulationOutc
     displaced: wire.displaced.value,
     unserved: wire.unserved.value,
     createdAt: wire.created_at,
+  };
+}
+
+function numbers(
+  wire: Readonly<Record<string, Schemas['NumberResource'] | null>>,
+): Record<string, ResultNumber | null> {
+  return Object.fromEntries(Object.entries(wire).map(([key, item]) => [key, optional(item)]));
+}
+
+function toComparedVersion(wire: Schemas['ComparedVersionResource']): ComparedVersion {
+  return {
+    id: wire.id,
+    letter: wire.letter,
+    name: wire.name,
+    goals: Object.fromEntries(
+      Object.entries(wire.goals).map(([key, item]) => [key, toNumber(item)]),
+    ),
+    flatReference: wire.flat_reference,
+    packageCommit: wire.package.commit,
+    packageFingerprint: wire.package.fingerprint,
+    simulations: wire.simulations.map((item) => ({
+      priceScheme: item.price_scheme,
+      ruleCurrent: item.rule_current,
+      ruleVersion: item.rule_version,
+    })),
+    solveKey: wire.solve_key,
+  };
+}
+
+function toFlatReference(wire: Schemas['FlatReferenceResource']): FlatReference {
+  const value = (name: string): number => wire.values[name]?.value ?? 0;
+  return {
+    id: wire.id,
+    letters: wire.letters,
+    flatPrice: value('flat_price_per_ride_chf'),
+    fare: value('pt_fare_chf'),
+    parkingFee: value('car_parking_fee_chf'),
+    costBike: wire.cost_bike_chf.value,
+    ruleCurrent: wire.rule_current,
+    ruleVersion: wire.rule_version,
+  };
+}
+
+function toComparisonRow(wire: Schemas['ComparisonRowResource']): ComparisonRow {
+  return {
+    key: wire.key,
+    values: numbers(wire.values),
+    changes: numbers(wire.changes),
+    flats: numbers(wire.flats),
+    best: wire.best,
+  };
+}
+
+function toComparison(wire: Schemas['ComparisonResponse']): Comparison {
+  return {
+    instanceVersion: { id: wire.instance_version.id, name: wire.instance_version.name },
+    period: { id: wire.period.id, name: wire.period.name },
+    versions: wire.versions.map(toComparedVersion),
+    flatReferences: wire.flat_references.map(toFlatReference),
+    groups: wire.groups.map((group): ComparisonGroup => ({
+      name: group.name,
+      rows: group.rows.map(toComparisonRow),
+    })),
+    identicalSolves: wire.identical_solves,
   };
 }
 
@@ -294,6 +365,15 @@ export class HttpPricingGateway implements PricingGateway {
     if (answer.status === 404) return null;
     if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
     return (answer.body as Schemas['PricingVersionSimulationList']).items.map(toStoredSimulation);
+  }
+
+  async compare(ids: readonly string[], period: string | null): Promise<Comparison> {
+    const query = new URLSearchParams({ pricing_versions: ids.join(',') });
+    if (period !== null) query.set('period', period);
+    const path = `${apiRoot}/comparisons?${query.toString().replaceAll('%2C', ',')}`;
+    const answer = await this.call('GET', path, undefined);
+    if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
+    return toComparison(answer.body as Schemas['ComparisonResponse']);
   }
 
   async create(instanceVersionId: string, basedOn?: string): Promise<PricingVersion> {

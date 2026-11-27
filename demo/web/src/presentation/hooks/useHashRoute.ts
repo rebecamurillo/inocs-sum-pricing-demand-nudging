@@ -16,7 +16,12 @@ function readRoute(): LabRoute {
   return { kind: 'lab', period: null };
 }
 
-export function useHashRoute(): { route: LabRoute; navigate: (route: LabRoute) => void } {
+export function useHashRoute(): {
+  route: LabRoute;
+  navigate: (route: LabRoute) => void;
+  /** Rewrites the hash in place: no history entry, no reload. */
+  replace: (route: LabRoute) => void;
+} {
   const [route, setRoute] = useState<LabRoute>(readRoute);
 
   useEffect(() => {
@@ -33,5 +38,14 @@ export function useHashRoute(): { route: LabRoute; navigate: (route: LabRoute) =
     window.location.hash = serialiseRoute(next);
   }, []);
 
-  return { route, navigate };
+  const replace = useCallback((next: LabRoute) => {
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${window.location.search}${serialiseRoute(next)}`,
+    );
+    setRoute(readRoute());
+  }, []);
+
+  return { route, navigate, replace };
 }

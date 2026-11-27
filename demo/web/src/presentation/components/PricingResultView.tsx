@@ -3,15 +3,11 @@ import { HUB_PAIRS_LINK, hubPairCounts, type MapMeasure } from '../../domain/hub
 import { groupThousands, versionTag } from '../../domain/l1-text';
 import type { GeoPoint } from '../../domain/map';
 import { pricingVersionName } from '../../domain/pricing-goals-text';
-import {
-  MODES,
-  periodTravellers,
-  sumModes,
-  type ModeCounts,
-  type PricingResult,
-} from '../../domain/pricing-result';
+import { periodTravellers, sumModes, type PricingResult } from '../../domain/pricing-result';
+import { initialLetters } from '../../domain/comparison';
+import { COMPARE_VERSIONS } from '../../domain/comparison-text';
 import { pricingVersionId, type PricingVersion } from '../../domain/pricing-version';
-import { serialiseRoute, type LabRoute } from '../../domain/route';
+import { compareRoute, serialiseRoute, type LabRoute } from '../../domain/route';
 import {
   GOALS_TITLE,
   MODEL_SPLIT_TITLE,
@@ -27,10 +23,8 @@ import {
   flatBarLabel,
   goalTiles,
   insightTitle,
-  modeSummary,
   modelBarLabel,
   scopeLine,
-  segmentShare,
   versionBarLabel,
 } from '../../domain/result-text';
 import {
@@ -48,6 +42,7 @@ import { missingPricingVersionLabel, nothingAtThisLink } from '../../domain/unkn
 import { useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
 import {
   usePricingActions,
+  usePricingList,
   useHubPairResults,
   useHubResults,
   usePricingResult,
@@ -62,11 +57,9 @@ import { LoadingCard } from './LoadingCard';
 import { ResultAdvanced } from './ResultAdvanced';
 import { PricingVersionDelete } from './PricingVersionDelete';
 import { ResultMap } from './ResultMap';
+import { Legend, BarList, StackedBar } from './StackedBars';
 import { SourceTag } from './SourceTag';
 import styles from './PricingResultView.module.css';
-
-/** Segments narrower than this share of the scale carry no inner label (the legend still names them). */
-const MIN_LABELLED_SHARE = 8;
 
 interface PricingResultViewProps {
   readonly instanceVersionId: string;
@@ -75,60 +68,8 @@ interface PricingResultViewProps {
   readonly letter: string;
   readonly advancedView: boolean;
   readonly onNavigate: (route: LabRoute) => void;
-}
-
-/** One stacked bar on the scale `total`: three modes, each with its icon and share, never colour alone. */
-function StackedBar({
-  label,
-  counts,
-  total,
-}: {
-  readonly label: string;
-  readonly counts: ModeCounts;
-  readonly total: number;
-}) {
-  return (
-    <li>
-      <span className={styles.barLabel}>{label}</span>
-      <div className={styles.track} role="img" aria-label={`${label}: ${modeSummary(counts)}`}>
-        {MODES.map((mode) => {
-          const count = counts[mode.key];
-          const share = segmentShare(count, total);
-          return (
-            <span
-              key={mode.key}
-              className={styles.segment}
-              data-mode={mode.key}
-              style={{
-                width: `${String(total <= 0 ? 0 : (100 * count) / total)}%`,
-                background: mode.colour,
-              }}
-            >
-              {share >= MIN_LABELLED_SHARE && (
-                <span aria-hidden="true">
-                  {mode.icon} {String(share)} %
-                </span>
-              )}
-            </span>
-          );
-        })}
-      </div>
-    </li>
-  );
-}
-
-function Legend() {
-  return (
-    <ul className={styles.legend} aria-label="Modes">
-      {MODES.map((mode) => (
-        <li key={mode.key} className={styles.key}>
-          <span className={styles.swatch} style={{ background: mode.colour }} aria-hidden="true" />
-          <span aria-hidden="true">{mode.icon}</span>
-          <span>{mode.label}</span>
-        </li>
-      ))}
-    </ul>
-  );
+  /** "Compare versions →" with fewer than two finished versions: the shell shows L-4's off state. */
+  readonly onCompareOff?: () => void;
 }
 
 /**
@@ -248,9 +189,11 @@ function ResultCard({
   radiusM,
   advancedView,
   onNavigate,
+  onCompareOff,
 }: CardProps) {
   const id = pricingVersionId(version.instanceVersionId, version.letter);
   const pricing = usePricingActions();
+  const list = usePricingList(version.instanceVersionId);
   const hubPairs = useHubPairResults(id).data ?? null;
   const hubs = useHubResults(id).data ?? null;
   const stored = usePricingSimulations(advancedView ? id : null).data ?? null;
@@ -301,11 +244,7 @@ function ResultCard({
           </p>
         </div>
         <h2 className={styles.insight}>{insightTitle(version.letter, points)}</h2>
-        <ul
-          className={styles.bars}
-          aria-label="Simulated split of the travellers"
-          data-older-rule={older === null ? undefined : ''}
-        >
+        <BarList label="Simulated split of the travellers" stale={older !== null}>
           <StackedBar
             label={versionBarLabel(version.letter)}
             counts={modelPrices.travellers}
@@ -316,7 +255,7 @@ function ResultCard({
             counts={flat.travellers}
             total={total}
           />
-        </ul>
+        </BarList>
         <Legend />
         <p className={styles.caption}>
           {captionParts(modelPrices, flat).map((part, at) => {
@@ -350,13 +289,13 @@ function ResultCard({
         {result.modelSplit === null ? (
           <p className={styles.caption}>The pricing model's split is not stored.</p>
         ) : (
-          <ul className={styles.bars} aria-label="The pricing model's own split">
+          <BarList label="The pricing model's own split">
             <StackedBar
               label={modelBarLabel(version.letter)}
               counts={result.modelSplit}
               total={Math.max(total, sumModes(result.modelSplit))}
             />
-          </ul>
+          </BarList>
         )}
         <p className={styles.why}>{WHY_IT_DIFFERS}</p>
       </section>
@@ -419,6 +358,29 @@ function ResultCard({
         <button
           type="button"
           className={styles.primary}
+          disabled={list.data === undefined}
+          onClick={() => {
+            const finished = (list.data ?? [])
+              .filter((item) => item.state === 'result')
+              .map((item) => item.letter);
+            if (finished.length < 2) {
+              onCompareOff?.();
+              return;
+            }
+            onNavigate(
+              compareRoute(
+                { instanceId, version: number },
+                initialLetters(finished, version.letter),
+                null,
+              ),
+            );
+          }}
+        >
+          {COMPARE_VERSIONS}
+        </button>
+        <button
+          type="button"
+          className={styles.secondary}
           disabled={pricing.duplicate.isPending}
           onClick={() => {
             pricing.duplicate.mutate(version, {
