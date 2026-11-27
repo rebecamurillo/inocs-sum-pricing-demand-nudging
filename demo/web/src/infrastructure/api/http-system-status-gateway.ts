@@ -49,6 +49,10 @@ function toSystemStatus(response: SystemStatusResponse): SystemStatus {
     canBuildInstances: toVerdict(response.can_build_instances),
     canRunPricing: toVerdict(response.can_run_pricing),
     canSimulate: toVerdict(response.can_simulate),
+    simulationRule:
+      response.simulation_rule === null
+        ? null
+        : { id: response.simulation_rule.id, version: response.simulation_rule.version },
   };
 }
 

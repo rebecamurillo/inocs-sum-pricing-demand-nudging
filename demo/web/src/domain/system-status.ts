@@ -16,11 +16,18 @@ export interface Verdict {
   readonly reasons: readonly { readonly component: ComponentName; readonly reason: string }[];
 }
 
+/** The traveller simulation rule the Lab simulates with now; the API names none while no runner is alive. */
+export interface SimulationRuleRef {
+  readonly id: string;
+  readonly version: number;
+}
+
 export interface SystemStatus {
   readonly components: readonly ComponentStatus[];
   readonly canBuildInstances: Verdict;
   readonly canRunPricing: Verdict;
   readonly canSimulate: Verdict;
+  readonly simulationRule: SimulationRuleRef | null;
 }
 
 const labels: Readonly<Record<ComponentName, string>> = {

@@ -11,6 +11,10 @@ export type PricingRunQueued =
   | { readonly kind: 'queued'; readonly runId: string }
   | { readonly kind: 'refused'; readonly detail: string };
 
+/** What deleting a sealed version answered: it is gone, or why it stays (`409 run_active`, `409 is_showcase`). */
+export type PricingDeleted =
+  { readonly kind: 'deleted' } | { readonly kind: 'run_active' } | { readonly kind: 'is_showcase' };
+
 export interface PricingGateway {
   /** The pricing versions of an instance version, in letter order. */
   list(instanceVersionId: string): Promise<PricingVersion[]>;
@@ -32,4 +36,8 @@ export interface PricingGateway {
   simulations(id: string): Promise<StoredSimulation[] | null>;
   /** Seals the draft and queues its pricing run. */
   run(id: string): Promise<PricingRunQueued>;
+  /** Queues a simulation run (no solve) of the version's stored result with the current rule. */
+  simulate(id: string): Promise<PricingRunQueued>;
+  /** Deletes a version with its goals and result; `refused` kinds leave it in place. */
+  remove(id: string): Promise<PricingDeleted>;
 }

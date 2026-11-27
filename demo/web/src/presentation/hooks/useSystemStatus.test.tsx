@@ -16,6 +16,7 @@ const status: SystemStatus = {
   canBuildInstances: allowed,
   canRunPricing: allowed,
   canSimulate: allowed,
+  simulationRule: null,
 };
 
 afterEach(() => {

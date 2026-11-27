@@ -23,6 +23,11 @@ const wireStatus = {
     reasons: [{ component: 'solver', reason: 'Size-limited Gurobi licence.' }],
   },
   can_simulate: { allowed: true, reasons: [] },
+  simulation_rule: {
+    id: 'balanced-score',
+    version: 2,
+    parameters: { price_weight: 0.6, time_weight: 0.4 },
+  },
 };
 
 function gatewayAnswering(response: Response | Error) {
@@ -75,7 +80,14 @@ describe('HttpSystemStatusGateway', () => {
         reasons: [{ component: 'solver', reason: 'Size-limited Gurobi licence.' }],
       },
       canSimulate: { allowed: true, reasons: [] },
+      simulationRule: { id: 'balanced-score', version: 2 },
     });
+  });
+
+  it('reads no current rule while no runner is alive', async () => {
+    const { gateway } = gatewayAnswering(Response.json({ ...wireStatus, simulation_rule: null }));
+
+    expect((await gateway.load()).simulationRule).toBeNull();
   });
 
   it('turns a problem document into an error carrying its code, title and detail', async () => {

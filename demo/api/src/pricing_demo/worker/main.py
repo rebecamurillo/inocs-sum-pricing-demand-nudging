@@ -42,6 +42,7 @@ from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.ports.feed_shapes import FeedShapes
 from pricing_demo.application.ports.package_fingerprints import PackageFingerprintReader
 from pricing_demo.application.ports.pricing_solver import PricingSolver
+from pricing_demo.application.ports.step_executor import StepExecutor
 from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
@@ -87,6 +88,7 @@ from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparati
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe, FakeSettingsSource
 from pricing_demo.infrastructure.fakes.feed_shapes import FakeFeedShapes
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
+from pricing_demo.infrastructure.fakes.hold import HoldingStepExecutor
 from pricing_demo.infrastructure.fakes.package_fingerprints import FakePackageFingerprintReader
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
 from pricing_demo.infrastructure.fakes.simulation_rule import FakeSimulationRule
@@ -295,7 +297,13 @@ def register_pricing_steps(
         clock,
         version("pricing_demo"),
     )
-    registry.register(StepName.TRAVELLER_SIMULATION, simulation, simulation)
+    # The test hold of step 5b exists in the fake set only; the keeper stays the inner executor.
+    executor: StepExecutor = (
+        simulation
+        if fake_settings is None
+        else HoldingStepExecutor(simulation, fake_settings, waiter)
+    )
+    registry.register(StepName.TRAVELLER_SIMULATION, executor, simulation)
 
 
 def build_worker(settings: Settings) -> BuiltWorker:

@@ -9,6 +9,7 @@ const status: SystemStatus = {
   canBuildInstances: { allowed: true, reasons: [] },
   canRunPricing: { allowed: true, reasons: [] },
   canSimulate: { allowed: true, reasons: [] },
+  simulationRule: null,
 };
 
 describe('loadSystemStatus', () => {

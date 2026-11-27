@@ -1,11 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fakePricing, samplePricingDraft } from '../ports/fake-pricing-gateway';
 import {
+  fakePricing,
+  samplePricingDraft,
+  sampleSealedPricing,
+} from '../ports/fake-pricing-gateway';
+import {
+  deletePricingVersion,
   discardPricingDraft,
   duplicatePricingVersion,
   newPricingVersion,
   runPricingVersion,
   savePricingDraft,
+  simulatePricingVersion,
 } from './edit-pricing-draft';
 
 describe('editing a pricing draft', () => {
@@ -63,5 +69,23 @@ describe('editing a pricing draft', () => {
       ),
     ).rejects.toThrow('not saved');
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('queues a simulation run of a stored version through the gateway', async () => {
+    const { gateway, simulated } = fakePricing([sampleSealedPricing()]);
+
+    const answer = await simulatePricingVersion({ pricing: gateway }, 'geneva-3km.v1.A');
+
+    expect(answer.kind).toBe('queued');
+    expect(simulated()).toEqual(['geneva-3km.v1.A']);
+  });
+
+  it('deletes a version with a result through the gateway', async () => {
+    const { gateway, versions } = fakePricing([sampleSealedPricing()]);
+
+    expect(await deletePricingVersion({ pricing: gateway }, 'geneva-3km.v1.A')).toEqual({
+      kind: 'deleted',
+    });
+    expect(versions()).toEqual([]);
   });
 });

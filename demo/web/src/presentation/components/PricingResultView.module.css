@@ -224,3 +224,86 @@
   border: 0;
   cursor: pointer;
 }
+
+/* A result simulated with an older rule: the simulated bars and tiles are dimmed, nothing else. */
+[data-older-rule] {
+  opacity: 0.6;
+}
+
+.older {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--tint-2);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.olderText {
+  margin: 0;
+}
+
+.simulating {
+  margin: 0.5rem 0 0;
+}
+
+.mark {
+  display: inline-block;
+  color: var(--blue);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Under reduced motion only the mark stops: the clock keeps updating. */
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    animation: none;
+  }
+}
+
+.banner {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  background: #ffe9e4;
+  border-radius: 10px;
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.older .actions {
+  margin-bottom: 0;
+}
+
+.primary {
+  font: inherit;
+  padding: 0.25rem 0.875rem;
+  color: #ffffff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--blue-d);
+}
+
+.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.note {
+  color: var(--red-ink);
+}

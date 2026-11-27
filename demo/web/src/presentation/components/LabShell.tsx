@@ -208,6 +208,10 @@ export function LabShell() {
         : [],
     ),
   );
+  // A stored version whose result is simulated again: a simulation run, queued or running.
+  const simulatingIds = new Set(
+    activeRuns.filter((run) => run.kind === 'simulation').map((run) => run.subject.id),
+  );
   const openedView = useInstanceView(openVersion?.versionId ?? null).data ?? null;
   // Held here, not in the run line: the line is unmounted while the menu is closed.
   const openPricingId =
@@ -341,6 +345,7 @@ export function LabShell() {
                     setupCurrent={openVersion !== null && route.kind === 'instance'}
                     currentLetter={pricingRoute?.letter ?? null}
                     queued={queuedPlaces}
+                    simulating={simulatingIds}
                     onOpenVersion={openVersionRow}
                     onNavigate={navigate}
                     onInstanceDeleted={() => {

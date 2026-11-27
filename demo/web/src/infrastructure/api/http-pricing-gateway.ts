@@ -1,5 +1,9 @@
 import { ApiProblemError } from '../../application/errors';
-import type { PricingGateway, PricingRunQueued } from '../../application/ports/pricing-gateway';
+import type {
+  PricingDeleted,
+  PricingGateway,
+  PricingRunQueued,
+} from '../../application/ports/pricing-gateway';
 import {
   GOAL_NAMES,
   HEADLINE_NAMES,
@@ -318,7 +322,24 @@ export class HttpPricingGateway implements PricingGateway {
 
   async run(id: string): Promise<PricingRunQueued> {
     const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/runs`;
-    const answer = await this.call('POST', path, undefined);
+    return this.queued(await this.call('POST', path, undefined), path);
+  }
+
+  async simulate(id: string): Promise<PricingRunQueued> {
+    const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/simulations`;
+    return this.queued(await this.call('POST', path, undefined), path);
+  }
+
+  async remove(id: string): Promise<PricingDeleted> {
+    const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}`;
+    const answer = await this.call('DELETE', path, undefined);
+    if (answer.status === 204) return { kind: 'deleted' };
+    const code = answer.status === 409 ? problemOf(answer.body)?.code : undefined;
+    if (code === 'run_active' || code === 'is_showcase') return { kind: code };
+    throw unexpected(answer.status, answer.body, path);
+  }
+
+  private queued(answer: { status: number; body: unknown }, path: string): PricingRunQueued {
     if (answer.status === 202) {
       return { kind: 'queued', runId: (answer.body as Schemas['RunResource']).id };
     }

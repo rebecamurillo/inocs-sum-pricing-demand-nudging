@@ -3,6 +3,7 @@
 import { STORED_STAY } from './draft-text';
 import { formatDuration } from './run-text';
 import { groupThousands } from './l1-text';
+import { SIMULATING } from './older-rule-text';
 import { ordinal } from './ordinal';
 import {
   isDefaultName,
@@ -507,10 +508,14 @@ export function pricingPrimaryState(
 
 // ---- the menu -------------------------------------------------------------------------------
 
-/** The state a menu row shows; `queuedPlace` counts the running run as 1st. */
+/**
+ * The state a menu row shows; `queuedPlace` counts the running run as 1st. A version with a
+ * result whose simulation is queued or running again shows `● simulating`.
+ */
 export function pricingMenuState(
   state: PricingVersionState,
   queuedPlace: number | null = null,
+  simulating = false,
 ): string {
   switch (state) {
     case 'draft':
@@ -524,7 +529,7 @@ export function pricingMenuState(
     case 'cancelled':
       return 'cancelled';
     case 'result':
-      return '✓ result';
+      return simulating ? SIMULATING : '✓ result';
   }
 }
 

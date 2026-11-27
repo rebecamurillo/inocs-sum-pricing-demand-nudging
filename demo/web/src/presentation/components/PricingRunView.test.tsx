@@ -398,6 +398,28 @@ describe('PricingRunView failed', () => {
     );
   });
 
+  it('offers "Delete…" beside "Duplicate" and asks before deleting the failed version', async () => {
+    const user = userEvent.setup();
+    const { onNavigate } = mount({
+      version: versionC({ state: 'failed' }),
+      runs: [failedRun('killed', 'the process was stopped by the system (signal 9)')],
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+    expect(
+      screen.getByText(/^Delete Version C · .+\? This removes its goals and its result\./),
+    ).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Delete Version C' }));
+    await waitFor(() => {
+      expect(onNavigate).toHaveBeenCalledWith({
+        kind: 'instance',
+        instance: { instanceId: 'geneva-3km', version: 1 },
+        period: null,
+      });
+    });
+  });
+
   it('duplicates into a draft and opens its L-2', async () => {
     const user = userEvent.setup();
     const { onNavigate } = mount({
@@ -438,6 +460,7 @@ describe('PricingRunView cancelled', () => {
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Run again' })).toBeVisible();
     expect(screen.getByRole('button', { name: 'Duplicate' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Delete…' })).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Running…' })).not.toBeInTheDocument();
   });
 });

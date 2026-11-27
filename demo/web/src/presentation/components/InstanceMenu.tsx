@@ -26,6 +26,8 @@ interface InstanceMenuProps {
   readonly currentLetter?: string | null;
   /** The place in line of each queued run, by subject id: 2 is "2nd", the running run being 1st. */
   readonly queued?: ReadonlyMap<string, number>;
+  /** The ids of the pricing versions whose result is being simulated again (a queued or running simulation run). */
+  readonly simulating?: ReadonlySet<string>;
   readonly onOpenVersion: (instanceId: string, number: number) => void;
   /** Any link of the Lab: a pricing row opens its L-2 or L-3 route. */
   readonly onNavigate: (route: LabRoute) => void;
@@ -44,12 +46,14 @@ function PricingRows({
   instance,
   currentLetter,
   queued,
+  simulating,
   onNavigate,
   onKeyDown,
 }: {
   instance: { readonly id: string; readonly instanceId: string; readonly number: number };
   currentLetter: string | null;
   queued: ReadonlyMap<string, number> | undefined;
+  simulating: ReadonlySet<string> | undefined;
   onNavigate: (route: LabRoute) => void;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
 }) {
@@ -80,7 +84,11 @@ function PricingRows({
             <span>{pricingVersionName(version)}</span>{' '}
             {letter !== null && <span className={styles.tag}>{letter}</span>}{' '}
             <span className={styles.state} data-state={version.state}>
-              {pricingMenuState(version.state, queued?.get(version.id) ?? null)}
+              {pricingMenuState(
+                version.state,
+                queued?.get(version.id) ?? null,
+                simulating?.has(version.id) ?? false,
+              )}
             </span>
           </button>
         );
@@ -107,6 +115,7 @@ export function InstanceMenu({
   setupCurrent,
   currentLetter = null,
   queued,
+  simulating,
   onOpenVersion,
   onNavigate,
   onInstanceDeleted,
@@ -202,6 +211,7 @@ export function InstanceMenu({
                         instance={{ id: version.id, instanceId: entry.id, number: version.number }}
                         currentLetter={currentLetter}
                         queued={queued}
+                        simulating={simulating}
                         onNavigate={onNavigate}
                         onKeyDown={onKeyDown}
                       />

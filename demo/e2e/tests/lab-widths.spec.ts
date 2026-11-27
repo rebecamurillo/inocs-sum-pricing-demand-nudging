@@ -6,6 +6,7 @@ import {
   runPricingVersion,
   runToResult,
   waitForRun,
+  waitForSimulationRule,
 } from '../support/pricing';
 
 const viewports = [
@@ -307,6 +308,72 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
   });
 
+  // A sibling scenario for L-3 with the older rule: the first scenario's time budget is spent.
+  test('Lab · L-3 older rule, simulating and delete hold at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control);
+    const draft = await createPricingVersion(request, version);
+    await runToResult(request, draft.id);
+    await waitForSimulationRule(request, 1);
+    await control.setPricingModel({
+      simulation_rule: { version: 2, price_weight: 0.6, time_weight: 0.4 },
+      hold_at: 'traveller_simulation',
+    });
+    await waitForSimulationRule(request, 2);
+    await page.goto(`/#/lab/${version}/result/A`);
+    await page.reload();
+    const main = page.getByRole('main');
+    const box = page.getByTestId('older-rule');
+    await expect(box).toBeVisible();
+
+    // The older rule: the box above the simulation group and its action.
+    await holdsAtEverySize(page, main);
+
+    // The delete confirmation.
+    await main.getByRole('button', { name: 'Delete…' }).click();
+    await expect(main.getByRole('button', { name: 'Delete Version A' })).toBeVisible();
+    await holdsAtEverySize(page, main);
+    await main.getByRole('button', { name: 'Keep' }).click();
+
+    // The off state: the runner is reported as not running.
+    await page.route('**/api/v1/system-status', async (route) => {
+      const answer = (await (await route.fetch()).json()) as Record<string, unknown>;
+      await route.fulfill({
+        json: {
+          ...answer,
+          can_simulate: {
+            allowed: false,
+            reasons: [{ component: 'runner', reason: 'No worker has reported.' }],
+          },
+        },
+      });
+    });
+    await page.reload();
+    await expect(
+      box.getByText(/^Simulation is off: the runner is not running\./).first(),
+    ).toBeVisible();
+    await expect(box.getByRole('button', { name: 'Simulate again with v2' })).toBeDisabled();
+    await holdsAtEverySize(page, main);
+    await page.unroute('**/api/v1/system-status');
+    await page.reload();
+
+    // Simulating: the held simulation run.
+    await box.getByRole('button', { name: 'Simulate again with v2' }).click();
+    await expect(box.getByText(/Traveller simulation · running for \d+ s/)).toBeVisible({
+      timeout: 30_000,
+    });
+    await holdsAtEverySize(page, main, /^● Version A running · /);
+
+    // The held run ends before the scenario does: a reset right after a release would wipe the
+    // release before the worker saw it.
+    const [simulationRun] = await control.activeRunIds();
+    await control.releaseRun(simulationRun ?? '');
+    await waitForRun(request, simulationRun ?? '', 'succeeded');
+  });
+
   test('Lab · L-1 saved holds at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
@@ -387,6 +454,26 @@ test.describe('Lab', () => {
     await page.getByRole('switch', { name: 'Advanced view' }).click();
     await expect(page.getByRole('heading', { level: 2, name: 'Advanced view' })).toBeVisible();
     await noTime();
+    // L-3 simulating again: the mark stops pulsing, the elapsed clock still ticks.
+    await waitForSimulationRule(request, 1);
+    await control.setPricingModel({
+      simulation_rule: { version: 2, price_weight: 0.6, time_weight: 0.4 },
+      hold_at: 'traveller_simulation',
+    });
+    await waitForSimulationRule(request, 2);
+    await page.reload();
+    await page.getByRole('button', { name: 'Simulate again with v2' }).click();
+    const simulating = page.getByText(/Traveller simulation · running for \d+ s/);
+    await expect(simulating).toBeVisible({ timeout: 30_000 });
+    await noTime();
+    const seconds = async () =>
+      /running for (\d+) s/.exec((await simulating.textContent()) ?? '')?.[1];
+    const first = await seconds();
+    await expect.poll(seconds, { message: 'the simulation clock still ticks' }).not.toBe(first);
+    // Released here: a reset right after the teardown's release would wipe it unseen.
+    const [simulationRun] = await control.activeRunIds();
+    await control.releaseRun(simulationRun ?? '');
+    await waitForRun(request, simulationRun ?? '', 'succeeded');
     await context.close();
   });
 });

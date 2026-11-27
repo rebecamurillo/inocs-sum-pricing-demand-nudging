@@ -8,9 +8,11 @@ import {
   samplePricingResult,
   sampleSealedPricing,
 } from '../../application/ports/fake-pricing-gateway';
-import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
+import { fakeRunGateway, sampleStep } from '../../application/ports/fake-run-gateway';
 import type { Gateways } from '../../application/ports/gateways';
 import type { PricingResult } from '../../domain/pricing-result';
+import type { Run } from '../../domain/run';
+import type { SystemStatus, Verdict } from '../../domain/system-status';
 import type { LabRoute } from '../../domain/route';
 import { GatewaysProvider } from '../hooks/gateways';
 import { MapProvider } from '../map/MapContext';
@@ -29,19 +31,29 @@ function mount(
     result?: PricingResult;
     gateway?: Gateways['pricing'];
     advancedView?: boolean;
+    status?: SystemStatus;
+    runs?: readonly Run[];
+    details?: Parameters<typeof fakePricing>[2];
   } = {},
 ) {
-  const fake = fakePricing([version], {
-    'geneva-3km.v1.A': options.result ?? samplePricingResult(),
-  });
+  const fake = fakePricing(
+    [version],
+    { 'geneva-3km.v1.A': options.result ?? samplePricingResult() },
+    options.details,
+  );
   const onNavigate = vi.fn<(route: LabRoute) => void>();
   const gateways: Gateways = {
-    systemStatus: { load: () => Promise.reject(new Error('not called')) },
+    systemStatus: {
+      load: () =>
+        options.status === undefined
+          ? Promise.reject(new Error('not called'))
+          : Promise.resolve(options.status),
+    },
     layoutPreferences: { load: vi.fn(), save: vi.fn() },
     cityDatasets: { list: () => Promise.resolve([]) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances: fakeCityInstances({ menu: () => Promise.resolve(sampleMenu) }),
-    runs: fakeRunGateway(),
+    runs: fakeRunGateway(options.runs),
     pricing: options.gateway ?? fake.gateway,
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -63,6 +75,57 @@ function mount(
   );
   return { client, onNavigate, fake };
 }
+
+const allowed: Verdict = { allowed: true, reasons: [] };
+const status = (canSimulate: Verdict = allowed, version: number | null = 2): SystemStatus => ({
+  components: [],
+  canBuildInstances: allowed,
+  canRunPricing: allowed,
+  canSimulate,
+  simulationRule: version === null ? null : { id: 'balanced-score', version },
+});
+
+/** The result of Version A simulated with the placeholder rule v1 while the Lab now has v2. */
+const olderResult = (): PricingResult => {
+  const base = samplePricingResult();
+  const older = (outcome: PricingResult['simulations']['flat']) => ({
+    ...outcome,
+    ruleVersion: 1,
+    ruleCurrent: false,
+  });
+  return {
+    ...base,
+    simulations: {
+      modelPrices: older(base.simulations.modelPrices),
+      flat: older(base.simulations.flat),
+    },
+  };
+};
+
+const AT = new Date('2026-11-27T10:00:00Z');
+const simulationRun = (state: 'queued' | 'running', overrides: Partial<Run> = {}): Run => ({
+  id: 'run-sim-A',
+  kind: 'simulation',
+  subject: { type: 'pricing_version', id: 'geneva-3km.v1.A' },
+  state,
+  attempt: 1,
+  queuedAt: AT,
+  startedAt: state === 'running' ? AT : null,
+  finishedAt: null,
+  serverTime: new Date(AT.getTime() + 252_000),
+  queuePosition: state === 'queued' ? 1 : null,
+  runner: { alive: true, lastHeartbeatAt: AT },
+  steps: [
+    sampleStep({
+      step: 'traveller_simulation',
+      number: 6,
+      state: state === 'running' ? 'running' : 'pending',
+      startedAt: state === 'running' ? AT : null,
+    }),
+  ],
+  failure: null,
+  ...overrides,
+});
 
 const withUnserved = (unserved: number): PricingResult => {
   const base = samplePricingResult();
@@ -379,6 +442,210 @@ describe('PricingResultView', () => {
       const solver = (await screen.findByRole('heading', { name: 'Solver' })).closest('section');
       if (solver === null) throw new Error('No Solver group.');
       await within(solver).findByText(/^\d[\d ]* · 4$/);
+    });
+  });
+
+  describe('simulated with an older rule', () => {
+    it('says so above the simulation group, names both rules and dims the simulated figures only', async () => {
+      mount({ result: olderResult(), status: status() });
+
+      const box = await screen.findByTestId('older-rule');
+      expect(
+        within(box).getByText(
+          "Simulated with an older rule. These simulations used the placeholder rule v1; the Lab now simulates with v2. The pricing model's numbers do not change.",
+        ),
+      ).toBeVisible();
+      expect(within(box).getByRole('button', { name: 'Simulate again with v2' })).toBeEnabled();
+      const group = screen.getByTestId('simulation-group');
+      expect(box.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(
+        within(group).getByText(
+          'Simulated travellers · placeholder rule: half price, half travel time · older rule (v1)',
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getByRole('list', { name: 'Simulated split of the travellers' }),
+      ).toHaveAttribute('data-older-rule');
+      expect(screen.getByTestId('tile-profit').closest('ul')).toHaveAttribute('data-older-rule');
+      expect(screen.getByTestId('model-group').querySelector('[data-older-rule]')).toBeNull();
+    });
+
+    it('shows no box when the simulations used the current rule, or the current rule is not known', async () => {
+      mount({ status: status() });
+      await screen.findByTestId('simulation-group');
+      expect(screen.queryByTestId('older-rule')).toBeNull();
+      expect(
+        screen.getByRole('list', { name: 'Simulated split of the travellers' }),
+      ).not.toHaveAttribute('data-older-rule');
+    });
+
+    it('shows no box when the API names no current rule yet', async () => {
+      mount({ result: olderResult(), status: status(allowed, null) });
+      await screen.findByTestId('simulation-group');
+
+      expect(screen.queryByTestId('older-rule')).toBeNull();
+    });
+
+    it('queues a simulation run when the visitor chooses "Simulate again"', async () => {
+      const { fake } = mount({ result: olderResult(), status: status() });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Simulate again with v2' }));
+
+      await vi.waitFor(() => {
+        expect(fake.simulated()).toEqual(['geneva-3km.v1.A']);
+      });
+    });
+
+    it('shows the API reason when the simulation is refused', async () => {
+      mount({
+        result: olderResult(),
+        status: status(),
+        details: { simulateRefusal: 'A run of this version is queued or running.' },
+      });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Simulate again with v2' }));
+
+      expect(await screen.findByText('A run of this version is queued or running.')).toBeVisible();
+    });
+
+    it('replaces the action by the running line, keeps the old figures and counts the elapsed time', async () => {
+      mount({ result: olderResult(), status: status(), runs: [simulationRun('running')] });
+
+      const box = await screen.findByTestId('older-rule');
+      expect(
+        await within(box).findByText('Traveller simulation · running for 4 min 12 s'),
+      ).toBeVisible();
+      expect(within(box).queryByRole('button')).toBeNull();
+      expect(
+        screen.getByRole('img', { name: /^With Version A's prices: Car 30 000/ }),
+      ).toBeVisible();
+    });
+
+    it('says the simulation is queued, behind the run that goes first', async () => {
+      const ahead: Run = {
+        ...simulationRun('running'),
+        id: 'run-pricing-B',
+        kind: 'pricing',
+        subject: { type: 'pricing_version', id: 'geneva-3km.v1.B' },
+      };
+      mount({
+        result: olderResult(),
+        status: status(),
+        runs: [ahead, simulationRun('queued', { queuePosition: 1 })],
+      });
+
+      const box = await screen.findByTestId('older-rule');
+      expect(await within(box).findByText(/^Queued, 2nd in line:/)).toBeVisible();
+      expect(within(box).queryByRole('button')).toBeNull();
+    });
+
+    it('turns the action off with the reason when the runner is not running', async () => {
+      const off: Verdict = {
+        allowed: false,
+        reasons: [{ component: 'runner', reason: 'No worker reported.' }],
+      };
+      mount({ result: olderResult(), status: status(off) });
+
+      const box = await screen.findByTestId('older-rule');
+      expect(
+        await within(box).findByText(
+          'Simulation is off: the runner is not running. Stored results stay available.',
+        ),
+      ).toBeVisible();
+      expect(within(box).getByRole('button', { name: 'Simulate again with v2' })).toBeDisabled();
+      expect(
+        within(box).getAllByText(/^Simulation is off: the runner is not running\./),
+      ).toHaveLength(2);
+    });
+
+    it('keeps the last rule the status named when it names none any more', async () => {
+      const { client } = mount({ result: olderResult(), status: status() });
+      await screen.findByTestId('older-rule');
+
+      client.setQueryData(['system-status'], status(allowed, null));
+
+      expect(await screen.findByRole('button', { name: 'Simulate again with v2' })).toBeVisible();
+    });
+  });
+
+  describe('actions', () => {
+    it('holds "Duplicate" (primary) and "Delete…" only, after the goals', async () => {
+      mount();
+      const duplicate = await screen.findByRole('button', { name: 'Duplicate' });
+      const remove = screen.getByRole('button', { name: 'Delete…' });
+      const goals = screen.getByRole('heading', { name: 'The three goals of this version' });
+
+      const bar = duplicate.parentElement ?? document.body;
+      expect(bar).toBe(remove.parentElement);
+      expect(within(bar).getAllByRole('button')).toHaveLength(2);
+      expect(
+        goals.compareDocumentPosition(duplicate) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it('creates a draft from the goals and opens its L-2', async () => {
+      const { onNavigate, fake } = mount();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
+
+      await vi.waitFor(() => {
+        expect(onNavigate).toHaveBeenCalledWith({
+          kind: 'pricing',
+          instance: { instanceId: 'geneva-3km', version: 1 },
+          letter: 'B',
+          period: null,
+        });
+      });
+      expect(fake.versions().map((item) => item.basedOnId)).toContain('geneva-3km.v1.A');
+    });
+
+    it('asks before deleting, and "Keep" closes the question', async () => {
+      const { fake } = mount();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+      const group = screen.getByRole('group', { name: 'Delete' });
+      expect(
+        within(group).getByText(
+          'Delete Version A · Incentive? This removes its goals and its result. Other versions of Geneva 3 km v1 stay. This cannot be undone.',
+        ),
+      ).toBeVisible();
+      await userEvent.click(within(group).getByRole('button', { name: 'Keep' }));
+      expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
+      expect(fake.versions()).toHaveLength(1);
+    });
+
+    it("deletes on confirmation and opens the instance version's L-1", async () => {
+      const { onNavigate, fake } = mount();
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete…' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Delete Version A' }));
+
+      await vi.waitFor(() => {
+        expect(onNavigate).toHaveBeenCalledWith({
+          kind: 'instance',
+          instance: { instanceId: 'geneva-3km', version: 1 },
+          period: null,
+        });
+      });
+      expect(fake.versions()).toEqual([]);
+    });
+
+    it.each([
+      ['run_active', 'A run of this version is queued or running.'],
+      ['is_showcase', "Version A is the home page's result: choose another one first."],
+    ] as const)('shows the %s refusal as a note and stays', async (code, note) => {
+      const { onNavigate, fake } = mount({
+        details: { removeRefusals: { 'geneva-3km.v1.A': code } },
+      });
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Delete…' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Delete Version A' }));
+
+      expect(await screen.findByText(note)).toBeVisible();
+      expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
+      expect(onNavigate).not.toHaveBeenCalled();
+      expect(fake.versions()).toHaveLength(1);
     });
   });
 });

@@ -145,13 +145,24 @@ class ComponentAnswerRequest(BaseModel):
 PLAYED_STEPS = (*BUILD_STEPS, StepName.PRICING_MODEL)
 
 
-def _a_played_step[T: StepName | None](value: T) -> T:
-    """The fake pricing model fails and holds the four build steps and the pricing model step;
-    it plays neither for the traveller simulation, which runs in the worker's own domain code:
-    another step would be accepted and never acted on, so a test naming it would silently run
-    the happy path."""
+def _a_failable_step[T: StepName | None](value: T) -> T:
+    """The fake pricing model fails the four build steps and the pricing model step; it does
+    not fail the traveller simulation, which runs in the worker's own domain code: another
+    step would be accepted and never acted on, so a test naming it would silently run the
+    happy path."""
     if value is not None and value not in PLAYED_STEPS:
         raise ValueError(f"must be one of {', '.join(item.value for item in PLAYED_STEPS)}")
+    return value
+
+
+HOLDABLE_STEPS = (*PLAYED_STEPS, StepName.TRAVELLER_SIMULATION)
+
+
+def _a_holdable_step[T: StepName | None](value: T) -> T:
+    """A hold applies to the played steps and to the traveller simulation, whose executor the
+    worker wraps in fake mode only; the hold is the one thing a test may do to step 5b."""
+    if value is not None and value not in HOLDABLE_STEPS:
+        raise ValueError(f"must be one of {', '.join(item.value for item in HOLDABLE_STEPS)}")
     return value
 
 
@@ -159,7 +170,7 @@ class FailAt(BaseModel):
     step: StepName
     code: str
 
-    _step_is_one_the_fake_fails = field_validator("step")(_a_played_step)
+    _step_is_one_the_fake_fails = field_validator("step")(_a_failable_step)
 
     @field_validator("code")
     @classmethod
@@ -203,7 +214,7 @@ class PricingModelSettings(BaseModel):
     licence_kind: Literal["full", "limited"] | None = None
     simulation_rule: StagedSimulationRule | None = None
 
-    _hold_is_a_played_step = field_validator("hold_at")(_a_played_step)
+    _hold_is_a_holdable_step = field_validator("hold_at")(_a_holdable_step)
 
 
 class RunSubject(BaseModel):

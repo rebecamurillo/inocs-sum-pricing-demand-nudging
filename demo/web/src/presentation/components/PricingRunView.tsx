@@ -46,6 +46,7 @@ import {
 } from '../hooks/usePricingVersions';
 import { useActiveRuns, useNow, useRun, useRunActions } from '../hooks/useRuns';
 import { LoadingCard } from './LoadingCard';
+import { PricingVersionDelete } from './PricingVersionDelete';
 import styles from './BuildingView.module.css';
 import own from './PricingRunView.module.css';
 
@@ -60,6 +61,7 @@ interface PricingRunViewProps {
 
 interface CardProps extends Omit<PricingRunViewProps, 'letter'> {
   readonly version: PricingVersion;
+  readonly instanceName: string;
   readonly instanceLabel: string;
   readonly hubPairs: number | null;
 }
@@ -134,6 +136,7 @@ function Card({
   instanceVersionId,
   instanceId,
   number,
+  instanceName,
   instanceLabel,
   hubPairs,
   advancedView,
@@ -248,6 +251,13 @@ function Card({
         >
           {DUPLICATE}
         </button>
+        <PricingVersionDelete
+          version={version}
+          instanceName={instanceName}
+          instanceId={instanceId}
+          number={number}
+          onNavigate={onNavigate}
+        />
       </div>
     );
   } else if (run.state === 'cancelled') {
@@ -269,6 +279,13 @@ function Card({
         >
           {DUPLICATE}
         </button>
+        <PricingVersionDelete
+          version={version}
+          instanceName={instanceName}
+          instanceId={instanceId}
+          number={number}
+          onNavigate={onNavigate}
+        />
       </div>
     );
   } else if (confirming) {
@@ -418,6 +435,7 @@ export function PricingRunView(props: PricingRunViewProps) {
       key={query.data.id}
       {...props}
       version={query.data}
+      instanceName={instanceName}
       instanceLabel={label}
       hubPairs={view.data?.version.counts?.hubPairsWithRoutes ?? null}
     />

@@ -12,11 +12,14 @@ import {
   runToResult,
   simulationOf,
   travellersOf,
+  waitForRun,
+  waitForSimulationRule,
 } from '../support/pricing';
 
 // Its own distance, so no other scenario's build finds this one's routes already computed.
 const RESULT_DISTANCE_M = 930;
 const PAIRS_DISTANCE_M = 940;
+const OLDER_RULE_DISTANCE_M = 935;
 
 /** 72240 → "72 240": a plain space groups the thousands. */
 const grouped = (n: number) => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -366,5 +369,103 @@ test.describe('Result', () => {
 
     // No screen names a solver time limit.
     expect((await page.content()).toLowerCase()).not.toContain('time limit');
+  });
+
+  test("L-3 · a version simulated with an older rule names that rule; simulating it again adds the current rule's numbers without solving, with the solver unavailable", async ({
+    page,
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, OLDER_RULE_DISTANCE_M);
+    const draft = await createPricingVersion(request, built.version);
+    await runToResult(request, draft.id);
+    await waitForSimulationRule(request, 1);
+    const before = (await (await request.get(`/api/v1/pricing-versions/${draft.id}`)).json()) as {
+      run_id: string;
+    };
+
+    // A new rule version, the simulation held at its step, and no solver: a simulation reads the
+    // stored solve.
+    await control.setPricingModel({
+      simulation_rule: { version: 2, price_weight: 0.6, time_weight: 0.4 },
+      hold_at: 'traveller_simulation',
+    });
+    await control.makeUnavailable('solver', 'The Gurobi licence is not available.');
+    await waitForSimulationRule(request, 2);
+
+    await page.goto(`/#/lab/${built.version}/result/${draft.letter}`);
+    await page.reload();
+    const main = page.getByRole('main');
+    const menu = page.getByRole('complementary', { name: 'Menu' });
+    const box = page.getByTestId('older-rule');
+    await expect(
+      box.getByText(
+        "Simulated with an older rule. These simulations used the placeholder rule v1; the Lab now simulates with v2. The pricing model's numbers do not change.",
+      ),
+    ).toBeVisible();
+    const simulation = page.getByTestId('simulation-group');
+    await expect(
+      simulation.getByText(
+        'Simulated travellers · placeholder rule: half price, half travel time · older rule (v1)',
+      ),
+    ).toBeVisible();
+    const older = (await (
+      await request.get(`/api/v1/pricing-versions/${draft.id}/result`)
+    ).json()) as Parameters<typeof simulationOf>[0];
+    const olderCar = simulationOf(older, 'model_prices').car;
+    const barOf = (car: number) =>
+      simulation.getByRole('img', {
+        name: new RegExp(`^With Version A's prices: Car ${grouped(car)},`),
+      });
+    await expect(barOf(olderCar)).toBeVisible();
+
+    // Simulate again: the row and the box say so, the old figures stay.
+    await box.getByRole('button', { name: 'Simulate again with v2' }).click();
+    await expect(menu.getByRole('button', { name: /Version A .*● simulating$/ })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(box.getByText(/Traveller simulation · running for \d+ s/)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(box.getByRole('button')).toHaveCount(0);
+    await expect(barOf(olderCar)).toBeVisible();
+    await page.getByRole('switch', { name: 'Advanced view' }).click();
+    await expect(
+      main.getByText('Earlier simulations of this version', { exact: true }),
+    ).toBeVisible();
+
+    // The run ends: the figures are those of the result route (rule 2), the box goes.
+    const [simulationRun] = await control.activeRunIds();
+    expect(simulationRun).toBeDefined();
+    await control.releaseRun(simulationRun ?? '');
+    const ended = await waitForRun(request, simulationRun ?? '', 'succeeded');
+    expect(ended.kind).toBe('simulation');
+    expect(ended.steps.map((step) => step.step)).toEqual(['traveller_simulation']);
+    await expect(page.getByTestId('older-rule')).toHaveCount(0);
+    const current = (await (
+      await request.get(`/api/v1/pricing-versions/${draft.id}/result`)
+    ).json()) as Parameters<typeof simulationOf>[0];
+    expect(current.simulations.every((item) => item.rule_version === 2)).toBe(true);
+    await expect(barOf(simulationOf(current, 'model_prices').car)).toBeVisible();
+    await expect(simulation.getByText(/· older rule \(v/)).toHaveCount(0);
+    await expect(menu.getByRole('button', { name: /Version A .*✓ result$/ })).toBeVisible();
+    const after = (await (await request.get(`/api/v1/pricing-versions/${draft.id}`)).json()) as {
+      run_id: string;
+    };
+    expect(after.run_id).toBe(before.run_id);
+
+    // "Duplicate" opens the next draft's L-2; "Delete…" asks first and "Keep" closes it.
+    await main.getByRole('button', { name: 'Duplicate' }).click();
+    await expect(page).toHaveURL(new RegExp(`#/lab/${built.version}/pricing/B$`));
+    await page.goto(`/#/lab/${built.version}/result/${draft.letter}`);
+    await main.getByRole('button', { name: 'Delete…' }).click();
+    await expect(
+      main.getByText(
+        'Delete Version A · Version A? This removes its goals and its result. Other versions of Geneva 3 km v1 stay. This cannot be undone.',
+      ),
+    ).toBeVisible();
+    await main.getByRole('button', { name: 'Keep' }).click();
+    await expect(main.getByRole('button', { name: 'Delete Version A' })).toHaveCount(0);
+    expect((await request.get(`/api/v1/pricing-versions/${draft.id}`)).status()).toBe(200);
   });
 });

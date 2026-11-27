@@ -11,8 +11,10 @@ import {
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
 import {
+  fakePricing,
   fakePricingGateway,
   samplePricingDraft,
+  samplePricingResult,
   sampleSealedPricing,
 } from '../../application/ports/fake-pricing-gateway';
 import type { PricingGateway } from '../../application/ports/pricing-gateway';
@@ -39,6 +41,7 @@ const status: SystemStatus = {
   canBuildInstances: allowed,
   canRunPricing: allowed,
   canSimulate: allowed,
+  simulationRule: null,
 };
 
 function renderShell(
@@ -1008,6 +1011,74 @@ describe('LabShell · pricing versions', () => {
     const menu = screen.getByRole('complementary', { name: 'Menu' });
     expect(within(menu).getByRole('button', { name: '+ New pricing version' })).toBeVisible();
   });
+
+  it('shows a version with a result as simulating while a simulation run of it is queued or running', async () => {
+    const simulation = {
+      ...queuedBuild,
+      id: 'run-sim-A',
+      kind: 'simulation' as const,
+      state: 'running' as const,
+      queuePosition: null,
+      subject: { type: 'pricing_version' as const, id: 'geneva-3km.v1.A' },
+    };
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances(),
+      [],
+      fakeRunGateway([queuedBuild, simulation]),
+      fakePricingGateway(versions()),
+    );
+
+    expect(await screen.findByRole('button', { name: 'Version A ● simulating' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Balance first B ◷ queued · 2nd$/ })).toBeVisible();
+  });
+
+  it('reads the result again when the simulation run ends: the box goes and the row is a result again', async () => {
+    const older = samplePricingResult();
+    const outcome = (version: number, current: boolean) => ({
+      ...older.simulations.flat,
+      ruleVersion: version,
+      ruleCurrent: current,
+    });
+    const stale = {
+      ...older,
+      simulations: { modelPrices: outcome(1, false), flat: outcome(1, false) },
+    };
+    let fresh = false;
+    const stored = fakePricing(versions());
+    const pricing: PricingGateway = {
+      ...stored.gateway,
+      result: (id) => (fresh ? stored.gateway.result(id) : Promise.resolve(stale)),
+    };
+    const simulation = {
+      ...queuedBuild,
+      id: 'run-sim-A',
+      kind: 'simulation' as const,
+      state: 'running' as const,
+      queuePosition: null,
+      subject: { type: 'pricing_version' as const, id: 'geneva-3km.v1.A' },
+    };
+    const runs = fakeRunGateway([simulation]);
+    window.location.hash = '#/lab/geneva-3km.v1/result/A';
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances(), [], runs, pricing, {
+      ...status,
+      simulationRule: { id: 'balanced-score', version: 2 },
+    });
+    const box = await screen.findByTestId('older-rule');
+    expect(await within(box).findByText(/^Traveller simulation · running for/)).toBeVisible();
+
+    fresh = true;
+    runs.put({ ...simulation, state: 'succeeded' });
+
+    await waitFor(
+      () => {
+        expect(screen.queryByTestId('older-rule')).toBeNull();
+      },
+      { timeout: 6000 },
+    );
+    expect(screen.getByRole('button', { name: 'Version A ✓ result' })).toBeVisible();
+  }, 10000);
 
   it('opens a draft or a queued version at its L-2 route and a result at its result route', async () => {
     open('#/lab/geneva-3km.v1');

@@ -15,14 +15,17 @@ def test_each_build_step_can_be_failed_and_held(step: str) -> None:
 
 @pytest.mark.parametrize(
     "body",
-    [
-        {"fail_at": {"step": "traveller_simulation", "code": "stage_error"}},
-        {"hold_at": "traveller_simulation"},
-    ],
+    [{"fail_at": {"step": "traveller_simulation", "code": "stage_error"}}],
 )
-def test_a_step_the_fake_pricing_model_does_not_play_is_refused(body: dict[str, object]) -> None:
+def test_a_step_the_fake_pricing_model_does_not_fail_is_refused(body: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         PricingModelSettings.model_validate(body)
+
+
+def test_the_traveller_simulation_step_can_be_held() -> None:
+    settings = PricingModelSettings.model_validate({"hold_at": "traveller_simulation"})
+
+    assert settings.model_dump(mode="json")["hold_at"] == "traveller_simulation"
 
 
 def test_the_pricing_model_step_can_be_failed_and_held() -> None:

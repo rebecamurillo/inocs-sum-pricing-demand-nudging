@@ -90,6 +90,18 @@ export async function waitForSimulationRule(
     .toBe(version);
 }
 
+/** Marks a finished version and period as the home page's result (`PUT /showcase`). */
+export async function putShowcase(
+  request: APIRequestContext,
+  pricingVersionId: string,
+  periodId: string,
+): Promise<void> {
+  const marked = await request.put('/api/v1/showcase', {
+    data: { pricing_version_id: pricingVersionId, period_id: periodId },
+  });
+  expect(marked.status()).toBe(200);
+}
+
 /** One number of the result route: `{value, unit, source, group}`. */
 export interface ResultNumberAnswer {
   value: number;

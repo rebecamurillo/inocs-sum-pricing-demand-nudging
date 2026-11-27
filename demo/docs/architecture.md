@@ -703,6 +703,17 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   that no screen names a solver time limit. The block names the timetable operator and the
   bike-station source from the result's `provenance.timetable_operator` and
   `provenance.bike_stations_source_url`.
+- L-3 older rule, duplicate and delete. When a shown simulation has `ruleCurrent` false and the
+  current rule is known (`useCurrentSimulationRule`: the last rule `/system-status` named, kept
+  because the API names none while no runner is alive), `PricingResultView` shows the box of
+  `domain/older-rule-text.ts` above the simulation group, dims the simulated bars and tiles
+  (`data-older-rule`) and suffixes the source line. "Simulate again" calls
+  `PricingGateway.simulate` (a simulation run, no solve); while that run is queued or running the
+  box shows its line from `useActiveRuns`, the menu row `● simulating` (`pricingMenuState`), and
+  the end is seen by `usePricingList`, which reads the result again. L-3's action bar holds
+  "Duplicate" and `PricingVersionDelete`, which wraps `DeleteConfirm` (its `refusalNote` maps
+  `run_active` and `is_showcase`) over `PricingGateway.remove`; the failed and cancelled cards of
+  `PricingRunView` carry the same "Delete…".
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

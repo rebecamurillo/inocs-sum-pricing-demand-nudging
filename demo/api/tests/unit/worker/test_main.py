@@ -36,6 +36,7 @@ from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets
 from pricing_demo.infrastructure.fakes.city_preparation import FakeCityPreparation
 from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.fakes.graph_fingerprints import FakeGraphFingerprints
+from pricing_demo.infrastructure.fakes.hold import HoldingStepExecutor
 from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
 from pricing_demo.infrastructure.fakes.simulation_rule import FakeSimulationRule
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
@@ -341,11 +342,14 @@ def test_the_fake_set_registers_both_pricing_steps(tmp_path: Path) -> None:
     assert isinstance(model, PricingModelStepExecutor)
     assert isinstance(model._solver, FakePricingSolver)
     assert registry.keeper_for(StepName.PRICING_MODEL) is model
-    assert isinstance(simulation, TravellerSimulationStepExecutor)
+    # The fake set wraps the simulation in the test hold of step 5b; the keeper stays the inner one.
+    assert isinstance(simulation, HoldingStepExecutor)
+    keeper = registry.keeper_for(StepName.TRAVELLER_SIMULATION)
+    assert isinstance(keeper, TravellerSimulationStepExecutor)
+    assert simulation._inner is keeper
     # The rule is read from the fake settings at each call; the callable is not called here
     # because the settings are a database row.
-    assert isinstance(simulation._rule.__self__, FakeSimulationRule)  # type: ignore[attr-defined]
-    assert registry.keeper_for(StepName.TRAVELLER_SIMULATION) is simulation
+    assert isinstance(keeper._rule.__self__, FakeSimulationRule)  # type: ignore[attr-defined]
 
 
 def test_the_real_set_registers_the_package_solver_and_the_simulation_step(
@@ -610,6 +614,10 @@ def test_the_fake_worker_simulates_and_records_with_the_same_rule_source(tmp_pat
     built = build_worker(settings_for(tmp_path, adapters="fake"))
     built.engine.dispose()
 
-    simulation = built.worker._process._registry.executor_for(StepName.TRAVELLER_SIMULATION)
-    assert isinstance(simulation, TravellerSimulationStepExecutor)
-    assert isinstance(simulation._rule.__self__, FakeSimulationRule)  # type: ignore[attr-defined]
+    registry = built.worker._process._registry
+    simulation = registry.executor_for(StepName.TRAVELLER_SIMULATION)
+    assert isinstance(simulation, HoldingStepExecutor)
+    keeper = registry.keeper_for(StepName.TRAVELLER_SIMULATION)
+    assert isinstance(keeper, TravellerSimulationStepExecutor)
+    assert simulation._inner is keeper
+    assert isinstance(keeper._rule.__self__, FakeSimulationRule)  # type: ignore[attr-defined]

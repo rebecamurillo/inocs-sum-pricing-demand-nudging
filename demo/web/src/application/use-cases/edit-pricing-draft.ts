@@ -1,5 +1,5 @@
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
-import type { PricingGateway, PricingRunQueued } from '../ports/pricing-gateway';
+import type { PricingDeleted, PricingGateway, PricingRunQueued } from '../ports/pricing-gateway';
 
 interface Gateways {
   pricing: PricingGateway;
@@ -41,4 +41,17 @@ export async function runPricingVersion(
 ): Promise<PricingRunQueued> {
   await flushAutosave();
   return pricing.run(id);
+}
+
+/** "Simulate again with v{new}": a simulation run of the stored result; no pricing model run. */
+export function simulatePricingVersion(
+  { pricing }: Gateways,
+  id: string,
+): Promise<PricingRunQueued> {
+  return pricing.simulate(id);
+}
+
+/** "Delete Version {letter}": a version with a result, a failure or a cancellation. */
+export function deletePricingVersion({ pricing }: Gateways, id: string): Promise<PricingDeleted> {
+  return pricing.remove(id);
 }

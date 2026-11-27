@@ -23,6 +23,7 @@ const open: SystemStatus = {
   canBuildInstances: allowed,
   canRunPricing: allowed,
   canSimulate: allowed,
+  simulationRule: null,
 };
 const SAVED = { timeout: 3000 };
 
@@ -460,6 +461,7 @@ describe('PricingGoalsForm · the banner', () => {
     components: [{ name: component, state, reason: 'because' }],
     canBuildInstances: allowed,
     canSimulate: allowed,
+    simulationRule: null,
     canRunPricing: { allowed: false, reasons: [{ component, reason: 'because' }] },
   });
 

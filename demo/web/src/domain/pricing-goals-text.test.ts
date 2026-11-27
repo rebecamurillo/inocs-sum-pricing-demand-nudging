@@ -57,6 +57,7 @@ function status(
     canBuildInstances: allowed,
     canRunPricing: { allowed: reasons.length === 0, reasons },
     canSimulate: allowed,
+    simulationRule: null,
   };
 }
 
@@ -339,6 +340,13 @@ describe('menu rows', () => {
     expect(pricingMenuState('failed')).toBe('✕ failed');
     expect(pricingMenuState('cancelled')).toBe('cancelled');
     expect(pricingMenuState('result')).toBe('✓ result');
+  });
+
+  it('shows a version with a result that is simulated again as simulating, and no other state', () => {
+    expect(pricingMenuState('result', null, true)).toBe('● simulating');
+    expect(pricingMenuState('result', null, false)).toBe('✓ result');
+    expect(pricingMenuState('draft', null, true)).toBe('draft');
+    expect(pricingMenuState('running', null, true)).toBe('● running');
   });
 
   const version = (overrides: Partial<PricingVersion>): PricingVersion => ({

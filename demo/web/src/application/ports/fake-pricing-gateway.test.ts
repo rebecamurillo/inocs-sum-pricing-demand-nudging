@@ -86,6 +86,35 @@ describe('the in-memory pricing gateway', () => {
     expect(await gateway.get('x.v1.A')).toBeNull();
   });
 
+  it('queues a simulation run, or refuses it with a reason', async () => {
+    const queued = fakePricing([sampleSealedPricing()]);
+    expect(await queued.gateway.simulate('geneva-3km.v1.A')).toEqual({
+      kind: 'queued',
+      runId: 'run-simulation-A',
+    });
+    expect(queued.simulated()).toEqual(['geneva-3km.v1.A']);
+
+    const refused = fakePricing([sampleSealedPricing()], {}, { simulateRefusal: 'No runner.' });
+    expect(await refused.gateway.simulate('geneva-3km.v1.A')).toEqual({
+      kind: 'refused',
+      detail: 'No runner.',
+    });
+    expect(refused.simulated()).toEqual([]);
+  });
+
+  it('deletes a version, or answers the refusal it was given', async () => {
+    const { gateway, versions } = fakePricing(
+      [sampleSealedPricing(), sampleSealedPricing({ id: 'x.v1.B', letter: 'B' })],
+      {},
+      { removeRefusals: { 'x.v1.B': 'is_showcase' } },
+    );
+
+    expect(await gateway.remove('x.v1.B')).toEqual({ kind: 'is_showcase' });
+    expect(versions()).toHaveLength(2);
+    expect(await gateway.remove('geneva-3km.v1.A')).toEqual({ kind: 'deleted' });
+    expect(versions().map((version) => version.id)).toEqual(['x.v1.B']);
+  });
+
   it('answers a stored result for a finished version, none for the others, or what was supplied', async () => {
     const { gateway } = fakePricing([sampleSealedPricing(), samplePricingDraft()]);
     expect((await gateway.result('geneva-3km.v1.A'))?.pricingVersionId).toBe('geneva-3km.v1.A');

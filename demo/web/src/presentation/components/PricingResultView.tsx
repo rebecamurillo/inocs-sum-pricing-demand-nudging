@@ -33,18 +33,34 @@ import {
   segmentShare,
   versionBarLabel,
 } from '../../domain/result-text';
-import { missingPricingVersionLabel, nothingAtThisLink } from '../../domain/unknown-link';
-import { useInstanceView } from '../hooks/useCityInstances';
 import {
+  STORED_RESULTS_STAY,
+  olderRule,
+  olderRuleBox,
+  olderRuleSuffix,
+  simulateAgainLabel,
+  simulatingLine,
+  simulationOffReason,
+} from '../../domain/older-rule-text';
+import { DUPLICATE } from '../../domain/pricing-run-text';
+import { elapsedSeconds, queuedSentence, subjectName } from '../../domain/run-text';
+import { missingPricingVersionLabel, nothingAtThisLink } from '../../domain/unknown-link';
+import { useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
+import {
+  usePricingActions,
   useHubPairResults,
   useHubResults,
   usePricingResult,
   usePricingSimulations,
   usePricingVersion,
+  useSimulationEnd,
 } from '../hooks/usePricingVersions';
+import { useActiveRuns, useNow } from '../hooks/useRuns';
+import { useCurrentSimulationRule, useSystemStatus } from '../hooks/useSystemStatus';
 import { HubPairTable } from './HubPairTable';
 import { LoadingCard } from './LoadingCard';
 import { ResultAdvanced } from './ResultAdvanced';
+import { PricingVersionDelete } from './PricingVersionDelete';
 import { ResultMap } from './ResultMap';
 import { SourceTag } from './SourceTag';
 import styles from './PricingResultView.module.css';
@@ -115,9 +131,101 @@ function Legend() {
   );
 }
 
+/**
+ * "Simulated with an older rule": the box above the simulation group. It holds "Simulate again" (or
+ * the reason it is off), and while a simulation run of the version is queued or running, its line.
+ */
+function OlderRuleBox({
+  version,
+  old,
+  current,
+}: {
+  readonly version: PricingVersion;
+  readonly old: number;
+  readonly current: number;
+}) {
+  const { runs, answeredAt } = useActiveRuns();
+  const menu = useInstanceMenu().data ?? [];
+  const status = useSystemStatus().data;
+  const pricing = usePricingActions();
+  const [refused, setRefused] = useState<string | null>(null);
+  const simulation = runs.find((run) => run.kind === 'simulation' && run.subject.id === version.id);
+  const ended = useSimulationEnd(version.id, simulation?.id ?? null);
+  const now = useNow(simulation?.state === 'running' && simulation.runner.alive, answeredAt);
+  const off = status?.canSimulate.allowed === false ? status.canSimulate : null;
+  const offReason = off === null ? null : simulationOffReason(off);
+  const ahead =
+    runs.find((run) => run.state === 'running') ??
+    runs.find((run) => run.state === 'queued' && run.id !== simulation?.id);
+
+  let line = null;
+  if (simulation?.state === 'running') {
+    line = (
+      <p className={styles.simulating} role="status">
+        <span className={styles.mark} aria-hidden="true">
+          ●
+        </span>{' '}
+        {simulatingLine(elapsedSeconds(simulation, answeredAt, now))}
+      </p>
+    );
+  } else if (simulation !== undefined) {
+    // As the pricing run's card: the queued sentence only with a run ahead; no other wording.
+    line = (
+      <p className={styles.simulating} role="status">
+        {ahead !== undefined && simulation.queuePosition !== null
+          ? queuedSentence(simulation.queuePosition + 1, subjectName(ahead, menu), ahead.kind)
+          : null}
+      </p>
+    );
+  }
+
+  return (
+    <section
+      className={styles.older}
+      data-testid="older-rule"
+      aria-label="Simulated with an older rule"
+    >
+      <p className={styles.olderText}>{olderRuleBox(old, current)}</p>
+      {line ?? (
+        <>
+          {offReason !== null && (
+            <p className={styles.banner} role="status">
+              {offReason} {STORED_RESULTS_STAY}
+            </p>
+          )}
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.primary}
+              disabled={offReason !== null || pricing.simulate.isPending}
+              onClick={() => {
+                setRefused(null);
+                pricing.simulate.mutate(version.id, {
+                  onSuccess: (answer) => {
+                    if (answer.kind === 'refused') setRefused(answer.detail);
+                    else ended.watch(answer.runId);
+                  },
+                });
+              }}
+            >
+              {simulateAgainLabel(current)}
+            </button>
+            {offReason !== null && <span className={styles.note}>{offReason}</span>}
+          </div>
+          {refused !== null && <p className={styles.error}>{refused}</p>}
+          {pricing.simulate.isError && (
+            <p className={styles.error}>{pricing.simulate.error.message}</p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 interface CardProps extends PricingResultViewProps {
   readonly version: PricingVersion;
   readonly result: PricingResult;
+  readonly instanceName: string;
   readonly instanceLabel: string;
   readonly periodLabel: string;
   readonly bikeStations: number;
@@ -131,6 +239,7 @@ function ResultCard({
   result,
   instanceId,
   number,
+  instanceName,
   instanceLabel,
   periodLabel,
   bikeStations,
@@ -141,6 +250,7 @@ function ResultCard({
   onNavigate,
 }: CardProps) {
   const id = pricingVersionId(version.instanceVersionId, version.letter);
+  const pricing = usePricingActions();
   const hubPairs = useHubPairResults(id).data ?? null;
   const hubs = useHubResults(id).data ?? null;
   const stored = usePricingSimulations(advancedView ? id : null).data ?? null;
@@ -163,6 +273,7 @@ function ResultCard({
   const total = periodTravellers(modelPrices);
   const points = carShareChangePoints(flat.travellers.car, modelPrices.travellers.car, total);
   const tiles = goalTiles(result, version, bikeStations);
+  const older = olderRule(result, useCurrentSimulationRule());
   const listRoute: LabRoute = {
     kind: 'instance',
     instance: { instanceId, version: number },
@@ -179,13 +290,22 @@ function ResultCard({
         {scopeLine(version.letter, pricingVersionName(version), instanceLabel, periodLabel)}
       </p>
 
+      {older !== null && <OlderRuleBox version={version} old={older.old} current={older.new} />}
+
       <section className={styles.group} data-testid="simulation-group">
         <div className={styles.tagRow}>
           <SourceTag kind="simulation" />
-          <p className={styles.source}>{SIMULATION_SOURCE}</p>
+          <p className={styles.source}>
+            {SIMULATION_SOURCE}
+            {older !== null && olderRuleSuffix(older.old)}
+          </p>
         </div>
         <h2 className={styles.insight}>{insightTitle(version.letter, points)}</h2>
-        <ul className={styles.bars} aria-label="Simulated split of the travellers">
+        <ul
+          className={styles.bars}
+          aria-label="Simulated split of the travellers"
+          data-older-rule={older === null ? undefined : ''}
+        >
           <StackedBar
             label={versionBarLabel(version.letter)}
             counts={modelPrices.travellers}
@@ -245,7 +365,7 @@ function ResultCard({
         <h3 id="goals-title" className={styles.title}>
           {GOALS_TITLE}
         </h3>
-        <ul className={styles.tiles}>
+        <ul className={styles.tiles} data-older-rule={older === null ? undefined : ''}>
           {tiles.map((tile) => (
             <li
               key={tile.key}
@@ -294,6 +414,38 @@ function ResultCard({
           ))}
         </ul>
       </section>
+
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={styles.primary}
+          disabled={pricing.duplicate.isPending}
+          onClick={() => {
+            pricing.duplicate.mutate(version, {
+              onSuccess: (draft) => {
+                onNavigate({
+                  kind: 'pricing',
+                  instance: { instanceId, version: number },
+                  letter: draft.letter,
+                  period: null,
+                });
+              },
+            });
+          }}
+        >
+          {DUPLICATE}
+        </button>
+        <PricingVersionDelete
+          version={version}
+          instanceName={instanceName}
+          instanceId={instanceId}
+          number={number}
+          onNavigate={onNavigate}
+        />
+        {pricing.duplicate.isError && (
+          <p className={styles.error}>{pricing.duplicate.error.message}</p>
+        )}
+      </div>
 
       {hubPairs !== null && (
         <section className={styles.pairs} aria-labelledby="hub-pairs-title">
@@ -374,6 +526,7 @@ export function PricingResultView(props: PricingResultViewProps) {
       {...props}
       version={version.data}
       result={stored}
+      instanceName={instanceName}
       instanceLabel={instanceLabel}
       periodLabel={period?.label ?? ''}
       bikeStations={view.data?.version.counts?.bikeStations ?? 0}

@@ -1,11 +1,13 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
+  deletePricingVersion,
   discardPricingDraft,
   duplicatePricingVersion,
   newPricingVersion,
   runPricingVersion,
   savePricingDraft,
+  simulatePricingVersion,
 } from '../../application/use-cases/edit-pricing-draft';
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
 import { useGateways } from './gateways';
@@ -114,6 +116,36 @@ export function useHubResults(id: string | null) {
   });
 }
 
+/**
+ * Reads a version's result and simulations again once its simulation run has left the active
+ * runs. `usePricingList` does so too, but only while the menu lists the version; and a run that
+ * ends before the run list shows it is never seen there: `watch` takes the queued run's id.
+ */
+export function useSimulationEnd(id: string, simulationRunId: string | null) {
+  const client = useQueryClient();
+  const { runs } = useActiveRuns();
+  const watched = useRef<string | null>(null);
+  // A new watch must look at the run list even when that list did not change.
+  const [watches, setWatches] = useState(0);
+  useEffect(() => {
+    if (simulationRunId !== null) {
+      watched.current = simulationRunId;
+      return;
+    }
+    const runId = watched.current;
+    if (runId === null || runs.some((run) => run.id === runId)) return;
+    watched.current = null;
+    void client.invalidateQueries({ queryKey: pricingResultKey(id) });
+    void client.invalidateQueries({ queryKey: pricingSimulationsKey(id) });
+  }, [simulationRunId, runs, watches, client, id]);
+  return {
+    watch: (runId: string) => {
+      watched.current = runId;
+      setWatches((count) => count + 1);
+    },
+  };
+}
+
 /** Reads the version, the lists and the run list again when the followed run changes state. */
 export function usePricingRunSync(run: Run | null) {
   const client = useQueryClient();
@@ -196,11 +228,40 @@ export function usePricingActions() {
     },
   });
 
+  const simulate = useMutation({
+    mutationFn: (id: string) => simulatePricingVersion(gateways, id),
+    onSuccess: async (result) => {
+      if (result.kind !== 'queued') return;
+      await client.invalidateQueries({ queryKey: ACTIVE_RUNS_KEY });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (version: PricingVersion) => deletePricingVersion(gateways, version.id),
+    onSuccess: async (answer, version) => {
+      if (answer.kind !== 'deleted') return;
+      for (const prefix of [
+        'pricing-version',
+        'pricing-result',
+        'pricing-hub-pairs',
+        'pricing-hubs',
+        'pricing-simulations',
+      ]) {
+        client.removeQueries({ queryKey: [prefix, version.id] });
+      }
+      await Promise.all([
+        refetchList(version.instanceVersionId),
+        client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY }),
+      ]);
+    },
+  });
+
   return {
     create,
     duplicate,
     discard,
     run,
+    simulate,
+    remove,
     /** One `PATCH`; the answer replaces the cached version. */
     patch: async (id: string, changes: PricingChanges) => {
       const answer = await savePricingDraft(gateways, id, changes);

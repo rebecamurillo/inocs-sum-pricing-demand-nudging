@@ -389,6 +389,8 @@ export interface FakePricing {
   readonly gateway: PricingGateway;
   /** The versions as stored, in creation order. */
   readonly versions: () => readonly PricingVersion[];
+  /** The ids of the versions a simulation run was queued for, in order. */
+  readonly simulated: () => readonly string[];
 }
 
 /**
@@ -402,9 +404,14 @@ export function fakePricing(
     readonly hubPairs?: Readonly<Record<string, HubPairResult[] | null>>;
     readonly hubs?: Readonly<Record<string, HubResult[] | null>>;
     readonly simulations?: Readonly<Record<string, StoredSimulation[] | null>>;
+    /** Versions whose deletion the API refuses, with the code it answers. */
+    readonly removeRefusals?: Readonly<Record<string, 'run_active' | 'is_showcase'>>;
+    /** The reason the API gives for refusing every simulation run; none: they are queued. */
+    readonly simulateRefusal?: string;
   } = {},
 ): FakePricing {
   let stored = [...initial];
+  const simulated: string[] = [];
   const replace = (next: PricingVersion) => {
     stored = stored.map((version) => (version.id === next.id ? next : version));
     return next;
@@ -491,8 +498,23 @@ export function fakePricing(
       replace({ ...found, status: 'sealed', state: 'queued', runId });
       return Promise.resolve({ kind: 'queued', runId });
     },
+    simulate: (id) => {
+      const found = stored.find((version) => version.id === id);
+      if (found === undefined) return Promise.reject(new Error(`No pricing version ${id}.`));
+      if (details.simulateRefusal !== undefined) {
+        return Promise.resolve({ kind: 'refused', detail: details.simulateRefusal });
+      }
+      simulated.push(id);
+      return Promise.resolve({ kind: 'queued', runId: `run-simulation-${found.letter}` });
+    },
+    remove: (id) => {
+      const refusal = details.removeRefusals?.[id];
+      if (refusal !== undefined) return Promise.resolve({ kind: refusal });
+      stored = stored.filter((version) => version.id !== id);
+      return Promise.resolve({ kind: 'deleted' });
+    },
   };
-  return { gateway, versions: () => stored };
+  return { gateway, versions: () => stored, simulated: () => simulated };
 }
 
 /** The gateway with no pricing version at all. */

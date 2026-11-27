@@ -151,6 +151,53 @@ describe('HttpPricingGateway', () => {
     expect((await new HttpPricingGateway(broken).run('x.v1.B')).kind).toBe('refused');
   });
 
+  it('posts a simulation run, or reports a refusal with its reason', async () => {
+    const fetchImpl = answering(202, { id: 'run-sim' });
+    expect(await new HttpPricingGateway(fetchImpl).simulate('x.v1.B')).toEqual({
+      kind: 'queued',
+      runId: 'run-sim',
+    });
+    const [path, init] = fetchImpl.mock.calls[0] ?? [];
+    expect(path).toBe('/api/v1/pricing-versions/x.v1.B/simulations');
+    expect(init?.method).toBe('POST');
+
+    for (const [status, code] of [
+      [409, 'run_active'],
+      [409, 'simulation_current'],
+      [503, 'component_unavailable'],
+    ] as const) {
+      const refused = answering(status, { code, title: 'No', detail: `Because ${code}.` });
+      expect(await new HttpPricingGateway(refused).simulate('x.v1.B')).toEqual({
+        kind: 'refused',
+        detail: `Because ${code}.`,
+      });
+    }
+    const broken = answering(500, { code: 'boom', title: 'Boom', detail: 'It broke.' });
+    await expect(new HttpPricingGateway(broken).simulate('x.v1.B')).rejects.toMatchObject({
+      code: 'boom',
+    });
+  });
+
+  it('deletes a version: gone on 204, or the refusal the 409 code names', async () => {
+    const fetchImpl = answering(204, undefined);
+    expect(await new HttpPricingGateway(fetchImpl).remove('x.v1.B')).toEqual({ kind: 'deleted' });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/pricing-versions/x.v1.B');
+    expect(fetchImpl.mock.calls[0]?.[1]?.method).toBe('DELETE');
+
+    for (const code of ['run_active', 'is_showcase'] as const) {
+      const refused = answering(409, { code, title: 'No', detail: 'Refused.' });
+      expect(await new HttpPricingGateway(refused).remove('x.v1.B')).toEqual({ kind: code });
+    }
+    const other = answering(409, { code: 'other', title: 'No', detail: 'Refused.' });
+    await expect(new HttpPricingGateway(other).remove('x.v1.B')).rejects.toMatchObject({
+      code: 'other',
+    });
+    const missing = answering(404, { code: 'not_found', title: 'None', detail: 'No version.' });
+    await expect(new HttpPricingGateway(missing).remove('x.v1.B')).rejects.toMatchObject({
+      code: 'not_found',
+    });
+  });
+
   it('throws the problem document for any other answer, and for an unreachable API', async () => {
     const problem = answering(500, { code: 'boom', title: 'Boom', detail: 'It broke.' });
     await expect(new HttpPricingGateway(problem).create('x.v1')).rejects.toMatchObject({

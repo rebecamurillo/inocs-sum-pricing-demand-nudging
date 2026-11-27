@@ -9,7 +9,9 @@ interface DeleteConfirmProps {
   /** The confirming button ("Delete v1"). */
   readonly action: string;
   /** Sends the DELETE. */
-  readonly remove: () => Promise<Deleted>;
+  readonly remove: () => Promise<Deleted | { readonly kind: string }>;
+  /** The note of a refusal, by the kind the DELETE answered; the default is the run-active note. */
+  readonly refusalNote?: (kind: string) => string;
   /** Called once the DELETE went through: the caller leaves the deleted view. */
   readonly onDeleted: () => void;
   /** Set for a menu row: the arrow keys move between the menu's items. */
@@ -25,6 +27,7 @@ export function DeleteConfirm({
   question,
   action,
   remove,
+  refusalNote = () => RUN_ACTIVE_NOTE,
   onDeleted,
   onMenuKeyDown,
 }: DeleteConfirmProps) {
@@ -57,7 +60,7 @@ export function DeleteConfirm({
           onDeleted();
           return;
         }
-        setNote(RUN_ACTIVE_NOTE);
+        setNote(refusalNote(answer.kind));
         close();
       },
       (reason: unknown) => {

@@ -63,6 +63,7 @@ describe('LabShell · the end of a pricing run on its own L-2', () => {
             canBuildInstances: allowed,
             canRunPricing: allowed,
             canSimulate: allowed,
+            simulationRule: null,
           }),
       },
       layoutPreferences: { load: () => DEFAULT_LAYOUT, save: () => undefined },
