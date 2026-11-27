@@ -1,4 +1,11 @@
 import {
+  GOAL_NAMES,
+  type GoalComparison,
+  type GoalName,
+  type PricingResult,
+  type ResultNumber,
+} from '../../domain/pricing-result';
+import {
   PRICING_GOAL_NAMES,
   pricingVersionId,
   type PricingChanges,
@@ -90,6 +97,73 @@ export function sampleSealedPricing(
   });
 }
 
+const n = (
+  value: number,
+  source: ResultNumber['source'],
+  unit: string,
+  group: ResultNumber['group'] = 'headline',
+): ResultNumber => ({ value, unit, source, group });
+
+const simulation = (value: number, unit: string) => n(value, 'simulation', unit);
+
+function goal(unit: string, model: number | null, version: number, flat: number): GoalComparison {
+  return {
+    model: model === null ? null : n(model, 'model', unit),
+    modelPrices: simulation(version, unit),
+    flat: simulation(flat, unit),
+    change: simulation(version - flat, unit),
+  };
+}
+
+/** A stored result in which the version's prices take fewer travellers to the car than the flat price. */
+export function samplePricingResult(overrides: Partial<PricingResult> = {}): PricingResult {
+  const empty: GoalComparison = { model: null, modelPrices: null, flat: null, change: null };
+  const goals = Object.fromEntries(GOAL_NAMES.map((name) => [name, empty])) as Record<
+    GoalName,
+    GoalComparison
+  >;
+  Object.assign(goals, {
+    profit: goal('chf', null, 4175.4, 3900.2),
+    ridership: goal('travellers', 12281, 12000, 11000),
+    stations_empty: goal('stations', null, 10, 12),
+    stations_full: goal('stations', null, 12, 14),
+    mean_bike_price: goal('chf_per_bike_leg', null, 0.945, 1),
+  });
+  const outcome = (car: number, ptOnly: number, ptBike: number, displaced: number) => ({
+    ruleId: 'balanced-score',
+    ruleVersion: 1,
+    ruleCurrent: true,
+    travellers: { car, ptOnly, ptBike },
+    displaced,
+    unserved: 0,
+  });
+  return {
+    pricingVersionId: 'geneva-3km.v1.A',
+    periodId: 'monday-08',
+    simulations: {
+      modelPrices: outcome(30000, 30000, 12240, 1240),
+      flat: outcome(33000, 28000, 11240, 2115),
+    },
+    modelSplit: { car: 31000, ptOnly: 29000, ptBike: 12240 },
+    goals,
+    headline: {
+      profit: n(4175, 'derived', 'chf'),
+      revenue: n(11544, 'derived', 'chf'),
+      cost: n(7369, 'derived', 'chf'),
+      bike_price_min: n(0.4, 'model', 'chf_per_bike_leg'),
+      bike_price_max: n(2.1, 'model', 'chf_per_bike_leg'),
+      mean_bike_price: n(0.94, 'derived', 'chf_per_bike_leg'),
+      rides_under_cost: n(4667, 'derived', 'bike_rides'),
+      rides_under_cost_share: n(0.38, 'derived', 'share'),
+      stations_empty_end: n(10, 'derived', 'stations'),
+      stations_full_end: n(12, 'derived', 'stations'),
+      stations_empty_start: n(3, 'input', 'stations'),
+      stations_full_start: n(4, 'input', 'stations'),
+    },
+    ...overrides,
+  };
+}
+
 export interface FakePricing {
   readonly gateway: PricingGateway;
   /** The versions as stored, in creation order. */
@@ -100,7 +174,10 @@ export interface FakePricing {
  * An in-memory gateway in the style of the API: letters run on, a patch keeps the values as sent and
  * reports the rules, a run seals the draft and queues `run-pricing-{letter}`.
  */
-export function fakePricing(initial: readonly PricingVersion[] = []): FakePricing {
+export function fakePricing(
+  initial: readonly PricingVersion[] = [],
+  results: Readonly<Record<string, PricingResult | null>> = {},
+): FakePricing {
   let stored = [...initial];
   const replace = (next: PricingVersion) => {
     stored = stored.map((version) => (version.id === next.id ? next : version));
@@ -110,6 +187,13 @@ export function fakePricing(initial: readonly PricingVersion[] = []): FakePricin
     list: (instanceVersionId) =>
       Promise.resolve(stored.filter((version) => version.instanceVersionId === instanceVersionId)),
     get: (id) => Promise.resolve(stored.find((version) => version.id === id) ?? null),
+    result: (id) => {
+      if (id in results) return Promise.resolve(results[id] ?? null);
+      const found = stored.find((version) => version.id === id);
+      return Promise.resolve(
+        found?.state === 'result' ? samplePricingResult({ pricingVersionId: id }) : null,
+      );
+    },
     create: (instanceVersionId, basedOn) => {
       const used = new Set(stored.map((version) => version.letter));
       let at = 0;

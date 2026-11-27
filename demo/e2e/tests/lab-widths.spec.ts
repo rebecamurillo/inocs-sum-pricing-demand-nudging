@@ -1,7 +1,12 @@
 import type { Page } from '@playwright/test';
 import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
-import { createPricingVersion, runPricingVersion } from '../support/pricing';
+import {
+  createPricingVersion,
+  runPricingVersion,
+  runToResult,
+  waitForRun,
+} from '../support/pricing';
 
 const viewports = [
   { width: 1440, height: 900 },
@@ -186,6 +191,35 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
     await page.getByRole('tab', { name: '3 Weights' }).click();
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+
+    // L-3: the result of a finished version, and its loading state (the answer held until the
+    // skeleton has been checked).
+    const finished = await createPricingVersion(request, version);
+    await runToResult(request, finished.id);
+    let release: (() => void) | undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/v1/pricing-versions/*/result', async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.goto(`/#/lab/${version}/result/${finished.letter}`);
+    await page.reload();
+    await expect(page.getByRole('status', { name: 'Loading' })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+    release?.();
+    await expect(page.getByText('Result · pipeline step 6')).toBeVisible();
+    await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0);
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+    // The five-second test at 1280 × 720 without Aa: the insight title and both simulated bars
+    // are in view without scrolling the card.
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const simulation = page.getByTestId('simulation-group');
+    await expect(simulation.getByRole('heading', { level: 2 })).toBeInViewport({ ratio: 1 });
+    for (const bar of await simulation.getByRole('img').all()) {
+      await expect(bar).toBeInViewport({ ratio: 1 });
+    }
   });
 
   // A second scenario for the run states of L-2: the first holds every other built view and
@@ -299,6 +333,16 @@ test.describe('Lab', () => {
     const clock = async () => /running for (\d+) s/.exec((await step5.textContent()) ?? '')?.[1];
     const before = await clock();
     await expect.poll(clock, { message: 'the elapsed clock still ticks' }).not.toBe(before);
+
+    // L-3: the held run is released and its result opens without a transition or animation.
+    const running = (await control.activeRunIds())[0] ?? '';
+    expect(running).not.toBe('');
+    await control.releaseRun(running);
+    await waitForRun(request, running, 'succeeded');
+    await page.goto(`/#/lab/${version}/result/A`);
+    await page.reload();
+    await expect(page.getByText('Result · pipeline step 6')).toBeVisible();
+    await noTime();
     await context.close();
   });
 });

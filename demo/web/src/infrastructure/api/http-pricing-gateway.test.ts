@@ -161,4 +161,89 @@ describe('HttpPricingGateway', () => {
     expect(error).toBeInstanceOf(ApiProblemError);
     expect(error).toMatchObject({ code: 'api_unreachable' });
   });
+
+  describe('result', () => {
+    const num = (value: number, source: string, unit = 'travellers') => ({
+      value,
+      unit,
+      source,
+      group: 'headline',
+    });
+    const simulation = (scheme: string, car: number) => ({
+      price_scheme: scheme,
+      rule_id: 'balanced-score',
+      rule_version: 1,
+      rule_current: true,
+      travellers: {
+        pt_bike: num(10, 'simulation'),
+        pt_only: num(20, 'simulation'),
+        car: num(car, 'simulation'),
+      },
+      displaced: num(7, 'simulation'),
+      unserved: num(2, 'simulation'),
+    });
+    const body = {
+      pricing_version_id: 'x.v1.B',
+      period_id: 'monday-08',
+      headline: { profit: num(4175, 'derived', 'chf') },
+      goals: [
+        {
+          name: 'ridership',
+          model: num(12281, 'model'),
+          model_prices: num(12, 'simulation'),
+          flat: num(10, 'simulation'),
+          change: num(2, 'simulation'),
+        },
+        { name: 'profit', model: null, model_prices: null, flat: null, change: null },
+      ],
+      simulations: [simulation('model_prices', 30), simulation('flat', 40)],
+      model_split: {
+        travellers_car: num(31, 'model'),
+        travellers_pt_only: num(21, 'model'),
+        travellers_pt_bike: num(11, 'model'),
+      },
+    };
+
+    it('reads the route and maps the simulations, the split, the goals and the headline', async () => {
+      const fetchImpl = answering(200, body);
+
+      const result = await new HttpPricingGateway(fetchImpl).result('x.v1.B');
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/pricing-versions/x.v1.B/result');
+      expect(result?.pricingVersionId).toBe('x.v1.B');
+      expect(result?.periodId).toBe('monday-08');
+      expect(result?.simulations.modelPrices).toEqual({
+        ruleId: 'balanced-score',
+        ruleVersion: 1,
+        ruleCurrent: true,
+        travellers: { car: 30, ptOnly: 20, ptBike: 10 },
+        displaced: 7,
+        unserved: 2,
+      });
+      expect(result?.simulations.flat.travellers.car).toBe(40);
+      expect(result?.modelSplit).toEqual({ car: 31, ptOnly: 21, ptBike: 11 });
+      expect(result?.goals.ridership.model?.source).toBe('model');
+      expect(result?.goals.ridership.change?.value).toBe(2);
+      expect(result?.goals.profit.modelPrices).toBeNull();
+      expect(result?.goals.cost.flat).toBeNull();
+      expect(result?.headline.profit?.value).toBe(4175);
+      expect(result?.headline).not.toHaveProperty('revenue');
+    });
+
+    it('has no model split when one mode is absent', async () => {
+      const partial = { ...body, model_split: { travellers_car: num(31, 'model') } };
+      expect(
+        (await new HttpPricingGateway(answering(200, partial)).result('x.v1.B'))?.modelSplit,
+      ).toBeNull();
+    });
+
+    it('answers null for a 404 and throws for another status', async () => {
+      const none = answering(404, { code: 'no_result', title: 'No result', detail: 'x' });
+      expect(await new HttpPricingGateway(none).result('x.v1.B')).toBeNull();
+      const broken = answering(500, { code: 'boom', title: 'Boom', detail: 'It broke.' });
+      await expect(new HttpPricingGateway(broken).result('x.v1.B')).rejects.toMatchObject({
+        code: 'boom',
+      });
+    });
+  });
 });

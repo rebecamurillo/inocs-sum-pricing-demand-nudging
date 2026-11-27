@@ -1,3 +1,4 @@
+import type { PricingResult } from '../../domain/pricing-result';
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
 
 /** `refused`: the API did not queue the run (a rule is broken, a component is missing, a run is active). */
@@ -16,6 +17,8 @@ export interface PricingGateway {
   patch(id: string, changes: PricingChanges): Promise<PricingVersion>;
   /** Removes a draft. */
   discard(id: string): Promise<void>;
+  /** The stored result of a version; null when it has none (the API's 404 `no_result`). */
+  result(id: string): Promise<PricingResult | null>;
   /** Seals the draft and queues its pricing run. */
   run(id: string): Promise<PricingRunQueued>;
 }

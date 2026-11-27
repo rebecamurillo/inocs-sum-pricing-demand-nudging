@@ -4,6 +4,8 @@ import {
   pricingRulesOf,
   samplePricingDraft,
   samplePricingGoals,
+  samplePricingResult,
+  sampleSealedPricing,
 } from './fake-pricing-gateway';
 
 describe('the in-memory pricing gateway', () => {
@@ -79,5 +81,24 @@ describe('the in-memory pricing gateway', () => {
     await gateway.discard('x.v1.A');
     expect(await gateway.list('x.v1')).toEqual([]);
     expect(await gateway.get('x.v1.A')).toBeNull();
+  });
+
+  it('answers a stored result for a finished version, none for the others, or what was supplied', async () => {
+    const { gateway } = fakePricing([sampleSealedPricing(), samplePricingDraft()]);
+    expect((await gateway.result('geneva-3km.v1.A'))?.pricingVersionId).toBe('geneva-3km.v1.A');
+    expect(await gateway.result('geneva-3km.v1.D')).toBeNull();
+
+    const own = samplePricingResult({ periodId: 'other' });
+    const supplied = fakePricing([sampleSealedPricing()], {
+      'geneva-3km.v1.A': own,
+      'geneva-3km.v1.D': null,
+    }).gateway;
+    expect(await supplied.result('geneva-3km.v1.A')).toBe(own);
+    expect(await supplied.result('geneva-3km.v1.D')).toBeNull();
+  });
+
+  it('samples a result whose prices take fewer travellers to the car than the flat price', () => {
+    const { modelPrices, flat } = samplePricingResult().simulations;
+    expect(modelPrices.travellers.car).toBeLessThan(flat.travellers.car);
   });
 });

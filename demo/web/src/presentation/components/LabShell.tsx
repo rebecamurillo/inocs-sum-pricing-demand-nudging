@@ -32,6 +32,7 @@ import { DraftForm } from './DraftForm';
 import { InstanceView, type OpenedDraft } from './InstanceView';
 import { NewInstanceForm } from './NewInstanceForm';
 import { PricingGoalsForm } from './PricingGoalsForm';
+import { PricingResultView } from './PricingResultView';
 import { PricingRunView } from './PricingRunView';
 import { RunLine } from './RunLine';
 import styles from './LabShell.module.css';
@@ -460,7 +461,38 @@ export function LabShell() {
                       onNavigate={navigate}
                     />
                   )
-                ) : null
+                ) : pricingOpen?.state === 'result' ? (
+                  <PricingResultView
+                    key={`${openVersion.versionId}.${pricingRoute.letter}`}
+                    instanceVersionId={openVersion.versionId}
+                    instanceId={openVersion.instanceId}
+                    number={linkedVersion.number}
+                    letter={pricingRoute.letter}
+                    advancedView={advancedView}
+                    onNavigate={navigate}
+                  />
+                ) : pricingOpen?.state === 'draft' ? (
+                  <PricingGoalsForm
+                    key={`${openVersion.versionId}.${pricingRoute.letter}`}
+                    instanceVersionId={openVersion.versionId}
+                    instanceId={openVersion.instanceId}
+                    number={linkedVersion.number}
+                    letter={pricingRoute.letter}
+                    advancedView={advancedView}
+                    onNavigate={navigate}
+                  />
+                ) : (
+                  // Queued, running, failed, cancelled, still loading or unknown: the L-2 run card.
+                  <PricingRunView
+                    key={`${openVersion.versionId}.${pricingRoute.letter}`}
+                    instanceVersionId={openVersion.versionId}
+                    instanceId={openVersion.instanceId}
+                    number={linkedVersion.number}
+                    letter={pricingRoute.letter}
+                    advancedView={advancedView}
+                    onNavigate={navigate}
+                  />
+                )
               ) : linkedVersion?.status === 'draft' ? (
                 <DraftForm
                   key={openVersion.versionId}

@@ -1,6 +1,17 @@
 import { ApiProblemError } from '../../application/errors';
 import type { PricingGateway, PricingRunQueued } from '../../application/ports/pricing-gateway';
 import {
+  GOAL_NAMES,
+  HEADLINE_NAMES,
+  type GoalComparison,
+  type GoalName,
+  type HeadlineName,
+  type ModeCounts,
+  type PricingResult,
+  type ResultNumber,
+  type SimulationOutcome,
+} from '../../domain/pricing-result';
+import {
   PRICING_GOAL_NAMES,
   type PricingChanges,
   type PricingGoals,
@@ -36,6 +47,75 @@ function toVersion(wire: Schemas['PricingVersionResource']): PricingVersion {
       message: rule.message,
     })),
     lastDurationS: wire.last_duration_s,
+  };
+}
+
+function toNumber(wire: Schemas['NumberResource']): ResultNumber {
+  return { value: wire.value, unit: wire.unit, source: wire.source, group: wire.group };
+}
+
+const optional = (wire: Schemas['NumberResource'] | null | undefined): ResultNumber | null =>
+  wire === null || wire === undefined ? null : toNumber(wire);
+
+/** The three modes by their wire names; null when one is absent (a missing key is never 0). */
+function modes(
+  wire: Readonly<Record<string, Schemas['NumberResource']>>,
+  key: (mode: string) => string,
+): ModeCounts | null {
+  const car = wire[key('car')];
+  const ptOnly = wire[key('pt_only')];
+  const ptBike = wire[key('pt_bike')];
+  if (car === undefined || ptOnly === undefined || ptBike === undefined) return null;
+  return { car: car.value, ptOnly: ptOnly.value, ptBike: ptBike.value };
+}
+
+function toSimulation(wire: Schemas['SimulationResultResource']): SimulationOutcome {
+  return {
+    ruleId: wire.rule_id,
+    ruleVersion: wire.rule_version,
+    ruleCurrent: wire.rule_current,
+    travellers: modes(wire.travellers, (mode) => mode) ?? { car: 0, ptOnly: 0, ptBike: 0 },
+    displaced: wire.displaced.value,
+    unserved: wire.unserved.value,
+  };
+}
+
+function toResult(wire: Schemas['PricingResultResponse']): PricingResult {
+  const simulation = (scheme: 'model_prices' | 'flat') => {
+    const found = wire.simulations.find((item) => item.price_scheme === scheme);
+    if (found === undefined) throw new Error(`The result has no simulation with ${scheme}.`);
+    return toSimulation(found);
+  };
+  const empty: GoalComparison = { model: null, modelPrices: null, flat: null, change: null };
+  const goals = Object.fromEntries(
+    GOAL_NAMES.map((name) => {
+      const found = wire.goals.find((item) => item.name === name);
+      return [
+        name,
+        found === undefined
+          ? empty
+          : {
+              model: optional(found.model),
+              modelPrices: optional(found.model_prices),
+              flat: optional(found.flat),
+              change: optional(found.change),
+            },
+      ];
+    }),
+  ) as Record<GoalName, GoalComparison>;
+  const headline = Object.fromEntries(
+    HEADLINE_NAMES.flatMap((name) => {
+      const found = wire.headline[name];
+      return found === undefined ? [] : [[name, toNumber(found)]];
+    }),
+  ) as Partial<Record<HeadlineName, ResultNumber>>;
+  return {
+    pricingVersionId: wire.pricing_version_id,
+    periodId: wire.period_id,
+    simulations: { modelPrices: simulation('model_prices'), flat: simulation('flat') },
+    modelSplit: modes(wire.model_split, (mode) => `travellers_${mode}`),
+    goals,
+    headline,
   };
 }
 
@@ -77,6 +157,14 @@ export class HttpPricingGateway implements PricingGateway {
     if (answer.status === 404) return null;
     if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
     return toVersion(answer.body as Schemas['PricingVersionResource']);
+  }
+
+  async result(id: string): Promise<PricingResult | null> {
+    const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/result`;
+    const answer = await this.call('GET', path, undefined);
+    if (answer.status === 404) return null;
+    if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
+    return toResult(answer.body as Schemas['PricingResultResponse']);
   }
 
   async create(instanceVersionId: string, basedOn?: string): Promise<PricingVersion> {

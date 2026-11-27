@@ -1,0 +1,120 @@
+import { buildFakeInstance } from '../support/build';
+import { expect, test } from '../support/fixtures';
+import { createPricingVersion, insightTitle, runToResult, simulationOf } from '../support/pricing';
+
+// Its own distance, so no other scenario's build finds this one's routes already computed.
+const RESULT_DISTANCE_M = 930;
+
+/** 72240 → "72 240": a plain space groups the thousands. */
+const grouped = (n: number) => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+
+test.describe('Result', () => {
+  test("L-3 · the result leads with the simulated split with the model's prices against the simulated split with the flat price, labelled as simulation with the rule's name; the model's own split is under 'pricing model's result'", async ({
+    page,
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, RESULT_DISTANCE_M);
+    const draft = await createPricingVersion(request, built.version, { name: 'Incentive' });
+    const result = await runToResult(request, draft.id);
+
+    const withPrices = simulationOf(result, 'model_prices');
+    const flat = simulationOf(result, 'flat');
+    const { car: versionCar, ptOnly: versionPt, ptBike: versionBike } = withPrices;
+    const { car: flatCar, ptOnly: flatPt, ptBike: flatBike } = flat;
+    const travellers = versionCar + versionPt + versionBike + withPrices.unserved;
+
+    await page.goto(`/#/lab/${built.version}/result/${draft.letter}`);
+    await page.reload();
+    const main = page.getByRole('main');
+
+    // The brief, its sentence, the scope; no tag heads the screen.
+    await expect(main.getByText('Result · pipeline step 6')).toBeVisible();
+    await expect(
+      main.getByText(
+        "The pricing model's prices for the period, and the same travellers simulated twice: with these prices and with a flat bike price.",
+      ),
+    ).toBeVisible();
+    await expect(main.getByText(/^Version A · Incentive · Geneva 3 km v1 · .+$/)).toBeVisible();
+
+    // The SIMULATION group.
+    const simulation = page.getByTestId('simulation-group');
+    await expect(simulation.getByText('SIMULATION', { exact: true })).toBeVisible();
+    await expect(
+      simulation.getByText('Simulated travellers · placeholder rule: half price, half travel time'),
+    ).toBeVisible();
+    const fewer = Math.round(((flatCar - versionCar) * 100) / travellers);
+    const insight = insightTitle('A', fewer);
+    await expect(simulation.getByRole('heading', { level: 2 })).toHaveText(insight);
+
+    const flatAmount = (await (
+      await request.get(`/api/v1/pricing-versions/${draft.id}`)
+    ).json()) as {
+      goals: { flat_price_per_ride_chf: number };
+    };
+    const flatLabel = `With a flat price ${flatAmount.goals.flat_price_per_ride_chf.toFixed(2)} CHF`;
+    await expect(simulation.getByText("With Version A's prices", { exact: true })).toBeVisible();
+    await expect(simulation.getByText(flatLabel, { exact: true })).toBeVisible();
+    await expect(
+      simulation.getByRole('img', {
+        name: `With Version A's prices: Car ${grouped(versionCar)}, Public transport ${grouped(versionPt)}, Public transport + shared bike ${grouped(versionBike)}`,
+      }),
+    ).toBeVisible();
+    await expect(
+      simulation.getByRole('img', {
+        name: `${flatLabel}: Car ${grouped(flatCar)}, Public transport ${grouped(flatPt)}, Public transport + shared bike ${grouped(flatBike)}`,
+      }),
+    ).toBeVisible();
+    await expect(simulation.getByRole('list', { name: 'Modes' }).getByRole('listitem')).toHaveText([
+      '🚗Car',
+      '🚋Public transport',
+      '🚋+🚲Public transport + shared bike',
+    ]);
+    const caption = simulation.getByText(/^Each of the /);
+    await expect(caption).toHaveText(
+      `Each of the ${grouped(travellers)} travellers of the period takes the option that scores best on half price, half travel time, while a bike and a dock remain at its stations. ${grouped(withPrices.displaced)} did not get their first choice (no bike or dock); ${grouped(flat.displaced)} with the flat price. Travellers left with no option: ${grouped(withPrices.unserved)} · ${grouped(flat.unserved)}. A placeholder until the model's author defines the simulation. The pricing model prices a shared bike only together with a public transport trip: trips by shared bike alone are not part of these results.`,
+    );
+
+    // The model's own split: blue tag, title, one bar on the same scale, the sentence.
+    const model = page.getByTestId('model-group');
+    await expect(model.getByText("PRICING MODEL'S RESULT")).toBeVisible();
+    await expect(model.getByText("The pricing model's own split")).toBeVisible();
+    await expect(model.getByRole('img', { name: /^Version A, pricing model: Car / })).toBeVisible();
+    await expect(model.getByText(/^Why it differs from the simulated split: /)).toBeVisible();
+    // A simulated number never sits under the blue tag, nor a model number under the grey one.
+    await expect(model.getByText('SIMULATION', { exact: true })).toHaveCount(0);
+    await expect(model.getByText(/Simulated travellers/)).toHaveCount(0);
+    await expect(simulation.getByText("PRICING MODEL'S RESULT")).toHaveCount(0);
+
+    // Top to bottom: simulation, model, goals.
+    const boxes = await Promise.all([
+      simulation.boundingBox(),
+      model.boundingBox(),
+      page.getByRole('heading', { name: 'The three goals of this version' }).boundingBox(),
+    ]);
+    const [top, middle, bottom] = boxes.map((box) => box?.y ?? Number.NaN);
+    expect(top).toBeLessThan(middle ?? 0);
+    expect(middle).toBeLessThan(bottom ?? 0);
+
+    // The four tiles, every figure the route's value, formatted.
+    const profit = page.getByTestId('tile-profit');
+    const ridershipTile = page.getByTestId('tile-ridership');
+    const balance = page.getByTestId('tile-station_balance');
+    const price = page.getByTestId('tile-average_bike_price');
+    await expect(profit).toContainText('weight 1 · fixed');
+    await expect(ridershipTile).toContainText('weight 8.00');
+    await expect(balance).toContainText('stations empty or full at 09:00');
+    await expect(price).toContainText('Average bike price');
+    await expect(
+      main.getByText('simulated travellers · placeholder rule', { exact: true }),
+    ).toHaveCount(4);
+    const ridership = result.goals.find((goal) => goal.name === 'ridership');
+    expect(ridership?.model_prices).not.toBeNull();
+    await expect(ridershipTile.getByText(/^[\d ]+$/)).toHaveText(
+      grouped(Math.round(ridership?.model_prices?.value ?? Number.NaN)),
+    );
+    await expect(ridershipTile).toContainText(
+      `Pricing model: ${grouped(Math.round(ridership?.model?.value ?? Number.NaN))}`,
+    );
+  });
+});

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import {
   discardPricingDraft,
@@ -15,6 +15,7 @@ import { ACTIVE_RUNS_KEY, useActiveRuns } from './useRuns';
 
 export const pricingListKey = (instanceVersionId: string | null) =>
   ['pricing-list', instanceVersionId] as const;
+export const pricingResultKey = (id: string | null) => ['pricing-result', id] as const;
 export const pricingVersionKey = (id: string | null) => ['pricing-version', id] as const;
 
 /**
@@ -41,6 +42,7 @@ export function usePricingList(instanceVersionId: string | null) {
     seen.current = signature;
     void client.invalidateQueries({ queryKey: ['pricing-list'] });
     void client.invalidateQueries({ queryKey: ['pricing-version'] });
+    void client.invalidateQueries({ queryKey: ['pricing-result'] });
   }, [signature, client]);
   return query;
 }
@@ -52,6 +54,21 @@ export function usePricingVersion(id: string | null) {
     queryKey: pricingVersionKey(id),
     queryFn: () => pricing.get(id ?? ''),
     enabled: id !== null,
+    retry: false,
+  });
+}
+
+/**
+ * The stored result of a pricing version; data is null when it has none. A re-read keeps the
+ * previous result as placeholder data (`isPlaceholderData`) so the card can stay under its skeleton.
+ */
+export function usePricingResult(id: string | null) {
+  const { pricing } = useGateways();
+  return useQuery({
+    queryKey: pricingResultKey(id),
+    queryFn: () => pricing.result(id ?? ''),
+    enabled: id !== null,
+    placeholderData: keepPreviousData,
     retry: false,
   });
 }
@@ -69,6 +86,7 @@ export function usePricingRunSync(run: Run | null) {
     if (before === null || before === signature) return;
     void client.invalidateQueries({ queryKey: ['pricing-list'] });
     void client.invalidateQueries({ queryKey: ['pricing-version'] });
+    void client.invalidateQueries({ queryKey: ['pricing-result'] });
     void client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
     void client.invalidateQueries({ queryKey: ACTIVE_RUNS_KEY });
   }, [signature, client]);

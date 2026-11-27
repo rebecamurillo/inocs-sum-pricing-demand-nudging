@@ -1168,14 +1168,55 @@ describe('LabShell · pricing versions', () => {
     expect(screen.getByRole('button', { name: 'Duplicate' })).toBeVisible();
   });
 
-  it('keeps the result route recognised with an empty card for story 3.9', async () => {
+  it('opens the result card on the result route of a finished version', async () => {
     open('#/lab/geneva-3km.v1/result/A');
 
     expect(await screen.findByLabelText('Breadcrumb')).toHaveTextContent(
       'Geneva 3 km v1 › Pricing versions › Version A',
     );
+    expect(await screen.findByText('Result · pipeline step 6')).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Pricing goals' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing at this link/)).not.toBeInTheDocument();
+  });
+
+  it('shows the run card on the result route of a cancelled version and the goals form of a draft', async () => {
+    const cancelled = sampleSealedPricing({
+      id: 'geneva-3km.v1.E',
+      letter: 'E',
+      name: 'Cheaper',
+      state: 'cancelled',
+      runId: 'run-pricing-E',
+    });
+    const run = {
+      ...sampleRunningBuild,
+      id: 'run-pricing-E',
+      kind: 'pricing' as const,
+      state: 'cancelled' as const,
+      finishedAt: new Date('2026-11-27T10:00:00Z'),
+      subject: { type: 'pricing_version' as const, id: 'geneva-3km.v1.E' },
+      steps: [
+        sampleStep({ step: 'pricing_model', number: 5, state: 'cancelled' }),
+        sampleStep({ step: 'traveller_simulation', number: 6 }),
+      ],
+      failure: null,
+    };
+    window.location.hash = '#/lab/geneva-3km.v1/result/E';
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances(),
+      [],
+      fakeRunGateway([run]),
+      fakePricingGateway([cancelled, ...versions()]),
+    );
+    expect(
+      await screen.findByText(/^Run cancelled during Pricing model on 27 Nov 2026\./),
+    ).toBeVisible();
+    expect(screen.queryByText('Result · pipeline step 6')).not.toBeInTheDocument();
+    cleanup();
+
+    open('#/lab/geneva-3km.v1/result/D');
+    expect(await screen.findByRole('heading', { name: 'Pricing goals' })).toBeVisible();
+    expect(screen.queryByText('Result · pipeline step 6')).not.toBeInTheDocument();
   });
 
   it('reads "Available when the instance is built." at the L-2 route of a version that is not built', async () => {

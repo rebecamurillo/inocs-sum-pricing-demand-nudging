@@ -635,8 +635,8 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   and the hooks of `presentation/hooks/usePricingVersions.ts`. `LabShell` resolves
   `#/lab/{instance version}/pricing/{letter}` like an instance link, shows `PricingGoalsForm` (and
   "Available when the instance is built." for a version that is not built) and hides the map pane
-  without changing the stored choice; the `result` route is recognised and its card is empty until
-  story 3.9. Every sentence and figure (cost message, weight bars, ranking line, example ride,
+  without changing the stored choice; the `result` route (L-3, below) is recognised for every
+  version state. Every sentence and figure (cost message, weight bars, ranking line, example ride,
   number line, rules lines, banners, menu states) is a pure function of
   `domain/pricing-goals-text.ts`. The form saves through the generic `useAutosave` (one `PATCH` 500 ms
   after the last change; the Name rides in the same map) and "Run the pricing model" awaits the
@@ -646,8 +646,8 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   step on the same data set and radius).
 - Following a pricing run (L-2 running, queued, failed and cancelled). `LabShell` shows
   `PricingRunView` for a sealed version whose `state` is `queued`, `running`, `failed` or
-  `cancelled` (a `draft` keeps `PricingGoalsForm`; a `result` version keeps its read-only form
-  until story 3.9). The version carries `run_id` (its latest pricing run; null for a draft) and
+  `cancelled` (a `draft` keeps `PricingGoalsForm`; a `result` version shows `PricingResultView`
+  on the result route and keeps its read-only form on the pricing route). The version carries `run_id` (its latest pricing run; null for a draft) and
   the view follows that run with `useRun`, so the clocks, the queue sentence, the runner notices
   and the cancel confirmation work as on L-1; the pricing model step's `last_duration_s` is read
   by `StepDurations` (API, `application/step_durations.py`) from the same data set and radius as
@@ -658,6 +658,19 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   `useEndedRun` (the generalised `useEndedBuild`) makes `RunLine` write "✓ Version {letter}:
   result ready · Open". The fake pricing model holds `pricing_model` through `hold_at` like a
   build step (`infrastructure/fakes/hold.py`).
+- Reading the result (L-3). `GET /pricing-versions/{id}/result` is read through
+  `PricingGateway.result` (`null` on the API's 404 `no_result`; `HttpPricingGateway` maps the
+  generated `PricingResultResponse` to the domain type `domain/pricing-result.ts`, which holds only
+  what L-3 shows) by `usePricingResult` (keeps the previous result as placeholder data;
+  invalidated with the pricing version). On `#/lab/{instance version}/result/{letter}`, `LabShell`
+  shows `PricingResultView` for a `result` version, `PricingGoalsForm` for a draft and
+  `PricingRunView` for a queued, running, failed or cancelled one. Every wording, the insight
+  rounding (`carShareChangePoints`, also for Home's tile), the caption, the tile arithmetic (the
+  change is the difference of the shown figures, so figure − change = flat holds on screen) and the
+  tile lines are pure functions of `domain/result-text.ts`; the three modes, their order, colours
+  and icons are `MODES` of `domain/pricing-result.ts`. Every bar is drawn on the scale of the
+  period's travellers; the grey SIMULATION tag and the blue PRICING MODEL'S RESULT tag are one
+  `SourceTag`, the blue one only next to a number the model made.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

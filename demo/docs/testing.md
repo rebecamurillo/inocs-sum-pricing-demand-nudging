@@ -122,7 +122,8 @@ e2e/
   heartbeat, so a scenario waits for `/system-status` to show it); failed
   route queries at named hub pairs). An
   architecture test asserts it is not mounted with the real adapters. It is the only test
-  seam: a scenario never stubs the network in the browser.
+  seam: a scenario never stubs the network in the browser (it may hold an answer back with
+  `page.route` and then `continue()` it, to look at a loading state).
 - **Fakes are set through `fake_settings`.** The API and the worker are two processes, so the
   test-control routes write one row of the table `fake_settings` and the worker's fake probes
   read it at each report cycle. The worker reports the components every second on the e2e
