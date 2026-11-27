@@ -48,6 +48,14 @@ NOT_REQUESTED = frozenset(
     {("H3", "H4"), ("H4", "H3"), ("H3", "H5"), ("H5", "H3"), ("H5", "H6"), ("H6", "H5")}
 )
 NO_BIKE_PAIR = ("H5", "H1")
+# The one pair with several PT + bike options, as the real model offers on a pair (UX-DR36, "+ N
+# other bike options offered"): priced in every fake version, far enough, with every query
+# answered. Each extra arc has its own legs and duration; the fake solver gives them different
+# flows.
+SEVERAL_BIKE_PAIR = ("H4", "H5")
+# The extra PT + bike arcs of that pair: (arc id suffix, share of the distance by bike, PT mode).
+# The ids end in "b" like every PT + bike arc.
+EXTRA_BIKE_ARCS = (("alt1b", 0.35, "TRAM"), ("alt2b", 0.1, "BUS"))
 STOPS_PER_HUB = 5
 BIKE_STATIONS_PER_HUB = 2
 # The public code of the fake bus and tram routes: the worker's fake feed has a shape for the bus
@@ -262,6 +270,19 @@ def _routes() -> tuple[dict[str, Any], dict[str, Any]]:
                 )
             ]
         )
+        if (origin, destination) == SEVERAL_BIKE_PAIR:
+            bike += [
+                _arc(
+                    f"{number}{suffix}",
+                    [
+                        _leg("BICYCLE", origin, "stop", metres * by_bike),
+                        _leg(mode, "stop", destination, metres * (1 - by_bike)),
+                    ],
+                    access_bike=True,
+                    egress_bike=False,
+                )
+                for suffix, by_bike, mode in EXTRA_BIKE_ARCS
+            ]
         public = [
             _arc(
                 f"{number}p",

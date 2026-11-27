@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
-import { pricedPair, sameHubPair } from '../support/trips';
+import { pairWithOtherBikeOptions, pricedPair, sameHubPair } from '../support/trips';
 import {
   createPricingVersion,
   finishVersion,
@@ -404,9 +404,18 @@ test.describe('Lab', () => {
     await expect(main.getByRole('deletion').first()).toBeVisible();
     await holdsAtEverySize(page, main);
 
-    // Options: the three cards and the notes under them (the fake city offers one bike option
-    // per pair, so the list of other bike options cannot be opened here).
+    // Options: the three cards and the notes under them, on the pair the fake city gives three
+    // PT + bike options, with the list of the other two open.
+    const [otherFrom, otherTo] = await pairWithOtherBikeOptions(request, version, `${version}.B`);
+    await fieldA.fill(otherFrom.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await fieldB.fill(otherTo.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
     await expect(main.getByText(/^Durations and legs are those of the hub pair/)).toBeVisible();
+    await main.getByRole('button', { name: '+ 2 other bike options offered' }).click();
+    await expect(
+      main.getByRole('button', { name: '+ 2 other bike options offered' }),
+    ).toHaveAttribute('aria-expanded', 'true');
     await holdsAtEverySize(page, main);
 
     // No price: two stops of one hub.

@@ -494,6 +494,24 @@ describe('TravellerView · the options of a trip', () => {
     ]);
   });
 
+  it('closes the list of the other bike options when the trip changes', async () => {
+    const { user, map } = pricedWith();
+    await screen.findByText('Monday 08:00–09:00 · Version B');
+    await user.click(screen.getByRole('button', { name: '+ 2 other bike options offered' }));
+    expect(screen.getByText('Tram 15 → Rive · bike Rive → Cornavin')).toBeInTheDocument();
+
+    act(() => {
+      map.click({ lat: CORNAVIN.lat + 0.001, lon: CORNAVIN.lon });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: '+ 2 other bike options offered' }),
+      ).toHaveAttribute('aria-expanded', 'false');
+    });
+    expect(screen.queryByText('Tram 15 → Rive · bike Rive → Cornavin')).not.toBeInTheDocument();
+  });
+
   it('shows no button when the model offers no other bike option', async () => {
     pricedWith({
       options: fakeTripsOptions().filter((option) => option.mode !== 'pt_bike' || option.mostTaken),

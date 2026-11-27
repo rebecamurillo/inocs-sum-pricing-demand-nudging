@@ -164,7 +164,7 @@ def test_the_last_step_stores_every_table_of_its_instance(store: Store, city: Fa
     store.read_model.ingest(batch)
 
     assert store.read_model.counts_of(["k-instance"])["k-instance"]["options"] == {
-        "pt_bike": 23,
+        "pt_bike": 25,
         "pt_only": 24,
         "car": 24,
     }

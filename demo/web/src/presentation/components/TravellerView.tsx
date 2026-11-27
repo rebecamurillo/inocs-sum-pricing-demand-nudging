@@ -395,7 +395,9 @@ export function TravellerView({ choices, choice, period, onNavigate }: Traveller
               }
               return [
                 <OptionCard
-                  key={card.mode}
+                  // A new trip is a new card: the other bike options list closes; a version
+                  // switch on the same trip keeps it.
+                  key={`${card.mode}:${track.shown?.points ?? ''}`}
                   card={card}
                   option={option}
                   others={card.mode === 'pt_bike' ? otherBikeOptions(quote) : []}

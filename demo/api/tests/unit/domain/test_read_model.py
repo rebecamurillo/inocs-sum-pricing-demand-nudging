@@ -110,7 +110,7 @@ def test_the_options_are_the_arcs_of_the_instance_with_their_legs_and_geometry(
     )
 
     assert rows.instance_counts(city.files["Instance_1.json"])["options"] == {
-        "pt_bike": 23,
+        "pt_bike": 25,
         "pt_only": 24,
         "car": 24,
     }
@@ -118,7 +118,7 @@ def test_the_options_are_the_arcs_of_the_instance_with_their_legs_and_geometry(
         mode: [o for o in options if o.mode == mode] for mode in ("pt_bike", "pt_only", "car")
     }
     assert {mode: len(found) for mode, found in by_mode.items()} == {
-        "pt_bike": 23,
+        "pt_bike": 25,
         "pt_only": 24,
         "car": 24,
     }
@@ -177,7 +177,7 @@ def test_the_bikes_and_the_deltas_are_read_from_the_instance(city: FakeCity) -> 
 
     assert len(bikes) == 12
     assert any(item.inventory_start == 0 for item in bikes)
-    assert len(deltas) == 23
+    assert len(deltas) == 25
 
 
 def test_the_routes_counts_are_two_queries_per_pair_requested(city: FakeCity) -> None:

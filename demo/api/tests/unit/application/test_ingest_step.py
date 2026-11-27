@@ -127,7 +127,7 @@ def test_the_last_step_stores_pairs_options_bikes_and_deltas(tmp_path: Path) -> 
 
     assert isinstance(counts, dict)
     assert (counts["hub_pairs"], counts["bike_stations"]) == (24, 12)
-    assert counts["options"] == {"pt_bike": 23, "pt_only": 24, "car": 24}
+    assert counts["options"] == {"pt_bike": 25, "pt_only": 24, "car": 24}
     assert len(rig.read_model.hub_pairs("k-travellers_and_bikes")) == 24
     # It reads the routes artefact's files too.
     assert ("artifacts/routes/k-routes", "od_geometry.json") in rig.files.contents

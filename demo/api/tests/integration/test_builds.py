@@ -469,9 +469,9 @@ def test_after_a_build_the_read_model_tables_hold_the_fake_city(rig: Rig) -> Non
         "hubs": 6,
         "station_hubs": 42,
         "hub_pairs": 24,
-        "route_options": 71,
+        "route_options": 73,
         "station_bikes": 12,
-        "option_station_deltas": 23,
+        "option_station_deltas": 25,
         "route_pairs": 24,
     }
     assert rig.rows("route_failures") == []

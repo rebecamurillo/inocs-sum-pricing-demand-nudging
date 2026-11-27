@@ -154,9 +154,14 @@ class FakePricingSolver:
                 for rank, arc in enumerate(bike.get(key, []))
                 if rank < shown and key[0] != UNPRICED_ORIGIN
             ]
-            options = len(offered) + len(public.get(key, [])) + len(car.get(key, []))
-            flow = pair["demand"] / options if options else 0.0
+            others = len(public.get(key, [])) + len(car.get(key, []))
+            # The offered PT + bike options of a pair take a falling share by rank (equal to the
+            # others' share for the first), so a pair with several shows an order by flow.
+            weights = {rank: 1.0 / (1 + rank) for rank, _ in offered}
+            total = sum(weights.values()) + others
+            share = pair["demand"] / total if total else 0.0
             for rank, arc in offered:
+                flow = share * weights[rank]
                 price = round(
                     max(
                         goals["lowest_price_chf"],
@@ -180,6 +185,7 @@ class FakePricingSolver:
                         0.0,
                     )
                 )
+            flow = share
             for arc in public.get(key, []):
                 rows.append(
                     SolveRow(str(arc["arc_id"]), *key, "PT-Only", 1.0, flow, None, fare, 0.0, 0.0)

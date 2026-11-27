@@ -81,6 +81,32 @@ export async function pricedPair(
   throw new Error('no two stops of different hubs are priced');
 }
 
+/** The first ordered pair of stops of different hubs whose quote offers several PT + bike options. */
+export async function pairWithOtherBikeOptions(
+  request: APIRequestContext,
+  instanceVersion: string,
+  pricingVersion: string,
+): Promise<[PlaceLine, PlaceLine]> {
+  const answer = await request.get(`/api/v1/instance-versions/${instanceVersion}/hubs`);
+  const hubs = ((await answer.json()) as { items: { hub_id: string }[] }).items;
+  const stops = await Promise.all(
+    hubs.map((hub) => firstStopOfHub(request, instanceVersion, hub.hub_id)),
+  );
+  for (const from of stops) {
+    for (const to of stops) {
+      if (from.hub_id === to.hub_id) continue;
+      const quoted = await request.get('/api/v1/trip-quotes', {
+        params: { pricing_version: pricingVersion, from: pointOf(from), to: pointOf(to) },
+      });
+      const body = (await quoted.json()) as { status: string; options: QuotedOption[] };
+      if (body.status === 'priced' && body.options.filter((o) => o.mode === 'pt_bike').length > 1) {
+        return [from, to];
+      }
+    }
+  }
+  throw new Error('no pair of stops has several PT + bike options');
+}
+
 /** The hubs of a priced quote: what the heading of L-5 names. */
 export async function quotedHubs(
   request: APIRequestContext,

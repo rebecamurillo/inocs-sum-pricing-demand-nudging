@@ -121,7 +121,7 @@ def test_the_counts_describe_the_fixed_city(rig: Rig, tmp_path: Path) -> None:
     assert counts["travellers"] == sum(
         item["demand"] for item in read(tmp_path, "Instance_1.json")["OD_pairs"]
     )
-    assert counts["options"] == {"pt_bike": 23, "pt_only": 24, "car": 24}
+    assert counts["options"] == {"pt_bike": 25, "pt_only": 24, "car": 24}
 
 
 def test_every_station_and_hub_is_within_a_kilometre_of_the_preset_centre(
