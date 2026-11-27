@@ -1,8 +1,9 @@
 """Reads what the pricing package is: a hash of its sources and the repository commit, its
-version and the defaults of its configuration dataclasses.
+version, the defaults of its configuration dataclasses and the solver's twelve choice-model
+coefficients.
 
-The defaults are read in a child process: importing the package loads its heavy dependencies,
-and the worker process stays free of them.
+The defaults and the coefficients are read in a child process: importing the package loads
+its heavy dependencies, and the worker process stays free of them.
 """
 
 import hashlib
@@ -13,7 +14,7 @@ import tomllib
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
-from pricing_demo.domain.package_fingerprint import PackageFingerprint
+from pricing_demo.domain.package_fingerprint import CHOICE_COEFFICIENT_NAMES, PackageFingerprint
 
 # Runs a command in a folder and returns its standard output; raises when it fails.
 CommandRunner = Callable[[Sequence[str], Path], str]
@@ -34,6 +35,18 @@ print(json.dumps({
     }
     for cls in (PipelineConfig, InstanceParams, OptimizerParams)
 }))
+"""
+
+# Locates the installed solver's source and reads its coefficients with `ast`; neither the
+# package nor its solver module is imported.
+COEFFICIENTS_SCRIPT = """
+import importlib.util, json
+from pathlib import Path
+from pricing_demo.infrastructure.pricing_model.choice_coefficients import read_choice_coefficients
+
+origin = importlib.util.find_spec("sum_nsm_dynamic_pricing").origin
+solver = Path(origin).parent / "optimizer" / "solver.py"
+print(json.dumps(read_choice_coefficients(solver.read_text(encoding="utf-8"))))
 """
 
 
@@ -89,9 +102,21 @@ class PackageFingerprintReader:
             git_commit=commit,
             git_dirty=dirty,
             defaults=self._defaults(),
+            choice_coefficients=self._choice_coefficients(),
         )
 
     def _defaults(self) -> Mapping[str, Mapping[str, object]]:
         output = self._run([self._python, "-I", "-c", DEFAULTS_SCRIPT], self._package_dir.parent)
         # The package may print while it imports: the answer is the last line.
         return json.loads(output.strip().splitlines()[-1])  # type: ignore[no-any-return]
+
+    def _choice_coefficients(self) -> Mapping[str, float | None]:
+        output = self._run(
+            [self._python, "-I", "-c", COEFFICIENTS_SCRIPT], self._package_dir.parent
+        )
+        found = json.loads(output.strip().splitlines()[-1])
+        # Only the twelve names count: any other answer reads as twelve missing ones.
+        return {
+            name: found.get(name) if isinstance(found, dict) else None
+            for name in CHOICE_COEFFICIENT_NAMES
+        }

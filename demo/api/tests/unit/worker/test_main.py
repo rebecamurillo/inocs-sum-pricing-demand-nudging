@@ -39,6 +39,7 @@ from pricing_demo.infrastructure.fakes.pricing_solver import FakePricingSolver
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.pricing_model.bike_station_feed import PackageBikeStationFeed
 from pricing_demo.infrastructure.pricing_model.city_preparation import PackageCityPreparation
+from pricing_demo.infrastructure.pricing_model.pricing_solver import PackagePricingSolver
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
 from pricing_demo.infrastructure.trip_planner.graph_builder import ComposeGraphBuilder
 from pricing_demo.infrastructure.trip_planner.graph_fingerprints import FileGraphFingerprints
@@ -337,15 +338,17 @@ def test_the_fake_set_registers_both_pricing_steps(tmp_path: Path) -> None:
     assert registry.keeper_for(StepName.TRAVELLER_SIMULATION) is simulation
 
 
-def test_the_real_set_registers_only_the_simulation_step_until_the_solver_has_an_adapter(
+def test_the_real_set_registers_the_package_solver_and_the_simulation_step(
     tmp_path: Path,
 ) -> None:
     built = build_worker(settings_for(tmp_path, adapters="real"))
     built.engine.dispose()
 
     registry = built.worker._process._registry
-    assert registry.executor_for(StepName.PRICING_MODEL) is None
-    assert registry.keeper_for(StepName.PRICING_MODEL) is None
+    model = registry.executor_for(StepName.PRICING_MODEL)
+    assert isinstance(model, PricingModelStepExecutor)
+    assert isinstance(model._solver, PackagePricingSolver)
+    assert registry.keeper_for(StepName.PRICING_MODEL) is model
     assert isinstance(
         registry.executor_for(StepName.TRAVELLER_SIMULATION), TravellerSimulationStepExecutor
     )

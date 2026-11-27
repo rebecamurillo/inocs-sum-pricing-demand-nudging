@@ -58,3 +58,40 @@ def test_the_latest_is_the_one_first_seen_last(fingerprints: PackageFingerprints
     fingerprints.record(FAKE_FINGERPRINT, T0)
 
     assert fingerprints.latest() == newer
+
+
+def test_the_coefficients_are_read_back(fingerprints: PackageFingerprints) -> None:
+    fingerprints.record(FAKE_FINGERPRINT, T0)
+
+    latest = fingerprints.latest()
+
+    assert latest is not None
+    assert latest.choice_coefficients == FAKE_FINGERPRINT.choice_coefficients
+    assert latest.choice_coefficients["ASC_PT"] == -0.756
+
+
+def test_a_row_recorded_without_coefficients_gets_them_on_the_next_record(
+    fingerprints: PackageFingerprints,
+) -> None:
+    bare = replace(FAKE_FINGERPRINT, choice_coefficients={})
+    fingerprints.record(bare, T0)
+    assert fingerprints.latest() == bare
+
+    fingerprints.record(FAKE_FINGERPRINT, later(5))
+
+    assert fingerprints.latest() == FAKE_FINGERPRINT
+
+
+def test_a_row_with_coefficients_is_not_changed_by_a_later_record(
+    fingerprints: PackageFingerprints,
+) -> None:
+    fingerprints.record(FAKE_FINGERPRINT, T0)
+    other = replace(
+        FAKE_FINGERPRINT,
+        version="9.9.9",
+        choice_coefficients={**FAKE_FINGERPRINT.choice_coefficients, "ASC_PT": 1.0},
+    )
+
+    fingerprints.record(other, later(5))
+
+    assert fingerprints.latest() == FAKE_FINGERPRINT

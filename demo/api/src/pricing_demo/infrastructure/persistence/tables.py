@@ -212,7 +212,8 @@ city_datasets = Table(
 )
 
 # What the worker found out about the pricing package it runs: `defaults` holds the dataclass
-# defaults of `PipelineConfig`, `InstanceParams` and `OptimizerParams`.
+# defaults of `PipelineConfig`, `InstanceParams` and `OptimizerParams`, `choice_coefficients` the
+# twelve choice-model constants of the solver (null on a row recorded before they were read).
 package_fingerprints = Table(
     "package_fingerprints",
     metadata,
@@ -222,6 +223,7 @@ package_fingerprints = Table(
     Column("git_dirty", Boolean, nullable=False),
     Column("defaults", JSONB, nullable=False),
     Column("first_seen_at", DateTime(timezone=True), nullable=False),
+    Column("choice_coefficients", JSONB),
 )
 
 city_instances = Table(

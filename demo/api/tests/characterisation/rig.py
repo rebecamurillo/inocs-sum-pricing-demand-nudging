@@ -2,9 +2,11 @@
 data set is stored, and the real `CityPreparation` on it."""
 
 import shutil
+import threading
 import zipfile
 from dataclasses import dataclass, replace
 from pathlib import Path
+from typing import Any
 
 from pricing_demo.application.ports.city_preparation import PreparationRequest
 from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
@@ -89,3 +91,30 @@ def make_city(
     )
     port = PackageCityPreparation(data_dir, StageChild(), otp_url, **settings)  # type: ignore[arg-type]
     return City(data_dir, dataset, port)
+
+
+NEVER = threading.Event()
+
+
+def build(city: City, folder: Path) -> dict[StepName, Any]:
+    """Steps 1, 2 and 4 of a build on the synthetic city, with the committed routes in place of
+    step 3: the tiny instance (two hub pairs, `Instance_1.json`) the solver tests read."""
+    outcomes = {}
+    for step in (StepName.AREA, StepName.HUBS):
+        outcomes[step] = city.prepare(folder, step, NEVER)
+    shutil.copyfile(FIXTURES / "od_routes.json", folder / "od_routes.json")
+    shutil.copyfile(FIXTURES / "od_geometry.json", folder / "od_geometry.json")
+    outcomes[StepName.TRAVELLERS_AND_BIKES] = city.prepare(
+        folder, StepName.TRAVELLERS_AND_BIKES, NEVER, seed=1
+    )
+    return outcomes
+
+
+def tiny_instance(root: Path) -> Path:
+    """A working directory holding the tiny instance, built by the real adapter."""
+    city = make_city(root / "data", None, FIXTURES / "gbfs_station_information.json")
+    folder = root / "w"
+    outcomes = build(city, folder)
+    failed = {step: item.failure_reason for step, item in outcomes.items() if item.failure_code}
+    assert not failed, failed
+    return folder

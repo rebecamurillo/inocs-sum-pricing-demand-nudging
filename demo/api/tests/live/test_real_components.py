@@ -35,3 +35,4 @@ def test_the_fake_fingerprint_holds_the_defaults_of_the_real_package() -> None:
     real = PackageFingerprintReader(DEMO_DIR.parent / "sum_nsm_dynamic_pricing").read()
 
     assert real.defaults == FAKE_FINGERPRINT.defaults
+    assert real.choice_coefficients == FAKE_FINGERPRINT.choice_coefficients

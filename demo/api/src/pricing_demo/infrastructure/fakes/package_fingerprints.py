@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import datetime
 
 from pricing_demo.domain.package_fingerprint import PackageFingerprint
@@ -48,6 +49,21 @@ FAKE_FINGERPRINT = PackageFingerprint(
             "verbose2": False,
         },
     },
+    # The solver's constants (`optimizer/solver.py:87-101`), copied like the defaults.
+    choice_coefficients={
+        "ASC_PT": -0.756,
+        "ASC_BIKE": 0.0,
+        "ASC_CAR": -0.669,
+        "BETA_Cost_BIKE": 0.689,
+        "BETA_Time_BIKE": 0.108,
+        "BETA_TR_BIKE": 0.199,
+        "BETA_Cost_PT": 0.779,
+        "BETA_Time_PT": 0.101,
+        "BETA_TR_PT": 0.208,
+        "BETA_Cost_Car": 0.474,
+        "BETA_Cost_park": 0.532,
+        "BETA_Time_Car": 0.116,
+    },
 )
 
 
@@ -63,8 +79,16 @@ class InMemoryPackageFingerprints:
         self._rows: list[tuple[datetime, PackageFingerprint]] = []
 
     def record(self, fingerprint: PackageFingerprint, at: datetime) -> None:
-        if all(row.fingerprint != fingerprint.fingerprint for _, row in self._rows):
-            self._rows.append((at, fingerprint))
+        for index, (seen_at, row) in enumerate(self._rows):
+            if row.fingerprint == fingerprint.fingerprint:
+                # As PostgreSQL: a row recorded without coefficients gets them once.
+                if not row.choice_coefficients and fingerprint.choice_coefficients:
+                    self._rows[index] = (
+                        seen_at,
+                        replace(row, choice_coefficients=fingerprint.choice_coefficients),
+                    )
+                return
+        self._rows.append((at, fingerprint))
 
     def latest(self) -> PackageFingerprint | None:
         if not self._rows:

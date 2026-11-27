@@ -80,3 +80,23 @@ def test_a_routes_spec_round_trips_and_a_spec_without_routes_reads_as_empty() ->
     assert StageSpec.from_json(StageSpec("area", "/w", 1).to_json()).routes == {}
     legacy = '{"step": "area", "working_dir": "/w", "parent_pid": 1}'
     assert StageSpec.from_json(legacy).routes == {}
+
+
+def test_a_pricing_model_spec_round_trips_with_its_optimizer_fields() -> None:
+    spec = StageSpec(
+        "pricing_model",
+        "/w",
+        7,
+        {"center_lat": 0.0, "gtfs_path": "unused"},
+        {},
+        {},
+        {"cost_bike": 0.6, "P_bar": 0.6, "max_displayed_alternatives": 10, "capacity": None},
+    )
+
+    assert StageSpec.from_json(spec.to_json()) == spec
+
+
+def test_a_spec_without_optimizer_fields_reads_as_empty() -> None:
+    assert StageSpec.from_json(StageSpec("area", "/w", 1).to_json()).optimizer == {}
+    legacy = '{"step": "area", "working_dir": "/w", "parent_pid": 1}'
+    assert StageSpec.from_json(legacy).optimizer == {}

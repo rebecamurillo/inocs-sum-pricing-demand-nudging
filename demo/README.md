@@ -50,7 +50,12 @@ the live set-up are maintainer commands: neither `make check` nor `make e2e` run
 7. **`make dev`**, or `make up` then `make worker`: the stack with the real adapters
    (`ADAPTERS=real`, the default; see `.env.example`). Open the web app and build an instance
    version in the Lab.
-8. **`make live-smoke`**: checks the real package, solver and trip planner.
+8. **`make live-smoke`**: checks the real package, solver and trip planner: the licence is
+   `available` (`test_the_solver_probe_answers`) and a 500 m instance solves end to end under a
+   full licence (`api/tests/live/test_real_pricing_model.py`). Both are the maintainer's, with a
+   full Gurobi licence and a running trip planner; so is a real pricing model run on a city
+   instance, which is never an unattended test. `make test-model` solves a tiny committed
+   instance with the size-limited licence of the PyPI `gurobipy`, without a licence file.
 
 ## Measurements
 
@@ -104,7 +109,7 @@ Run from this folder; `make help` lists them.
 | `make otp-graph` | builds OpenTripPlanner's graph from the latest city data set (`DATASET=<id>` for another): copies its timetable to `otp/data/gtfs.zip`, sets the service window, runs the build in Docker and writes `otp/data/graph-manifest.json` |
 | `make basemap` | builds the map's background `web/public/basemap/{dataset}.pmtiles` (git-ignored) from the `.osm.pbf` in `otp/data/` with Planetiler in Docker, clipped to the latest data set's available area (`DATASET=<id>` for another); without it the map is the ground colour |
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
-| `make live-smoke` | checks the real package, solver and trip planner |
+| `make live-smoke` | checks the real package, solver and trip planner: the licence is `available` and a 500 m instance solves end to end (the maintainer's, with a full licence) |
 | `uv --directory api run pricing-demo-worker verify-build {instance version}` | rebuilds steps 1-4 of a built version with reuse off in a scratch folder and compares the file hashes with the stored build; exit 0 only when they match |
 
 `make dev` and `make up` use the same database container and the same host ports; run one at a

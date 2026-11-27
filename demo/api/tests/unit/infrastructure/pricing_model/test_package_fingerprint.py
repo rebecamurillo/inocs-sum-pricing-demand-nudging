@@ -1,10 +1,13 @@
 import hashlib
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
 
+from pricing_demo.domain.package_fingerprint import CHOICE_COEFFICIENT_NAMES
 from pricing_demo.infrastructure.pricing_model.package_fingerprint import (
+    COEFFICIENTS_SCRIPT,
     PackageFingerprintReader,
     hash_sources,
 )
@@ -62,9 +65,15 @@ def test_caches_and_build_metadata_are_not_sources(tmp_path: Path) -> None:
 
 
 class Runner:
-    def __init__(self, status: str = "", defaults: str = '{"InstanceParams": {"a": 1}}') -> None:
+    def __init__(
+        self,
+        status: str = "",
+        defaults: str = '{"InstanceParams": {"a": 1}}',
+        answer: str | None = None,
+    ) -> None:
         self.status = status
         self.defaults = defaults
+        self.answer = answer
         self.calls: list[tuple[Sequence[str], Path]] = []
 
     def __call__(self, command: Sequence[str], folder: Path) -> str:
@@ -73,6 +82,8 @@ class Runner:
             return "abc123\n"
         if command[:2] == ["git", "status"]:
             return self.status
+        if self.answer is not None and command[3] == COEFFICIENTS_SCRIPT:
+            return "noise\n" + self.answer + "\n"
         return "noise from the import\n" + self.defaults + "\n"
 
 
@@ -107,6 +118,29 @@ def test_the_git_commands_run_in_the_repository_and_the_defaults_in_an_isolated_
     assert commands[1] == ["git", "status", "--porcelain", str(tmp_path / "pkg")]
     assert commands[2][:3] == ["py", "-I", "-c"]
     assert {folder for _, folder in runner.calls} == {tmp_path}
+
+
+def test_the_coefficients_are_read_in_an_isolated_child_in_the_repository_folder(
+    tmp_path: Path,
+) -> None:
+    coefficients = dict.fromkeys(CHOICE_COEFFICIENT_NAMES, 0.5)
+    runner = Runner(answer=json.dumps(coefficients))
+
+    fingerprint = PackageFingerprintReader(package(tmp_path), runner, "py").read()
+
+    command, folder = runner.calls[-1]
+    assert command[:3] == ["py", "-I", "-c"]
+    assert command[3] == COEFFICIENTS_SCRIPT
+    assert folder == tmp_path
+    assert fingerprint.choice_coefficients == coefficients
+
+
+def test_an_answer_that_is_not_the_twelve_names_reads_as_twelve_missing_ones(
+    tmp_path: Path,
+) -> None:
+    fingerprint = PackageFingerprintReader(package(tmp_path), Runner(), "py").read()
+
+    assert fingerprint.choice_coefficients == dict.fromkeys(CHOICE_COEFFICIENT_NAMES)
 
 
 def test_a_status_that_prints_anything_is_dirty(tmp_path: Path) -> None:

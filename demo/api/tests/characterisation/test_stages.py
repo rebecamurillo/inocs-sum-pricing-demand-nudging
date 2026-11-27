@@ -3,7 +3,6 @@ synthetic city. Pins the files and fields the demonstrator reads from the packag
 
 import json
 import os
-import shutil
 import threading
 from pathlib import Path
 from typing import Any
@@ -13,7 +12,7 @@ import pytest
 from pricing_demo.domain import read_model as rows
 from pricing_demo.domain.build_plan import STEP_OUTPUTS
 from pricing_demo.domain.runs import StepName
-from tests.characterisation.rig import FIXTURES, City
+from tests.characterisation.rig import City, build
 
 pytestmark = pytest.mark.characterisation
 
@@ -25,18 +24,6 @@ NEVER = threading.Event()
 
 def read(folder: Path, name: str) -> Any:
     return json.loads((folder / name).read_text(encoding="utf-8"))
-
-
-def build(city: City, folder: Path) -> dict[StepName, Any]:
-    outcomes = {}
-    for step in (StepName.AREA, StepName.HUBS):
-        outcomes[step] = city.prepare(folder, step, NEVER)
-    shutil.copyfile(FIXTURES / "od_routes.json", folder / "od_routes.json")
-    shutil.copyfile(FIXTURES / "od_geometry.json", folder / "od_geometry.json")
-    outcomes[StepName.TRAVELLERS_AND_BIKES] = city.prepare(
-        folder, StepName.TRAVELLERS_AND_BIKES, NEVER, seed=1
-    )
-    return outcomes
 
 
 def test_the_three_steps_write_their_outputs_with_the_fields_of_the_package(

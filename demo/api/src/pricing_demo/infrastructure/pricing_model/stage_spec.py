@@ -14,9 +14,17 @@ OUTCOME_FILE = "outcome.json"
 PROGRESS_FILE = "progress.jsonl"
 STDOUT_FILE = "stdout.log"
 STDERR_FILE = "stderr.log"
+# What the pricing-model child learned that the solver's output does not say.
+SOLVE_FACTS_FILE = "solve_facts.json"
 
-StageStep = Literal["area", "hubs", "routes", "travellers_and_bikes"]
-STAGE_STEPS: tuple[StageStep, ...] = ("area", "hubs", "routes", "travellers_and_bikes")
+StageStep = Literal["area", "hubs", "routes", "travellers_and_bikes", "pricing_model"]
+STAGE_STEPS: tuple[StageStep, ...] = (
+    "area",
+    "hubs",
+    "routes",
+    "travellers_and_bikes",
+    "pricing_model",
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +39,8 @@ class StageSpec:
     instance: Mapping[str, Any] = field(default_factory=dict)
     # The routes step's own settings: `retries`, `retry_wait_s` and `routing_date`.
     routes: Mapping[str, Any] = field(default_factory=dict)
+    # The pricing-model step's `OptimizerParams` fields.
+    optimizer: Mapping[str, Any] = field(default_factory=dict)
 
     def to_json(self) -> str:
         return json.dumps(
@@ -41,6 +51,7 @@ class StageSpec:
                 "pipeline": dict(self.pipeline),
                 "instance": dict(self.instance),
                 "routes": dict(self.routes),
+                "optimizer": dict(self.optimizer),
             },
             sort_keys=True,
             indent=2,
@@ -59,4 +70,5 @@ class StageSpec:
             dict(data.get("pipeline", {})),
             dict(data.get("instance", {})),
             dict(data.get("routes", {})),
+            dict(data.get("optimizer", {})),
         )

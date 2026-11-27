@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, null, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.domain.package_fingerprint import PackageFingerprint
@@ -12,17 +12,22 @@ class PostgresPackageFingerprints:
         self._engine = engine
 
     def record(self, fingerprint: PackageFingerprint, at: datetime) -> None:
-        statement = (
-            insert(package_fingerprints)
-            .values(
-                fingerprint=fingerprint.fingerprint,
-                version=fingerprint.version,
-                git_commit=fingerprint.git_commit,
-                git_dirty=fingerprint.git_dirty,
-                defaults=fingerprint.defaults,
-                first_seen_at=at,
-            )
-            .on_conflict_do_nothing(index_elements=["fingerprint"])
+        insertion = insert(package_fingerprints)
+        statement = insertion.values(
+            fingerprint=fingerprint.fingerprint,
+            version=fingerprint.version,
+            git_commit=fingerprint.git_commit,
+            git_dirty=fingerprint.git_dirty,
+            defaults=fingerprint.defaults,
+            # SQL null, not the JSON null a Python None would be stored as.
+            choice_coefficients=fingerprint.choice_coefficients or null(),
+            first_seen_at=at,
+        ).on_conflict_do_update(
+            index_elements=["fingerprint"],
+            # A row recorded before the coefficients were read gets them once; nothing
+            # else of a recorded row changes.
+            set_={"choice_coefficients": insertion.excluded.choice_coefficients},
+            where=package_fingerprints.c.choice_coefficients.is_(None),
         )
         with self._engine.begin() as connection:
             connection.execute(statement)
@@ -45,4 +50,5 @@ class PostgresPackageFingerprints:
             git_commit=row.git_commit,
             git_dirty=row.git_dirty,
             defaults=row.defaults,
+            choice_coefficients=row.choice_coefficients or {},
         )

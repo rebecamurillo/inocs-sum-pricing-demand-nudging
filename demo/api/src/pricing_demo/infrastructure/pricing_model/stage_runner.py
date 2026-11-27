@@ -23,6 +23,7 @@ from pricing_demo.infrastructure.pricing_model.routes_file import sorted_routes
 from pricing_demo.infrastructure.pricing_model.stage_spec import (
     OUTCOME_FILE,
     PROGRESS_FILE,
+    SOLVE_FACTS_FILE,
     StageSpec,
 )
 
@@ -136,6 +137,8 @@ def run(spec: StageSpec) -> dict[str, Any]:
         pipeline.build_hubs()
     elif spec.step == "routes":
         return run_routes(pipeline, spec, folder)
+    elif spec.step == "pricing_model":
+        return run_pricing_model(pipeline, spec, folder)
     else:
         written = pipeline.generate_instance(InstanceParams(**spec.instance))
         target = folder / INSTANCE_FILE
@@ -144,6 +147,25 @@ def run(spec: StageSpec) -> dict[str, Any]:
         parsed = parse_json_instance(target)
         bike_legs = {str(arc_id): legs for (_, _, arc_id), legs in parsed["k_bike_legs"].items()}
         (folder / BIKE_LEGS_FILE).write_text(json.dumps(bike_legs, sort_keys=True), "utf-8")
+    return {"status": "done", "counts": {}}
+
+
+def run_pricing_model(pipeline: Any, spec: StageSpec, folder: Path) -> dict[str, Any]:
+    """Step 5: the package's solve of the period's instance. The solver's status and solution
+    count exist only in its printed log (model-notes entry 27); what it does not print, the
+    Gurobi version and the platform, is written beside the outcome."""
+    import platform
+
+    import gurobipy
+    from sum_nsm_dynamic_pricing.config import OptimizerParams
+
+    results = pipeline.optimize(OptimizerParams(**spec.optimizer), folder / INSTANCE_FILE)
+    facts = {
+        "results_file": os.path.relpath(results, folder),
+        "gurobi_version": ".".join(str(part) for part in gurobipy.gurobi.version()),
+        "platform": platform.platform(),
+    }
+    (folder / SOLVE_FACTS_FILE).write_text(json.dumps(facts, sort_keys=True), encoding="utf-8")
     return {"status": "done", "counts": {}}
 
 

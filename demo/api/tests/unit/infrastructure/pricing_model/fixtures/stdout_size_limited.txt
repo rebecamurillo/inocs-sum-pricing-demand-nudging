@@ -1,0 +1,22 @@
+Restricted license - for non-production use only - expires 2028-11-29
+Set parameter NodefileStart to value 2
+Set parameter NodefileDir to value "C:\b_b_gurobi"
+Set parameter Threads to value 4
+Set parameter Method to value -1
+Set parameter TimeLimit to value 7200
+Starting optimization with solution method (Gurobi Method): -1
+Gurobi Optimizer version 14.0.0 build v14.0.0rc1 (armlinux64 - "Debian GNU/Linux 13 (trixie)")
+
+CPU model: ARM64
+Thread count: 14 physical cores, 14 logical processors, using up to 4 threads
+
+Non-default parameters:
+TimeLimit  7200
+NodefileStart  2
+Threads  4
+
+Gurobi error during optimization: Model too large for size-limited license; visit https://gurobi.com/unrestricted for more information
+No solutions to save
+Solution time for Instance_1: 0.00 seconds
+Conflict analysis computed and written to model_conflicts.ilp
+Solver ended with status 1

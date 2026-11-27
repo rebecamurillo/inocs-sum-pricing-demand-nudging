@@ -5,6 +5,7 @@ adapters and injects them. The API and the worker share only PostgreSQL.
 """
 
 import argparse
+import hashlib
 import logging
 import os
 import signal
@@ -40,6 +41,7 @@ from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.ports.component_probe import ComponentProbe
 from pricing_demo.application.ports.feed_shapes import FeedShapes
 from pricing_demo.application.ports.package_fingerprints import PackageFingerprintReader
+from pricing_demo.application.ports.pricing_solver import PricingSolver
 from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
@@ -109,6 +111,7 @@ from pricing_demo.infrastructure.pricing_model.package_fingerprint import (
     PackageFingerprintReader as PackageSourcesReader,
 )
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
+from pricing_demo.infrastructure.pricing_model.pricing_solver import PackagePricingSolver
 from pricing_demo.infrastructure.pricing_model.solver_probe import SolverProbe
 from pricing_demo.infrastructure.pricing_model.stage_child import StageChild
 from pricing_demo.infrastructure.shape_matching.pfaedle import DockerPfaedleMatcher
@@ -224,6 +227,14 @@ def simulation_rule_record(rule: BalancedScore) -> Mapping[str, object]:
     return {"id": rule.rule_id, "version": rule.rule_version, "parameters": dict(rule.parameters)}
 
 
+def lock_sha256(lock: Path) -> str:
+    """The sha256 of the dependency lock file the worker runs from, recorded on every solve."""
+    try:
+        return hashlib.sha256(lock.read_bytes()).hexdigest()
+    except OSError:
+        return "unavailable"
+
+
 def register_pricing_steps(
     settings: Settings,
     registry: StepRegistry,
@@ -237,30 +248,36 @@ def register_pricing_steps(
     probes: Sequence[ComponentProbe],
     rule: BalancedScore,
 ) -> None:
-    """The two steps of a pricing run. The pricing model has no real adapter yet (story 3-4):
-    outside the fake set no executor is registered for it, and its step fails with the
-    registry's reason. The traveller simulation is the demonstrator's own domain code and runs
-    in both sets (`balanced-score`, provisional until the model's author states the rule)."""
+    """The two steps of a pricing run. The pricing model runs the fake solver in the fake set
+    and the package's solver in a stage child in the real one; the traveller simulation is the
+    demonstrator's own domain code and runs in both sets (`balanced-score`, provisional until
+    the model's author states the rule)."""
     files = LocalArtifactStore(settings.data_dir)
     artifacts = PostgresArtifacts(engine)
     solves = PostgresSolves(engine)
     pricing_versions = PostgresPricingVersions(engine)
-    if fake_settings is not None:
-        (solver_probe,) = [item for item in probes if item.component is ComponentName.SOLVER]
-        pricing_model = PricingModelStepExecutor(
-            FakePricingSolver(fake_settings),
-            solver_probe,
-            PostgresComponentReports(engine),
-            identity.id,
-            files,
-            artifacts,
-            solves,
-            pricing_versions,
-            repository,
-            WorkerBuildSources(fingerprint.current, graph),
-            clock,
+    (solver_probe,) = [item for item in probes if item.component is ComponentName.SOLVER]
+    solver: PricingSolver = (
+        FakePricingSolver(fake_settings)
+        if fake_settings is not None
+        else PackagePricingSolver(
+            StageChild(), version("pricing_demo"), lock_sha256(DEMO_DIR / "api" / "uv.lock")
         )
-        registry.register(StepName.PRICING_MODEL, pricing_model, pricing_model)
+    )
+    pricing_model = PricingModelStepExecutor(
+        solver,
+        solver_probe,
+        PostgresComponentReports(engine),
+        identity.id,
+        files,
+        artifacts,
+        solves,
+        pricing_versions,
+        repository,
+        WorkerBuildSources(fingerprint.current, graph),
+        clock,
+    )
+    registry.register(StepName.PRICING_MODEL, pricing_model, pricing_model)
     simulation = TravellerSimulationStepExecutor(
         rule,
         pricing_versions,

@@ -92,7 +92,9 @@ api/
       pricing_model/           the package gateway: the probes, the city preparation and its
                                stage child (stage_runner.py is the child's entry; worker only),
                                the routes step's progress reader (routes_progress.py), sort
-                               (routes_file.py) and retry policy (retry_policy.py)
+                               (routes_file.py) and retry policy (retry_policy.py), and the
+                               real PricingSolver (pricing_solver.py, with the pure readers
+                               solve_reading.py and choice_coefficients.py)
       trip_planner/            the OpenTripPlanner client
       fakes/                   every fake adapter, one module per kind
     interface/
@@ -179,7 +181,7 @@ graph manifest whose `gtfs_sha256` differs from the data set's timetable fails t
 `timetable_mismatch` (`BuildStepExecutor`).
 
 What the package cannot do as it stands is recorded in [`model-notes.md`](model-notes.md)
-and worked around in the adapter, never in the package.
+and worked around in the adapter, never in the package; so are its coefficients.
 
 ### City data
 
@@ -256,8 +258,10 @@ the version the draft is based on. A rule reports, it never corrects.
 At start and with every heartbeat the worker records the package it runs
 (`RecordPackageFingerprint`, port `PackageFingerprints`): the sha256 over the package's source
 files and the repository commit, `git_dirty`, the version from `pyproject.toml` and the
-dataclass defaults of `PipelineConfig`, `InstanceParams` and `OptimizerParams`, read in a child
-process by `infrastructure/pricing_model/package_fingerprint.py`. The row is insert-if-new, and
+dataclass defaults of `PipelineConfig`, `InstanceParams` and `OptimizerParams`, and the twelve
+choice-model coefficients of the solver (`choice_coefficients`, read with `ast` from the solver's
+source), read in child processes by `infrastructure/pricing_model/package_fingerprint.py`. The row
+is insert-if-new (a row recorded before the column existed gets its coefficients once), and
 its fingerprint is also written on the worker's `workers` row (no foreign key: the e2e reset
 truncates both tables). The API reads the latest row for "start from the package defaults".
 The fake adapter set records a fixed fingerprint whose defaults are constants copied from the
@@ -327,10 +331,15 @@ step's keeper.
   in `route_options`; an artefact ingested earlier has nulls, and its simulation fails with
   `stage_error`.
 
-A run succeeds only when both steps are done or kept. Outside the fake adapter set no executor is
-registered for `pricing_model` until its real adapter exists (story 3-4), and its step fails with
-"no step executor is registered"; the simulation is the demonstrator's own domain code and runs in
-both sets. The worker records the rule it chose (`{id, version, parameters}`) on its
+A run succeeds only when both steps are done or kept. The `pricing_model` step has an executor in
+both sets: the fake `PricingSolver` in the fake set, and in the real set `PackagePricingSolver`
+(`infrastructure/pricing_model/pricing_solver.py`), which runs the stage `pricing_model` of the
+stage child (`InstancePipeline.optimize` of the unmodified package, then `solve_facts.json` with the
+Gurobi version and the platform) and reads the child's `stdout.log` and
+`optimization_instance_results.json` into a `Solve` (`solve_reading.read_solve`): the size-limit
+error printed by the package is `solver_size_limited`, no result or a status without a solution is
+`solver_no_solution`, a `TIME_LIMIT` solve with a solution is a result with `time_limit_reached`.
+The simulation is the demonstrator's own domain code and runs in both sets. The worker records the rule it chose (`{id, version, parameters}`) on its
 `workers.simulation_rule`. The fake `PricingSolver` (`infrastructure/fakes/pricing_solver.py`)
 computes its rows from a fixed formula of the version's goals, offers fewer options than the flat
 scheme does (none from hub `H6`) and labels its provenance `fake`.
