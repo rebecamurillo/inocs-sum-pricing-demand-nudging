@@ -441,3 +441,56 @@ describe('where prices differ', () => {
     expect(compareLegendAnchors('ridesStartingDifference', 0).higher).toBe('+0 rides');
   });
 });
+
+describe('the export fields of the table', () => {
+  const versionOf = (letter: string) => ({
+    id: `geneva-3km.v1.${letter}`,
+    letter,
+    name: `Version ${letter}`,
+    goals: {},
+    flatReference: 'f',
+    packageCommit: null,
+    packageFingerprint: '',
+    simulations: [],
+    solveKey: letter,
+  });
+  const found: Comparison = {
+    ...comparisonOf({ A: [0.5, 1234.4, 9], B: [0.3, -90, 8] }),
+    versions: [versionOf('A'), versionOf('B')],
+    flatReferences: [reference('f', { letters: ['A', 'B'] })],
+  };
+
+  it('writes plain figures, units apart and the source of each row', () => {
+    const rows = tableGroups(found, comparisonColumns(found), false)[0]?.rows ?? [];
+    const car = rows.find((row) => row.key === 'share_car');
+    expect(car?.unit).toBe('%');
+    expect(car?.source).toBe('simulation');
+    expect(car?.cells.map((cell) => cell.csv)).toEqual(['—', '50', '30']);
+    const profit = rows.find((row) => row.key === 'profit');
+    expect(profit?.unit).toBe('CHF');
+    expect(profit?.cells.map((cell) => cell.csv)).toEqual(['—', '1234', '-90']);
+    expect(rows.find((row) => row.key === 'stations_empty_or_full')?.unit).toBe('stations');
+  });
+
+  it('keeps a dash as a dash and takes the group source of a row without numbers', () => {
+    const empty: Comparison = {
+      ...found,
+      versions: [versionOf('A')],
+      flatReferences: [reference('f', { letters: ['A'] })],
+      groups: [
+        {
+          name: 'derived',
+          rows: [{ key: 'profit', values: { A: null }, changes: {}, flats: {}, best: [] }],
+        },
+        {
+          name: 'goals_that_differ',
+          rows: [{ key: 'cost_bike_chf', values: { A: null }, changes: {}, flats: {}, best: [] }],
+        },
+      ],
+    };
+    const [derived, goals] = tableGroups(empty, comparisonColumns(empty), false);
+    expect(derived?.rows[0]?.cells.map((cell) => cell.csv)).toEqual(['—', '—']);
+    expect(derived?.rows[0]?.source).toBe('derived');
+    expect(goals?.rows[0]?.source).toBe('input');
+  });
+});

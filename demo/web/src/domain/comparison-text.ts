@@ -14,7 +14,7 @@ import {
 import { COLUMN_HEADINGS } from './hub-pair-table';
 import { groupThousands } from './l1-text';
 import { solverStatusText } from './advanced-text';
-import { MODES, type ModeCounts, type ResultNumber } from './pricing-result';
+import { MODES, type ModeCounts, type ResultNumber, type ResultSource } from './pricing-result';
 import {
   COMPUTED_LABEL,
   MODEL_TAG,
@@ -34,6 +34,7 @@ export const compareBreadcrumb = (instanceName: string, number: number): string 
 export const COMPARE_OFF = 'Compare needs two pricing versions of this city instance.';
 export const TABLE_CAPTION =
   'Small figures: change against the flat-price column the version is simulated with. The pricing model is not run with a flat price: its rows show — there.';
+export const EXPORT_CSV = 'Export the table (CSV)';
 export const SAME_BASIS_NOTE = 'same hubs, routes, travellers and bikes.';
 export const BARS_CAPTION_END = THREE_MODES_SENTENCE;
 export const BARS_TITLE = 'Simulated split of the travellers';
@@ -229,6 +230,8 @@ export function columnLabel(column: ComparisonColumn, all: readonly FlatReferenc
 
 export interface TableCell {
   readonly text: string;
+  /** The plain figure of the CSV export: "." decimal mark, no grouping, ASCII minus, no unit. */
+  readonly csv: string;
   /** The small figure: the change against the version's flat column. */
   readonly change: string | null;
   readonly best: boolean;
@@ -242,6 +245,10 @@ export interface TableRow {
   readonly label: string;
   readonly note: string | null;
   readonly tag: 'model' | null;
+  /** The unit the CSV export adds to the label; null when the row has none. */
+  readonly unit: string | null;
+  /** The source of the row's numbers, which the CSV export writes in its `source` column. */
+  readonly source: ResultSource;
   readonly cells: readonly TableCell[];
 }
 
@@ -349,7 +356,60 @@ function formatChangeCell(key: string, change: ResultNumber | null): string | nu
   return formatChange(toChangeUnits(change.value, digits), digits);
 }
 
-const NO_CELL: TableCell = { text: DASH, change: null, best: false, bold: false, stale: false };
+/** The unit of each row in the CSV export, moved from the cell into the label. */
+const CSV_UNITS: Readonly<Record<string, string>> = {
+  share_car: '%',
+  share_pt_only: '%',
+  share_pt_bike: '%',
+  gap_pct: '%',
+  profit: 'CHF',
+  revenue: 'CHF',
+  cost: 'CHF',
+  mean_bike_price: 'CHF',
+  bike_price_range: 'CHF',
+  cost_bike_chf: 'CHF',
+  lowest_price_chf: 'CHF',
+  flat_price_per_ride_chf: 'CHF',
+  ridership: 'rides',
+  rides_under_cost: 'rides',
+  stations_empty_or_full: 'stations',
+  displaced: 'travellers',
+  solution_time_s: 's',
+};
+
+const GROUP_SOURCES: Readonly<Record<GroupName, ResultSource>> = {
+  simulated: 'simulation',
+  model: 'model',
+  derived: 'derived',
+  goals_that_differ: 'input',
+  solver: 'model',
+};
+
+/** A figure as the screen writes it, without its unit text, grouping or U+2212. */
+function plainFigure(text: string): string {
+  if (text === DASH) return DASH;
+  return text
+    .replace(/ (%|CHF|s)$/, '')
+    .replace(/(?<=\d)[ \u00a0\u202f](?=\d)/g, '')
+    .replace(/\u2212/g, '-');
+}
+
+/** The source of a row's numbers: its first value, then its flat values; the group's when it has none. */
+function sourceOf(group: ComparisonGroup, row: ComparisonRow): ResultSource {
+  const found = [...Object.values(row.values), ...Object.values(row.flats)].find(
+    (item) => item !== null,
+  );
+  return found?.source ?? GROUP_SOURCES[group.name];
+}
+
+const NO_CELL: TableCell = {
+  text: DASH,
+  csv: DASH,
+  change: null,
+  best: false,
+  bold: false,
+  stale: false,
+};
 
 /** The values of a row that differ from the most common one: all of them when none is more common. */
 function differingLetters(row: ComparisonRow): ReadonlySet<string> {
@@ -376,14 +436,22 @@ function cellsOf(
     if (column.kind === 'flat') {
       if (group.name !== 'simulated') return NO_CELL;
       const item = row.flats[column.reference.id] ?? null;
-      return { ...NO_CELL, text: render(item), stale: !column.reference.ruleCurrent };
+      const text = render(item);
+      return {
+        ...NO_CELL,
+        text,
+        csv: plainFigure(text),
+        stale: !column.reference.ruleCurrent,
+      };
     }
     const { letter } = column.version;
     const version = comparison.versions.find((item) => item.letter === letter);
     const stale =
       group.name === 'simulated' && version !== undefined && olderRuleOf(version) !== null;
+    const text = render(row.values[letter] ?? null);
     return {
-      text: render(row.values[letter] ?? null),
+      text,
+      csv: plainFigure(text),
       change:
         group.name === 'simulated' ? formatChangeCell(row.key, row.changes[letter] ?? null) : null,
       best: row.best.includes(letter),
@@ -413,6 +481,8 @@ function rowOf(
         : (ROW_LABELS[row.key] ?? row.key),
     note: noteFor,
     tag: row.key === 'objective_value' ? 'model' : null,
+    unit: CSV_UNITS[row.key] ?? null,
+    source: sourceOf(group, row),
     cells: cellsOf(group, row, columns, comparison, (item) =>
       item === null ? DASH : formatValue(row.key, item),
     ),
@@ -432,13 +502,15 @@ function rangeRow(group: ComparisonGroup, columns: readonly ComparisonColumn[]):
       min === null || max === null
         ? DASH
         : `${formatAmount(min.value, 2)} – ${formatAmount(max.value, 2)} CHF`;
-    return { ...NO_CELL, text };
+    return { ...NO_CELL, text, csv: plainFigure(text) };
   });
   return {
     key: 'bike_price_range',
     label: ROW_LABELS.bike_price_range ?? '',
     note: null,
     tag: null,
+    unit: 'CHF',
+    source: sourceOf(group, low),
     cells,
   };
 }
@@ -452,19 +524,17 @@ function pairsRow(group: ComparisonGroup, columns: readonly ComparisonColumn[]):
     if (column.kind === 'flat') return NO_CELL;
     const a = pairs.values[column.version.letter] ?? null;
     const b = options.values[column.version.letter] ?? null;
-    return {
-      ...NO_CELL,
-      text:
-        a === null || b === null
-          ? DASH
-          : `${formatAmount(a.value, 0)} · ${formatAmount(b.value, 0)}`,
-    };
+    const text =
+      a === null || b === null ? DASH : `${formatAmount(a.value, 0)} · ${formatAmount(b.value, 0)}`;
+    return { ...NO_CELL, text, csv: plainFigure(text) };
   });
   return {
     key: 'hub_pairs_with_bike_option',
     label: ROW_LABELS.hub_pairs_with_bike_option ?? '',
     note: null,
     tag: null,
+    unit: null,
+    source: sourceOf(group, pairs),
     cells,
   };
 }

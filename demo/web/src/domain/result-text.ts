@@ -13,6 +13,7 @@ import {
   type GoalName,
   type ModeCounts,
   type PricingResult,
+  type ResultSource,
   type ResultNumber,
   type SimulationOutcome,
 } from './pricing-result';
@@ -35,6 +36,15 @@ export const WHY_IT_DIFFERS =
 export const GOALS_TITLE = 'The three goals of this version';
 export const SIMULATED_LABEL = 'simulated travellers · placeholder rule';
 export const COMPUTED_LABEL = "computed from the model's flows";
+/** What each source of a number is called, in the CSV export's `source` column. */
+export const SOURCE_LABELS: Readonly<Record<ResultSource, string>> = {
+  simulation: SIMULATION_SOURCE,
+  model: MODEL_TAG,
+  derived: COMPUTED_LABEL,
+  input: 'input',
+  package_summary: 'package_summary',
+  trip_planner: 'trip_planner',
+};
 export const NO_STORED_RESULT = 'The result could not be read: no stored result.';
 
 export function scopeLine(

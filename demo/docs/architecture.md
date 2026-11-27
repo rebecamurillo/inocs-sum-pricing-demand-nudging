@@ -756,7 +756,11 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   card: through the map context it declares `l4-layers.ts` (the study circle, the hubs' outlines
   and one disc per hub, coloured and sized by `domain/diverging-scale.ts`, symmetric around 0)
   and, over the map, the "Map shows" selector and the legend; "Show on map" draws one pair with
-  L-3's `pairLineLayer`.
+  L-3's `pairLineLayer`. "Export the table (CSV)" saves the table as a file without a request:
+  `domain/comparison-csv.ts` (`buildComparisonCsv`, `comparisonCsvFileName`) reads the rows and
+  columns from `tableGroups` and `comparisonColumns` (each row carries its CSV `unit` and its
+  `source`, written through `SOURCE_LABELS` of `domain/result-text.ts`), and
+  `presentation/download.ts` saves the text through a Blob and a temporary link.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

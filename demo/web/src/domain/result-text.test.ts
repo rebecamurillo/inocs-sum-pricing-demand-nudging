@@ -18,6 +18,7 @@ import {
   RESULT_SENTENCE,
   SIMULATED_LABEL,
   SIMULATION_SOURCE,
+  SOURCE_LABELS,
   SIMULATION_TAG,
   THREE_MODES_SENTENCE,
   WHY_IT_DIFFERS,
@@ -365,5 +366,18 @@ describe('the goal tiles', () => {
       false,
       false,
     ]);
+  });
+});
+
+describe('the source labels', () => {
+  it('name the six sources, the three the screen tags in its words', () => {
+    expect(SOURCE_LABELS).toEqual({
+      simulation: SIMULATION_SOURCE,
+      model: MODEL_TAG,
+      derived: COMPUTED_LABEL,
+      input: 'input',
+      package_summary: 'package_summary',
+      trip_planner: 'trip_planner',
+    });
   });
 });

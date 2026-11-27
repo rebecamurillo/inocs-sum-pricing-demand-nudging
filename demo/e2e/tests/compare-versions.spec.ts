@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { buildFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
 import { finishVersion } from '../support/pricing';
@@ -141,6 +142,33 @@ test.describe('Compare versions', () => {
     await expect(legend).toContainText('Mean bike price: C \u2212 B');
     await expect(legend).toContainText("computed from the model's flows");
     await expect(legend).toContainText('CHF per ride');
+
+    // The CSV is built in the browser from the loaded comparison: no request follows the click.
+    const requests: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/comparisons')) requests.push(request.url());
+    });
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      main.getByRole('button', { name: 'Export the table (CSV)' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(`comparison-${built.version}-ABC.csv`);
+    const file = await readFile(await download.path(), 'utf-8');
+    for (const name of [
+      'Version A · Baseline',
+      'Version B · Heavier ridership',
+      'Version C · Higher floor',
+    ]) {
+      expect(file).toContain(name);
+    }
+    expect(file).toMatch(/^lowest price of a ride \(CHF\),[^\r\n]*,0\.90\r$/m);
+    expect(file).toMatch(/^ridership weight,[^\r\n]*,20,[^\r\n]*\r$/m);
+    const header = file.split('\r\n').find((line) => line.startsWith('group,row,'));
+    expect(header).toMatch(/^group,row,Flat price 1\.00 CHF,.*,source$/);
+    expect(file).toContain("PRICING MODEL'S RESULT");
+    expect(file).toContain("computed from the model's flows");
+    expect(file).toContain('Simulated travellers · placeholder rule: half price, half travel time');
+    expect(requests).toEqual([]);
 
     // Unticking a version rewrites the route in place and the columns follow.
     const history = await page.evaluate(() => window.history.length);

@@ -285,6 +285,45 @@ describe('CompareView', () => {
     expect(screen.getByText('same hubs, routes, travellers and bikes.')).toBeVisible();
   });
 
+  describe('the CSV export', () => {
+    it('saves the file of the loaded comparison and asks the API for nothing more', async () => {
+      const created = vi.fn<(blob: Blob) => string>(() => 'blob:csv');
+      vi.stubGlobal('URL', { createObjectURL: created, revokeObjectURL: vi.fn() });
+      const names: string[] = [];
+      const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        names.push(this.download);
+      });
+      try {
+        const { fake } = mount();
+        const compare = vi.spyOn(fake.gateway, 'compare');
+        const button = await screen.findByRole('button', { name: 'Export the table (CSV)' });
+        expect(button).toBeEnabled();
+        expect(button.previousElementSibling?.textContent).toBe(
+          'same hubs, routes, travellers and bikes.',
+        );
+        const before = compare.mock.calls.length;
+        await userEvent.click(button);
+        expect(click).toHaveBeenCalledTimes(1);
+        expect(names).toEqual(['comparison-geneva-3km.v1-ABC.csv']);
+        const blob = created.mock.calls[0]?.[0];
+        expect(blob?.type).toBe('text/csv;charset=utf-8');
+        expect((await blob?.text())?.startsWith('version,')).toBe(true);
+        expect(compare).toHaveBeenCalledTimes(before);
+      } finally {
+        click.mockRestore();
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it('is absent in the off state', async () => {
+      mount({ versions: [finished('A')], letters: null });
+      await screen.findByText('Compare needs two pricing versions of this city instance.');
+      expect(screen.queryByRole('button', { name: 'Export the table (CSV)' })).toBeNull();
+    });
+  });
+
   describe('notices', () => {
     it('says nothing when every version has one build', async () => {
       mount();

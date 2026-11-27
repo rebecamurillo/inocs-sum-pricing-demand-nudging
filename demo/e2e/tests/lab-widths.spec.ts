@@ -314,6 +314,9 @@ test.describe('Lab', () => {
       main.getByRole('heading', { name: /^Hub pairs where the mean bike price differs most/ }),
     ).toBeVisible();
     await expect(page.getByRole('group', { name: 'Map legend' })).toBeVisible();
+    const exportButton = main.getByRole('button', { name: 'Export the table (CSV)' });
+    await expect(exportButton).toBeVisible();
+    await expect(exportButton).toBeEnabled();
     await holdsAtEverySize(page, main);
 
     // Advanced view on: the solver's rows join the table; the page still does not scroll.

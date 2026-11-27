@@ -9,10 +9,12 @@ import {
   type Comparison,
   type ComparisonColumn,
 } from '../../domain/comparison';
+import { buildComparisonCsv, comparisonCsvFileName } from '../../domain/comparison-csv';
 import {
   BARS_TITLE,
   COMPARE_BRIEF,
   COMPARE_OFF,
+  EXPORT_CSV,
   SAME_BASIS_NOTE,
   SIMULATION_SOURCE,
   TABLE_CAPTION,
@@ -53,6 +55,7 @@ import {
   usePricingList,
   useSimulationEnd,
 } from '../hooks/usePricingVersions';
+import { saveTextFile } from '../download';
 import { useActiveRuns, useNow } from '../hooks/useRuns';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { CompareDifferences } from './CompareDifferences';
@@ -419,6 +422,19 @@ function CompareCard({
       )}
       <div className={styles.actions}>
         <span className={styles.note}>{SAME_BASIS_NOTE}</span>
+        <button
+          type="button"
+          className={styles.secondary}
+          onClick={() => {
+            saveTextFile(
+              comparisonCsvFileName(comparison),
+              buildComparisonCsv(comparison, advancedView),
+              'text/csv;charset=utf-8',
+            );
+          }}
+        >
+          {EXPORT_CSV}
+        </button>
       </div>
     </div>
   );
