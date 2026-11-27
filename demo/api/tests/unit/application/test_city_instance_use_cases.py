@@ -16,10 +16,12 @@ from pricing_demo.application.use_cases.create_city_instance import (
     FromPackageDefaults,
 )
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.list_city_instances import ListCityInstances
 from pricing_demo.application.use_cases.update_instance_version import UpdateInstanceVersion
+from pricing_demo.domain.builds import RunActive
 from pricing_demo.domain.city_instances import (
     CityInstanceNameTaken,
     CityInstanceNotFound,
@@ -29,6 +31,7 @@ from pricing_demo.domain.city_instances import (
     ParameterChange,
     VersionSealed,
 )
+from pricing_demo.domain.runs import RunState
 from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
 from pricing_demo.infrastructure.fakes.build_sources import InMemoryBuildSources
 from pricing_demo.infrastructure.fakes.builds import InMemoryBuilds
@@ -43,7 +46,7 @@ from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 from tests.support.builds import all_available
-from tests.support.runs import T0
+from tests.support.runs import T0, make_run
 
 DATASET_ID = "geneva-2026-11-26"
 
@@ -57,7 +60,8 @@ class Rig:
         self.fingerprints = InMemoryPackageFingerprints()
         if with_fingerprint:
             self.fingerprints.record(FAKE_FINGERPRINT, T0)
-        builds = InMemoryBuilds(InMemoryRunRepository(), self.instances)
+        self.runs = InMemoryRunRepository()
+        builds = InMemoryBuilds(self.runs, self.instances)
         artifacts = InMemoryArtifacts()
         built = BuiltCounts(artifacts, InMemoryReadModel(), InMemoryRouteFailures())
         planning = BuildPlanning(
@@ -80,7 +84,8 @@ class Rig:
         self.get = GetInstanceVersion(
             self.instances, self.datasets, planning, built, self.fingerprints
         )
-        self.delete = DeleteInstanceVersion(self.instances)
+        self.delete = DeleteInstanceVersion(builds)
+        self.delete_instance = DeleteCityInstance(builds)
         self.menu = ListCityInstances(self.instances, builds)
 
     def geneva(self) -> InstanceVersionView:
@@ -218,15 +223,66 @@ def test_what_changes_is_against_the_version_it_is_based_on() -> None:
     assert view.changes == (ParameterChange("fixed_capacity", 20, 25),)
 
 
-def test_a_sealed_version_is_not_updated_or_deleted() -> None:
+def test_a_sealed_version_is_not_updated() -> None:
     rig = Rig()
     rig.geneva()
     rig.instances.seal("geneva-3km.v1", T0)
 
     with pytest.raises(VersionSealed):
         rig.update.execute("geneva-3km.v1", {"seed": 1})
-    with pytest.raises(VersionSealed):
+
+
+def test_a_sealed_version_is_deleted_with_its_runs() -> None:
+    rig = Rig()
+    rig.geneva()
+    rig.instances.seal("geneva-3km.v1", T0)
+    rig.runs.add(make_run("r1", subject_id="geneva-3km.v1", state=RunState.FAILED))
+
+    rig.delete.execute("geneva-3km.v1")
+
+    assert rig.instances.get_version("geneva-3km.v1") is None
+    assert rig.runs.get("r1") is None
+
+
+def test_a_version_with_an_active_run_is_not_deleted() -> None:
+    rig = Rig()
+    rig.geneva()
+    rig.instances.seal("geneva-3km.v1", T0)
+    rig.runs.add(make_run("r1", subject_id="geneva-3km.v1", state=RunState.RUNNING))
+
+    with pytest.raises(RunActive):
         rig.delete.execute("geneva-3km.v1")
+
+    assert rig.instances.get_version("geneva-3km.v1") is not None
+
+
+def test_an_instance_is_deleted_with_all_its_versions() -> None:
+    rig = Rig()
+    rig.geneva()
+    rig.instances.seal("geneva-3km.v1", T0)
+    rig.create_version.execute("geneva-3km", "geneva-3km.v1")
+
+    rig.delete_instance.execute("geneva-3km")
+
+    assert rig.menu.execute() == []
+
+
+def test_an_instance_with_an_active_run_on_any_version_is_not_deleted() -> None:
+    rig = Rig()
+    rig.geneva()
+    rig.instances.seal("geneva-3km.v1", T0)
+    rig.create_version.execute("geneva-3km", "geneva-3km.v1")
+    rig.runs.add(make_run("r1", subject_id="geneva-3km.v1", state=RunState.QUEUED))
+
+    with pytest.raises(RunActive):
+        rig.delete_instance.execute("geneva-3km")
+
+    assert len(rig.menu.execute()[0].versions) == 2
+
+
+def test_an_unknown_instance_is_not_found_when_deleted() -> None:
+    with pytest.raises(CityInstanceNotFound):
+        Rig().delete_instance.execute("x")
 
 
 def test_an_unknown_version_is_not_found() -> None:

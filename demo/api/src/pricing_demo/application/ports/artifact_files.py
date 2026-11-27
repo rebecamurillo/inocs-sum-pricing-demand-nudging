@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -34,3 +34,12 @@ class ArtifactFiles(Protocol):
         ...
 
     def discard(self, working_dir: Path) -> None: ...
+
+    def remove_artifact(self, path: str) -> None:
+        """Remove the stored (read-only) artefact folder; `path` is relative to the data
+        directory. A missing folder is fine; a path outside the data directory is refused."""
+        ...
+
+    def remove_working_dirs_except(self, run_ids: Collection[str]) -> None:
+        """Remove every `runs/{id}/` whose id is not in `run_ids`."""
+        ...

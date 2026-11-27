@@ -294,6 +294,29 @@ the executor) before it starts the step; a step whose key has an ingested artefa
 `pending` to `kept` at once and costs nothing. The city is prepared through the `CityPreparation` port;
 its fake and the pricing-model adapter implement it.
 
+### Deleting, and the collection
+
+`DELETE /api/v1/instance-versions/{id}` and `DELETE /api/v1/city-instances/{id}` answer 204
+(`Builds.delete_version`, `Builds.delete_instance`). In one transaction each locks the instance
+row and the version rows (the order `create_draft` and `queue_build` lock in), refuses with
+`run_active` (409, naming the run) while a build run of any of those versions is queued or
+running, then deletes the runs with their steps (route failures cascade), the versions (periods
+and `instance_version_steps` cascade; `based_on_id` of a surviving version is set to null) and,
+when no version is left, the instance. A saved, failed or cancelled version goes the same way as
+a draft. `next_number` is never decreased, so a number is never reused.
+
+What the deletion leaves, the worker's collection removes (`CollectUnreferenced`): at its start
+and every 10 minutes (`COLLECT_EVERY`, on the injected clock) it deletes, one transaction per
+artefact, each `artifacts` row no `instance_version_steps` row references (its read-model rows
+go with it by `ON DELETE CASCADE`; the link is checked again under a row lock, so an artefact
+linked meanwhile stays), then its read-only folder under `var/data/artifacts/`, and the
+`var/data/runs/{run}/` working directories of runs that no longer exist. While any run is
+queued or running no artefact is removed: a step stores an artefact before it links it, and a
+step that keeps or re-ingests an unreferenced artefact reads it before it links it. A folder is
+renamed away (`{key}.removing-…`) before it is removed, so a removal that stops half-way never
+leaves a partial folder under the key's name. A failure is logged, the pass goes on, and the next tick tries again. Epic 3 extends the
+collection to solves and simulations.
+
 ### Read model
 
 The tables every screen reads, none of which needs a file: `stations`, `hubs` and

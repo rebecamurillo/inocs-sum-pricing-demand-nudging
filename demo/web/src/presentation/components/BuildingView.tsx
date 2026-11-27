@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import type { InstanceView as InstanceViewValue } from '../../application/use-cases/load-instance-view';
 import { versionNumberOf } from '../../domain/draft-text';
 import { clockTime, versionTag } from '../../domain/l1-text';
@@ -36,6 +36,7 @@ import { l1Layers } from '../map/l1-layers';
 import { useMapFit, useMapLayers } from '../map/MapContext';
 import { ChangesTable } from './ChangesTable';
 import { LoadingCard } from './LoadingCard';
+import { VersionDelete } from './VersionDelete';
 import styles from './BuildingView.module.css';
 
 const isDone = (step: RunStep) => step.state === 'done' || step.state === 'kept';
@@ -113,11 +114,13 @@ function RunBar({
   versionId,
   name,
   failedStep,
+  deletion,
 }: {
   run: Run;
   versionId: string;
   name: string;
   failedStep: string | null;
+  deletion: ReactNode;
 }) {
   const actions = useRunActions(versionId);
   const [confirming, setConfirming] = useState(false);
@@ -144,13 +147,14 @@ function RunBar({
           >
             {runAgainFromLabel(failedStep ?? STEP_NAMES.area)}
           </button>
+          {deletion}
         </div>
         {refused !== null && <p className={styles.error}>{refused}</p>}
         {actions.again.isError && <p className={styles.error}>{actions.again.error.message}</p>}
       </>
     );
   }
-  if (!isActive(run)) return null;
+  if (!isActive(run)) return <div className={styles.actions}>{deletion}</div>;
   if (confirming) {
     return (
       <div className={styles.confirm} role="group" aria-label="Cancel this run">
@@ -195,6 +199,7 @@ function RunBar({
       >
         {labels.open}
       </button>
+      {deletion}
     </div>
   );
 }
@@ -315,7 +320,19 @@ export function BuildingView({
           </a>
         </p>
       )}
-      <RunBar run={run} versionId={version.id} name={name} failedStep={failedName} />
+      <RunBar
+        run={run}
+        versionId={version.id}
+        name={name}
+        failedStep={failedName}
+        deletion={
+          <VersionDelete
+            versionId={version.id}
+            instanceName={instanceName}
+            number={version.number}
+          />
+        }
+      />
       {basedNumber !== null && (
         <ChangesTable
           changes={version.changes}

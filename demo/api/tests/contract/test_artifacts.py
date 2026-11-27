@@ -118,3 +118,33 @@ def test_two_versions_link_the_same_artefact(store: Artifacts) -> None:
     store.link("a.v2", StepName.AREA, None, "k1")
 
     assert store.links_of("a.v1") == store.links_of("a.v2") == {StepName.AREA: "k1"}
+
+
+def test_an_artefact_no_version_links_is_unreferenced(store: Artifacts) -> None:
+    store.add(artifact("k1"))
+    store.add(artifact("k2", StepName.HUBS))
+    store.add(artifact("k3", StepName.ROUTES))
+    store.link("a.v1", StepName.AREA, None, "k1")
+    store.link("a.v2", StepName.HUBS, None, "k2")
+
+    assert [item.input_key for item in store.unreferenced()] == ["k3"]
+
+
+def test_removing_an_unreferenced_artefact_deletes_it(store: Artifacts) -> None:
+    store.add(artifact("k1"))
+
+    assert store.remove("k1") is True
+
+    assert store.get("k1") is None
+    assert store.remove("k1") is False
+
+
+def test_an_artefact_a_version_links_is_not_removed(store: Artifacts) -> None:
+    store.add(artifact("k1"))
+    store.link("a.v1", StepName.AREA, None, "k1")
+    store.link("a.v2", StepName.AREA, None, "k1")
+
+    assert store.remove("k1") is False
+
+    assert store.get("k1") is not None
+    assert store.unreferenced() == []

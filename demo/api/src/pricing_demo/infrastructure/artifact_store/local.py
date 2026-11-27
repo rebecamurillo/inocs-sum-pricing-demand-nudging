@@ -3,7 +3,7 @@ import json
 import os
 import shutil
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -83,6 +83,45 @@ class LocalArtifactStore:
 
     def discard(self, working_dir: Path) -> None:
         shutil.rmtree(working_dir, ignore_errors=True)
+
+    def remove_artifact(self, path: str) -> None:
+        folder = (self._data_dir / path).resolve()
+        root = (self._data_dir / "artifacts").resolve()
+        # Exactly `artifacts/{step}/{key}`: never a step's whole folder.
+        if folder.parent.parent != root:
+            raise ValueError(f"{path} is not an artefact folder under the data directory.")
+        if not folder.exists():
+            return
+        # Renamed away first: a removal that stops half-way never leaves a partial folder
+        # under the key's name, which `store` would take for the complete artefact.
+        folder.chmod(0o755)
+        removing = folder.with_name(f"{folder.name}.removing-{uuid.uuid4().hex}")
+        os.rename(folder, removing)
+        self._remove_tree(removing)
+
+    def remove_working_dirs_except(self, run_ids: Collection[str]) -> None:
+        runs = self._data_dir / "runs"
+        if not runs.is_dir():
+            return
+        keep = set(run_ids)
+        for folder in runs.iterdir():
+            if folder.name not in keep and folder.is_dir() and not folder.is_symlink():
+                self._remove_tree(folder)
+
+    @staticmethod
+    def _remove_tree(folder: Path) -> None:
+        # Stored folders and files are read-only: make them writable first.
+        folder.chmod(0o755)
+        for current, folders, files in os.walk(folder):
+            for name in folders:
+                path = Path(current, name)
+                if not path.is_symlink():
+                    path.chmod(0o755)
+            for name in files:
+                path = Path(current, name)
+                if not path.is_symlink():
+                    path.chmod(WRITABLE_FILE)
+        shutil.rmtree(folder)
 
     def _artifact_folder(self, step: StepName, key: str) -> Path:
         return self._data_dir / "artifacts" / step.value / key

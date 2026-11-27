@@ -21,6 +21,7 @@ import { useEditAsNewVersion, type OpenedDraft } from '../hooks/useEditAsNewVers
 import { UNROUTED_COLOUR, l1Layers, unroutedPairLayer } from '../map/l1-layers';
 import { useMapFit, useMapLayers, useMapLegend, type LegendEntry } from '../map/MapContext';
 import { BuildingView } from './BuildingView';
+import { VersionDelete } from './VersionDelete';
 import { CancelledCard } from './CancelledCard';
 import { LoadingCard } from './LoadingCard';
 import styles from './InstanceView.module.css';
@@ -243,6 +244,7 @@ function SavedInstance({
         >
           Edit as a new version
         </button>
+        <VersionDelete versionId={version.id} instanceName={instanceName} number={version.number} />
       </div>
       {editing.error !== null && <p className={styles.error}>{editing.error}</p>}
     </div>

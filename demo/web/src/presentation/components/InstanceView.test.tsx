@@ -160,7 +160,7 @@ describe('InstanceView · the saved card', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('ends with the closing sentence and "Edit as a new version", and nothing for deleting', async () => {
+  it('ends with the closing sentence, "Edit as a new version" and "Delete…"', async () => {
     mount(fakeCityInstances());
     await found('City instance · pipeline steps 1 to 4');
 
@@ -170,8 +170,71 @@ describe('InstanceView · the saved card', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit as a new version' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete…' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /New pricing version/ })).not.toBeInTheDocument();
+  });
+
+  describe('"Delete…"', () => {
+    const SENTENCE =
+      'Delete Geneva 3 km v1? This removes the instance version. Other versions of Geneva 3 km stay. This cannot be undone.';
+
+    beforeEach(() => {
+      window.location.hash = '#/lab/geneva-3km.v1';
+    });
+
+    it('asks in place what goes, and "Keep" closes it', async () => {
+      const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+      mount(fakeCityInstances({ deleteVersion }));
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+      expect(screen.getByText(SENTENCE)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Delete v1' })).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Keep' }));
+      expect(screen.queryByText(SENTENCE)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Delete…' })).toHaveFocus();
+      expect(deleteVersion).not.toHaveBeenCalled();
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+    });
+
+    it('sends the DELETE and opens #/lab', async () => {
+      const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+      mount(fakeCityInstances({ deleteVersion }));
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+      await user.click(screen.getByRole('button', { name: 'Delete v1' }));
+
+      await waitFor(() => {
+        expect(window.location.hash).toBe('#/lab');
+      });
+      expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v1');
+    });
+
+    it('shows the refusal as the note of "Delete…" and deletes nothing', async () => {
+      mount(fakeCityInstances({}, new Set(['geneva-3km.v1'])));
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+      await user.click(screen.getByRole('button', { name: 'Delete v1' }));
+
+      expect(await screen.findByText('A run of this version is queued or running.')).toBeVisible();
+      expect(screen.queryByText(SENTENCE)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Delete…' })).toBeInTheDocument();
+      expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+    });
+
+    it('shows a failed DELETE in the confirmation and keeps it open', async () => {
+      mount(fakeCityInstances({ deleteVersion: () => Promise.reject(new Error('offline')) }));
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+      await user.click(screen.getByRole('button', { name: 'Delete v1' }));
+
+      expect(await screen.findByText('offline')).toBeInTheDocument();
+      expect(screen.getByText(SENTENCE)).toBeInTheDocument();
+    });
   });
 
   it('writes the singular for one pricing version', async () => {

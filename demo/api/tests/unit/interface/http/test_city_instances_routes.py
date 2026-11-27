@@ -12,6 +12,7 @@ from pricing_demo.domain.runs import RunState
 from pricing_demo.domain.system_status import ComponentName
 from pricing_demo.infrastructure.fakes.package_fingerprints import FAKE_FINGERPRINT
 from tests.support.builds import build_fake_city, unavailable
+from tests.support.runs import make_run
 from tests.unit.interface.http.conftest import SERVER_TIME, CityInstancesApp
 
 CREATE = {
@@ -231,18 +232,51 @@ def _json(value: object) -> bytes:
     return json.dumps(value).encode()
 
 
-def test_a_sealed_version_answers_409_to_a_patch_and_a_delete(
-    instances_app: CityInstancesApp,
-) -> None:
+def test_a_sealed_version_answers_409_to_a_patch(instances_app: CityInstancesApp) -> None:
+    create(instances_app)
+    instances_app.instances.seal("geneva-3km.v1", SERVER_TIME)
+
+    patch = instances_app.client.patch("/api/v1/instance-versions/geneva-3km.v1", json={"seed": 1})
+
+    assert patch.status_code == 409
+    assert patch.json()["code"] == "version_sealed"
+
+
+def test_a_sealed_version_is_deleted_with_204(instances_app: CityInstancesApp) -> None:
     create(instances_app)
     instances_app.instances.seal("geneva-3km.v1", SERVER_TIME)
     path = "/api/v1/instance-versions/geneva-3km.v1"
 
-    patch = instances_app.client.patch(path, json={"seed": 1})
-    delete = instances_app.client.delete(path)
+    assert instances_app.client.delete(path).status_code == 204
+    assert instances_app.client.get(path).status_code == 404
 
-    assert (patch.status_code, delete.status_code) == (409, 409)
-    assert patch.json()["code"] == delete.json()["code"] == "version_sealed"
+
+@pytest.mark.parametrize("path", ["/instance-versions/geneva-3km.v1", "/city-instances/geneva-3km"])
+def test_a_delete_answers_409_run_active_while_a_build_is_queued_or_running(
+    instances_app: CityInstancesApp, path: str
+) -> None:
+    create(instances_app)
+    instances_app.instances.seal("geneva-3km.v1", SERVER_TIME)
+    instances_app.runs.add(make_run("r1", subject_id="geneva-3km.v1", state=RunState.RUNNING))
+
+    response = instances_app.client.delete(f"/api/v1{path}")
+
+    assert response.status_code == 409
+    assert (response.json()["code"], response.json()["run_id"]) == ("run_active", "r1")
+    assert instances_app.instances.get_version("geneva-3km.v1") is not None
+
+
+def test_a_city_instance_is_deleted_with_204_and_an_unknown_one_answers_404(
+    instances_app: CityInstancesApp,
+) -> None:
+    create(instances_app)
+
+    deleted = instances_app.client.delete("/api/v1/city-instances/geneva-3km")
+    unknown = instances_app.client.delete("/api/v1/city-instances/geneva-3km")
+
+    assert deleted.status_code == 204
+    assert instances_app.client.get("/api/v1/instance-versions/geneva-3km.v1").status_code == 404
+    assert (unknown.status_code, unknown.json()["code"]) == (404, "city_instance_not_found")
 
 
 def test_an_unknown_version_answers_404(instances_app: CityInstancesApp) -> None:

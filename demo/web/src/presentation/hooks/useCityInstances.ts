@@ -9,6 +9,7 @@ import {
   saveDraft,
   startFrom as startFromSource,
 } from '../../application/use-cases/edit-draft';
+import { deleteInstance, deleteVersion } from '../../application/use-cases/delete-instance';
 import {
   loadInstanceGeometry,
   loadInstanceMenu,
@@ -148,6 +149,35 @@ export function useDraftActions() {
       const answer = await startFromSource(gateways, version, source);
       await keepAnswer(answer);
       return answer;
+    },
+  };
+}
+
+/**
+ * The deletions of a version and of an instance. A deletion that went through refetches the
+ * menu; the caller leaves the deleted view, then `forget`s what was cached for it.
+ */
+export function useDeleteActions() {
+  const { cityInstances } = useGateways();
+  const gateways = { cityInstances };
+  const client = useQueryClient();
+  const refetchMenu = () => client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
+
+  const version = useMutation({
+    mutationFn: (id: string) => deleteVersion(gateways, id),
+    onSuccess: (answer) => (answer.kind === 'deleted' ? refetchMenu() : undefined),
+  });
+  const instance = useMutation({
+    mutationFn: (id: string) => deleteInstance(gateways, id),
+    onSuccess: (answer) => (answer.kind === 'deleted' ? refetchMenu() : undefined),
+  });
+
+  return {
+    deleteVersion: version.mutateAsync,
+    deleteInstance: instance.mutateAsync,
+    /** Drops what was cached for the deleted versions. */
+    forget: (versionIds: readonly string[]) => {
+      for (const id of versionIds) client.removeQueries({ queryKey: instanceViewKey(id) });
     },
   };
 }

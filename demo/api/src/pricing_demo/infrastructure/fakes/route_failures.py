@@ -48,6 +48,11 @@ class InMemoryRouteFailures:
             rows = [row for row in self._rows if (row.run_id, row.position) == (run_id, position)]
         return [row.failure for row in sorted(rows, key=_order)]
 
+    def drop_run(self, run_id: str) -> None:
+        """What the removal of the run does (its failures go with it)."""
+        with self._lock:
+            self._rows = [row for row in self._rows if row.run_id != run_id]
+
     def clear_all(self) -> None:
         with self._lock:
             self._rows.clear()

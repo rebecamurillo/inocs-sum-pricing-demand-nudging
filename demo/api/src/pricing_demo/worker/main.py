@@ -42,6 +42,7 @@ from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.build_trip_planner_graph import BuildTripPlannerGraph
+from pricing_demo.application.use_cases.collect_unreferenced import CollectUnreferenced
 from pricing_demo.application.use_cases.import_city_data import ImportCityData
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.record_package_fingerprint import (
@@ -231,6 +232,9 @@ def build_worker(settings: Settings) -> BuiltWorker:
         clock,
         waiter,
         fingerprint,
+        collect=CollectUnreferenced(
+            PostgresArtifacts(engine), LocalArtifactStore(settings.data_dir), repository
+        ),
     )
     return BuiltWorker(worker, identity, engine)
 

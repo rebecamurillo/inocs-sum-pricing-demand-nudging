@@ -1,7 +1,7 @@
 """A build rig: the in-memory adapters wired the way the use cases of a build need them."""
 
 import threading
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
@@ -121,7 +121,7 @@ class MemoryBuilds:
         self.feed_shapes = FakeFeedShapes(frozenset({"1"}))
         self.built = BuiltCounts(self.artifacts, self.read_model, self.route_failures)
         self.runs = InMemoryRunRepository()
-        self.builds = InMemoryBuilds(self.runs, self.instances)
+        self.builds = InMemoryBuilds(self.runs, self.instances, self.artifacts, self.route_failures)
         self.sources = InMemoryBuildSources(fingerprint, MANIFEST if manifest else None)
         self.status = Status()
         self.ids = SequentialIds()
@@ -220,6 +220,17 @@ class RecordingFiles:
     calls: list[tuple[Any, ...]] = field(default_factory=list)
     discarded: list[Path] = field(default_factory=list)
     contents: dict[tuple[str, str], Any] = field(default_factory=dict)
+    removed: list[str] = field(default_factory=list)
+    kept_runs: set[str] | None = None
+    failing: set[str] = field(default_factory=set)
+
+    def remove_artifact(self, path: str) -> None:
+        if path in self.failing:
+            raise OSError(path)
+        self.removed.append(path)
+
+    def remove_working_dirs_except(self, run_ids: Collection[str]) -> None:
+        self.kept_runs = set(run_ids)
 
     def working_dir(self, run_id: str, step: StepName) -> Path:
         self.calls.append(("working_dir", run_id, step))

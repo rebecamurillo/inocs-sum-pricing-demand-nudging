@@ -47,6 +47,11 @@ class InMemoryReadModel:
             return []
         return sorted(batch.route_pairs, key=lambda row: (row.origin_hub, row.destination_hub))
 
+    def drop(self, key: str) -> None:
+        """What the removal of the artefact does (its rows go with it)."""
+        with self._lock:
+            self._batches.pop(key, None)
+
     def clear(self) -> None:
         with self._lock:
             self._batches.clear()

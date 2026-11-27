@@ -1,11 +1,26 @@
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
+from typing import Any
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, delete, exists, select
 from sqlalchemy.dialects.postgresql import insert
 
 from pricing_demo.application.ports.artifacts import Artifact, StoredFile
 from pricing_demo.domain.runs import StepName
 from pricing_demo.infrastructure.persistence.tables import artifacts, instance_version_steps
+
+
+def _artifact(row: Any) -> Artifact:
+    return Artifact(
+        input_key=row.input_key,
+        step=StepName(row.step),
+        inputs=row.inputs,
+        files=tuple(StoredFile(item["name"], item["sha256"], item["bytes"]) for item in row.files),
+        path=row.path,
+        package_fingerprint=row.package_fingerprint,
+        created_at=row.created_at,
+        run_id=row.run_id,
+        reported_counts=row.reported_counts,
+    )
 
 
 class PostgresArtifacts:
@@ -22,21 +37,34 @@ class PostgresArtifacts:
     def get(self, key: str) -> Artifact | None:
         with self._engine.connect() as connection:
             row = connection.execute(select(artifacts).where(artifacts.c.input_key == key)).first()
-        if row is None:
-            return None
-        return Artifact(
-            input_key=row.input_key,
-            step=StepName(row.step),
-            inputs=row.inputs,
-            files=tuple(
-                StoredFile(item["name"], item["sha256"], item["bytes"]) for item in row.files
-            ),
-            path=row.path,
-            package_fingerprint=row.package_fingerprint,
-            created_at=row.created_at,
-            run_id=row.run_id,
-            reported_counts=row.reported_counts,
+        return None if row is None else _artifact(row)
+
+    def unreferenced(self) -> Sequence[Artifact]:
+        query = select(artifacts).where(
+            ~exists().where(instance_version_steps.c.input_key == artifacts.c.input_key)
         )
+        with self._engine.connect() as connection:
+            return [
+                _artifact(row) for row in connection.execute(query.order_by(artifacts.c.input_key))
+            ]
+
+    def remove(self, key: str) -> bool:
+        with self._engine.begin() as connection:
+            # The lock on the artefact orders this against a link that is being made.
+            locked = connection.execute(
+                select(artifacts.c.input_key).where(artifacts.c.input_key == key).with_for_update()
+            ).scalar()
+            if locked is None:
+                return False
+            linked = connection.execute(
+                select(instance_version_steps.c.input_key)
+                .where(instance_version_steps.c.input_key == key)
+                .limit(1)
+            ).scalar()
+            if linked is not None:
+                return False
+            connection.execute(delete(artifacts).where(artifacts.c.input_key == key))
+        return True
 
     def add(self, artifact: Artifact) -> None:
         statement = (

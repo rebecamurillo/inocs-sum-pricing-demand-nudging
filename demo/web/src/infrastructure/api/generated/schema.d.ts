@@ -39,6 +39,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/city-instances/{instance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a city instance with all its versions */
+        delete: operations["deleteCityInstance"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/city-instances/{instance_id}/versions": {
         parameters: {
             query?: never;
@@ -67,7 +84,7 @@ export interface paths {
         get: operations["getInstanceVersion"];
         put?: never;
         post?: never;
-        /** Discard a draft, and its instance when it was the only version */
+        /** Delete an instance version (a draft or a saved one) */
         delete: operations["deleteInstanceVersion"];
         options?: never;
         head?: never;
@@ -1151,6 +1168,62 @@ export interface operations {
             };
         };
     };
+    deleteCityInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No city instance has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A run of the version, or of a version of the instance, is queued or running: `run_active` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     createInstanceVersion: {
         parameters: {
             query?: never;
@@ -1291,7 +1364,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description The version is saved: `version_sealed` */
+            /** @description A run of the version, or of a version of the instance, is queued or running: `run_active` */
             409: {
                 headers: {
                     [name: string]: unknown;

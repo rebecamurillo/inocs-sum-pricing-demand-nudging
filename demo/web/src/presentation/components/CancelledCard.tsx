@@ -5,6 +5,7 @@ import { RUN_AGAIN, STEP_NAMES, cancelledCard } from '../../domain/run-text';
 import { useEditAsNewVersion, type OpenedDraft } from '../hooks/useEditAsNewVersion';
 import { useRun, useRunActions } from '../hooks/useRuns';
 import { LoadingCard } from './LoadingCard';
+import { VersionDelete } from './VersionDelete';
 import styles from './BuildingView.module.css';
 
 /** A cancelled build (L-1): where it stopped, and the two ways on. */
@@ -63,6 +64,7 @@ export function CancelledCard({
         >
           Edit as a new version
         </button>
+        <VersionDelete versionId={version.id} instanceName={instanceName} number={version.number} />
       </div>
       {refused !== null && <p className={styles.error}>{refused}</p>}
       {actions.again.isError && <p className={styles.error}>{actions.again.error.message}</p>}

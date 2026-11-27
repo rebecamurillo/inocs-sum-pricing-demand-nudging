@@ -132,6 +132,22 @@ test.describe('Lab', () => {
       ),
     ).toBeVisible({ timeout: 30_000 });
     await holdsAtEverySize(page, page.getByRole('main'));
+
+    // The two delete confirmations, open: L-1's (this version) and the menu row's (the instance).
+    await page.getByRole('main').getByRole('button', { name: 'Delete…' }).click();
+    await expect(
+      page.getByText(/^Delete Geneva 4 km v1\? This removes the instance version\./),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+    await page.getByRole('button', { name: 'Keep' }).click();
+
+    const menu = page.getByRole('complementary', { name: 'Menu' });
+    await menu.getByRole('button', { name: 'Delete…' }).click();
+    await expect(
+      page.getByText('Delete Geneva 4 km? This removes its 1 version (v1). This cannot be undone.'),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+    await page.getByRole('button', { name: 'Keep' }).click();
   });
 
   test('Lab · L-1 saved holds at 1440, 1280 and 1280 × 720 with Aa', async ({

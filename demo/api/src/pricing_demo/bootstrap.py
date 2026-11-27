@@ -18,6 +18,7 @@ from pricing_demo.application.use_cases.build_instance_version import BuildInsta
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.get_run import GetRun
@@ -174,7 +175,8 @@ def create_application(settings: Settings) -> FastAPI:
                 CreateInstanceVersion(instances, datasets, clock, planning, built, fingerprints),
                 GetInstanceVersion(instances, datasets, planning, built, fingerprints),
                 UpdateInstanceVersion(instances, datasets, planning, built, fingerprints),
-                DeleteInstanceVersion(instances),
+                DeleteInstanceVersion(builds),
+                DeleteCityInstance(builds),
                 BuildInstanceVersion(instances, datasets, builds, planning, UuidV7Source(), clock),
                 GetRun(run_repository, clock),
                 ListStations(instances, artifacts, read_model),

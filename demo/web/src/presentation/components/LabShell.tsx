@@ -289,6 +289,10 @@ export function LabShell() {
                     setupCurrent={openVersion !== null}
                     queued={queuedPlaces}
                     onOpenVersion={openVersionRow}
+                    onInstanceDeleted={() => {
+                      setCreating(false);
+                      navigate({ kind: 'lab', period: null });
+                    }}
                     onKeyDown={onMenuKeyDown}
                   />
                 )}

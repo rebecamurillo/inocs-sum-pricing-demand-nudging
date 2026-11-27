@@ -1,4 +1,4 @@
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol
@@ -50,4 +50,13 @@ class Artifacts(Protocol):
 
     def links_of(self, version_id: str) -> Mapping[StepName, str]:
         """The key linked to each step of the version."""
+        ...
+
+    def unreferenced(self) -> Sequence[Artifact]:
+        """The artefacts no instance version links to any more."""
+        ...
+
+    def remove(self, key: str) -> bool:
+        """Remove the artefact and its read-model rows in one transaction, unless a version
+        links to it again meanwhile. True when it was removed."""
         ...

@@ -569,3 +569,78 @@ describe('CancelledCard', () => {
     });
   });
 });
+
+describe('BuildingView · "Delete…"', () => {
+  const failedRun: Run = {
+    ...sampleRunningBuild,
+    state: 'failed',
+    finishedAt: T0,
+    steps: sampleBuildSteps(3).map((step) =>
+      step.number === 3 ? { ...step, state: 'failed' as const, progress: null } : step,
+    ),
+    failure: { step: 'routes', code: 'stage_error', reason: 'Boom' },
+  };
+  const cancelledRun: Run = {
+    ...sampleRunningBuild,
+    state: 'cancelled',
+    finishedAt: T0,
+    steps: sampleBuildSteps(3).map((step) =>
+      step.number === 3 ? { ...step, state: 'cancelled' as const } : step,
+    ),
+  };
+  const QUESTION =
+    'Delete Geneva 3 km v2? This removes the instance version. Other versions of Geneva 3 km stay. This cannot be undone.';
+
+  beforeEach(() => {
+    window.location.hash = '#/lab/geneva-3km.v2';
+  });
+
+  it.each([
+    ['a running build', building, liveRun(sampleRunningBuild, 30)],
+    ['a failed build', { ...building, state: 'failed' as const }, failedRun],
+    ['a cancelled build', { ...building, state: 'cancelled' as const }, cancelledRun],
+  ])('is offered on %s and asks what goes', async (_name, version, run) => {
+    mount({ version, run });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+    expect(screen.getByText(QUESTION)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete v2' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Keep' })).toBeInTheDocument();
+  });
+
+  it('is refused while the build runs: the note replaces the question and nothing is deleted', async () => {
+    const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'run_active' as const }));
+    mount({
+      run: liveRun(sampleRunningBuild, 30),
+      cityInstances: { deleteVersion },
+    });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+    await user.click(screen.getByRole('button', { name: 'Delete v2' }));
+
+    expect(await screen.findByText('A run of this version is queued or running.')).toBeVisible();
+    expect(screen.queryByText(QUESTION)).not.toBeInTheDocument();
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v2');
+  });
+
+  it('deletes a failed version and opens #/lab', async () => {
+    const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+    mount({
+      version: { ...building, state: 'failed' },
+      run: failedRun,
+      cityInstances: { deleteVersion },
+    });
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+    await user.click(screen.getByRole('button', { name: 'Delete v2' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab');
+    });
+    expect(deleteVersion).toHaveBeenCalledWith('geneva-3km.v2');
+  });
+});

@@ -2210,6 +2210,71 @@
         ]
       }
     },
+    "/api/v1/city-instances/{instance_id}": {
+      "delete": {
+        "operationId": "deleteCityInstance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instance_id",
+            "required": true,
+            "schema": {
+              "title": "Instance Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "No city instance has this id"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "A run of the version, or of a version of the instance, is queued or running: `run_active`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Delete a city instance with all its versions",
+        "tags": [
+          "city-instances"
+        ]
+      }
+    },
     "/api/v1/city-instances/{instance_id}/versions": {
       "post": {
         "operationId": "createInstanceVersion",
@@ -2336,7 +2401,7 @@
                 }
               }
             },
-            "description": "The version is saved: `version_sealed`"
+            "description": "A run of the version, or of a version of the instance, is queued or running: `run_active`"
           },
           "422": {
             "content": {
@@ -2359,7 +2424,7 @@
             "description": "Unexpected error"
           }
         },
-        "summary": "Discard a draft, and its instance when it was the only version",
+        "summary": "Delete an instance version (a draft or a saved one)",
         "tags": [
           "city-instances"
         ]

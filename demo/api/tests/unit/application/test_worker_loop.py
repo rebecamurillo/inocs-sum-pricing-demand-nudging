@@ -7,6 +7,7 @@ import pytest
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.cancel_run import CancelRun
+from pricing_demo.application.use_cases.collect_unreferenced import CollectUnreferenced
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.recover_interrupted_runs import RecoverInterruptedRuns
 from pricing_demo.application.use_cases.run_worker import RunWorker
@@ -30,7 +31,11 @@ from tests.support.runs import (
 
 
 class Rig:
-    def __init__(self, runs: InMemoryRunRepository | None = None) -> None:
+    def __init__(
+        self,
+        runs: InMemoryRunRepository | None = None,
+        collect: CollectUnreferenced | None = None,
+    ) -> None:
         self.runs = runs or InMemoryRunRepository()
         self.workers = InMemoryWorkerRegistry()
         self.clock = FixedClock(T0)
@@ -51,6 +56,7 @@ class Rig:
             self.clock,
             self.waiter,
             quiet_fingerprint(self.clock),
+            collect=collect,
         )
 
     def stop_at(self, seconds: float) -> None:
@@ -568,3 +574,56 @@ def test_a_failing_report_does_not_end_the_loop_and_is_tried_at_the_next_tick() 
 
     assert log == ["r1:area"]
     assert {item.reported_at for item in reports.read().reports} == {later(1)}
+
+
+class CountingCollect:
+    def __init__(self, failures: int = 0) -> None:
+        self.calls: list[datetime] = []
+        self.failures = failures
+        self.clock: FixedClock | None = None
+
+    def execute(self) -> None:
+        assert self.clock is not None
+        self.calls.append(self.clock.now())
+        if len(self.calls) <= self.failures:
+            raise OSError("disk")
+
+
+def collecting_rig(collect: CountingCollect) -> Rig:
+    rig = Rig(collect=collect)  # type: ignore[arg-type]
+    collect.clock = rig.clock
+    return rig
+
+
+def test_the_collection_runs_at_the_start_and_every_ten_minutes() -> None:
+    collect = CountingCollect()
+    rig = collecting_rig(collect)
+    rig.worker.start()
+    rig.stop_at(1300)
+
+    rig.worker.run(rig.until)
+
+    assert collect.calls == [T0, later(600), later(1200)]
+
+
+def test_a_failed_collection_is_logged_and_tried_at_the_next_tick(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    collect = CountingCollect(failures=1)
+    rig = collecting_rig(collect)
+    rig.worker.start()
+    rig.stop_at(3)
+
+    rig.worker.run(rig.until)
+
+    assert collect.calls == [T0, T0]
+    assert "collection of unreferenced artefacts failed" in caplog.text
+
+
+def test_a_worker_without_a_collection_runs_as_before(rig: Rig) -> None:
+    rig.worker.start()
+    rig.stop_at(2)
+
+    rig.worker.run(rig.until)
+
+    assert rig.waiter.calls == 2

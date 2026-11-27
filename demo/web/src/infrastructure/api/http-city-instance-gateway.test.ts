@@ -509,6 +509,40 @@ describe('HttpCityInstanceGateway writes', () => {
     expect(failure.code).toBe('unexpected_response');
   });
 
+  it('deletes a version or an instance, or reports run_active', async () => {
+    const version = gatewayAnswering(new Response(null, { status: 204 }));
+    expect(await version.gateway.deleteVersion('geneva-3km.v1')).toEqual({ kind: 'deleted' });
+    expect(version.fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/instance-versions/geneva-3km.v1');
+    expect(version.fetchFake.mock.calls[0]?.[1]?.method).toBe('DELETE');
+
+    const instance = gatewayAnswering(new Response(null, { status: 204 }));
+    expect(await instance.gateway.deleteInstance('geneva-3km')).toEqual({ kind: 'deleted' });
+    expect(instance.fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/city-instances/geneva-3km');
+    expect(instance.fetchFake.mock.calls[0]?.[1]?.method).toBe('DELETE');
+
+    const refused = problem(409, { code: 'run_active', title: 'Active', detail: 'A run.' });
+    expect(await gatewayAnswering(refused).gateway.deleteVersion('a.v1')).toEqual({
+      kind: 'run_active',
+    });
+    expect(
+      await gatewayAnswering(
+        problem(409, { code: 'run_active', title: 'Active', detail: 'A run.' }),
+      ).gateway.deleteInstance('a'),
+    ).toEqual({ kind: 'run_active' });
+
+    for (const answer of [
+      new Response('x', { status: 500 }),
+      problem(409, { code: 'version_sealed', title: 'Sealed', detail: 'No.' }),
+    ]) {
+      const failure = await failureOf(gatewayAnswering(answer).gateway.deleteVersion('a.v1'));
+      expect(failure.code).not.toBe('run_active');
+    }
+    const offline = await failureOf(
+      gatewayAnswering(new Error('offline')).gateway.deleteInstance('a'),
+    );
+    expect(offline.code).toBe('api_unreachable');
+  });
+
   it('queues a build, or reports the refusal with its detail', async () => {
     const queued = gatewayAnswering(Response.json({ id: 'run-9' }, { status: 202 }));
     expect(await queued.gateway.build('geneva-3km.v2')).toEqual({ kind: 'queued', runId: 'run-9' });

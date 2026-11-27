@@ -2,9 +2,15 @@ from collections.abc import Collection, Mapping
 from datetime import datetime
 
 from pricing_demo.domain.builds import DraftChanged, RunActive
-from pricing_demo.domain.city_instances import InstanceParameters, InstanceVersionNotFound
+from pricing_demo.domain.city_instances import (
+    CityInstanceNotFound,
+    InstanceParameters,
+    InstanceVersionNotFound,
+)
 from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
+from pricing_demo.infrastructure.fakes.artifacts import InMemoryArtifacts
 from pricing_demo.infrastructure.fakes.city_instances import InMemoryCityInstances
+from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
 
 ACTIVE = (RunState.QUEUED, RunState.RUNNING)
@@ -14,9 +20,17 @@ class InMemoryBuilds:
     """The build runs on the in-memory run repository and instances; passes the same contract
     suite as the PostgreSQL adapter."""
 
-    def __init__(self, runs: InMemoryRunRepository, instances: InMemoryCityInstances) -> None:
+    def __init__(
+        self,
+        runs: InMemoryRunRepository,
+        instances: InMemoryCityInstances,
+        artifacts: InMemoryArtifacts | None = None,
+        route_failures: InMemoryRouteFailures | None = None,
+    ) -> None:
         self._runs = runs
         self._instances = instances
+        self._artifacts = artifacts
+        self._route_failures = route_failures
 
     def _builds_of(self, version_id: str) -> list[Run]:
         return [
@@ -74,3 +88,34 @@ class InMemoryBuilds:
             assert seal_version_at is not None
             self._instances.seal(run.subject.id, seal_version_at)
         self._runs.add(run)
+
+    def _refuse_active(self, version_ids: list[str]) -> None:
+        for version_id in version_ids:
+            active = [item for item in self._builds_of(version_id) if item.state in ACTIVE]
+            if active:
+                raise RunActive(active[0].id)
+
+    def _drop(self, version_id: str) -> None:
+        for run in self._runs.list_by_states(list(RunState)):
+            if run.subject.id == version_id:
+                self._runs.remove(run.id)
+                if self._route_failures is not None:
+                    self._route_failures.drop_run(run.id)
+        if self._artifacts is not None:
+            self._artifacts.drop_links(version_id)
+
+    def delete_version(self, version_id: str) -> None:
+        if self._instances.get_version(version_id) is None:
+            raise InstanceVersionNotFound(version_id)
+        self._refuse_active([version_id])
+        self._drop(version_id)
+        self._instances.remove_version(version_id)
+
+    def delete_instance(self, instance_id: str) -> None:
+        if self._instances.get_instance(instance_id) is None:
+            raise CityInstanceNotFound(instance_id)
+        ids = [item.id for item in self._instances.versions_of(instance_id)]
+        self._refuse_active(ids)
+        for version_id in ids:
+            self._drop(version_id)
+        self._instances.remove_instance(instance_id)

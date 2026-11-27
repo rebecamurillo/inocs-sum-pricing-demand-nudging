@@ -34,3 +34,16 @@ class Builds(Protocol):
         draft's values are no longer `checked` (the values the rules passed on); nothing is
         stored then."""
         ...
+
+    def delete_version(self, version_id: str) -> None:
+        """In one transaction, remove the version with its runs (their steps and route
+        failures), step links and periods, and its instance when no version is left. Raises
+        `InstanceVersionNotFound`, and `RunActive` while a run of it is queued or running;
+        nothing is removed then. The instance's `next_number` is never decreased."""
+        ...
+
+    def delete_instance(self, instance_id: str) -> None:
+        """In one transaction, remove every version of the instance as `delete_version` does,
+        then the instance. Raises `CityInstanceNotFound`, and `RunActive` when a run of any
+        version is queued or running; nothing is removed then."""
+        ...

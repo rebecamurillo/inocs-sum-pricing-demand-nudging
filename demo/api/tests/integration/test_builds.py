@@ -26,6 +26,7 @@ from pricing_demo.application.ports.step_executor import StepOutcome, StopSignal
 from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
+from pricing_demo.application.use_cases.collect_unreferenced import CollectUnreferenced
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.domain.build_plan import BUILD_STEPS, STEP_OUTPUTS
@@ -37,6 +38,7 @@ from pricing_demo.domain.city_instances import (
     first_period,
     parameters_from_defaults,
 )
+from pricing_demo.domain.read_model import RouteFailure
 from pricing_demo.domain.runs import Run, RunState, StepName, StepState
 from pricing_demo.domain.system_status import ComponentName, ComponentStatus
 from pricing_demo.infrastructure.artifact_store.local import LocalArtifactStore
@@ -489,3 +491,100 @@ def test_a_second_build_of_an_unchanged_version_keeps_every_step_and_adds_no_row
 
     assert [item.state for item in rig.run_of(queued.id).steps] == [StepState.KEPT] * 4
     assert {table: rig.rows(table) for table in READ_MODEL_TABLES} == before
+
+
+def count(rig: Rig, table: str) -> int:
+    return len(rig.rows(table))
+
+
+def two_versions_sharing_three_steps(rig: Rig) -> tuple[str, str]:
+    first = rig.draft()
+    rig.build.execute(first)
+    rig.process.execute()
+    second = rig.draft(2, first)
+    rig.instances.update_draft_parameters(second, {"seed": 7})
+    rig.build.execute(second)
+    rig.process.execute()
+    return first, second
+
+
+def test_deleting_a_built_version_removes_its_runs_links_periods_and_route_failures(
+    rig: Rig,
+) -> None:
+    first, second = two_versions_sharing_three_steps(rig)
+    failing_run = rig.runs.list_by_states(list(RunState))[0]
+    PostgresRouteFailures(rig.engine).add(
+        failing_run.id, 3, None, RouteFailure("h1", "h2", "car", "no_route", "none", 1), T0
+    )
+    assert count(rig, "route_failures") == 1
+
+    PostgresBuilds(rig.engine).delete_version(first)
+
+    assert rig.instances.get_version(first) is None
+    assert rig.instances.get_version(second) is not None
+    assert count(rig, "runs") == 1
+    assert count(rig, "run_steps") == 4
+    assert count(rig, "route_failures") == 0
+    assert count(rig, "instance_version_steps") == 4
+    assert [row[0] for row in rig.rows("instance_periods")] == [f"{second}.mon-08"]
+    # The artefacts stay until the collection runs.
+    assert count(rig, "artifacts") == 5
+
+
+def test_a_deleted_version_keeps_its_number_taken(rig: Rig) -> None:
+    first, second = two_versions_sharing_three_steps(rig)
+
+    PostgresBuilds(rig.engine).delete_version(second)
+
+    assert rig.draft(3, first) == f"{SLUG}.v3"
+
+
+def test_a_build_queued_or_running_refuses_the_deletion_of_the_version_and_of_the_instance(
+    rig: Rig,
+) -> None:
+    version = rig.draft()
+    queued = rig.build.execute(version)
+    builds = PostgresBuilds(rig.engine)
+
+    with pytest.raises(RunActive) as of_version:
+        builds.delete_version(version)
+    with pytest.raises(RunActive) as of_instance:
+        builds.delete_instance(SLUG)
+
+    assert of_version.value.run_id == of_instance.value.run_id == queued.id
+    assert rig.instances.get_version(version) is not None
+    assert count(rig, "runs") == 1
+
+    rig.process.execute()
+    builds.delete_instance(SLUG)
+
+    assert (count(rig, "city_instances"), count(rig, "instance_versions")) == (0, 0)
+    assert (count(rig, "runs"), count(rig, "run_steps"), count(rig, "instance_periods")) == (
+        0,
+        0,
+        0,
+    )
+
+
+def test_the_collection_removes_what_no_version_links_and_keeps_what_one_still_links(
+    rig: Rig,
+) -> None:
+    first, second = two_versions_sharing_three_steps(rig)
+    PostgresBuilds(rig.engine).delete_version(first)
+    only_first = list(rig.artifacts.unreferenced())
+    assert len(only_first) == 1
+    gone = only_first[0]
+    assert gone.step is StepName.TRAVELLERS_AND_BIKES
+    (rig.data_dir / "runs" / "stale-run" / "area").mkdir(parents=True)
+    files = LocalArtifactStore(rig.data_dir)
+
+    CollectUnreferenced(rig.artifacts, files, rig.runs).execute()
+
+    assert count(rig, "artifacts") == 4
+    assert rig.artifacts.get(gone.input_key) is None
+    assert not (rig.data_dir / gone.path).exists()
+    for key in rig.artifacts.links_of(second).values():
+        stored = rig.artifacts.get(key)
+        assert stored is not None
+        assert (rig.data_dir / stored.path).is_dir()
+    assert not (rig.data_dir / "runs" / "stale-run").exists()

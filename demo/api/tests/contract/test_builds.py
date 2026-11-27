@@ -13,6 +13,7 @@ from pricing_demo.application.ports.run_repository import RunRepository
 from pricing_demo.domain.builds import DraftChanged, RunActive
 from pricing_demo.domain.city_instances import (
     CityInstance,
+    CityInstanceNotFound,
     InstanceVersion,
     InstanceVersionNotFound,
     first_period,
@@ -282,3 +283,142 @@ def test_a_step_that_was_kept_has_no_duration(env: Env) -> None:
     )
 
     assert env.builds.last_duration_s(StepName.AREA, DATASET.id, 3000.0) is None
+
+
+def sealed_with_failed_run(
+    env: Env, slug: str = "geneva-3km", state: RunState = RunState.FAILED
+) -> str:
+    version = env.version(slug)
+    run = queued_run(f"r-{slug}", version)
+    env.builds.queue_build(run, later(1))
+    env.runs.update(run.id, lambda stored: replace(stored, state=state))
+    return version
+
+
+def second_draft(env: Env, slug: str = "geneva-3km") -> InstanceVersion:
+    return env.instances.create_draft(
+        slug, None, PARAMETERS, T0, lambda vid: first_period(vid, DATASET)
+    )
+
+
+def test_deleting_a_version_removes_it_with_its_runs_and_periods(env: Env) -> None:
+    version = sealed_with_failed_run(env)
+    env.build_run("r-old", version, state=RunState.CANCELLED, queued_at=later(0))
+
+    env.builds.delete_version(version)
+
+    assert env.instances.get_version(version) is None
+    assert env.instances.periods_of(version) == []
+    assert env.runs.get("r-geneva-3km") is None
+    assert env.runs.get("r-old") is None
+    assert env.builds.latest_build_run(version) is None
+
+
+def test_deleting_a_draft_is_the_same(env: Env) -> None:
+    version = env.version()
+
+    env.builds.delete_version(version)
+
+    assert env.instances.get_version(version) is None
+    assert env.instances.get_instance("geneva-3km") is None
+
+
+def test_deleting_a_version_keeps_the_instance_and_its_other_versions(env: Env) -> None:
+    first = sealed_with_failed_run(env)
+    second = second_draft(env)
+
+    env.builds.delete_version(first)
+
+    assert env.instances.get_version(first) is None
+    assert env.instances.get_version(second.id) is not None
+    assert env.instances.get_instance("geneva-3km") is not None
+
+
+def test_deleting_the_last_version_removes_the_instance(env: Env) -> None:
+    version = sealed_with_failed_run(env)
+
+    env.builds.delete_version(version)
+
+    assert env.instances.get_instance("geneva-3km") is None
+
+
+def test_a_version_another_one_is_based_on_is_deleted_and_the_other_stays(env: Env) -> None:
+    first = sealed_with_failed_run(env)
+    second = env.instances.create_draft(
+        "geneva-3km", first, PARAMETERS, T0, lambda vid: first_period(vid, DATASET)
+    )
+
+    env.builds.delete_version(first)
+
+    stored = env.instances.get_version(second.id)
+    assert stored is not None
+    assert stored.based_on_id is None
+
+
+@pytest.mark.parametrize("state", [RunState.QUEUED, RunState.RUNNING])
+def test_a_version_with_an_active_run_is_not_deleted(env: Env, state: RunState) -> None:
+    version = sealed_with_failed_run(env, state=state)
+
+    with pytest.raises(RunActive) as refusal:
+        env.builds.delete_version(version)
+
+    assert refusal.value.run_id == "r-geneva-3km"
+    assert env.instances.get_version(version) is not None
+    assert env.runs.get("r-geneva-3km") is not None
+
+
+@pytest.mark.parametrize("state", [RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELLED])
+def test_a_version_whose_run_ended_is_deleted(env: Env, state: RunState) -> None:
+    version = sealed_with_failed_run(env, state=state)
+
+    env.builds.delete_version(version)
+
+    assert env.instances.get_version(version) is None
+
+
+def test_deleting_an_unknown_version_or_instance_is_not_found(env: Env) -> None:
+    with pytest.raises(InstanceVersionNotFound):
+        env.builds.delete_version("none.v1")
+    with pytest.raises(CityInstanceNotFound):
+        env.builds.delete_instance("none")
+
+
+def test_a_number_is_never_reused_after_a_deletion(env: Env) -> None:
+    first = sealed_with_failed_run(env)
+    second = second_draft(env)
+    assert second.number == 2
+
+    env.builds.delete_version(second.id)
+    third = second_draft(env)
+
+    assert (first, third.number) == ("geneva-3km.v1", 3)
+
+
+def test_deleting_an_instance_removes_every_version_with_its_runs(env: Env) -> None:
+    first = sealed_with_failed_run(env)
+    second = second_draft(env)
+    other = env.version("lyon")
+    env.build_run("r-lyon", other, state=RunState.FAILED)
+
+    env.builds.delete_instance("geneva-3km")
+
+    assert env.instances.get_instance("geneva-3km") is None
+    assert env.instances.get_version(first) is None
+    assert env.instances.get_version(second.id) is None
+    assert env.runs.get("r-geneva-3km") is None
+    assert env.instances.get_version(other) is not None
+    assert env.runs.get("r-lyon") is not None
+
+
+def test_an_instance_with_an_active_run_on_any_version_is_not_deleted(env: Env) -> None:
+    first = sealed_with_failed_run(env)
+    second = second_draft(env)
+    env.builds.queue_build(queued_run("r-second", second.id), later(2))
+
+    with pytest.raises(RunActive) as refusal:
+        env.builds.delete_instance("geneva-3km")
+
+    assert refusal.value.run_id == "r-second"
+    assert env.instances.get_instance("geneva-3km") is not None
+    assert env.instances.get_version(first) is not None
+    assert env.runs.get("r-geneva-3km") is not None

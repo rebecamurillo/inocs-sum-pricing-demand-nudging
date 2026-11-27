@@ -32,6 +32,11 @@ class InMemoryRunRepository:
             found = [run for run in self._runs.values() if run.state in states]
         return sorted(found, key=lambda run: (run.queued_at, run.id))
 
+    def remove(self, run_id: str) -> None:
+        """What a deletion of the run's version does; the port has no such method."""
+        with self._lock:
+            self._runs.pop(run_id, None)
+
     def latest_worker_heartbeat(self) -> datetime | None:
         with self._lock:
             return max(self._worker_heartbeats, default=None)

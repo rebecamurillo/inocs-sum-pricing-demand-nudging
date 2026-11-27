@@ -7,6 +7,7 @@ from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.use_cases.cancel_run import CancelRun
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.get_run import GetRun
@@ -237,7 +238,8 @@ class CityInstancesApp:
                         UpdateInstanceVersion(
                             self.instances, self.datasets, planning, built, self.fingerprints
                         ),
-                        DeleteInstanceVersion(self.instances),
+                        DeleteInstanceVersion(self.rig.builds),
+                        DeleteCityInstance(self.rig.builds),
                         self.rig.build,
                         GetRun(self.runs, self.clock),
                         ListStations(self.instances, self.rig.artifacts, self.rig.read_model),

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
@@ -489,8 +489,16 @@ describe('LabShell · an open instance version', () => {
     const setup = await screen.findByRole('button', { name: 'Instance set-up' });
     setup.focus();
 
-    await userEvent.setup().keyboard('{ArrowUp}');
+    const user = userEvent.setup();
 
+    // The instance's "Delete…" follows its first version row in the menu's keyboard order.
+    await user.keyboard('{ArrowUp}');
+    expect(
+      within(screen.getByRole('complementary', { name: 'Menu' })).getByRole('button', {
+        name: 'Delete…',
+      }),
+    ).toHaveFocus();
+    await user.keyboard('{ArrowUp}');
     expect(screen.getByRole('button', { name: 'Geneva 3 km v1 ready' })).toHaveFocus();
   });
 });
@@ -817,5 +825,87 @@ describe('LabShell · run states in the menu', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('LabShell · deleting an instance from its menu row', () => {
+  const states = ['ready', 'failed'] as const;
+  const twoVersions = () =>
+    Promise.resolve([
+      {
+        id: 'geneva-3km',
+        name: 'Geneva 3 km',
+        datasetId: 'geneva-2026-11-26',
+        versions: states.map((state, at) => ({
+          id: `geneva-3km.v${String(at + 1)}`,
+          number: at + 1,
+          status: 'sealed' as const,
+          state,
+          pricingVersionCount: 0,
+        })),
+      },
+    ]);
+  const menuNav = () => screen.findByRole('navigation', { name: '' });
+
+  beforeEach(() => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+  });
+
+  it('asks what goes, naming the versions, and "Keep" closes it', async () => {
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: twoVersions }));
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+
+    expect(
+      screen.getByText(
+        'Delete Geneva 3 km? This removes its 2 versions (v1, v2). This cannot be undone.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Delete Geneva 3 km and its versions' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Keep' }));
+    expect(screen.queryByText(/This removes its/)).not.toBeInTheDocument();
+  });
+
+  it('writes the singular for one version', async () => {
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances());
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+
+    expect(
+      screen.getByText(
+        'Delete Geneva 3 km? This removes its 1 version (v1). This cannot be undone.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('deletes the instance and opens #/lab', async () => {
+    const deleteInstance = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: twoVersions, deleteInstance }));
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Geneva 3 km and its versions' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab');
+    });
+    expect(deleteInstance).toHaveBeenCalledWith('geneva-3km');
+  });
+
+  it('shows the refusal as the note of the menu row\'s "Delete…" and deletes nothing', async () => {
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: twoVersions }, new Set(['geneva-3km'])));
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Geneva 3 km and its versions' }));
+
+    expect(
+      await within(await menuNav()).findByText('A run of this version is queued or running.'),
+    ).toBeVisible();
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
   });
 });

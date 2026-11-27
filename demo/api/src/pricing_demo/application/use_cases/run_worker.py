@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from pricing_demo.application.ports.clock import Clock
 from pricing_demo.application.ports.waiter import Waiter
 from pricing_demo.application.ports.worker_registry import WorkerIdentity, WorkerRegistry
+from pricing_demo.application.use_cases.collect_unreferenced import CollectUnreferenced
 from pricing_demo.application.use_cases.process_next_run import (
     HEARTBEAT_EVERY,
     TICK_SECONDS,
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 # A worker restarted within 60 s of its predecessor's last heartbeat, or a run abandoned after
 # a failed write, is recovered by a later pass.
 RECOVERY_EVERY = timedelta(seconds=10)
+
+# How often the worker removes what no instance version references any more.
+COLLECT_EVERY = timedelta(minutes=10)
 
 
 class RunWorker:
@@ -45,6 +49,8 @@ class RunWorker:
         clock: Clock,
         waiter: Waiter,
         fingerprint: RecordPackageFingerprint,
+        *,
+        collect: CollectUnreferenced | None = None,
     ) -> None:
         self._identity = identity
         self._workers = workers
@@ -57,6 +63,8 @@ class RunWorker:
         self._fingerprint = fingerprint
         self._last_recovery: datetime | None = None
         self._last_report: datetime | None = None
+        self._collect = collect
+        self._last_collection: datetime | None = None
 
     def start(self) -> None:
         identity = self._identity
@@ -69,6 +77,7 @@ class RunWorker:
         )
         self._report_if_due()
         self._recover_now(None)
+        self._collect_if_due()
 
     def _report_if_due(self) -> None:
         last = self._last_report
@@ -82,6 +91,20 @@ class RunWorker:
             return
         self._last_report = started
 
+    def _collect_if_due(self) -> None:
+        if self._collect is None:
+            return
+        last = self._last_collection
+        if last is not None and self._clock.now() - last < COLLECT_EVERY:
+            return
+        started = self._clock.now()
+        try:
+            self._collect.execute()
+        except Exception:
+            logger.exception("The collection of unreferenced artefacts failed; trying again")
+            return
+        self._last_collection = started
+
     def _recover_now(self, in_hand: str | None) -> None:
         self._last_recovery = self._clock.now()
         for run in self._recover.execute(in_hand):
@@ -89,6 +112,7 @@ class RunWorker:
 
     def _periodic(self, in_hand: str | None) -> None:
         self._report_if_due()
+        self._collect_if_due()
         last = self._last_recovery
         if last is None or self._clock.now() - last >= RECOVERY_EVERY:
             self._recover_now(in_hand)

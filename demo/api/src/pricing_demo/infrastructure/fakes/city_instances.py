@@ -93,6 +93,19 @@ class InMemoryCityInstances:
             raise InstanceVersionNotFound(version_id)
         if version.status == "sealed":
             raise VersionSealed(version_id)
+        self.remove_version(version_id)
+
+    def versions_of(self, instance_id: str) -> list[InstanceVersion]:
+        return sorted(
+            (v for v in self._versions.values() if v.instance_id == instance_id),
+            key=lambda v: v.number,
+        )
+
+    def remove_version(self, version_id: str) -> None:
+        """What a deletion does, of a draft or a sealed version; `next_number` stays."""
+        version = self._versions.get(version_id)
+        if version is None:
+            raise InstanceVersionNotFound(version_id)
         del self._versions[version_id]
         self._periods.pop(version_id, None)
         for other_id, other in list(self._versions.items()):
@@ -100,6 +113,11 @@ class InMemoryCityInstances:
                 self._versions[other_id] = replace(other, based_on_id=None)
         if not any(item.instance_id == version.instance_id for item in self._versions.values()):
             del self._instances[version.instance_id]
+
+    def remove_instance(self, instance_id: str) -> None:
+        for version in self.versions_of(instance_id):
+            self.remove_version(version.id)
+        self._instances.pop(instance_id, None)
 
     def menu(self) -> Sequence[InstanceWithVersions]:
         return [

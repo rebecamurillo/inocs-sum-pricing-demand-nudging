@@ -10,6 +10,7 @@ from pricing_demo.application.use_cases.create_city_instance import (
     StartFrom,
 )
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
+from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
 from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.get_instance_version import GetInstanceVersion
 from pricing_demo.application.use_cases.get_run import GetRun
@@ -48,6 +49,12 @@ def _problem(description: str) -> dict[str, Any]:
 
 UNEXPECTED: Responses = {500: _problem("Unexpected error")}
 VERSION_NOT_FOUND: Responses = {404: _problem("No instance version has this id")}
+INSTANCE_NOT_FOUND: Responses = {404: _problem("No city instance has this id")}
+RUN_ACTIVE: Responses = {
+    409: _problem(
+        "A run of the version, or of a version of the instance, is queued or running: `run_active`"
+    )
+}
 VERSION_SEALED: Responses = {409: _problem("The version is saved: `version_sealed`")}
 
 
@@ -65,6 +72,7 @@ def build_city_instances_router(
     get_version: GetInstanceVersion,
     update_version: UpdateInstanceVersion,
     delete_version: DeleteInstanceVersion,
+    delete_instance: DeleteCityInstance,
     build_version: BuildInstanceVersion,
     get_run: GetRun,
     list_stations: ListStations,
@@ -244,13 +252,25 @@ def build_city_instances_router(
     @router.delete(
         "/instance-versions/{version_id}",
         operation_id="deleteInstanceVersion",
-        summary="Discard a draft, and its instance when it was the only version",
+        summary="Delete an instance version (a draft or a saved one)",
         status_code=204,
         response_class=Response,
-        responses={**VERSION_NOT_FOUND, **VERSION_SEALED, **UNEXPECTED},
+        responses={**VERSION_NOT_FOUND, **RUN_ACTIVE, **UNEXPECTED},
     )
     def discard_version(version_id: str) -> Response:
         delete_version.execute(version_id)
+        return Response(status_code=204)
+
+    @router.delete(
+        "/city-instances/{instance_id}",
+        operation_id="deleteCityInstance",
+        summary="Delete a city instance with all its versions",
+        status_code=204,
+        response_class=Response,
+        responses={**INSTANCE_NOT_FOUND, **RUN_ACTIVE, **UNEXPECTED},
+    )
+    def delete_city_instance_route(instance_id: str) -> Response:
+        delete_instance.execute(instance_id)
         return Response(status_code=204)
 
     @router.post(

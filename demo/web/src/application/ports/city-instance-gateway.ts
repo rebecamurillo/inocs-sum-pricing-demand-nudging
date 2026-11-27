@@ -28,6 +28,9 @@ export type BuildQueued =
   | { readonly kind: 'queued'; readonly runId: string }
   | { readonly kind: 'refused'; readonly detail: string };
 
+/** `run_active`: a run of the version (or of one of the instance's versions) is queued or running. */
+export type Deleted = { readonly kind: 'deleted' } | { readonly kind: 'run_active' };
+
 export type ParameterChanges = Partial<Record<ParameterName, number>>;
 
 export interface CityInstanceGateway {
@@ -52,6 +55,10 @@ export interface CityInstanceGateway {
   patch(id: string, changes: ParameterChanges): Promise<InstanceVersion>;
   /** Removes a draft. */
   discard(id: string): Promise<void>;
+  /** Deletes a draft or a saved version with its runs; refused while a run of it is queued or running. */
+  deleteVersion(id: string): Promise<Deleted>;
+  /** Deletes an instance with all its versions; refused while a run of any of them is queued or running. */
+  deleteInstance(id: string): Promise<Deleted>;
   /** Seals the draft and queues its build. */
   build(id: string): Promise<BuildQueued>;
 }

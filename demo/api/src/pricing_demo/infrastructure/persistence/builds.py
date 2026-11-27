@@ -1,11 +1,15 @@
 from collections.abc import Collection, Mapping
 from datetime import datetime
 
-from sqlalchemy import Engine, extract, insert, select, update
+from sqlalchemy import Connection, Engine, delete, extract, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 from pricing_demo.domain.builds import DraftChanged, RunActive
-from pricing_demo.domain.city_instances import InstanceParameters, InstanceVersionNotFound
+from pricing_demo.domain.city_instances import (
+    CityInstanceNotFound,
+    InstanceParameters,
+    InstanceVersionNotFound,
+)
 from pricing_demo.domain.runs import Run, RunKind, RunState, StepName, StepState
 from pricing_demo.infrastructure.persistence.run_repository import (
     run_of,
@@ -141,3 +145,74 @@ class PostgresBuilds:
         )
         with self._engine.connect() as connection:
             return str(connection.execute(query).scalar() or "")
+
+    def delete_version(self, version_id: str) -> None:
+        with self._engine.begin() as connection:
+            instance_id = connection.execute(
+                select(instance_versions.c.instance_id).where(instance_versions.c.id == version_id)
+            ).scalar()
+            if instance_id is None:
+                raise InstanceVersionNotFound(version_id)
+            # The instance row first (as `create_draft` locks it), then the version row (as
+            # `queue_build` does): a concurrent draft, build request or deletion is ordered
+            # against this one.
+            connection.execute(
+                select(city_instances.c.id)
+                .where(city_instances.c.id == instance_id)
+                .with_for_update()
+            ).scalar()
+            locked = connection.execute(
+                select(instance_versions.c.id)
+                .where(instance_versions.c.id == version_id)
+                .with_for_update()
+            ).scalar()
+            if locked is None:
+                raise InstanceVersionNotFound(version_id)
+            self._remove_versions(connection, [version_id])
+            remaining = connection.execute(
+                select(func.count())
+                .select_from(instance_versions)
+                .where(instance_versions.c.instance_id == instance_id)
+            ).scalar_one()
+            if remaining == 0:
+                connection.execute(delete(city_instances).where(city_instances.c.id == instance_id))
+
+    def delete_instance(self, instance_id: str) -> None:
+        with self._engine.begin() as connection:
+            locked = connection.execute(
+                select(city_instances.c.id)
+                .where(city_instances.c.id == instance_id)
+                .with_for_update()
+            ).scalar()
+            if locked is None:
+                raise CityInstanceNotFound(instance_id)
+            version_ids = list(
+                connection.execute(
+                    select(instance_versions.c.id)
+                    .where(instance_versions.c.instance_id == instance_id)
+                    .order_by(instance_versions.c.id)
+                    .with_for_update()
+                ).scalars()
+            )
+            self._remove_versions(connection, version_ids)
+            connection.execute(delete(city_instances).where(city_instances.c.id == instance_id))
+
+    @staticmethod
+    def _remove_versions(connection: Connection, version_ids: list[str]) -> None:
+        """Inside the transaction that holds the version rows: refuse while a run is active,
+        then remove the runs and the versions (periods and step links cascade)."""
+        if not version_ids:
+            return
+        active = connection.execute(
+            select(runs.c.id)
+            .where(runs.c.instance_version_id.in_(version_ids))
+            .where(runs.c.state.in_(["queued", "running"]))
+            .order_by(runs.c.queued_at, runs.c.id)
+            .limit(1)
+        ).scalar()
+        if active is not None:
+            raise RunActive(str(active))
+        run_ids = select(runs.c.id).where(runs.c.instance_version_id.in_(version_ids))
+        connection.execute(delete(run_steps).where(run_steps.c.run_id.in_(run_ids)))
+        connection.execute(delete(runs).where(runs.c.instance_version_id.in_(version_ids)))
+        connection.execute(delete(instance_versions).where(instance_versions.c.id.in_(version_ids)))

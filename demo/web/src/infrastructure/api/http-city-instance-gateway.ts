@@ -4,6 +4,7 @@ import type {
   CityInstanceGateway,
   CreatedDraft,
   CreatedInstance,
+  Deleted,
   InstanceHub,
   ParameterChanges,
   StartFrom,
@@ -333,6 +334,23 @@ export class HttpCityInstanceGateway implements CityInstanceGateway {
     const path = `${apiRoot}/instance-versions/${encodeURIComponent(id)}`;
     const answer = await this.send('DELETE', path, undefined);
     if (answer.status !== 204) throw unexpected(answer, path);
+  }
+
+  async deleteVersion(id: string): Promise<Deleted> {
+    return this.delete(`${apiRoot}/instance-versions/${encodeURIComponent(id)}`);
+  }
+
+  async deleteInstance(id: string): Promise<Deleted> {
+    return this.delete(`${apiRoot}/city-instances/${encodeURIComponent(id)}`);
+  }
+
+  private async delete(path: string): Promise<Deleted> {
+    const answer = await this.send('DELETE', path, undefined);
+    if (answer.status === 204) return { kind: 'deleted' };
+    if (answer.status === 409 && problemOf(answer.body)?.code === 'run_active') {
+      return { kind: 'run_active' };
+    }
+    throw unexpected(answer, path);
   }
 
   async build(id: string): Promise<BuildQueued> {

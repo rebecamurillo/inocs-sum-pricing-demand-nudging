@@ -13,6 +13,19 @@
   transition: background-color 0.1s;
 }
 
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-right: 0.5rem;
+}
+
+.rowItem {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+}
+
 .item:hover {
   background: var(--tint-2);
 }

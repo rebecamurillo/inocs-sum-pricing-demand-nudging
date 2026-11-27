@@ -143,3 +143,52 @@ def test_discarding_a_working_directory_removes_it_and_what_it_holds(
 
     assert not working.exists()
     store.discard(working)
+
+
+def stored(store: LocalArtifactStore, key: str = KEY) -> Path:
+    working = store.working_dir("run-x", StepName.AREA)
+    (working / "stations.json").write_bytes(CONTENT)
+    path, _ = store.store(StepName.AREA, key, working, ["stations.json"])
+    return path
+
+
+def test_a_read_only_artefact_folder_is_removed(store: LocalArtifactStore, tmp_path: Path) -> None:
+    path = stored(store)
+
+    store.remove_artifact(str(path))
+
+    assert not (tmp_path / path).exists()
+    assert (tmp_path / "artifacts" / "area").is_dir()
+
+
+def test_removing_a_missing_artefact_folder_is_fine(store: LocalArtifactStore) -> None:
+    store.remove_artifact("artifacts/area/none")
+
+
+@pytest.mark.parametrize("outside", ["../outside", "artifacts", "runs/run-1", "/etc"])
+def test_a_path_outside_the_artefacts_is_refused(
+    store: LocalArtifactStore, tmp_path: Path, outside: str
+) -> None:
+    (tmp_path / "runs" / "run-1").mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="artefact folder"):
+        store.remove_artifact(outside)
+
+    assert (tmp_path / "runs" / "run-1").is_dir()
+
+
+def test_working_directories_of_runs_not_listed_are_removed(
+    store: LocalArtifactStore, tmp_path: Path
+) -> None:
+    store.working_dir("keep", StepName.AREA)
+    (store.working_dir("drop", StepName.AREA) / "x.json").write_text("{}")
+    stored(store)
+
+    store.remove_working_dirs_except({"keep"})
+
+    assert [item.name for item in (tmp_path / "runs").iterdir()] == ["keep"]
+    assert (tmp_path / "artifacts" / "area" / KEY).is_dir()
+
+
+def test_without_a_runs_folder_nothing_is_removed(store: LocalArtifactStore) -> None:
+    store.remove_working_dirs_except(set())

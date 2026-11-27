@@ -178,6 +178,8 @@ export const sampleMenu: InstanceMenuEntry[] = [
 /** A gateway that answers with the samples; `overrides` replace single methods. */
 export function fakeCityInstances(
   overrides: Partial<CityInstanceGateway> = {},
+  /** The ids (of versions and of instances) a deletion answers `run_active` for. */
+  active: ReadonlySet<string> = new Set(),
 ): CityInstanceGateway {
   return {
     menu: () => Promise.resolve(sampleMenu),
@@ -203,6 +205,10 @@ export function fakeCityInstances(
     createDraft: () => Promise.resolve({ kind: 'created', version: sampleDraft }),
     patch: (_id, changes) => Promise.resolve(patchedDraft(sampleDraft, changes)),
     discard: () => Promise.resolve(),
+    deleteVersion: (id) =>
+      Promise.resolve(active.has(id) ? { kind: 'run_active' } : { kind: 'deleted' }),
+    deleteInstance: (id) =>
+      Promise.resolve(active.has(id) ? { kind: 'run_active' } : { kind: 'deleted' }),
     build: () => Promise.resolve({ kind: 'queued', runId: 'run-2' }),
     ...overrides,
   };
