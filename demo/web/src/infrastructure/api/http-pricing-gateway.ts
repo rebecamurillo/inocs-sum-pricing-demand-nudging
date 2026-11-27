@@ -55,6 +55,11 @@ function toVersion(wire: Schemas['PricingVersionResource']): PricingVersion {
     state: wire.state,
     basedOnId: wire.based_on_id,
     runId: wire.run_id,
+    periods: wire.periods.map((period) => ({
+      id: period.id,
+      key: period.key,
+      label: period.label,
+    })),
     keptFrom:
       wire.kept_from === null ? null : { id: wire.kept_from.id, letter: wire.kept_from.letter },
     goals: toGoals(wire.goals),

@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -80,6 +81,7 @@ function mount(pricing: PricingGateway, runs: ReturnType<typeof fakeRunGateway>)
     cityInstances: fakeCityInstances({ menu: () => Promise.resolve(sampleMenu) }),
     runs,
     pricing,
+    trips: emptyTrips,
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(

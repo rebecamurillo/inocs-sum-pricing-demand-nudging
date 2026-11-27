@@ -86,6 +86,8 @@ export interface MapHandle {
    * at once when one already has. Returns the way to stop listening.
    */
   onStyleReady(callback: () => void): () => void;
+  /** Calls back with the point of each click on the map; returns the way to stop listening. */
+  onClick(callback: (point: GeoPoint) => void): () => void;
   remove(): void;
 }
 

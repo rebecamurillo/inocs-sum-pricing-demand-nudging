@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -42,6 +43,7 @@ function gatewaysFor(datasets: CityDataset[], served: boolean): Gateways {
     cityInstances: emptyCityInstances,
     runs: fakeRunGateway(),
     pricing: fakePricingGateway(),
+    trips: emptyTrips,
   };
 }
 

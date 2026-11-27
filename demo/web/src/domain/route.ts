@@ -106,6 +106,15 @@ export function compareRoute(
   return { kind: 'compare', instance, letters: [...new Set(letters)].sort(), period };
 }
 
+/** L-5 for one finished pricing version; `period` null leaves the choice to the version. */
+export function travellerRoute(
+  instance: InstanceVersionRef,
+  letter: string,
+  period: string | null,
+): LabRoute {
+  return { kind: 'traveller', instance, letter, period };
+}
+
 export function serialiseInstance(instance: InstanceVersionRef): string {
   return `${instance.instanceId}.v${String(instance.version)}`;
 }

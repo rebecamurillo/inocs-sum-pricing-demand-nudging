@@ -13,11 +13,14 @@ export const EMPTY_LAB_VIEW = 'instance';
 export const RESULT_VIEW = 'result';
 /** Compare versions (L-4) keeps its own share under this key (UX-SPEC § Route: 34 %). */
 export const COMPARE_VIEW = 'compare';
+/** The traveller view (L-5) keeps its own share under this key (UX-SPEC § Route: 44 %). */
+export const TRAVELLER_VIEW = 'traveller';
 const DEFAULT_MAP_SHARE = 50;
 export const DEFAULT_MAP_SHARES: Readonly<Record<string, number>> = {
   [EMPTY_LAB_VIEW]: DEFAULT_MAP_SHARE,
   [RESULT_VIEW]: 36,
   [COMPARE_VIEW]: 34,
+  [TRAVELLER_VIEW]: 44,
 };
 export const MIN_MAP_SHARE = 20;
 export const MAX_MAP_SHARE = 80;

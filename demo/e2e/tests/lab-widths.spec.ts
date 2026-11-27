@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { awaitPackageDefaults, buildFakeInstance, queueFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
+import { pricedPair } from '../support/trips';
 import {
   createPricingVersion,
   finishVersion,
@@ -364,6 +365,43 @@ test.describe('Lab', () => {
 
   // A second scenario for the run states of L-2: the first holds every other built view and
   // already fills its time budget.
+  // A sibling scenario for L-5: the first holds every other built view and already fills its
+  // time budget (the states pick and switched are added to the same family).
+  test('Lab · every L-5 state holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control, 912);
+    const main = page.getByRole('main');
+    await finishVersion(request, version, 'Baseline');
+    await finishVersion(request, version, 'Incentive', { pt_fare_chf: 3, lowest_price_chf: 0.8 });
+
+    // Pick: the form, no prices yet.
+    await page.goto(`/#/lab/traveller/${version}/A`);
+    await page.reload();
+    await expect(main.getByRole('combobox', { name: 'Pricing version' })).toHaveValue(
+      `${version}.A`,
+    );
+    await expect(main.getByRole('combobox', { name: 'Point A' })).toBeVisible();
+    await holdsAtEverySize(page, main);
+
+    // Switched: two points priced by version A, then version B with the previous prices struck
+    // through. The points are the first two stops of different hubs the API prices.
+    const [from, to] = await pricedPair(request, version, `${version}.A`);
+    const fieldA = main.getByRole('combobox', { name: 'Point A' });
+    const fieldB = main.getByRole('combobox', { name: 'Point B' });
+    await fieldA.fill(from.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await fieldB.fill(to.name);
+    await main.getByRole('listbox').getByRole('option').first().click();
+    await expect(main.getByText('Monday 08:00–09:00 · Version A')).toBeVisible();
+    await main.getByRole('combobox', { name: 'Pricing version' }).selectOption(`${version}.B`);
+    await expect(main.getByText('Monday 08:00–09:00 · Version B')).toBeVisible();
+    await expect(main.getByRole('deletion').first()).toBeVisible();
+    await holdsAtEverySize(page, main);
+  });
+
   test('Lab · every L-2 run state holds at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
@@ -579,6 +617,11 @@ test.describe('Lab', () => {
     const [simulationRun] = await control.activeRunIds();
     await control.releaseRun(simulationRun ?? '');
     await waitForRun(request, simulationRun ?? '', 'succeeded');
+    // L-5: the form and its prices have no transition or animation either.
+    await page.goto(`/#/lab/traveller/${version}/A`);
+    await page.reload();
+    await expect(page.getByRole('combobox', { name: 'Point A' })).toBeVisible();
+    await noTime();
     await context.close();
   });
 });

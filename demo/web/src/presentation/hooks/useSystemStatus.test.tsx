@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -35,6 +36,7 @@ describe('useSystemStatus', () => {
       cityInstances: emptyCityInstances,
       runs: fakeRunGateway(),
       pricing: fakePricingGateway(),
+      trips: emptyTrips,
     };
     const client = new QueryClient();
     const wrapper = ({ children }: { children: ReactNode }) => (

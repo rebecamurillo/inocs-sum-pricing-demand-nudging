@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { render, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Gateways } from '../../application/ports/gateways';
@@ -26,6 +27,7 @@ const gateways: Gateways = {
   cityInstances: emptyCityInstances,
   runs: fakeRunGateway(),
   pricing: fakePricingGateway(),
+  trips: emptyTrips,
 };
 
 describe('useGateways', () => {

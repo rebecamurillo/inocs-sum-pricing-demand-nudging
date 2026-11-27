@@ -805,6 +805,24 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   columns from `tableGroups` and `comparisonColumns` (each row carries its CSV `unit` and its
   `source`, written through `SOURCE_LABELS` of `domain/result-text.ts`), and
   `presentation/download.ts` saves the text through a Blob and a temporary link.
+- Trip options and prices (L-5, choice part). The route `#/lab/traveller/{instance version}/{letter}`
+  is a view, `TravellerView`, of one finished pricing version: `LabShell` resolves the link against
+  `useTravellerChoices` (`loadTravellerChoices`: the menu's built instance versions, each one's
+  `PricingGateway.list`, kept to `state = result` by `finishedVersionChoices` of
+  `domain/traveller.ts`, in the menu's order). The menu item opens the current link's version when
+  it is finished, else the first finished one; a link to a version that exists but is not finished
+  is replaced by the first finished version's route, an unknown one reads "Nothing at this link".
+  `TripGateway` (port; `HttpTripGateway` reads `/place-names` and `/trip-quotes` on the generated
+  types; `fake-trip-gateway.ts` for tests) feeds `usePlaceNames` (250 ms debounce, from two
+  characters) and `useTripQuote` (the quote of the points set, the previous answer kept while the
+  next is read). The view keeps its two points; a version switch pushes the route and quotes the
+  same points again, and `nextPrevious` keeps the old quote for a struck-through `<del>` price
+  only for another version of the same instance version. The map's click comes through the map
+  context (`MapHandle.onClick`, `useMapClick`) and `l5-layers.ts` declares the study circle, the
+  hubs' outlines and the bike stations; L-5 has its own map share (`TRAVELLER_VIEW`, 44 %).
+  `PricingVersion.periods` (the keys the version priced) gives the time slots. L-3's action bar
+  holds "Open in the traveller view" after "Compare versions →". The legs, the duration and the
+  other messages of a quote are story 5-3's.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

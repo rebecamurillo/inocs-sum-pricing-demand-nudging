@@ -360,6 +360,7 @@ describe('menu rows', () => {
     runId: null,
     keptFrom: null,
     goals: defaults,
+    periods: [],
     rules: [],
     lastDurationS: null,
     ...overrides,

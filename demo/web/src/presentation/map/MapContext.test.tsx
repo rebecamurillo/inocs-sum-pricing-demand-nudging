@@ -7,6 +7,7 @@ import {
   MapFactoryProvider,
   MapProvider,
   useMapFactory,
+  useMapClick,
   useMapFit,
   useMapHandles,
   useMapLayers,
@@ -304,5 +305,41 @@ describe('useMapHandles', () => {
     expect(map.markers).toHaveLength(4);
     expect(map.markers.slice(0, 2).every((marker) => marker.removed)).toBe(true);
     expect(map.markers.slice(2).every((marker) => !marker.removed)).toBe(true);
+  });
+});
+
+describe('useMapClick', () => {
+  it('hears the clicks of the ready map with the latest handler, and stops with the view', () => {
+    const { map, wrapper } = rig();
+    const first = vi.fn();
+    const second = vi.fn();
+    const { result, rerender, unmount } = renderHook(
+      ({ handler }) => {
+        const { attach } = useMapPaneContext();
+        useMapClick(handler);
+        return {
+          attach: () => {
+            attach(map);
+          },
+        };
+      },
+      { wrapper, initialProps: { handler: first } },
+    );
+    act(() => {
+      result.current.attach();
+    });
+    expect(map.clickListenerCount).toBe(0);
+    act(() => {
+      map.emitStyleReady();
+    });
+    expect(map.clickListenerCount).toBe(1);
+
+    rerender({ handler: second });
+    map.click({ lat: 46.2, lon: 6.14 });
+
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledWith({ lat: 46.2, lon: 6.14 });
+    unmount();
+    expect(map.clickListenerCount).toBe(0);
   });
 });

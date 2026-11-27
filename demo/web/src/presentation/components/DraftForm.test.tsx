@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -116,6 +117,7 @@ function mount(
     cityInstances,
     runs: fakeRunGateway(),
     pricing: fakePricingGateway(),
+    trips: emptyTrips,
   };
   const { factory, maps } = fakeMapFactory();
   const { unmount } = render(

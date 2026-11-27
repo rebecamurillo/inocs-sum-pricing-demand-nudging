@@ -88,6 +88,7 @@ export function samplePricingDraft(
     runId: null,
     keptFrom: { id: 'geneva-3km.v1.C', letter: 'C' },
     goals,
+    periods: [{ id: 'monday-08', key: 'mon-08', label: 'Monday 08:00–09:00' }],
     rules: pricingRulesOf(goals),
     lastDurationS: null,
     ...rest,

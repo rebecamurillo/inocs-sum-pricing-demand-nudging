@@ -55,6 +55,8 @@ export function usePricingList(instanceVersionId: string | null) {
     void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
     void client.invalidateQueries({ queryKey: ['pricing-simulations'] });
     void client.invalidateQueries({ queryKey: ['comparison'] });
+    void client.invalidateQueries({ queryKey: ['traveller-choices'] });
+    void client.invalidateQueries({ queryKey: ['trip-quote'] });
   }, [signature, client]);
   return query;
 }

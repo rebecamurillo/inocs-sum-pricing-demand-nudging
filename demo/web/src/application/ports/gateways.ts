@@ -5,6 +5,7 @@ import type { LayoutPreferences } from './layout-preferences';
 import type { PricingGateway } from './pricing-gateway';
 import type { RunGateway } from './run-gateway';
 import type { SystemStatusGateway } from './system-status-gateway';
+import type { TripGateway } from './trip-gateway';
 
 /** Every gateway the presentation layer can reach; one field per port. */
 export interface Gateways {
@@ -15,4 +16,5 @@ export interface Gateways {
   readonly cityInstances: CityInstanceGateway;
   readonly runs: RunGateway;
   readonly pricing: PricingGateway;
+  readonly trips: TripGateway;
 }

@@ -142,6 +142,21 @@ export function useMapLayers(declaration: MapDeclaration | null): void {
   }, [ready, declaration]);
 }
 
+/** Calls `handler` with the point of each click on the map while the view is shown. */
+export function useMapClick(handler: (point: GeoPoint) => void): void {
+  const { ready } = useMapContext();
+  const latest = useRef(handler);
+  useEffect(() => {
+    latest.current = handler;
+  });
+  useEffect(() => {
+    if (ready === null) return undefined;
+    return ready.handle.onClick((point) => {
+      latest.current(point);
+    });
+  }, [ready]);
+}
+
 /** Where the map looks (a study circle's bounds); null leaves the default. */
 export function useMapFit(bounds: GeoBounds | null): void {
   const { setFitTarget } = useMapContext();

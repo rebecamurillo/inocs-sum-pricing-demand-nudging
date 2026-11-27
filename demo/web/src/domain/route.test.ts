@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compareRoute, parseRoute, serialiseRoute, type LabRoute } from './route';
+import { compareRoute, parseRoute, serialiseRoute, travellerRoute, type LabRoute } from './route';
 
 const instance = { instanceId: 'geneva-3km', version: 2 };
 
@@ -78,5 +78,16 @@ describe('the compare route', () => {
     const route = compareRoute(instance, ['C', 'A'], 'monday');
     expect(serialiseRoute(route)).toBe('#/lab/geneva-3km.v2/compare/A,C?period=monday');
     expect(parseRoute(serialiseRoute(route))).toEqual(route);
+  });
+});
+
+describe('travellerRoute', () => {
+  it('builds the link L-5 opens at, with or without a period', () => {
+    expect(
+      serialiseRoute(travellerRoute({ instanceId: 'geneva-3km', version: 1 }, 'B', null)),
+    ).toBe('#/lab/traveller/geneva-3km.v1/B');
+    expect(
+      serialiseRoute(travellerRoute({ instanceId: 'geneva-3km', version: 1 }, 'C', 'mon-08')),
+    ).toBe('#/lab/traveller/geneva-3km.v1/C?period=mon-08');
   });
 });

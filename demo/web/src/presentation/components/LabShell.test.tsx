@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -66,6 +67,7 @@ function renderShell(
     cityInstances,
     runs,
     pricing,
+    trips: emptyTrips,
   };
   const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -1506,5 +1508,131 @@ describe('LabShell · compare versions (L-4)', () => {
 
     open('#/lab/geneva-3km.v9/compare/A,B');
     expect(await screen.findByText(/Nothing at this link: .* has no v9\./)).toBeVisible();
+  });
+});
+
+describe('LabShell · trip options and prices (L-5)', () => {
+  const version = (letter: string, state: 'result' | 'draft' | 'failed') =>
+    state === 'result'
+      ? sampleSealedPricing({ id: `geneva-3km.v1.${letter}`, letter, name: `Version ${letter}` })
+      : samplePricingDraft({
+          id: `geneva-3km.v1.${letter}`,
+          letter,
+          name: `Version ${letter}`,
+          state,
+          status: state === 'draft' ? 'draft' : 'sealed',
+        });
+
+  function open(
+    hash: string,
+    versions = [version('A', 'result'), version('B', 'draft'), version('C', 'result')],
+  ) {
+    window.location.hash = hash;
+    return renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances(),
+      [],
+      fakeRunGateway(),
+      fakePricingGateway(versions),
+    );
+  }
+
+  it('opens the first finished version from the menu item and shows L-5 with its share', async () => {
+    open('#/lab');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Trip options and prices' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/traveller/geneva-3km.v1/A');
+    });
+    expect(await screen.findByRole('combobox', { name: 'Pricing version' })).toHaveValue(
+      'geneva-3km.v1.A',
+    );
+    expect(screen.getByRole('button', { name: 'Trip options and prices' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent('Trip options and prices');
+    expect(grip()).toHaveAttribute('aria-valuenow', '44');
+  });
+
+  it('waits for the finished versions when the menu item is clicked before they are read', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const pricing = fakePricingGateway([version('A', 'result')]);
+    const list = pricing.list.bind(pricing);
+    pricing.list = async (instanceVersionId) => {
+      await held;
+      return list(instanceVersionId);
+    };
+    window.location.hash = '#/lab';
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances(), [], fakeRunGateway(), pricing);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Trip options and prices' }));
+    expect(screen.queryByText('Run a pricing version first.')).toBeNull();
+    release();
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/traveller/geneva-3km.v1/A');
+    });
+  });
+
+  it('opens the version of the current link when it is finished', async () => {
+    open('#/lab/geneva-3km.v1/result/C');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Trip options and prices' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toBe('#/lab/traveller/geneva-3km.v1/C');
+    });
+  });
+
+  it('replaces a link to a version that is not finished by the first finished version', async () => {
+    open('#/lab/traveller/geneva-3km.v1/B');
+
+    expect(await screen.findByRole('combobox', { name: 'Pricing version' })).toHaveValue(
+      'geneva-3km.v1.A',
+    );
+    expect(window.location.hash).toBe('#/lab/traveller/geneva-3km.v1/A');
+  });
+
+  it('chooses the version the link names after a reload', async () => {
+    open('#/lab/traveller/geneva-3km.v1/C?period=mon-08');
+
+    expect(await screen.findByRole('combobox', { name: 'Pricing version' })).toHaveValue(
+      'geneva-3km.v1.C',
+    );
+  });
+
+  it('says there is nothing at the link for an unknown letter and for an unknown instance version', async () => {
+    open('#/lab/traveller/geneva-3km.v1/Z');
+    expect(
+      await screen.findByText(
+        'Nothing at this link: Geneva 3 km v1 has no Version Z. It may have been deleted.',
+      ),
+    ).toBeVisible();
+    cleanup();
+
+    open('#/lab/traveller/geneva-3km.v9/A');
+    expect(await screen.findByText(/Nothing at this link: .* has no v9\./)).toBeVisible();
+  });
+
+  it('reads "Run a pricing version first." when no version is finished', async () => {
+    open('#/lab', [version('B', 'draft'), version('C', 'failed')]);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Trip options and prices' }));
+
+    expect(await screen.findByText('Run a pricing version first.')).toBeVisible();
+    expect(screen.queryByRole('combobox', { name: 'Pricing version' })).not.toBeInTheDocument();
+
+    cleanup();
+    open('#/lab/traveller/geneva-3km.v1/B', [version('B', 'draft')]);
+    expect(await screen.findByText('Run a pricing version first.')).toBeVisible();
   });
 });

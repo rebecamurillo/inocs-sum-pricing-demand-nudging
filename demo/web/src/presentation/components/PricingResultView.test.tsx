@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -58,6 +59,7 @@ function mount(
     cityInstances: fakeCityInstances({ menu: () => Promise.resolve(sampleMenu) }),
     runs: fakeRunGateway(options.runs),
     pricing: options.gateway ?? fake.gateway,
+    trips: emptyTrips,
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -584,8 +586,9 @@ describe('PricingResultView', () => {
       expect(bar).toBe(duplicate.parentElement);
       expect(bar).toBe(remove.parentElement);
       const buttons = within(bar).getAllByRole('button');
-      expect(buttons).toHaveLength(3);
+      expect(buttons).toHaveLength(4);
       expect(buttons[0]).toBe(compare);
+      expect(buttons[1]).toBe(screen.getByRole('button', { name: 'Open in the traveller view' }));
       expect(compare.className).toMatch(/primary/);
       expect(duplicate.className).not.toMatch(/primary/);
       expect(
@@ -606,6 +609,21 @@ describe('PricingResultView', () => {
         kind: 'compare',
         instance: { instanceId: 'geneva-3km', version: 1 },
         letters: ['A', 'B', 'C', 'D'],
+        period: null,
+      });
+    });
+
+    it('opens L-5 with this version', async () => {
+      const { onNavigate } = mount();
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Open in the traveller view' }),
+      );
+
+      expect(onNavigate).toHaveBeenCalledWith({
+        kind: 'traveller',
+        instance: { instanceId: 'geneva-3km', version: 1 },
+        letter: 'A',
         period: null,
       });
     });

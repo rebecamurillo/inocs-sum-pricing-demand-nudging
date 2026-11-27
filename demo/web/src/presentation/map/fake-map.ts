@@ -52,6 +52,7 @@ export class FakeMap implements MapHandle {
   readonly markers: FakeMarker[] = [];
   removed = false;
   private readonly listeners = new Set<() => void>();
+  private readonly clickListeners = new Set<(point: GeoPoint) => void>();
   private styleLoaded = false;
 
   constructor(
@@ -120,6 +121,20 @@ export class FakeMap implements MapHandle {
     return () => {
       this.listeners.delete(callback);
     };
+  }
+  onClick(callback: (point: GeoPoint) => void): () => void {
+    this.clickListeners.add(callback);
+    return () => {
+      this.clickListeners.delete(callback);
+    };
+  }
+  /** The visitor clicks the map at `point`. */
+  click(point: GeoPoint): void {
+    for (const listener of [...this.clickListeners]) listener(point);
+  }
+  /** How many views listen to clicks. */
+  get clickListenerCount(): number {
+    return this.clickListeners.size;
   }
   remove(): void {
     this.calls.push('remove');

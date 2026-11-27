@@ -5,6 +5,7 @@ import { HttpCityDatasetGateway } from '../infrastructure/api/http-city-dataset-
 import { HttpCityInstanceGateway } from '../infrastructure/api/http-city-instance-gateway';
 import { HttpPricingGateway } from '../infrastructure/api/http-pricing-gateway';
 import { HttpRunGateway } from '../infrastructure/api/http-run-gateway';
+import { HttpTripGateway } from '../infrastructure/api/http-trip-gateway';
 import { HttpSystemStatusGateway } from '../infrastructure/api/http-system-status-gateway';
 import { LocalStorageLayoutPreferences } from '../infrastructure/storage/local-storage-layout-preferences';
 
@@ -27,5 +28,6 @@ export function createGateways(): Gateways {
     cityInstances: new HttpCityInstanceGateway(browserFetch),
     runs: new HttpRunGateway(browserFetch),
     pricing: new HttpPricingGateway(browserFetch),
+    trips: new HttpTripGateway(browserFetch),
   };
 }

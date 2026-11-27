@@ -1,3 +1,4 @@
+import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -72,6 +73,7 @@ describe('LabShell · the end of a pricing run on its own L-2', () => {
       cityInstances: fakeCityInstances(),
       runs,
       pricing,
+      trips: emptyTrips,
     };
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     window.location.hash = '#/lab/geneva-3km.v1/pricing/A';

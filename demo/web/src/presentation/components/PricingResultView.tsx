@@ -7,7 +7,8 @@ import { periodTravellers, sumModes, type PricingResult } from '../../domain/pri
 import { initialLetters } from '../../domain/comparison';
 import { COMPARE_VERSIONS } from '../../domain/comparison-text';
 import { pricingVersionId, type PricingVersion } from '../../domain/pricing-version';
-import { compareRoute, serialiseRoute, type LabRoute } from '../../domain/route';
+import { compareRoute, serialiseRoute, travellerRoute, type LabRoute } from '../../domain/route';
+import { OPEN_IN_TRAVELLER_VIEW } from '../../domain/traveller';
 import {
   GOALS_TITLE,
   MODEL_SPLIT_TITLE,
@@ -377,6 +378,15 @@ function ResultCard({
           }}
         >
           {COMPARE_VERSIONS}
+        </button>
+        <button
+          type="button"
+          className={styles.secondary}
+          onClick={() => {
+            onNavigate(travellerRoute({ instanceId, version: number }, version.letter, null));
+          }}
+        >
+          {OPEN_IN_TRAVELLER_VIEW}
         </button>
         <button
           type="button"

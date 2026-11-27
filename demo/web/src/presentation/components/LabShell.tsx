@@ -1,8 +1,9 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
   COMPARE_VIEW,
   EMPTY_LAB_VIEW,
   RESULT_VIEW,
+  TRAVELLER_VIEW,
   GRIP_STEP,
   MAX_MAP_SHARE,
   MIN_MAP_SHARE,
@@ -13,11 +14,17 @@ import { compareBreadcrumb } from '../../domain/comparison-text';
 import { breadcrumb, periodChip } from '../../domain/l1-text';
 import { pricingBreadcrumb, pricingVersionName } from '../../domain/pricing-goals-text';
 import { pricingVersionId, type PricingVersionState } from '../../domain/pricing-version';
-import type { LabRoute } from '../../domain/route';
+import { travellerRoute, type LabRoute } from '../../domain/route';
+import {
+  RUN_A_PRICING_VERSION_FIRST,
+  firstFinished,
+  type VersionChoice,
+} from '../../domain/traveller';
 import { PRICING_VERSIONS_OFF } from '../../domain/run-text';
 import {
   instanceLabel,
   missingInstanceVersionLabel,
+  missingPricingVersionLabel,
   nothingAtThisLink,
 } from '../../domain/unknown-link';
 import { useInstanceMenu, useInstanceView, useNewInstanceBasis } from '../hooks/useCityInstances';
@@ -26,6 +33,7 @@ import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { usePricingVersion } from '../hooks/usePricingVersions';
 import { useSystemStatus } from '../hooks/useSystemStatus';
+import { useTravellerChoices } from '../hooks/useTrips';
 import { MapPane } from '../map/MapPane';
 import { MapProvider } from '../map/MapContext';
 import { LoadingCard } from './LoadingCard';
@@ -38,6 +46,7 @@ import { NewInstanceForm } from './NewInstanceForm';
 import { PricingGoalsForm } from './PricingGoalsForm';
 import { PricingResultView } from './PricingResultView';
 import { PricingRunView } from './PricingRunView';
+import { TravellerView } from './TravellerView';
 import { RunLine } from './RunLine';
 import styles from './LabShell.module.css';
 
@@ -59,18 +68,24 @@ const cardTexts: Readonly<Record<MenuChoice, string>> = {
   instances:
     'No city instance yet. Create one from the Geneva data: it prepares the area, the hubs, the routes and the travellers of one period.',
   compare: 'Compare needs two pricing versions of this city instance.',
-  traveller: 'Run a pricing version first.',
+  traveller: RUN_A_PRICING_VERSION_FIRST,
 };
 
 function unknownLinkSentence(
   route: Exclude<LabRoute, { kind: 'lab' }>,
   instanceName: string | null,
+  /** The instance version exists: what is missing is the pricing version. */
+  versionKnown = false,
 ): string {
   // The card names the instance when the menu lists it, else the id as the link writes it.
-  return nothingAtThisLink(
-    instanceLabel(instanceName, route.instance.instanceId),
-    missingInstanceVersionLabel(route.instance.version),
-  );
+  const name = instanceLabel(instanceName, route.instance.instanceId);
+  if (versionKnown && route.kind === 'traveller') {
+    return nothingAtThisLink(
+      `${name} v${String(route.instance.version)}`,
+      missingPricingVersionLabel(route.letter),
+    );
+  }
+  return nothingAtThisLink(name, missingInstanceVersionLabel(route.instance.version));
 }
 
 function MenuItem({
@@ -153,7 +168,8 @@ export function LabShell() {
     route.kind === 'instance' ||
     route.kind === 'pricing' ||
     route.kind === 'result' ||
-    route.kind === 'compare'
+    route.kind === 'compare' ||
+    route.kind === 'traveller'
       ? route
       : null;
   const linkedEntry =
@@ -182,15 +198,67 @@ export function LabShell() {
       (pricingOpen.state === 'result' && runCardId === pricingOpen.id));
   const runCardNow = showsRunCard ? pricingOpen.id : null;
   if (runCardNow !== runCardId) setRunCardId(runCardNow);
+  // L-5 is no view of one instance version: it has no open version, its card names its own.
+  const travelling = route.kind === 'traveller';
   const openVersion =
-    linkedEntry !== undefined && linkedVersion !== undefined
+    !travelling && linkedEntry !== undefined && linkedVersion !== undefined
       ? { instanceId: linkedEntry.id, versionId: linkedVersion.id }
       : null;
   // A link naming an instance version waits for the menu; only an answered menu says it is unknown.
   const menuPending = linkedRoute !== null && menu.isPending;
   const menuFailed = linkedRoute !== null && menu.isError;
+  // L-5: the finished versions, and what the link names among them.
+  const finishedChoices = useTravellerChoices();
+  const choices = finishedChoices.data ?? [];
+  const travellerLetterKnown =
+    route.kind === 'traveller' &&
+    linkedVersion?.pricingVersionLetters.includes(route.letter) === true;
+  const travellerChoice =
+    route.kind === 'traveller'
+      ? choices.find(
+          (item) =>
+            item.instanceId === route.instance.instanceId &&
+            item.number === route.instance.version &&
+            item.letter === route.letter,
+        )
+      : undefined;
+  const travellerFirst = firstFinished(choices);
+  // A version that exists but is not finished: its link is replaced by the first finished one.
+  const travellerRedirect =
+    travelling &&
+    travellerLetterKnown &&
+    travellerChoice === undefined &&
+    finishedChoices.data !== undefined
+      ? travellerFirst
+      : null;
+  const travellerOff =
+    travelling &&
+    travellerLetterKnown &&
+    travellerChoice === undefined &&
+    finishedChoices.data !== undefined &&
+    travellerFirst === null;
+  const travellerShown = travellerChoice !== undefined;
+  const redirectTo = travellerRedirect?.id ?? null;
+  useEffect(() => {
+    if (travellerRedirect === null) return;
+    replace(
+      travellerRoute(
+        { instanceId: travellerRedirect.instanceId, version: travellerRedirect.number },
+        travellerRedirect.letter,
+        null,
+      ),
+    );
+    // Once per target: the route that replaces this one is read again by the next render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redirectTo, route]);
   const unknownLink =
-    route.kind === 'lab' || openVersion !== null || menuPending || menuFailed ? null : route;
+    route.kind === 'lab' ||
+    openVersion !== null ||
+    menuPending ||
+    menuFailed ||
+    (travelling && travellerLetterKnown)
+      ? null
+      : route;
   const resultMap =
     route.kind === 'result' &&
     openVersion !== null &&
@@ -200,16 +268,24 @@ export function LabShell() {
     openVersion !== null && (route.kind === 'compare' || compareFor === openVersion.versionId);
   const noMap = pricingRoute !== null && openVersion !== null && !resultMap && !compareShown;
   // L-3 keeps its own share of the work area, L-1 and the empty Lab theirs.
-  const shareKey = compareShown ? COMPARE_VIEW : resultMap ? RESULT_VIEW : EMPTY_LAB_VIEW;
+  const shareKey = compareShown
+    ? COMPARE_VIEW
+    : resultMap
+      ? RESULT_VIEW
+      : travellerShown
+        ? TRAVELLER_VIEW
+        : EMPTY_LAB_VIEW;
   const mapShare = layout.mapShare(shareKey);
   const current: MenuChoice | null =
     openVersion !== null
       ? compareShown
         ? 'compare'
         : null
-      : unknownLink === null && !menuPending && !menuFailed
-        ? choice
-        : 'instances';
+      : travelling && unknownLink === null
+        ? 'traveller'
+        : unknownLink === null && !menuPending && !menuFailed
+          ? choice
+          : 'instances';
   // The empty Lab: the card of City instances, with no instance listed.
   const emptyLab =
     menu.data !== undefined &&
@@ -271,7 +347,45 @@ export function LabShell() {
       setCompareFor(openVersion.versionId);
       return;
     }
+    if (next === 'traveller' && finishedChoices.data === undefined) {
+      // A click before the finished versions are read waits for them, rather than reading as
+      // "no finished version".
+      void finishedChoices.refetch().then((read) => {
+        openTraveller(read.data ?? []);
+      });
+      return;
+    }
+    if (next === 'traveller') {
+      openTraveller(choices);
+      return;
+    }
     setChoice(next);
+    if (route.kind !== 'lab') navigate({ kind: 'lab', period: null });
+  };
+
+  const openTraveller = (finished: readonly VersionChoice[]) => {
+    // The version of the current link when it is finished, else the first finished one.
+    const sameVersion =
+      route.kind === 'pricing' || route.kind === 'result' || route.kind === 'traveller'
+        ? finished.find(
+            (item) =>
+              item.instanceId === route.instance.instanceId &&
+              item.number === route.instance.version &&
+              item.letter === route.letter,
+          )
+        : undefined;
+    const target = sameVersion ?? firstFinished(finished);
+    if (target !== null) {
+      navigate(
+        travellerRoute(
+          { instanceId: target.instanceId, version: target.number },
+          target.letter,
+          null,
+        ),
+      );
+      return;
+    }
+    setChoice('traveller');
     if (route.kind !== 'lab') navigate({ kind: 'lab', period: null });
   };
 
@@ -576,7 +690,14 @@ export function LabShell() {
               )
             ) : creating ? (
               <NewInstanceForm onNavigate={navigate} />
-            ) : menuPending ? (
+            ) : travellerChoice !== undefined ? (
+              <TravellerView
+                choices={choices}
+                choice={travellerChoice}
+                period={route.period}
+                onNavigate={navigate}
+              />
+            ) : menuPending || (travelling && travellerLetterKnown && !travellerOff) ? (
               <LoadingCard />
             ) : menuFailed ? (
               <p className={styles.error}>
@@ -586,8 +707,12 @@ export function LabShell() {
               <>
                 <p className={styles.cardText}>
                   {unknownLink === null
-                    ? cardTexts[current ?? 'instances']
-                    : unknownLinkSentence(unknownLink, linkedEntry?.name ?? null)}
+                    ? cardTexts[travellerOff ? 'traveller' : (current ?? 'instances')]
+                    : unknownLinkSentence(
+                        unknownLink,
+                        linkedEntry?.name ?? null,
+                        travelling && linkedVersion !== undefined,
+                      )}
                 </p>
                 {emptyLab && <NewInstanceAction onNew={startNew} />}
               </>

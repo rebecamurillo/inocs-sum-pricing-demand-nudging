@@ -46,6 +46,7 @@ function samplePricingDraft(
     runId: null,
     keptFrom: null,
     goals: { ...GOALS, ...goals },
+    periods: [],
     rules: [],
     lastDurationS: null,
     ...rest,

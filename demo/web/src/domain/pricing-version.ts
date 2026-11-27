@@ -26,6 +26,12 @@ export interface PricingRule {
   readonly message: string;
 }
 
+export interface PricingPeriod {
+  readonly id: string;
+  readonly key: string;
+  readonly label: string;
+}
+
 export interface PricingVersion {
   /** `{instance version}.{letter}`. */
   readonly id: string;
@@ -41,6 +47,8 @@ export interface PricingVersion {
   /** The sealed version whose fare, parking fee, options and flat price this draft kept. */
   readonly keptFrom: { readonly id: string; readonly letter: string } | null;
   readonly goals: PricingGoals;
+  /** The periods the version prices, as the API keys them (`mon-08`). */
+  readonly periods: readonly PricingPeriod[];
   readonly rules: readonly PricingRule[];
   /** Seconds the pricing model last took on this data set and radius; null when it has not run. */
   readonly lastDurationS: number | null;

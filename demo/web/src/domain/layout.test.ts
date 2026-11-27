@@ -34,7 +34,13 @@ describe('layout', () => {
 
   it('gives a fresh layout 36 % for the result and 50 % for the instance', () => {
     expect(RESULT_VIEW).toBe('result');
-    expect(DEFAULT_MAP_SHARES).toEqual({ instance: 50, result: 36, compare: 34 });
+    expect(DEFAULT_MAP_SHARES).toEqual({
+      instance: 50,
+      result: 36,
+      compare: 34,
+      traveller: 44,
+    });
+    expect(mapShareFor(DEFAULT_LAYOUT, 'traveller')).toBe(44);
     expect(mapShareFor(DEFAULT_LAYOUT, 'result')).toBe(36);
     expect(mapShareFor(DEFAULT_LAYOUT, 'instance')).toBe(50);
     expect(mapShareFor(DEFAULT_LAYOUT, 'other')).toBe(50);

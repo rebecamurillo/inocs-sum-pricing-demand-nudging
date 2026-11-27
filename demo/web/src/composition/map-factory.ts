@@ -124,6 +124,15 @@ class MapLibreHandle implements MapHandle {
       this.listeners.delete(callback);
     };
   }
+  onClick(callback: (point: GeoPoint) => void): () => void {
+    const listener = (event: { lngLat: { lat: number; lng: number } }) => {
+      callback({ lat: event.lngLat.lat, lon: event.lngLat.lng });
+    };
+    this.map.on('click', listener);
+    return () => {
+      this.map.off('click', listener);
+    };
+  }
   remove(): void {
     this.map.remove();
   }
