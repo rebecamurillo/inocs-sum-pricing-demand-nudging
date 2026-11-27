@@ -188,7 +188,9 @@ and worked around in the adapter, never in the package; so are its coefficients.
 A city data set is one immutable row of `city_datasets` plus a folder
 `{data_dir}/datasets/{id}/` (id `geneva-{import date}`, then `-2`, `-3`, ... on the same
 day) holding the GTFS copy and one GBFS `station_information` snapshot, with their hashes,
-the timetable's validity and time zone, the available area (the intersection of the stops'
+the timetable's validity, time zone and operator (the distinct `agency_name` values of
+`agency.txt`, joined by ", "; null for a data set stored before the `gtfs_operator` column), the
+available area (the intersection of the stops'
 bounding box and the OSM header's box), the preset and the provisional routing moment.
 Two worker commands create data sets and nothing else does:
 `pricing-demo-worker import-city-data` (`make city-data`; needs the one `.osm.pbf` in
@@ -691,6 +693,16 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   of a version in state `result` (L-2 and any other result route still have none) and keeps its
   share under the view key `result`, 36 % by default (`DEFAULT_MAP_SHARES`), apart from L-1's
   `instance`.
+- The Advanced view (L-3). With the menu foot's Advanced view switch on, `PricingResultView`
+  adds `ResultAdvanced` after the hub-pair link: "What the solver maximised", "Solver",
+  "Traveller simulation" (with "Earlier simulations of this version" from `GET …/simulations`, read
+  through `PricingGateway.simulations` and `usePricingSimulations` only when the switch is on),
+  "The package's own summary (optimizer/metrics.py)", "Parameters used", "Choice-model
+  coefficients" and "About this result". Every wording and row is a pure function of
+  `domain/advanced-text.ts`; `solverStatusText` words `TIME_LIMIT` as "stopped with a solution" so
+  that no screen names a solver time limit. The block names the timetable operator and the
+  bike-station source from the result's `provenance.timetable_operator` and
+  `provenance.bike_stations_source_url`.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

@@ -174,6 +174,11 @@ describe('HttpPricingGateway', () => {
       rule_id: 'balanced-score',
       rule_version: 1,
       rule_current: true,
+      rule_parameters: { price_weight: 0.5, time_weight: 0.5 },
+      created_at: '2026-11-10T09:00:00Z',
+      bike_rides: num(40, 'simulation', 'bike_rides'),
+      revenue: num(50, 'simulation', 'chf'),
+      cost: num(20, 'simulation', 'chf'),
       travellers: {
         pt_bike: num(10, 'simulation'),
         pt_only: num(20, 'simulation'),
@@ -202,6 +207,34 @@ describe('HttpPricingGateway', () => {
         travellers_pt_only: num(21, 'model'),
         travellers_pt_bike: num(11, 'model'),
       },
+      advanced: {
+        solver_status_name: 'TIME_LIMIT',
+        numbers: { gap_pct: num(1.5, 'model', 'percent') },
+      },
+      coefficients: { ASC_PT: num(-0.756, 'input', 'coefficient'), B_TIME: null },
+      provenance: {
+        package_version: '0.4.2',
+        package_commit: null,
+        gurobi_version: '12.0.1',
+        licence_kind: 'limited',
+        demonstrator_version: '0.1.0',
+        timetable_operator: 'tpg',
+        timetable_valid_from: '2024-12-15',
+        timetable_valid_to: '2025-12-13',
+        routing_date: '2025-03-10',
+        routing_time: '08:30:00',
+        routing_date_provisional: true,
+        bike_stations_source_url: 'https://example.org/gbfs.json',
+        bike_stations_fetched_at: '2026-11-10T00:00:00Z',
+        simulations: [
+          {
+            price_scheme: 'flat',
+            rule_id: 'balanced-score',
+            rule_version: 1,
+            created_at: '2026-11-10T09:00:00Z',
+          },
+        ],
+      },
     };
 
     it('reads the route and maps the simulations, the split, the goals and the headline', async () => {
@@ -216,9 +249,14 @@ describe('HttpPricingGateway', () => {
         ruleId: 'balanced-score',
         ruleVersion: 1,
         ruleCurrent: true,
+        ruleParameters: { price_weight: 0.5, time_weight: 0.5 },
         travellers: { car: 30, ptOnly: 20, ptBike: 10 },
+        bikeRides: num(40, 'simulation', 'bike_rides'),
+        revenue: num(50, 'simulation', 'chf'),
+        cost: num(20, 'simulation', 'chf'),
         displaced: 7,
         unserved: 2,
+        createdAt: '2026-11-10T09:00:00Z',
       });
       expect(result?.simulations.flat.travellers.car).toBe(40);
       expect(result?.modelSplit).toEqual({ car: 31, ptOnly: 21, ptBike: 11 });
@@ -228,6 +266,46 @@ describe('HttpPricingGateway', () => {
       expect(result?.goals.cost.flat).toBeNull();
       expect(result?.headline.profit?.value).toBe(4175);
       expect(result?.headline).not.toHaveProperty('revenue');
+    });
+
+    it('maps the solver numbers, the coefficients and the provenance', async () => {
+      const result = await new HttpPricingGateway(answering(200, body)).result('x.v1.B');
+
+      expect(result?.advanced.solverStatusName).toBe('TIME_LIMIT');
+      expect(result?.advanced.numbers.gap_pct?.value).toBe(1.5);
+      expect(result?.coefficients?.ASC_PT?.value).toBe(-0.756);
+      expect(result?.coefficients?.B_TIME).toBeNull();
+      expect(result?.provenance).toEqual({
+        packageVersion: '0.4.2',
+        packageCommit: null,
+        gurobiVersion: '12.0.1',
+        licenceKind: 'limited',
+        demonstratorVersion: '0.1.0',
+        timetableOperator: 'tpg',
+        timetableValidFrom: '2024-12-15',
+        timetableValidTo: '2025-12-13',
+        routingDate: '2025-03-10',
+        routingTime: '08:30:00',
+        routingDateProvisional: true,
+        bikeStationsSourceUrl: 'https://example.org/gbfs.json',
+        bikeStationsFetchedAt: '2026-11-10T00:00:00Z',
+        simulations: [
+          {
+            priceScheme: 'flat',
+            ruleId: 'balanced-score',
+            ruleVersion: 1,
+            createdAt: '2026-11-10T09:00:00Z',
+          },
+        ],
+      });
+    });
+
+    it('has no coefficients when the API sends none', async () => {
+      const found = await new HttpPricingGateway(
+        answering(200, { ...body, coefficients: null }),
+      ).result('x.v1.B');
+
+      expect(found?.coefficients).toBeNull();
     });
 
     it('has no model split when one mode is absent', async () => {
@@ -354,6 +432,46 @@ describe('HttpPricingGateway', () => {
         code: 'boom',
       });
       await expect(new HttpPricingGateway(broken).hubPairResults('x.v1.B')).rejects.toMatchObject({
+        code: 'boom',
+      });
+    });
+  });
+
+  describe('simulations', () => {
+    it('reads every stored simulation with its rule parameters', async () => {
+      const item = {
+        simulation_key: 'k',
+        period_id: 'monday-08',
+        price_scheme: 'flat',
+        rule_id: 'balanced-score',
+        rule_version: 0,
+        rule_parameters: { price_weight: 1, time_weight: 0 },
+        rule_current: false,
+        created_at: '2026-11-09T09:00:00Z',
+      };
+      const fetchImpl = answering(200, { items: [item] });
+
+      const found = await new HttpPricingGateway(fetchImpl).simulations('x.v1.B');
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/pricing-versions/x.v1.B/simulations');
+      expect(found).toEqual([
+        {
+          periodId: 'monday-08',
+          priceScheme: 'flat',
+          ruleId: 'balanced-score',
+          ruleVersion: 0,
+          ruleParameters: { price_weight: 1, time_weight: 0 },
+          ruleCurrent: false,
+          createdAt: '2026-11-09T09:00:00Z',
+        },
+      ]);
+    });
+
+    it('answers null for a 404 and throws for another status', async () => {
+      const none = answering(404, { code: 'pricing_version_not_found', title: 'x', detail: 'x' });
+      expect(await new HttpPricingGateway(none).simulations('x.v1.B')).toBeNull();
+      const broken = answering(500, { code: 'boom', title: 'Boom', detail: 'It broke.' });
+      await expect(new HttpPricingGateway(broken).simulations('x.v1.B')).rejects.toMatchObject({
         code: 'boom',
       });
     });

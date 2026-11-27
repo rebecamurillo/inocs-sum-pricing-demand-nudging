@@ -109,11 +109,27 @@ export interface PricingResultAnswer {
   }[];
   simulations: {
     price_scheme: 'model_prices' | 'flat';
+    rule_id: string;
+    rule_version: number;
+    rule_parameters: Record<string, number>;
+    bike_rides: ResultNumberAnswer;
+    revenue: ResultNumberAnswer;
+    cost: ResultNumberAnswer;
     travellers: Record<string, ResultNumberAnswer>;
     displaced: ResultNumberAnswer;
     unserved: ResultNumberAnswer;
   }[];
   model_split: Record<string, ResultNumberAnswer>;
+  advanced: { solver_status_name: string; numbers: Record<string, ResultNumberAnswer> };
+  provenance: {
+    package_version: string | null;
+    package_commit: string | null;
+    gurobi_version: string;
+    licence_kind: string;
+    demonstrator_version: string;
+    timetable_operator: string | null;
+    bike_stations_source_url: string | null;
+  };
 }
 
 /** Runs a draft of a built instance version to its result and returns the result as the API gives it. */

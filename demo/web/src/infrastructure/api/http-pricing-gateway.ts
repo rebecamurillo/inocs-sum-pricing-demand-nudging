@@ -12,7 +12,9 @@ import {
   type OptionResult,
   type PricingResult,
   type ResultNumber,
+  type ResultProvenance,
   type SimulationOutcome,
+  type StoredSimulation,
 } from '../../domain/pricing-result';
 import {
   PRICING_GOAL_NAMES,
@@ -77,9 +79,50 @@ function toSimulation(wire: Schemas['SimulationResultResource']): SimulationOutc
     ruleId: wire.rule_id,
     ruleVersion: wire.rule_version,
     ruleCurrent: wire.rule_current,
+    ruleParameters: wire.rule_parameters,
     travellers: modes(wire.travellers, (mode) => mode) ?? { car: 0, ptOnly: 0, ptBike: 0 },
+    bikeRides: toNumber(wire.bike_rides),
+    revenue: toNumber(wire.revenue),
+    cost: toNumber(wire.cost),
     displaced: wire.displaced.value,
     unserved: wire.unserved.value,
+    createdAt: wire.created_at,
+  };
+}
+
+function toStoredSimulation(wire: Schemas['PricingVersionSimulationResource']): StoredSimulation {
+  return {
+    periodId: wire.period_id,
+    priceScheme: wire.price_scheme,
+    ruleId: wire.rule_id,
+    ruleVersion: wire.rule_version,
+    ruleParameters: wire.rule_parameters,
+    ruleCurrent: wire.rule_current,
+    createdAt: wire.created_at,
+  };
+}
+
+function toProvenance(wire: Schemas['ProvenanceResource']): ResultProvenance {
+  return {
+    packageVersion: wire.package_version,
+    packageCommit: wire.package_commit,
+    gurobiVersion: wire.gurobi_version,
+    licenceKind: wire.licence_kind,
+    demonstratorVersion: wire.demonstrator_version,
+    timetableOperator: wire.timetable_operator,
+    timetableValidFrom: wire.timetable_valid_from,
+    timetableValidTo: wire.timetable_valid_to,
+    routingDate: wire.routing_date,
+    routingTime: wire.routing_time,
+    routingDateProvisional: wire.routing_date_provisional,
+    bikeStationsSourceUrl: wire.bike_stations_source_url,
+    bikeStationsFetchedAt: wire.bike_stations_fetched_at,
+    simulations: wire.simulations.map((item) => ({
+      priceScheme: item.price_scheme,
+      ruleId: item.rule_id,
+      ruleVersion: item.rule_version,
+      createdAt: item.created_at,
+    })),
   };
 }
 
@@ -119,6 +162,19 @@ function toResult(wire: Schemas['PricingResultResponse']): PricingResult {
     modelSplit: modes(wire.model_split, (mode) => `travellers_${mode}`),
     goals,
     headline,
+    advanced: {
+      solverStatusName: wire.advanced.solver_status_name,
+      numbers: Object.fromEntries(
+        Object.entries(wire.advanced.numbers).map(([name, found]) => [name, toNumber(found)]),
+      ),
+    },
+    coefficients:
+      wire.coefficients === null
+        ? null
+        : Object.fromEntries(
+            Object.entries(wire.coefficients).map(([name, found]) => [name, optional(found)]),
+          ),
+    provenance: toProvenance(wire.provenance),
   };
 }
 
@@ -226,6 +282,14 @@ export class HttpPricingGateway implements PricingGateway {
     if (answer.status === 404) return null;
     if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
     return (answer.body as Schemas['HubResultList']).items.map(toHub);
+  }
+
+  async simulations(id: string): Promise<StoredSimulation[] | null> {
+    const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/simulations`;
+    const answer = await this.call('GET', path, undefined);
+    if (answer.status === 404) return null;
+    if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
+    return (answer.body as Schemas['PricingVersionSimulationList']).items.map(toStoredSimulation);
   }
 
   async create(instanceVersionId: string, basedOn?: string): Promise<PricingVersion> {

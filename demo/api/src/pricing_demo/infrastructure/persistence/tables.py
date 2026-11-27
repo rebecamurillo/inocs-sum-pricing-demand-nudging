@@ -204,6 +204,8 @@ city_datasets = Table(
     Column("bus_shapes", Text, nullable=False),
     Column("bus_shapes_reason", Text),
     Column("shape_tool_image", Text),
+    # The agency names of the timetable; null for data sets stored before it was kept.
+    Column("gtfs_operator", Text),
     CheckConstraint("gtfs_valid_from <= gtfs_valid_to", name="gtfs_validity"),
     CheckConstraint(one_of("bus_shapes", BUS_SHAPES_STATUSES), name="bus_shapes"),
     CheckConstraint(

@@ -87,6 +87,7 @@ class ImportCityData:
                     valid_from=facts.valid_from,
                     valid_to=facts.valid_to,
                     timezone=facts.timezone,
+                    operator=facts.operator,
                 ),
                 gbfs=GbfsSnapshot(
                     file=self._files.relative(fetched.file),

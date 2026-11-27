@@ -1262,6 +1262,11 @@ export interface components {
         ProvenanceResource: {
             /** Bike Stations Fetched At */
             bike_stations_fetched_at: string | null;
+            /**
+             * Bike Stations Source Url
+             * @description The address the bike-station snapshot was fetched from.
+             */
+            bike_stations_source_url: string | null;
             /** Demonstrator Version */
             demonstrator_version: string;
             /** Dependency Lock Sha256 */
@@ -1312,6 +1317,11 @@ export interface components {
             solver_parameters: {
                 [key: string]: unknown;
             };
+            /**
+             * Timetable Operator
+             * @description The agency names of the timetable's agency.txt, joined by a comma.
+             */
+            timetable_operator: string | null;
             /** Timetable Valid From */
             timetable_valid_from: string | null;
             /** Timetable Valid To */

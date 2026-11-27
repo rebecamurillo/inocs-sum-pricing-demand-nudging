@@ -114,6 +114,17 @@ def test_the_provenance_and_the_coefficients_are_returned(results_app: ResultsAp
     assert body["coefficients"]["ASC_PT"]["source"] == "input"
 
 
+def test_the_provenance_names_the_timetable_operator_and_the_bike_station_source(
+    results_app: ResultsApp,
+) -> None:
+    version = results_app.results.finished()
+
+    provenance = results_app.client.get(path(version, "result")).json()["provenance"]
+
+    assert provenance["timetable_operator"] == "tpg"
+    assert provenance["bike_stations_source_url"].startswith("https://")
+
+
 def test_the_absent_numbers_are_null_and_never_zero(results_app: ResultsApp) -> None:
     version = results_app.results.finished()
 

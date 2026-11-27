@@ -75,6 +75,7 @@ class GtfsSnapshot:
     valid_from: date
     valid_to: date
     timezone: str
+    operator: str | None = None
 
 
 @dataclass(frozen=True)

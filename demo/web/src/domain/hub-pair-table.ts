@@ -78,6 +78,11 @@ export function offeredOptions(result: HubPairResult) {
     .sort((a, b) => (a.bikePrice?.value ?? 0) - (b.bikePrice?.value ?? 0));
 }
 
+/** The offered public transport + bike options over every hub pair (the table's "Bike options" summed). */
+export function bikeOptionsOffered(results: readonly HubPairResult[]): number {
+  return results.reduce((sum, item) => sum + offeredOptions(item).length, 0);
+}
+
 export function hubPairRow(
   result: HubPairResult,
   hubLabels: ReadonlyMap<string, string>,

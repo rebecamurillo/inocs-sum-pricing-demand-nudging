@@ -96,6 +96,8 @@ class Provenance:
     routing_time: time | None
     routing_date_provisional: bool | None
     bike_stations_fetched_at: datetime | None
+    timetable_operator: str | None
+    bike_stations_source_url: str | None
     simulations: list[SimulationProvenance]
 
 
@@ -303,6 +305,8 @@ class GetPricingResult:
             routing_time=None if period is None else period.routing_time,
             routing_date_provisional=None if period is None else period.routing_date_provisional,
             bike_stations_fetched_at=None if dataset is None else dataset.gbfs.fetched_at,
+            timetable_operator=None if dataset is None else dataset.gtfs.operator,
+            bike_stations_source_url=None if dataset is None else dataset.gbfs.source_url,
             simulations=[
                 SimulationProvenance(
                     item.link.price_scheme,

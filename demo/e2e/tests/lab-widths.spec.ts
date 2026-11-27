@@ -246,6 +246,14 @@ test.describe('Lab', () => {
     await page.getByRole('button', { name: 'Hide map' }).click();
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
     await page.getByRole('button', { name: 'Show map' }).click();
+
+    // L-3 with Advanced view on: the card scrolls, the page does not. Off again for what follows.
+    const advanced = page.getByRole('switch', { name: 'Advanced view' });
+    await advanced.click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Advanced view' })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+    await advanced.click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Advanced view' })).toHaveCount(0);
   });
 
   // A second scenario for the run states of L-2: the first holds every other built view and
@@ -374,6 +382,10 @@ test.describe('Lab', () => {
     await page.getByRole('row', { expanded: false }).first().click();
     await expect(page.getByRole('table', { name: 'Offered bike options' })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Map' })).toBeVisible();
+    await noTime();
+    // L-3 with Advanced view on: the section appears without a transition or animation.
+    await page.getByRole('switch', { name: 'Advanced view' }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Advanced view' })).toBeVisible();
     await noTime();
     await context.close();
   });

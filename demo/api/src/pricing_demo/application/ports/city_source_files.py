@@ -13,6 +13,7 @@ class TimetableFacts:
     valid_to: date
     timezone: str
     stops_bbox: BoundingBox
+    operator: str | None = None
 
 
 class TimetableReader(Protocol):

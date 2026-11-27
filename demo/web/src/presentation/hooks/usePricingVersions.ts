@@ -45,6 +45,7 @@ export function usePricingList(instanceVersionId: string | null) {
     void client.invalidateQueries({ queryKey: ['pricing-result'] });
     void client.invalidateQueries({ queryKey: ['pricing-hub-pairs'] });
     void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
+    void client.invalidateQueries({ queryKey: ['pricing-simulations'] });
   }, [signature, client]);
   return query;
 }
@@ -89,6 +90,19 @@ export function useHubPairResults(id: string | null) {
   });
 }
 
+export const pricingSimulationsKey = (id: string | null) => ['pricing-simulations', id] as const;
+
+/** Every stored simulation of a version (the Advanced view's earlier simulations); `id` null reads nothing. */
+export function usePricingSimulations(id: string | null) {
+  const { pricing } = useGateways();
+  return useQuery({
+    queryKey: pricingSimulationsKey(id),
+    queryFn: () => pricing.simulations(id ?? ''),
+    enabled: id !== null,
+    retry: false,
+  });
+}
+
 /** The model's bike rides and mean price per hub; `id` null reads nothing. */
 export function useHubResults(id: string | null) {
   const { pricing } = useGateways();
@@ -116,6 +130,7 @@ export function usePricingRunSync(run: Run | null) {
     void client.invalidateQueries({ queryKey: ['pricing-result'] });
     void client.invalidateQueries({ queryKey: ['pricing-hub-pairs'] });
     void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
+    void client.invalidateQueries({ queryKey: ['pricing-simulations'] });
     void client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
     void client.invalidateQueries({ queryKey: ACTIVE_RUNS_KEY });
   }, [signature, client]);

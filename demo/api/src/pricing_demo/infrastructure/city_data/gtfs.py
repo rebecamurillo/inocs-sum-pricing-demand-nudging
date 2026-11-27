@@ -43,9 +43,8 @@ class ZipTimetableReader:
             valid_from = _day(feed_info[0].get("feed_start_date"), "feed_start_date")
             valid_to = _day(feed_info[0].get("feed_end_date"), "feed_end_date")
             # A short row reads as None in its missing fields.
-            zones = {
-                (row.get("agency_timezone") or "").strip() for row in _rows(archive, "agency.txt")
-            }
+            agencies = _rows(archive, "agency.txt")
+            zones = {(row.get("agency_timezone") or "").strip() for row in agencies}
             if len(zones) != 1 or "" in zones:
                 raise InvalidTimetable(
                     "agency.txt must give one agency_timezone shared by every agency."
@@ -58,6 +57,11 @@ class ZipTimetableReader:
                     continue
             if not coordinates:
                 raise InvalidTimetable("stops.txt has no stop with coordinates.")
+        names = list(
+            dict.fromkeys(
+                name for row in agencies if (name := (row.get("agency_name") or "").strip())
+            )
+        )
         lons = [lon for lon, _ in coordinates]
         lats = [lat for _, lat in coordinates]
         return TimetableFacts(
@@ -65,6 +69,7 @@ class ZipTimetableReader:
             valid_to=valid_to,
             timezone=zones.pop(),
             stops_bbox=BoundingBox(min(lons), min(lats), max(lons), max(lats)),
+            operator=", ".join(names) or None,
         )
 
 

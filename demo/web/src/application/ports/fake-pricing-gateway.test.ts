@@ -8,6 +8,7 @@ import {
   sampleHubPairResults,
   sampleHubResults,
   sampleSealedPricing,
+  sampleStoredSimulations,
 } from './fake-pricing-gateway';
 
 describe('the in-memory pricing gateway', () => {
@@ -134,5 +135,19 @@ describe('the in-memory pricing gateway', () => {
     for (const pair of sampleHubPairResults()) {
       expect(hubs.has(pair.originHub) && hubs.has(pair.destinationHub)).toBe(true);
     }
+  });
+
+  it('answers the stored simulations of a finished version, none for a draft, or what was supplied', async () => {
+    const { gateway } = fakePricing([sampleSealedPricing(), samplePricingDraft()]);
+    expect(await gateway.simulations('geneva-3km.v1.A')).toEqual(sampleStoredSimulations());
+    expect(await gateway.simulations('geneva-3km.v1.D')).toBeNull();
+
+    const supplied = fakePricing(
+      [sampleSealedPricing()],
+      {},
+      { simulations: { 'geneva-3km.v1.A': sampleStoredSimulations(true) } },
+    ).gateway;
+    const stored = (await supplied.simulations('geneva-3km.v1.A')) ?? [];
+    expect(stored.filter((item) => !item.ruleCurrent)).toHaveLength(2);
   });
 });

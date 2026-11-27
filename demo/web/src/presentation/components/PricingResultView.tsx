@@ -39,10 +39,12 @@ import {
   useHubPairResults,
   useHubResults,
   usePricingResult,
+  usePricingSimulations,
   usePricingVersion,
 } from '../hooks/usePricingVersions';
 import { HubPairTable } from './HubPairTable';
 import { LoadingCard } from './LoadingCard';
+import { ResultAdvanced } from './ResultAdvanced';
 import { ResultMap } from './ResultMap';
 import { SourceTag } from './SourceTag';
 import styles from './PricingResultView.module.css';
@@ -135,11 +137,13 @@ function ResultCard({
   hubPairsWithRoutes,
   centre,
   radiusM,
+  advancedView,
   onNavigate,
 }: CardProps) {
   const id = pricingVersionId(version.instanceVersionId, version.letter);
   const hubPairs = useHubPairResults(id).data ?? null;
   const hubs = useHubResults(id).data ?? null;
+  const stored = usePricingSimulations(advancedView ? id : null).data ?? null;
   const [tableOpen, setTableOpen] = useState(false);
   const [measure, setMeasure] = useState<MapMeasure>('ridesStarting');
   const [shownPair, setShownPair] = useState<string | null>(null);
@@ -318,6 +322,15 @@ function ResultCard({
             </div>
           )}
         </section>
+      )}
+      {advancedView && (
+        <ResultAdvanced
+          result={result}
+          flatPrice={version.goals.flat_price_per_ride_chf}
+          hubPairs={hubPairsWithRoutes}
+          hubPairResults={hubPairs}
+          stored={stored}
+        />
       )}
       <ResultMap
         centre={centre}

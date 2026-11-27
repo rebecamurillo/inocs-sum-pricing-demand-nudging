@@ -2311,6 +2311,18 @@
             ],
             "title": "Bike Stations Fetched At"
           },
+          "bike_stations_source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The address the bike-station snapshot was fetched from.",
+            "title": "Bike Stations Source Url"
+          },
           "demonstrator_version": {
             "title": "Demonstrator Version",
             "type": "string"
@@ -2458,6 +2470,18 @@
             "title": "Solver Parameters",
             "type": "object"
           },
+          "timetable_operator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agency names of the timetable's agency.txt, joined by a comma.",
+            "title": "Timetable Operator"
+          },
           "timetable_valid_from": {
             "anyOf": [
               {
@@ -2506,6 +2530,8 @@
           "routing_time",
           "routing_date_provisional",
           "bike_stations_fetched_at",
+          "timetable_operator",
+          "bike_stations_source_url",
           "simulations"
         ],
         "title": "ProvenanceResource",

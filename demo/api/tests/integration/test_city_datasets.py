@@ -46,11 +46,13 @@ def test_the_table_has_the_columns_of_the_data_set(migrated_database: Engine) ->
         "bus_shapes",
         "bus_shapes_reason",
         "shape_tool_image",
+        "gtfs_operator",
     ]
     assert dict(columns) == {
         **{name: "NO" for name, _ in columns},
         "bus_shapes_reason": "YES",
         "shape_tool_image": "YES",
+        "gtfs_operator": "YES",
     }
 
 

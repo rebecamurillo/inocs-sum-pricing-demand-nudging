@@ -24,7 +24,13 @@ function nth<T>(list: readonly T[], at: number): T {
 
 const version = sampleSealedPricing({ name: 'Incentive', state: 'result' });
 
-function mount(options: { result?: PricingResult; gateway?: Gateways['pricing'] } = {}) {
+function mount(
+  options: {
+    result?: PricingResult;
+    gateway?: Gateways['pricing'];
+    advancedView?: boolean;
+  } = {},
+) {
   const fake = fakePricing([version], {
     'geneva-3km.v1.A': options.result ?? samplePricingResult(),
   });
@@ -48,7 +54,7 @@ function mount(options: { result?: PricingResult; gateway?: Gateways['pricing'] 
             instanceId="geneva-3km"
             number={1}
             letter="A"
-            advancedView={false}
+            advancedView={options.advancedView ?? false}
             onNavigate={onNavigate}
           />
         </MapProvider>
@@ -334,6 +340,45 @@ describe('PricingResultView', () => {
       expect(buttons[1]).toHaveAttribute('aria-pressed', 'true');
       await user.click(nth(buttons, 1));
       expect(buttons[1]).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
+
+  describe('Advanced view', () => {
+    const groups = [
+      'What the solver maximised',
+      'Solver',
+      'Traveller simulation',
+      "The package's own summary (optimizer/metrics.py)",
+      'Parameters used',
+      'Choice-model coefficients',
+      'About this result',
+    ];
+
+    it('is absent with the switch off', async () => {
+      mount();
+      await screen.findByRole('button', { name: /^Price and flow per hub pair \(/ });
+
+      expect(screen.queryByRole('heading', { name: 'Advanced view' })).toBeNull();
+      for (const name of groups) expect(screen.queryByRole('heading', { name })).toBeNull();
+    });
+
+    it('adds the seven groups after the hub-pair link with the switch on', async () => {
+      mount({ advancedView: true });
+
+      const link = await screen.findByRole('button', { name: /^Price and flow per hub pair \(/ });
+      const title = await screen.findByRole('heading', { level: 2, name: 'Advanced view' });
+      expect(link.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      for (const name of groups) {
+        expect(screen.getByRole('heading', { name })).toBeInTheDocument();
+      }
+    });
+
+    it('counts the hub pairs and the offered bike options once the table is read', async () => {
+      mount({ advancedView: true });
+
+      const solver = (await screen.findByRole('heading', { name: 'Solver' })).closest('section');
+      if (solver === null) throw new Error('No Solver group.');
+      await within(solver).findByText(/^\d[\d ]* · 4$/);
     });
   });
 });

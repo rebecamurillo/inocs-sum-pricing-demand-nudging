@@ -1,4 +1,9 @@
-import type { HubPairResult, HubResult, PricingResult } from '../../domain/pricing-result';
+import type {
+  HubPairResult,
+  HubResult,
+  PricingResult,
+  StoredSimulation,
+} from '../../domain/pricing-result';
 import type { PricingChanges, PricingVersion } from '../../domain/pricing-version';
 
 /** `refused`: the API did not queue the run (a rule is broken, a component is missing, a run is active). */
@@ -23,6 +28,8 @@ export interface PricingGateway {
   hubPairResults(id: string): Promise<HubPairResult[] | null>;
   /** The model's bike rides and mean price per hub; null when the version has no result. */
   hubResults(id: string): Promise<HubResult[] | null>;
+  /** Every stored simulation of the version, the current rule's and earlier ones; null without a version. */
+  simulations(id: string): Promise<StoredSimulation[] | null>;
   /** Seals the draft and queues its pricing run. */
   run(id: string): Promise<PricingRunQueued>;
 }

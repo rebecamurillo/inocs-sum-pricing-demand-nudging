@@ -37,6 +37,7 @@ class PostgresCityDatasets:
                     gtfs_valid_from=dataset.gtfs.valid_from,
                     gtfs_valid_to=dataset.gtfs.valid_to,
                     gtfs_timezone=dataset.gtfs.timezone,
+                    gtfs_operator=dataset.gtfs.operator,
                     gbfs_file=dataset.gbfs.file,
                     gbfs_sha256=dataset.gbfs.sha256,
                     gbfs_source_url=dataset.gbfs.source_url,
@@ -104,6 +105,7 @@ class PostgresCityDatasets:
                 valid_from=row.gtfs_valid_from,
                 valid_to=row.gtfs_valid_to,
                 timezone=row.gtfs_timezone,
+                operator=row.gtfs_operator,
             ),
             gbfs=GbfsSnapshot(
                 file=row.gbfs_file,

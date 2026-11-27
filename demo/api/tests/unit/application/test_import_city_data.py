@@ -76,6 +76,7 @@ def test_the_import_creates_the_data_set_with_every_recorded_fact(rig: Rig) -> N
     assert dataset.gtfs.valid_from == date(2024, 12, 15)
     assert dataset.gtfs.valid_to == date(2025, 12, 13)
     assert dataset.gtfs.timezone == "Europe/Zurich"
+    assert dataset.gtfs.operator == "Test Transport"
     assert dataset.available_area == BoundingBox(6.10, 46.15, 6.20, 46.25)
     assert dataset.preset == GENEVA_PRESET
     moment = dataset.routing_moment

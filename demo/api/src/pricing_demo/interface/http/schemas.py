@@ -1223,6 +1223,12 @@ class ProvenanceResource(BaseModel):
     routing_time: time | None
     routing_date_provisional: bool | None
     bike_stations_fetched_at: datetime | None
+    timetable_operator: str | None = Field(
+        description="The agency names of the timetable's agency.txt, joined by a comma."
+    )
+    bike_stations_source_url: str | None = Field(
+        description="The address the bike-station snapshot was fetched from."
+    )
     simulations: list[SimulationProvenanceResource] = Field(
         description="The rule and the date of the latest simulation of each scheme."
     )

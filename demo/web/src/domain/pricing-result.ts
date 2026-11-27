@@ -17,9 +17,50 @@ export interface SimulationOutcome {
   readonly ruleId: string;
   readonly ruleVersion: number;
   readonly ruleCurrent: boolean;
+  readonly ruleParameters: Readonly<Record<string, number>>;
   readonly travellers: ModeCounts;
+  readonly bikeRides: ResultNumber;
+  readonly revenue: ResultNumber;
+  readonly cost: ResultNumber;
   readonly displaced: number;
   readonly unserved: number;
+  /** ISO instant the simulation was stored. */
+  readonly createdAt: string;
+}
+
+/** One stored simulation of a version (`GET …/simulations`), the current rule's or an earlier one's. */
+export interface StoredSimulation {
+  readonly periodId: string;
+  readonly priceScheme: 'model_prices' | 'flat';
+  readonly ruleId: string;
+  readonly ruleVersion: number;
+  readonly ruleParameters: Readonly<Record<string, number>>;
+  readonly ruleCurrent: boolean;
+  readonly createdAt: string;
+}
+
+/** What the "About this result" block of the Advanced view names. */
+export interface ResultProvenance {
+  readonly packageVersion: string | null;
+  readonly packageCommit: string | null;
+  readonly gurobiVersion: string;
+  readonly licenceKind: string;
+  readonly demonstratorVersion: string;
+  readonly timetableOperator: string | null;
+  readonly timetableValidFrom: string | null;
+  readonly timetableValidTo: string | null;
+  readonly routingDate: string | null;
+  readonly routingTime: string | null;
+  readonly routingDateProvisional: boolean | null;
+  readonly bikeStationsSourceUrl: string | null;
+  readonly bikeStationsFetchedAt: string | null;
+  /** The rule and the date of the latest simulation of each scheme. */
+  readonly simulations: readonly {
+    readonly priceScheme: 'model_prices' | 'flat';
+    readonly ruleId: string;
+    readonly ruleVersion: number;
+    readonly createdAt: string;
+  }[];
 }
 
 export const GOAL_NAMES = [
@@ -71,6 +112,14 @@ export interface PricingResult {
   readonly modelSplit: ModeCounts | null;
   readonly goals: Readonly<Record<GoalName, GoalComparison>>;
   readonly headline: Readonly<Partial<Record<HeadlineName, ResultNumber>>>;
+  /** The solver's name for its status and its numbers (the Advanced view). */
+  readonly advanced: {
+    readonly solverStatusName: string;
+    readonly numbers: Readonly<Record<string, ResultNumber>>;
+  };
+  /** The choice-model coefficients; null as a whole when the package source was not read. */
+  readonly coefficients: Readonly<Record<string, ResultNumber | null>> | null;
+  readonly provenance: ResultProvenance;
 }
 
 export interface ModeInfo {

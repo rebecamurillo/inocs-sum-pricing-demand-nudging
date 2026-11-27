@@ -57,6 +57,7 @@ def fake_city_dataset(dataset_id: str, now: datetime) -> CityDataset:
             valid_from=date(2024, 12, 15),
             valid_to=date(2025, 12, 13),
             timezone="Europe/Zurich",
+            operator="tpg",
         ),
         gbfs=GbfsSnapshot(
             file=f"datasets/{dataset_id}/gbfs_station_information.json",

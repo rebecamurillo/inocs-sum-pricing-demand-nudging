@@ -48,6 +48,19 @@ def test_a_data_set_is_read_back_unchanged(datasets: CityDatasets) -> None:
     assert datasets.count() == 1
 
 
+def test_the_operator_is_kept_and_a_data_set_without_one_reads_back_with_none(
+    datasets: CityDatasets,
+) -> None:
+    base = dataset("a")
+    assert base.gtfs.operator == "tpg"
+    without = replace(dataset("b", 10), gtfs=replace(base.gtfs, operator=None))
+
+    datasets.add(base)
+    datasets.add(without)
+
+    assert [item.gtfs.operator for item in datasets.list()] == ["tpg", None]
+
+
 def test_the_data_sets_are_listed_oldest_first_and_the_latest_is_the_newest(
     datasets: CityDatasets,
 ) -> None:

@@ -23,6 +23,45 @@ def test_the_validity_the_time_zone_and_the_stops_box_are_read(tmp_path: Path) -
     assert facts.stops_bbox == BoundingBox(6.10, 46.15, 6.20, 46.25)
 
 
+def test_the_operator_is_the_distinct_agency_names_in_file_order(tmp_path: Path) -> None:
+    feed = _feed_with_agency(
+        tmp_path,
+        [
+            "agency_id,agency_name,agency_url,agency_timezone",
+            "1, tpg ,https://example.org,Europe/Zurich",
+            "2,SBB,https://example.org,Europe/Zurich",
+            "3,tpg,https://example.org,Europe/Zurich",
+            "4,,https://example.org,Europe/Zurich",
+        ],
+    )
+
+    assert ZipTimetableReader().read(feed).operator == "tpg, SBB"
+
+
+def test_the_operator_of_the_fixture_feed_is_its_agency_name(tmp_path: Path) -> None:
+    assert ZipTimetableReader().read(zip_gtfs(tmp_path / "feed.zip")).operator == "Test Transport"
+
+
+def test_an_agency_file_without_names_gives_no_operator(tmp_path: Path) -> None:
+    feed = _feed_with_agency(
+        tmp_path,
+        ["agency_id,agency_url,agency_timezone", "1,https://example.org,Europe/Zurich"],
+    )
+
+    assert ZipTimetableReader().read(feed).operator is None
+
+
+def _feed_with_agency(tmp_path: Path, lines: list[str]) -> Path:
+    feed = tmp_path / "feed.zip"
+    with zipfile.ZipFile(feed, "w") as archive:
+        for path in sorted(GTFS_FILES.glob("*.txt")):
+            if path.name == "agency.txt":
+                archive.writestr("agency.txt", "\n".join(lines) + "\n")
+            else:
+                archive.write(path, path.name)
+    return feed
+
+
 @pytest.mark.parametrize("missing", ["feed_info.txt", "agency.txt", "stops.txt"])
 def test_a_feed_without_a_needed_file_is_refused(tmp_path: Path, missing: str) -> None:
     with pytest.raises(InvalidTimetable, match=missing):

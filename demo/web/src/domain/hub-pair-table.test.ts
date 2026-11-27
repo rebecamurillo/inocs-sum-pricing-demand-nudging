@@ -6,6 +6,7 @@ import {
   MAP_MEASURES,
   NONE_OFFERED,
   NO_BIKE_RIDES,
+  bikeOptionsOffered,
   PRICE_CAPTION,
   formatMinutes,
   hubPairCounts,
@@ -277,5 +278,21 @@ describe('the wording', () => {
       "Mean bike price: per ride, weighted by the model's bike rides on the pair, with the lowest and highest price offered.",
     );
     expect(PRICE_CAPTION).not.toContain('[Q-');
+  });
+});
+
+describe('bikeOptionsOffered', () => {
+  it('sums the offered public transport + bike options over the hub pairs', () => {
+    const offered = pair(
+      'H1',
+      'H2',
+      0.7,
+      [0.6, 0.9],
+      [option('a', 0.6), option('b', 0.9), option('c', null)],
+    );
+    const none = pair('H2', 'H1', null, null, [option('d', null)]);
+
+    expect(bikeOptionsOffered([offered, none])).toBe(2);
+    expect(bikeOptionsOffered([])).toBe(0);
   });
 });

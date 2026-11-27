@@ -206,3 +206,18 @@ def test_the_showcase_table_holds_one_row_at_most(migrated_database: Engine) -> 
 
     with pytest.raises(IntegrityError), migrated_database.begin() as connection:
         connection.execute(text(insert.format(id=2, version=version, period=period)))
+
+
+def test_the_dataset_operator_migration_goes_down_and_up_again(migrated_database: Engine) -> None:
+    def columns() -> set[str]:
+        return {
+            column["name"] for column in inspect(migrated_database).get_columns("city_datasets")
+        }
+
+    assert "gtfs_operator" in columns()
+
+    command.downgrade(Config(str(ALEMBIC_INI)), "c9d4e1b7a538")
+    assert "gtfs_operator" not in columns()
+
+    migrate_to_head()
+    assert "gtfs_operator" in columns()

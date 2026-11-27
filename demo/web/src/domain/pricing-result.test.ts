@@ -5,9 +5,14 @@ const simulation: SimulationOutcome = {
   ruleId: 'balanced-score',
   ruleVersion: 1,
   ruleCurrent: true,
+  ruleParameters: { price_weight: 0.5, time_weight: 0.5 },
   travellers: { car: 30, ptOnly: 50, ptBike: 18 },
+  bikeRides: { value: 18, unit: 'bike_rides', source: 'simulation', group: 'headline' },
+  revenue: { value: 20, unit: 'chf', source: 'simulation', group: 'headline' },
+  cost: { value: 10, unit: 'chf', source: 'simulation', group: 'headline' },
   displaced: 4,
   unserved: 2,
+  createdAt: '2026-11-10T09:00:00Z',
 };
 
 describe('the modes', () => {

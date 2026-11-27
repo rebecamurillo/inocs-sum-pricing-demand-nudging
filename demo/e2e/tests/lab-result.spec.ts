@@ -139,7 +139,8 @@ test.describe('Result', () => {
     const built = await buildFakeInstance(request, control, PAIRS_DISTANCE_M);
     const counts = await builtCounts(request, built.version);
     const draft = await createPricingVersion(request, built.version, { name: 'Incentive' });
-    await runToResult(request, draft.id);
+    const result = await runToResult(request, draft.id);
+    const { advanced } = result;
     const pairs = await hubPairResultsOf(request, draft.id);
     const hubs = await hubResultsOf(request, draft.id);
     const label = (id: string) => hubs.find((hub) => hub.hub_id === id)?.label ?? id;
@@ -244,5 +245,126 @@ test.describe('Result', () => {
     await expect(map).toBeHidden();
     await page.getByRole('button', { name: 'Show map' }).click();
     await expect(map).toBeVisible();
+
+    // Advanced view: absent with the switch off, present with it on, and remembered on reload.
+    const title = main.getByRole('heading', { level: 2, name: 'Advanced view' });
+    await expect(title).toHaveCount(0);
+    await page.getByRole('switch', { name: 'Advanced view' }).click();
+    await expect(title).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('switch', { name: 'Advanced view' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await expect(title).toBeVisible();
+
+    const group = (name: string) => main.getByRole('region', { name, exact: true });
+    const cell = (name: string, label: string) =>
+      group(name)
+        .getByRole('row')
+        .filter({ has: page.getByRole('rowheader', { name: label, exact: true }) })
+        .getByRole('cell');
+    const number = (name: string) => advanced.numbers[name]?.value;
+    const textOf = (value: number | undefined, show: (n: number) => string) =>
+      value === undefined ? '—' : show(value);
+
+    // What the solver maximised: a term is listed only when the API returns it (the residual
+    // check passed), and the objective value always is.
+    const objective = 'What the solver maximised';
+    const terms = [
+      ['objective_term_ridership', 'Ridership term'],
+      ['objective_term_revenue', '+ Revenue'],
+      ['objective_term_cost', '− Cost'],
+      ['objective_term_station_balance', '+ Station balance term'],
+    ] as const;
+    await expect(
+      group(objective).getByRole('rowheader', {
+        name: /^(Ridership term|\+ Revenue|− Cost|\+ Station balance term)$/,
+      }),
+    ).toHaveCount(terms.filter(([name]) => number(name) !== undefined).length);
+    for (const [name, label] of terms.filter(([key]) => number(key) !== undefined)) {
+      await expect(cell(objective, label)).toHaveText(textOf(number(name), whole));
+    }
+    await expect(cell(objective, '= Objective value')).toContainText(
+      textOf(number('objective_value'), whole),
+    );
+    await expect(cell(objective, '= Objective value')).toContainText("PRICING MODEL'S RESULT");
+
+    // The solver's numbers, as the screen words them.
+    await expect(cell('Solver', 'Solution time')).toHaveText(
+      textOf(number('solution_time_s'), (n) => `${n.toFixed(1)} s`),
+    );
+    await expect(cell('Solver', 'Optimality gap')).toHaveText(
+      textOf(number('gap_pct'), (n) => `${n.toFixed(2)} %`),
+    );
+    await expect(cell('Solver', 'Status')).toHaveText(
+      { OPTIMAL: 'optimal', SUBOPTIMAL: 'suboptimal', TIME_LIMIT: 'stopped with a solution' }[
+        advanced.solver_status_name
+      ] ?? advanced.solver_status_name.toLowerCase().replaceAll('_', ' '),
+    );
+    await expect(cell('Solver', 'Hub pairs · bike options offered')).toHaveText(
+      `${grouped(counts.hub_pairs_with_routes ?? 0)} · ${grouped(
+        pairs.reduce((sum, pair) => sum + offeredOptionsOf(pair).length, 0),
+      )}`,
+    );
+    await expect(cell('Solver', 'Stopped before the search ended')).toHaveText(
+      number('time_limit_reached') === 1 ? 'yes' : 'no',
+    );
+
+    // The simulation: the rule and each scheme's figures.
+    const [modelPrices, flat] = [
+      must(
+        result.simulations.find((item) => item.price_scheme === 'model_prices'),
+        'the simulation with the model prices',
+      ),
+      must(
+        result.simulations.find((item) => item.price_scheme === 'flat'),
+        'the simulation with the flat price',
+      ),
+    ];
+    const weight = (name: string) => String(modelPrices.rule_parameters[name]);
+    await expect(group('Traveller simulation')).toContainText(
+      `Rule: ${modelPrices.rule_id} v${String(modelPrices.rule_version)} · price weight ${weight('price_weight')} · time weight ${weight('time_weight')} · placeholder`,
+    );
+    await expect(
+      cell('Traveller simulation', 'Bike rides · with these prices / with the flat price'),
+    ).toHaveText(`${whole(modelPrices.bike_rides.value)} / ${whole(flat.bike_rides.value)}`);
+    const profit = (item: typeof modelPrices) => whole(item.revenue.value - item.cost.value);
+    await expect(
+      cell('Traveller simulation', 'Revenue − cost · with these prices / with the flat price'),
+    ).toHaveText(`${profit(modelPrices)} / ${profit(flat)}`);
+    await expect(group('Traveller simulation')).toContainText(
+      'A bike ride is one bike leg; an option with two bike legs counts two rides',
+    );
+
+    // About this result.
+    const about = 'About this result';
+    const provenance = result.provenance;
+    expect(provenance.timetable_operator).toBe('tpg');
+    await expect(cell(about, 'Pricing model')).toHaveText(
+      `package ${provenance.package_version ?? 'not recorded'} · commit ${provenance.package_commit?.slice(0, 7) ?? 'not recorded'}`,
+    );
+    await expect(cell(about, 'Solver')).toHaveText(
+      new RegExp(
+        `^Gurobi ${provenance.gurobi_version} · ${provenance.licence_kind === 'full' ? 'full' : 'size-limited'} licence · status `,
+      ),
+    );
+    await expect(cell(about, 'Timetable')).toHaveText(
+      /^tpg · valid .+ to .+ · routes planned for /,
+    );
+    await expect(cell(about, 'Bike stations')).toHaveText(
+      new RegExp(
+        `^${new URL(provenance.bike_stations_source_url ?? '').host.replaceAll('.', '\\.')} · fetched `,
+      ),
+    );
+    await expect(cell(about, 'Simulation')).toHaveText(
+      new RegExp(
+        `^${modelPrices.rule_id} v${String(modelPrices.rule_version)} · \\d{1,2} [A-Z][a-z]{2} \\d{4}$`,
+      ),
+    );
+    await expect(cell(about, 'Demonstrator')).toHaveText(provenance.demonstrator_version);
+
+    // No screen names a solver time limit.
+    expect((await page.content()).toLowerCase()).not.toContain('time limit');
   });
 });

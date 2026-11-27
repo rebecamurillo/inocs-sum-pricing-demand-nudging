@@ -99,6 +99,8 @@ test.describe('Pricing · run', () => {
       ),
     ).toBeVisible();
     await expect(page.getByRole('region', { name: 'Default values' })).toBeVisible();
+    // No screen names a solver time limit.
+    expect(await page.content()).not.toMatch(/time limit/i);
     await expect(menu.getByRole('button', { name: 'New version draft' })).toHaveAttribute(
       'aria-current',
       'page',

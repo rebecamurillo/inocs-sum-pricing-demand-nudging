@@ -7,6 +7,7 @@ import {
   type OptionResult,
   type PricingResult,
   type ResultNumber,
+  type StoredSimulation,
 } from '../../domain/pricing-result';
 import {
   PRICING_GOAL_NAMES,
@@ -132,20 +133,35 @@ export function samplePricingResult(overrides: Partial<PricingResult> = {}): Pri
     stations_full: goal('stations', null, 12, 14),
     mean_bike_price: goal('chf_per_bike_leg', null, 0.945, 1),
   });
-  const outcome = (car: number, ptOnly: number, ptBike: number, displaced: number) => ({
+  const outcome = (
+    car: number,
+    ptOnly: number,
+    ptBike: number,
+    displaced: number,
+    bikeRides: number,
+    revenue: number,
+    cost: number,
+  ) => ({
     ruleId: 'balanced-score',
     ruleVersion: 1,
     ruleCurrent: true,
+    ruleParameters: { price_weight: 0.5, time_weight: 0.5 },
     travellers: { car, ptOnly, ptBike },
+    bikeRides: simulation(bikeRides, 'bike_rides'),
+    revenue: simulation(revenue, 'chf'),
+    cost: simulation(cost, 'chf'),
     displaced,
     unserved: 0,
+    createdAt: '2026-11-10T09:00:00+00:00',
   });
+  const advancedNumber = (value: number, unit: string, source: ResultNumber['source'] = 'model') =>
+    n(value, source, unit, 'advanced');
   return {
     pricingVersionId: 'geneva-3km.v1.A',
     periodId: 'monday-08',
     simulations: {
-      modelPrices: outcome(30000, 30000, 12240, 1240),
-      flat: outcome(33000, 28000, 11240, 2115),
+      modelPrices: outcome(30000, 30000, 12240, 1240, 12000, 11544.4, 7369),
+      flat: outcome(33000, 28000, 11240, 2115, 11000, 11269.2, 7369),
     },
     modelSplit: { car: 31000, ptOnly: 29000, ptBike: 12240 },
     goals,
@@ -163,8 +179,102 @@ export function samplePricingResult(overrides: Partial<PricingResult> = {}): Pri
       stations_empty_start: n(3, 'input', 'stations'),
       stations_full_start: n(4, 'input', 'stations'),
     },
+    advanced: {
+      solverStatusName: 'OPTIMAL',
+      numbers: {
+        solver_status: advancedNumber(2, 'status'),
+        objective_value: advancedNumber(23456.4, 'objective'),
+        objective_term_ridership: advancedNumber(98248, 'objective', 'derived'),
+        objective_term_revenue: advancedNumber(11544, 'chf', 'derived'),
+        objective_term_cost: advancedNumber(7369, 'chf', 'derived'),
+        objective_term_station_balance: advancedNumber(-120.4, 'objective', 'derived'),
+        gap_pct: advancedNumber(0.5, 'percent'),
+        solution_time_s: advancedNumber(12.34, 's'),
+        solution_count: advancedNumber(3, 'solutions'),
+        time_limit_reached: advancedNumber(0, 'flag'),
+        package_avg_bike_price_multimodal: advancedNumber(0.94, 'chf', 'package_summary'),
+        package_avg_bike_price_offered: advancedNumber(1.02, 'chf', 'package_summary'),
+        parameter_cost_bike: advancedNumber(0.6, 'chf', 'input'),
+        parameter_P_bar: advancedNumber(0.6, 'chf', 'input'),
+        parameter_ridership_weight: advancedNumber(8, 'weight', 'input'),
+        parameter_theta: advancedNumber(0.5, 'weight', 'input'),
+        parameter_pt_price: advancedNumber(2, 'chf', 'input'),
+        parameter_parking_fee: advancedNumber(2.8, 'chf', 'input'),
+        parameter_max_displayed_alternatives: advancedNumber(10, 'options', 'input'),
+      },
+    },
+    coefficients: {
+      ASC_PT: advancedNumber(-0.756, 'coefficient', 'input'),
+      ASC_CAR: advancedNumber(0, 'coefficient', 'input'),
+      B_TIME: null,
+    },
+    provenance: {
+      packageVersion: '0.4.2',
+      packageCommit: '0123456789abcdef0123456789abcdef01234567',
+      gurobiVersion: '12.0.1',
+      licenceKind: 'full',
+      demonstratorVersion: '0.1.0',
+      timetableOperator: 'tpg',
+      timetableValidFrom: '2024-12-15',
+      timetableValidTo: '2025-12-13',
+      routingDate: '2025-03-10',
+      routingTime: '08:30:00',
+      routingDateProvisional: true,
+      bikeStationsSourceUrl: 'https://stables.donkey.bike/api/public/gbfs/2/donkey_ge/gbfs.json',
+      bikeStationsFetchedAt: '2026-11-10T00:00:00+00:00',
+      simulations: [
+        {
+          priceScheme: 'model_prices',
+          ruleId: 'balanced-score',
+          ruleVersion: 1,
+          createdAt: '2026-11-10T09:00:00+00:00',
+        },
+        {
+          priceScheme: 'flat',
+          ruleId: 'balanced-score',
+          ruleVersion: 1,
+          createdAt: '2026-11-10T09:00:00+00:00',
+        },
+      ],
+    },
     ...overrides,
   };
+}
+
+/** The stored simulations of the sample version: the current rule's pair, and with `earlier` an older pair. */
+export function sampleStoredSimulations(earlier = false): StoredSimulation[] {
+  const make = (
+    priceScheme: StoredSimulation['priceScheme'],
+    ruleVersion: number,
+    ruleCurrent: boolean,
+    parameters: Record<string, number>,
+    createdAt: string,
+  ): StoredSimulation => ({
+    periodId: 'monday-08',
+    priceScheme,
+    ruleId: 'balanced-score',
+    ruleVersion,
+    ruleParameters: parameters,
+    ruleCurrent,
+    createdAt,
+  });
+  const current = { price_weight: 0.5, time_weight: 0.5 };
+  return [
+    ...(earlier
+      ? [
+          make(
+            'model_prices',
+            0,
+            false,
+            { price_weight: 1, time_weight: 0 },
+            '2026-11-09T09:00:00+00:00',
+          ),
+          make('flat', 0, false, { price_weight: 1, time_weight: 0 }, '2026-11-09T09:00:00+00:00'),
+        ]
+      : []),
+    make('model_prices', 1, true, current, '2026-11-10T09:00:00+00:00'),
+    make('flat', 1, true, current, '2026-11-10T09:00:00+00:00'),
+  ];
 }
 
 const leg = (
@@ -291,6 +401,7 @@ export function fakePricing(
   details: {
     readonly hubPairs?: Readonly<Record<string, HubPairResult[] | null>>;
     readonly hubs?: Readonly<Record<string, HubResult[] | null>>;
+    readonly simulations?: Readonly<Record<string, StoredSimulation[] | null>>;
   } = {},
 ): FakePricing {
   let stored = [...initial];
@@ -322,6 +433,13 @@ export function fakePricing(
       }
       const found = stored.find((version) => version.id === id);
       return Promise.resolve(found?.state === 'result' ? sampleHubResults() : null);
+    },
+    simulations: (id) => {
+      if (details.simulations !== undefined && id in details.simulations) {
+        return Promise.resolve(details.simulations[id] ?? null);
+      }
+      const found = stored.find((version) => version.id === id);
+      return Promise.resolve(found?.state === 'result' ? sampleStoredSimulations() : null);
     },
     create: (instanceVersionId, basedOn) => {
       const used = new Set(stored.map((version) => version.letter));
