@@ -95,3 +95,45 @@ export function sumModes(counts: ModeCounts): number {
 export function periodTravellers(simulation: SimulationOutcome): number {
   return sumModes(simulation.travellers) + simulation.unserved;
 }
+
+/** One leg of an offered option; the line and the places are null for a leg stored without them. */
+export interface RouteLegResult {
+  readonly mode: string;
+  readonly line: string | null;
+  readonly fromPlace: string | null;
+  readonly toPlace: string | null;
+  readonly durationS: number;
+}
+
+export interface OptionResult {
+  readonly arcId: string;
+  readonly mode: 'pt_bike' | 'pt_only' | 'car';
+  readonly legs: readonly RouteLegResult[];
+  readonly duration: ResultNumber;
+  readonly bikeLegs: ResultNumber | null;
+  /** Null when the model does not offer the option. */
+  readonly bikePrice: ResultNumber | null;
+  readonly riders: ResultNumber | null;
+}
+
+/** The model's answer for one hub pair: travellers per mode, bike prices, the options. */
+export interface HubPairResult {
+  readonly originHub: string;
+  readonly destinationHub: string;
+  readonly meanBikePrice: ResultNumber | null;
+  readonly minBikePrice: ResultNumber | null;
+  readonly maxBikePrice: ResultNumber | null;
+  readonly travellers: ModeCounts;
+  readonly options: readonly OptionResult[];
+}
+
+/** The model's answer for one hub: its place and the bike rides that start and end there. */
+export interface HubResult {
+  readonly hubId: string;
+  readonly label: string;
+  readonly lat: number;
+  readonly lon: number;
+  readonly ridesStarting: ResultNumber;
+  readonly ridesEnding: ResultNumber;
+  readonly meanBikePrice: ResultNumber | null;
+}

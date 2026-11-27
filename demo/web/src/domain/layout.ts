@@ -9,7 +9,13 @@ export interface LayoutPreferencesValue {
 
 /** The empty Lab and L-1 share the key `instance` (UX-SPEC § Route: 50 %). */
 export const EMPTY_LAB_VIEW = 'instance';
+/** The result (L-3) keeps its own share under this key (UX-SPEC § Route: 36 %). */
+export const RESULT_VIEW = 'result';
 const DEFAULT_MAP_SHARE = 50;
+export const DEFAULT_MAP_SHARES: Readonly<Record<string, number>> = {
+  [EMPTY_LAB_VIEW]: DEFAULT_MAP_SHARE,
+  [RESULT_VIEW]: 36,
+};
 export const MIN_MAP_SHARE = 20;
 export const MAX_MAP_SHARE = 80;
 /** One arrow key moves the grip by 2 percentage points. */
@@ -29,5 +35,5 @@ export function clampMapShare(share: number): number {
 }
 
 export function mapShareFor(preferences: LayoutPreferencesValue, viewKey: string): number {
-  return preferences.mapShare[viewKey] ?? DEFAULT_MAP_SHARE;
+  return preferences.mapShare[viewKey] ?? DEFAULT_MAP_SHARES[viewKey] ?? DEFAULT_MAP_SHARE;
 }

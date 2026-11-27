@@ -1355,12 +1355,27 @@ export interface components {
             /** Duration S */
             duration_s: number;
             /**
+             * From Place
+             * @description Where the leg starts; null when the trip planner gave no name and for a leg stored before the names were kept.
+             */
+            from_place: string | null;
+            /**
+             * Line
+             * @description The line's public code; null for a leg without one (a street leg) and for a leg stored before the names were kept.
+             */
+            line: string | null;
+            /**
              * Line Kind
              * @enum {string}
              */
             line_kind: "street" | "shape" | "straight";
             /** Mode */
             mode: string;
+            /**
+             * To Place
+             * @description Where the leg ends; null when the trip planner gave no name and for a leg stored before the names were kept.
+             */
+            to_place: string | null;
         };
         /** RoutePairList */
         RoutePairList: {

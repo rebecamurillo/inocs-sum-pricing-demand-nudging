@@ -6,7 +6,10 @@ import {
   type GoalComparison,
   type GoalName,
   type HeadlineName,
+  type HubPairResult,
+  type HubResult,
   type ModeCounts,
+  type OptionResult,
   type PricingResult,
   type ResultNumber,
   type SimulationOutcome,
@@ -119,6 +122,48 @@ function toResult(wire: Schemas['PricingResultResponse']): PricingResult {
   };
 }
 
+function toOption(wire: Schemas['OptionResultResource']): OptionResult {
+  return {
+    arcId: wire.arc_id,
+    mode: wire.mode,
+    legs: wire.legs.map((leg) => ({
+      mode: leg.mode,
+      line: leg.line ?? null,
+      fromPlace: leg.from_place ?? null,
+      toPlace: leg.to_place ?? null,
+      durationS: leg.duration_s,
+    })),
+    duration: toNumber(wire.duration),
+    bikeLegs: optional(wire.bike_legs),
+    bikePrice: optional(wire.bike_price),
+    riders: optional(wire.riders),
+  };
+}
+
+function toHubPair(wire: Schemas['HubPairResultResource']): HubPairResult {
+  return {
+    originHub: wire.origin_hub,
+    destinationHub: wire.destination_hub,
+    meanBikePrice: optional(wire.mean_bike_price),
+    minBikePrice: optional(wire.min_bike_price),
+    maxBikePrice: optional(wire.max_bike_price),
+    travellers: modes(wire.travellers, (mode) => mode) ?? { car: 0, ptOnly: 0, ptBike: 0 },
+    options: wire.options.map(toOption),
+  };
+}
+
+function toHub(wire: Schemas['HubResultResource']): HubResult {
+  return {
+    hubId: wire.hub_id,
+    label: wire.label,
+    lat: wire.lat,
+    lon: wire.lon,
+    ridesStarting: toNumber(wire.rides_starting),
+    ridesEnding: toNumber(wire.rides_ending),
+    meanBikePrice: optional(wire.mean_bike_price),
+  };
+}
+
 function problemOf(body: unknown): Schemas['ProblemDetails'] | null {
   if (typeof body !== 'object' || body === null) return null;
   const candidate = body as Partial<Schemas['ProblemDetails']>;
@@ -165,6 +210,22 @@ export class HttpPricingGateway implements PricingGateway {
     if (answer.status === 404) return null;
     if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
     return toResult(answer.body as Schemas['PricingResultResponse']);
+  }
+
+  async hubPairResults(id: string): Promise<HubPairResult[] | null> {
+    const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/hub-pair-results`;
+    const answer = await this.call('GET', path, undefined);
+    if (answer.status === 404) return null;
+    if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
+    return (answer.body as Schemas['HubPairResultList']).items.map(toHubPair);
+  }
+
+  async hubResults(id: string): Promise<HubResult[] | null> {
+    const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/hub-results`;
+    const answer = await this.call('GET', path, undefined);
+    if (answer.status === 404) return null;
+    if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
+    return (answer.body as Schemas['HubResultList']).items.map(toHub);
   }
 
   async create(instanceVersionId: string, basedOn?: string): Promise<PricingVersion> {

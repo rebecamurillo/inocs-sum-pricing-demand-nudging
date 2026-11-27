@@ -152,3 +152,107 @@ export function insightTitle(letter: string, points: number): string {
   const same = 'as many simulated travellers take the car as with the flat price';
   return head + (points > 0 ? fewer : points < 0 ? more : same);
 }
+
+interface NumberAnswer {
+  value: number;
+}
+
+export interface LegAnswer {
+  mode: string;
+  line: string | null;
+  from_place: string | null;
+  to_place: string | null;
+}
+
+export interface HubPairResultAnswer {
+  origin_hub: string;
+  destination_hub: string;
+  mean_bike_price: NumberAnswer | null;
+  min_bike_price: NumberAnswer | null;
+  max_bike_price: NumberAnswer | null;
+  travellers: Record<string, NumberAnswer>;
+  options: {
+    arc_id: string;
+    mode: string;
+    legs: LegAnswer[];
+    duration: NumberAnswer;
+    bike_price: NumberAnswer | null;
+    riders: NumberAnswer | null;
+  }[];
+}
+
+export interface HubResultAnswer {
+  hub_id: string;
+  label: string;
+}
+
+/** The model's price and flow per hub pair, as `GET …/hub-pair-results` answers. */
+export async function hubPairResultsOf(
+  request: APIRequestContext,
+  id: string,
+): Promise<HubPairResultAnswer[]> {
+  const answer = await request.get(`/api/v1/pricing-versions/${id}/hub-pair-results`);
+  expect(answer.status()).toBe(200);
+  return ((await answer.json()) as { items: HubPairResultAnswer[] }).items;
+}
+
+/** The model's results per hub, as `GET …/hub-results` answers. */
+export async function hubResultsOf(
+  request: APIRequestContext,
+  id: string,
+): Promise<HubResultAnswer[]> {
+  const answer = await request.get(`/api/v1/pricing-versions/${id}/hub-results`);
+  expect(answer.status()).toBe(200);
+  return ((await answer.json()) as { items: HubResultAnswer[] }).items;
+}
+
+/** The pair's offered PT + bike options, cheapest first: what the open row lists. */
+export function offeredOptionsOf(pair: HubPairResultAnswer) {
+  return pair.options
+    .filter((option) => option.mode === 'pt_bike' && option.bike_price !== null)
+    .sort((a, b) => (a.bike_price?.value ?? 0) - (b.bike_price?.value ?? 0));
+}
+
+const TRANSIT: Record<string, string> = {
+  TRAM: 'Tram',
+  BUS: 'Bus',
+  RAIL: 'Train',
+  SUBWAY: 'Metro',
+  FERRY: 'Boat',
+};
+
+/** An option named by its legs, walking left out: "Tram 12 → Rive · bike Rive → Eaux-Vives". */
+export function optionNameOf(legs: LegAnswer[]): string {
+  return legs
+    .filter((leg) => leg.mode !== 'FOOT' && leg.mode !== 'WALK')
+    .map((leg) => {
+      if (leg.mode === 'BICYCLE') {
+        return leg.from_place === null || leg.to_place === null
+          ? 'bike'
+          : `bike ${leg.from_place} → ${leg.to_place}`;
+      }
+      const lower = leg.mode.toLowerCase();
+      const label = TRANSIT[leg.mode] ?? `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`;
+      const named = leg.line === null ? label : `${label} ${leg.line}`;
+      return leg.to_place === null ? named : `${named} → ${leg.to_place}`;
+    })
+    .join(' · ');
+}
+
+/** The value, or a failure naming what is missing (a scenario's way to narrow without branching). */
+export function must<T>(value: T | undefined, what: string): T {
+  if (value === undefined) throw new Error(`${what} is missing`);
+  return value;
+}
+
+/** What the "Mean bike price" cell of a pair's row says: the mean, or the sentence of its state. */
+export function priceCellOf(pair: HubPairResultAnswer): string {
+  if (pair.mean_bike_price !== null) return pair.mean_bike_price.value.toFixed(2);
+  return pair.min_bike_price === null ? 'no bike option offered' : '— no bike rides';
+}
+
+/** A pair's travellers per mode. */
+export function travellersOf(pair: HubPairResultAnswer) {
+  const count = (mode: string) => pair.travellers[mode]?.value ?? Number.NaN;
+  return { car: count('car'), pt: count('pt_only'), ptBike: count('pt_bike') };
+}

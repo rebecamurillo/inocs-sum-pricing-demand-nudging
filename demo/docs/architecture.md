@@ -506,7 +506,10 @@ summary and `GET /runs/{run_id}/route-failures` name the run that produced the r
 **`line_kind`.** Each leg of a `route_options` row records `street` for a street mode
 (`BICYCLE`, `CAR`, `FOOT`, `WALK`), and for a transit leg `shape` when its public code is in the
 set of routes that have a shape in the data set's timetable (`FeedShapes`), `straight`
-otherwise.
+otherwise. A leg also keeps the trip planner's `line` (its public code), `from_place` and
+`to_place` (an empty string is null), so an option can be named by its legs ("Tram 12 → Rive ·
+bike Rive → Eaux-Vives"); they sit in the `legs` JSONB beside `line_kind`, and a row stored
+before they were kept reads them back as null.
 
 ### Persistence
 
@@ -670,7 +673,24 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   tile lines are pure functions of `domain/result-text.ts`; the three modes, their order, colours
   and icons are `MODES` of `domain/pricing-result.ts`. Every bar is drawn on the scale of the
   period's travellers; the grey SIMULATION tag and the blue PRICING MODEL'S RESULT tag are one
-  `SourceTag`, the blue one only next to a number the model made.
+  `SourceTag` (`presentation/components/SourceTag.tsx`), the blue one only next to a number the
+  model made.
+- Price and flow per hub pair, and the result map (L-3). `PricingGateway.hubPairResults` and
+  `hubResults` read `/hub-pair-results` and `/hub-results` (`null` on 404) through
+  `useHubPairResults` and `useHubResults`. `PricingResultView` ends with a link-styled disclosure
+  "Price and flow per hub pair ({n} hub pairs, {m} with a bike option offered)" ({n} is L-1's
+  count of hub pairs with routes, {m} the rows with an offered bike option) that opens
+  `HubPairTable`: one row per pair, six sortable columns, a row's offered options under it named
+  by their legs, and "Show on map". Rows, counts, sorting, option names, the map measures and the
+  legend are pure functions of `domain/hub-pair-table.ts`. `ResultMap` renders nothing in the card:
+  it declares, on the one shared map, `l3Layers(...)` (the study circle and one green disc per hub;
+  size and colour from `t`, the hub's value over the largest one) and, for the pair shown,
+  `pairLineLayer(...)` as one declaration (so the line sits above the dimmed discs), and its fit;
+  its "Map shows" selector and legend go over the map through `useMapPanel` of `MapContext`
+  (declared like `useMapLegend`, with a memoised node). `LabShell` shows the map on the result route
+  of a version in state `result` (L-2 and any other result route still have none) and keeps its
+  share under the view key `result`, 36 % by default (`DEFAULT_MAP_SHARES`), apart from L-1's
+  `instance`.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

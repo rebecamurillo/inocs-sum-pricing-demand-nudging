@@ -1179,6 +1179,45 @@ describe('LabShell · pricing versions', () => {
     expect(screen.queryByText(/Nothing at this link/)).not.toBeInTheDocument();
   });
 
+  it('shows the map on L-3 of a finished version, at 36 % under its own key, with Hide map', async () => {
+    const { saved } = open('#/lab/geneva-3km.v1/result/A');
+    await screen.findByText('Result · pipeline step 6');
+
+    expect(screen.getByRole('button', { name: 'Hide map' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Map' })).toBeInTheDocument();
+    expect(grip()).toHaveAttribute('aria-valuenow', '36');
+
+    grip().focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(grip()).toHaveAttribute('aria-valuenow', '38');
+    expect(saved.at(-1)?.mapShare).toEqual({ instance: 50, result: 38 });
+  });
+
+  it('gives the card the full width on L-3 with Hide map, and keeps the share of L-1 apart', async () => {
+    open('#/lab/geneva-3km.v1/result/A', {
+      ...DEFAULT_LAYOUT,
+      mapShare: { instance: 60, result: 30 },
+    });
+    await screen.findByText('Result · pipeline step 6');
+    expect(grip()).toHaveAttribute('aria-valuenow', '30');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide map' }));
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show map' })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show map' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Instance set-up' }));
+    expect(await screen.findByRole('separator')).toHaveAttribute('aria-valuenow', '60');
+  });
+
+  it('has no map on the result route of a version that is not finished', async () => {
+    open('#/lab/geneva-3km.v1/result/D');
+    await screen.findByRole('heading', { name: 'Pricing goals' });
+
+    expect(screen.queryByRole('separator')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hide map' })).not.toBeInTheDocument();
+  });
+
   it('shows the run card on the result route of a cancelled version and the goals form of a draft', async () => {
     const cancelled = sampleSealedPricing({
       id: 'geneva-3km.v1.E',

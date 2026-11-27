@@ -1,9 +1,22 @@
-import { buildFakeInstance } from '../support/build';
+import { buildFakeInstance, builtCounts } from '../support/build';
 import { expect, test } from '../support/fixtures';
-import { createPricingVersion, insightTitle, runToResult, simulationOf } from '../support/pricing';
+import {
+  createPricingVersion,
+  hubPairResultsOf,
+  hubResultsOf,
+  insightTitle,
+  must,
+  offeredOptionsOf,
+  optionNameOf,
+  priceCellOf,
+  runToResult,
+  simulationOf,
+  travellersOf,
+} from '../support/pricing';
 
 // Its own distance, so no other scenario's build finds this one's routes already computed.
 const RESULT_DISTANCE_M = 930;
+const PAIRS_DISTANCE_M = 940;
 
 /** 72240 → "72 240": a plain space groups the thousands. */
 const grouped = (n: number) => String(Math.trunc(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -116,5 +129,120 @@ test.describe('Result', () => {
     await expect(ridershipTile).toContainText(
       `Pricing model: ${grouped(Math.round(ridership?.model?.value ?? Number.NaN))}`,
     );
+  });
+
+  test("L-3 · the hub-pair table lists price and travellers per pair; Advanced view adds the solver's numbers", async ({
+    page,
+    request,
+    control,
+  }) => {
+    const built = await buildFakeInstance(request, control, PAIRS_DISTANCE_M);
+    const counts = await builtCounts(request, built.version);
+    const draft = await createPricingVersion(request, built.version, { name: 'Incentive' });
+    await runToResult(request, draft.id);
+    const pairs = await hubPairResultsOf(request, draft.id);
+    const hubs = await hubResultsOf(request, draft.id);
+    const label = (id: string) => hubs.find((hub) => hub.hub_id === id)?.label ?? id;
+    const withBike = pairs.filter((pair) => pair.min_bike_price !== null).length;
+    const whole = (n: number) => grouped(Math.round(n));
+    const money = (n: number) => n.toFixed(2);
+
+    await page.goto(`/#/lab/${built.version}/result/${draft.letter}`);
+    await page.reload();
+    const main = page.getByRole('main');
+
+    // The link counts the pairs with routes and those with a bike option offered.
+    const link = main.getByRole('button', { name: /^Price and flow per hub pair \(/ });
+    await expect(link).toHaveText(
+      `▸ Price and flow per hub pair (${grouped(counts.hub_pairs_with_routes ?? 0)} hub pairs, ${grouped(withBike)} with a bike option offered)`,
+    );
+    await link.click();
+
+    const table = main.getByRole('table', { name: 'Price and flow per hub pair' });
+    await expect(table).toBeVisible();
+    for (const heading of [
+      'From → to',
+      'Mean bike price',
+      'Bike options',
+      'Car',
+      'PT',
+      'PT + bike',
+    ]) {
+      await expect(table.getByRole('button', { name: heading, exact: true })).toBeVisible();
+    }
+    await expect(table.getByRole('button', { name: 'Bike', exact: true })).toHaveCount(0);
+    await expect(table.getByText("PRICING MODEL'S RESULT")).toBeVisible();
+    await expect(
+      main.getByText(
+        "Mean bike price: per ride, weighted by the model's bike rides on the pair, with the lowest and highest price offered.",
+      ),
+    ).toBeVisible();
+    await expect(main.getByText("computed from the model's flows", { exact: true })).toBeVisible();
+
+    // The rows are the route's rows, in its order, with its figures formatted as the screen does.
+    const rows = table.getByRole('row').filter({ hasText: 'Show on map' });
+    await expect(rows).toHaveCount(pairs.length);
+    const first = must(pairs[0], 'the first hub pair');
+    const cells = rows.first().getByRole('cell');
+    const travellers = travellersOf(first);
+    await expect(cells.nth(0)).toHaveText(
+      `${label(first.origin_hub)} → ${label(first.destination_hub)}`,
+    );
+    await expect(cells.nth(1)).toContainText(priceCellOf(first));
+    await expect(cells.nth(3)).toHaveText(whole(travellers.car));
+    await expect(cells.nth(4)).toHaveText(whole(travellers.pt));
+    await expect(cells.nth(5)).toHaveText(whole(travellers.ptBike));
+
+    // A row with offered options opens them under it, named by their legs.
+    const open = must(
+      pairs.find((pair) => offeredOptionsOf(pair).length > 0),
+      'a hub pair with an offered bike option',
+    );
+    const expected = offeredOptionsOf(open);
+    await rows
+      .filter({ hasText: `${label(open.origin_hub)} → ${label(open.destination_hub)}` })
+      .first()
+      .click();
+    const options = main.getByRole('table', { name: 'Offered bike options' });
+    const optionRows = options.getByRole('row').filter({ hasNotText: 'Option, by its legs' });
+    await expect(optionRows).toHaveCount(expected.length);
+    for (const [at, option] of expected.entries()) {
+      const row = optionRows.nth(at);
+      await expect(row.getByRole('cell').nth(0)).toHaveText(optionNameOf(option.legs));
+      await expect(row.getByRole('cell').nth(1)).toHaveText(
+        `${String(Math.round(option.duration.value / 60))} min`,
+      );
+      await expect(row.getByRole('cell').nth(3)).toHaveText(money(option.bike_price?.value ?? 0));
+    }
+
+    // A column sorts and says so.
+    const price = table.getByRole('columnheader', { name: /^Mean bike price/ });
+    await price.getByRole('button').click();
+    await expect(price).toHaveAttribute('aria-sort', 'ascending');
+    await price.getByRole('button').click();
+    await expect(price).toHaveAttribute('aria-sort', 'descending');
+
+    // The map: the legend of the selected measure, then another.
+    const legend = page.getByRole('group', { name: 'Map legend' });
+    await expect(legend).toHaveText(
+      /^Bike rides starting at each hub, \d\d:\d\d–\d\d:\d\d · One disc per hub; a bike ride is one bike leg\. Computed from the model's flows\.few.*many$/,
+    );
+    await page
+      .getByRole('combobox', { name: 'Map shows' })
+      .selectOption({ label: 'Bike rides ending at each hub' });
+    await expect(legend).toContainText(/^Bike rides ending at each hub, \d\d:\d\d–\d\d:\d\d · /);
+
+    // "Show on map" presses one pair; "Hide map" gives the card the whole width.
+    const show = rows.first().getByRole('button', { name: 'Show on map' });
+    await show.click();
+    await expect(show).toHaveAttribute('aria-pressed', 'true');
+    await show.click();
+    await expect(show).toHaveAttribute('aria-pressed', 'false');
+    const map = page.getByRole('region', { name: 'Map' });
+    await expect(map).toBeVisible();
+    await page.getByRole('button', { name: 'Hide map' }).click();
+    await expect(map).toBeHidden();
+    await page.getByRole('button', { name: 'Show map' }).click();
+    await expect(map).toBeVisible();
   });
 });

@@ -2596,6 +2596,30 @@
             "title": "Duration S",
             "type": "number"
           },
+          "from_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the leg starts; null when the trip planner gave no name and for a leg stored before the names were kept.",
+            "title": "From Place"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The line's public code; null for a leg without one (a street leg) and for a leg stored before the names were kept.",
+            "title": "Line"
+          },
           "line_kind": {
             "enum": [
               "street",
@@ -2608,13 +2632,28 @@
           "mode": {
             "title": "Mode",
             "type": "string"
+          },
+          "to_place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the leg ends; null when the trip planner gave no name and for a leg stored before the names were kept.",
+            "title": "To Place"
           }
         },
         "required": [
           "mode",
           "duration_s",
           "distance_m",
-          "line_kind"
+          "line_kind",
+          "line",
+          "from_place",
+          "to_place"
         ],
         "title": "RouteLegResource",
         "type": "object"

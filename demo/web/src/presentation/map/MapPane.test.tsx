@@ -8,7 +8,13 @@ import { emptyCityInstances } from '../../application/ports/fake-city-instance-g
 import type { CityDataset } from '../../domain/map';
 import { GatewaysProvider } from '../hooks/gateways';
 import { fakeMapFactory, installBrowserStubs } from './fake-map';
-import { MapFactoryProvider, MapProvider, useMapLayers, useMapLegend } from './MapContext';
+import {
+  MapFactoryProvider,
+  MapProvider,
+  useMapLayers,
+  useMapLegend,
+  useMapPanel,
+} from './MapContext';
 import type { MapDeclaration } from './map-factory';
 import { MapPane } from './MapPane';
 
@@ -264,5 +270,34 @@ describe('MapPane', () => {
 
     expect(maps[0]?.removed).toBe(true);
     expect(stubs.observers[0]?.target).toBeNull();
+  });
+
+  it('renders the panel a view declares over the map, and drops it with the view', () => {
+    const panel = <p>Map shows</p>;
+    function View() {
+      useMapPanel(panel);
+      return null;
+    }
+    const { factory } = fakeMapFactory();
+    const tree = (withView: boolean) => (
+      <QueryClientProvider client={new QueryClient()}>
+        <GatewaysProvider gateways={gatewaysFor([], false)}>
+          <MapFactoryProvider factory={factory}>
+            <MapProvider>
+              <MapPane shown datasetId={null} />
+              {withView && <View />}
+            </MapProvider>
+          </MapFactoryProvider>
+        </GatewaysProvider>
+      </QueryClientProvider>
+    );
+    expect(screen.queryByText('Map shows')).not.toBeInTheDocument();
+
+    const view = render(tree(true));
+    expect(screen.getByText('Map shows')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Map legend' })).not.toBeInTheDocument();
+
+    view.rerender(tree(false));
+    expect(screen.queryByText('Map shows')).not.toBeInTheDocument();
   });
 });

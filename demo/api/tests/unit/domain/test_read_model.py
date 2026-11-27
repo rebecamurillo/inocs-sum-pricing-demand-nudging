@@ -130,6 +130,37 @@ def test_the_options_are_the_arcs_of_the_instance_with_their_legs_and_geometry(
     assert {o.arc_id for o in options if o.mode == "pt_only" and o.legs[1].mode == "TRAM"}
 
 
+def test_a_leg_keeps_its_line_and_its_places_and_an_empty_one_is_null(city: FakeCity) -> None:
+    options = rows.route_options_from(
+        city.files["od_routes.json"],
+        city.files["od_geometry.json"],
+        city.files["Instance_1.json"],
+        SHAPES,
+    )
+    legs = [leg for option in options for leg in option.legs]
+
+    assert {leg.line for leg in legs if leg.mode == "BUS"} == {"1"}
+    assert {leg.line for leg in legs if leg.mode == "TRAM"} == {"T2"}
+    bikes = [leg for leg in legs if leg.mode == "BICYCLE"]
+    assert bikes
+    assert all(leg.line is None for leg in bikes)
+    assert all(leg.from_place and leg.to_place for leg in bikes)
+    arc = {
+        "legs": [
+            {
+                "mode": "BUS",
+                "duration_s": 1.0,
+                "distance_m": 2.0,
+                "line_publicCode": {"publicCode": ""},
+                "from_place": "",
+                "to_place": None,
+            }
+        ]
+    }
+    (leg,) = rows._legs(arc, SHAPES)
+    assert (leg.line, leg.from_place, leg.to_place) == (None, None, None)
+
+
 def test_an_arc_the_instance_dropped_is_not_an_option(city: FakeCity) -> None:
     instance = {**city.files["Instance_1.json"], "arcs_pt_only": []}
 

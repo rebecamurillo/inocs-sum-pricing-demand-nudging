@@ -1,6 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import {
   EMPTY_LAB_VIEW,
+  RESULT_VIEW,
   GRIP_STEP,
   MAX_MAP_SHARE,
   MIN_MAP_SHARE,
@@ -140,7 +141,6 @@ export function LabShell() {
   }
 
   const { menuOpen, mapShown, advancedView, largeText } = layout.preferences;
-  const mapShare = layout.mapShare(EMPTY_LAB_VIEW);
 
   // An instance link is a view only when the menu lists that version; every other link is unknown.
   const linkedRoute =
@@ -153,7 +153,8 @@ export function LabShell() {
     linkedRoute === null
       ? undefined
       : linkedEntry?.versions.find((version) => version.number === linkedRoute.instance.version);
-  // L-2 and L-3 have no map: the pane and its grip go, the stored preference stays.
+  // L-2, and L-3 of a version without a result, have no map: the pane and its grip go, the
+  // stored preference stays.
   const pricingRoute = route.kind === 'pricing' || route.kind === 'result' ? route : null;
   const pricingOpen = usePricingVersion(
     pricingRoute !== null && linkedVersion !== undefined
@@ -179,7 +180,15 @@ export function LabShell() {
   const menuFailed = linkedRoute !== null && menu.isError;
   const unknownLink =
     route.kind === 'lab' || openVersion !== null || menuPending || menuFailed ? null : route;
-  const noMap = pricingRoute !== null && openVersion !== null;
+  const resultMap =
+    route.kind === 'result' &&
+    openVersion !== null &&
+    linkedVersion?.state === 'ready' &&
+    pricingOpen?.state === 'result';
+  const noMap = pricingRoute !== null && openVersion !== null && !resultMap;
+  // L-3 keeps its own share of the work area, L-1 and the empty Lab theirs.
+  const shareKey = resultMap ? RESULT_VIEW : EMPTY_LAB_VIEW;
+  const mapShare = layout.mapShare(shareKey);
   const current: MenuChoice | null =
     openVersion !== null
       ? null
@@ -252,7 +261,7 @@ export function LabShell() {
   };
 
   const setShare = (share: number) => {
-    layout.setMapShare(EMPTY_LAB_VIEW, share);
+    layout.setMapShare(shareKey, share);
   };
 
   const onGripKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

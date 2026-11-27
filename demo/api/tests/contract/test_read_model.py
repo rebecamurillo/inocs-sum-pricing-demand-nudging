@@ -222,6 +222,37 @@ def test_the_rows_of_two_keys_stay_apart(store: Store, city: FakeCity) -> None:
     assert store.read_model.hubs("k-other") == []
 
 
+def test_a_stored_route_option_keeps_each_legs_line_and_places(
+    store: Store, city: FakeCity
+) -> None:
+    store.add_artifact("k-instance", StepName.TRAVELLERS_AND_BIKES)
+    instance = city.files["Instance_1.json"]
+    options = rows.route_options_from(
+        city.files["od_routes.json"],
+        city.files["od_geometry.json"],
+        instance,
+        {"1"},
+        city.files["option_bike_legs.json"],
+    )
+    store.read_model.ingest(
+        IngestionBatch(
+            "k-instance",
+            StepName.TRAVELLERS_AND_BIKES,
+            rows.instance_counts(instance),
+            route_options=options,
+        )
+    )
+
+    legs = [leg for item in store.read_model.route_options("k-instance") for leg in item.legs]
+
+    assert {leg.line for leg in legs if leg.mode == "TRAM"} == {"T2"}
+    assert {leg.line for leg in legs if leg.mode == "BUS"} == {"1"}
+    bikes = [leg for leg in legs if leg.mode == "BICYCLE"]
+    assert bikes
+    assert all(leg.from_place and leg.to_place for leg in bikes)
+    assert all(leg.line is None for leg in bikes)
+
+
 def test_the_options_the_bikes_and_the_deltas_are_read_back_in_order(
     store: Store, city: FakeCity
 ) -> None:

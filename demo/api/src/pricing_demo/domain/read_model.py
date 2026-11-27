@@ -80,6 +80,11 @@ class RouteLeg:
     duration_s: float
     distance_m: float
     line_kind: LineKind
+    # The trip planner's own names, kept so an option can be named by its legs; null for a leg
+    # stored before they were kept and for a leg that has none (a street leg has no line).
+    line: str | None = None
+    from_place: str | None = None
+    to_place: str | None = None
 
 
 @dataclass(frozen=True)
@@ -255,6 +260,9 @@ def _legs(arc: Mapping[str, Any], routes_with_shapes: Collection[str]) -> tuple[
                 leg["duration_s"],
                 leg["distance_m"],
                 line_kind(leg["mode"], code, routes_with_shapes),
+                code or None,
+                leg.get("from_place") or None,
+                leg.get("to_place") or None,
             )
         )
     return tuple(legs)

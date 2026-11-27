@@ -211,7 +211,7 @@ test.describe('Lab', () => {
     release?.();
     await expect(page.getByText('Result · pipeline step 6')).toBeVisible();
     await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0);
-    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+    await holdsAtEverySize(page, page.getByRole('main'));
     // The five-second test at 1280 × 720 without Aa: the insight title and both simulated bars
     // are in view without scrolling the card.
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -220,6 +220,32 @@ test.describe('Lab', () => {
     for (const bar of await simulation.getByRole('img').all()) {
       await expect(bar).toBeInViewport({ ratio: 1 });
     }
+  });
+
+  // A third scenario for L-3's hub pairs: the first holds every other built view and already
+  // fills its time budget.
+  test('Lab · L-3 hub pairs and the hidden map hold at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control);
+    const finished = await createPricingVersion(request, version);
+    await runToResult(request, finished.id);
+    await page.goto(`/#/lab/${version}/result/${finished.letter}`);
+    await page.reload();
+    await expect(page.getByText('Result · pipeline step 6')).toBeVisible();
+
+    // L-3 hub pairs: the table open with a row open, then the map hidden.
+    await page.getByRole('button', { name: /^Price and flow per hub pair \(/ }).click();
+    const pairRows = page.getByRole('row', { expanded: false });
+    await expect(pairRows.first()).toBeVisible();
+    await pairRows.first().click();
+    await expect(page.getByRole('table', { name: 'Offered bike options' })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+    await page.getByRole('button', { name: 'Hide map' }).click();
+    await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+    await page.getByRole('button', { name: 'Show map' }).click();
   });
 
   // A second scenario for the run states of L-2: the first holds every other built view and
@@ -342,6 +368,12 @@ test.describe('Lab', () => {
     await page.goto(`/#/lab/${version}/result/A`);
     await page.reload();
     await expect(page.getByText('Result · pipeline step 6')).toBeVisible();
+    await noTime();
+    // L-3 hub pairs: the table, a row and the map open without a transition.
+    await page.getByRole('button', { name: /^Price and flow per hub pair \(/ }).click();
+    await page.getByRole('row', { expanded: false }).first().click();
+    await expect(page.getByRole('table', { name: 'Offered bike options' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Map' })).toBeVisible();
     await noTime();
     await context.close();
   });

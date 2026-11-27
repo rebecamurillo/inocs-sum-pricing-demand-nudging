@@ -138,6 +138,9 @@ class PostgresReadModel:
                                 "duration_s": leg.duration_s,
                                 "distance_m": leg.distance_m,
                                 "line_kind": leg.line_kind,
+                                "line": leg.line,
+                                "from_place": leg.from_place,
+                                "to_place": leg.to_place,
                             }
                             for leg in row.legs
                         ],
@@ -255,7 +258,15 @@ class PostgresReadModel:
                 row.total_transfer_time_s,
                 row.total_distance_m,
                 tuple(
-                    RouteLeg(leg["mode"], leg["duration_s"], leg["distance_m"], leg["line_kind"])
+                    RouteLeg(
+                        leg["mode"],
+                        leg["duration_s"],
+                        leg["distance_m"],
+                        leg["line_kind"],
+                        leg.get("line"),
+                        leg.get("from_place"),
+                        leg.get("to_place"),
+                    )
                     for leg in row.legs
                 ),
                 row.geometry,

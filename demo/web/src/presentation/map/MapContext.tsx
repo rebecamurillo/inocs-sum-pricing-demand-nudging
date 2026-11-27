@@ -47,6 +47,9 @@ interface MapContextValue {
   readonly fitTarget: GeoBounds | null;
   readonly legend: readonly LegendEntry[];
   readonly setLegend: (entries: readonly LegendEntry[]) => void;
+  /** A view's own controls and legend over the map (L-3's "Map shows" and its legend). */
+  readonly panel: ReactNode | null;
+  readonly setPanel: (panel: ReactNode | null) => void;
   readonly attach: (handle: MapHandle | null) => void;
   /** Call before `setStyle`: until the new style loads, views must not add to the map. */
   readonly restyling: () => void;
@@ -70,6 +73,7 @@ export function MapProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState<ReadyMap | null>(null);
   const [fitTarget, setFitTarget] = useState<GeoBounds | null>(null);
   const [legend, setLegend] = useState<readonly LegendEntry[]>([]);
+  const [panel, setPanel] = useState<ReactNode | null>(null);
 
   useEffect(() => {
     if (handle === null) return undefined;
@@ -92,8 +96,18 @@ export function MapProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, fitTarget, legend, setLegend, attach, restyling, setFitTarget }),
-    [ready, fitTarget, legend, attach, restyling],
+    () => ({
+      ready,
+      fitTarget,
+      legend,
+      setLegend,
+      panel,
+      setPanel,
+      attach,
+      restyling,
+      setFitTarget,
+    }),
+    [ready, fitTarget, legend, panel, attach, restyling],
   );
   return <MapContext.Provider value={value}>{children}</MapContext.Provider>;
 }
@@ -148,6 +162,17 @@ export function useMapLegend(entries: readonly LegendEntry[]): void {
       setLegend([]);
     };
   }, [entries, setLegend]);
+}
+
+/** A panel of the view's own over the map. Pass a memoised node; it goes with the view. */
+export function useMapPanel(node: ReactNode | null): void {
+  const { setPanel } = useMapContext();
+  useEffect(() => {
+    setPanel(node);
+    return () => {
+      setPanel(null);
+    };
+  }, [node, setPanel]);
 }
 
 /** The study circle a draft form edits. */

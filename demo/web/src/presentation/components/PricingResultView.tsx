@@ -1,4 +1,7 @@
+import { useMemo, useState } from 'react';
+import { HUB_PAIRS_LINK, hubPairCounts, type MapMeasure } from '../../domain/hub-pair-table';
 import { groupThousands, versionTag } from '../../domain/l1-text';
+import type { GeoPoint } from '../../domain/map';
 import { pricingVersionName } from '../../domain/pricing-goals-text';
 import {
   MODES,
@@ -12,13 +15,11 @@ import { serialiseRoute, type LabRoute } from '../../domain/route';
 import {
   GOALS_TITLE,
   MODEL_SPLIT_TITLE,
-  MODEL_TAG,
   NO_STORED_RESULT,
   PLACEHOLDER_SENTENCE,
   RESULT_BRIEF,
   RESULT_SENTENCE,
   SIMULATION_SOURCE,
-  SIMULATION_TAG,
   THREE_MODES_SENTENCE,
   WHY_IT_DIFFERS,
   captionParts,
@@ -34,8 +35,16 @@ import {
 } from '../../domain/result-text';
 import { missingPricingVersionLabel, nothingAtThisLink } from '../../domain/unknown-link';
 import { useInstanceView } from '../hooks/useCityInstances';
-import { usePricingResult, usePricingVersion } from '../hooks/usePricingVersions';
+import {
+  useHubPairResults,
+  useHubResults,
+  usePricingResult,
+  usePricingVersion,
+} from '../hooks/usePricingVersions';
+import { HubPairTable } from './HubPairTable';
 import { LoadingCard } from './LoadingCard';
+import { ResultMap } from './ResultMap';
+import { SourceTag } from './SourceTag';
 import styles from './PricingResultView.module.css';
 
 /** Segments narrower than this share of the scale carry no inner label (the legend still names them). */
@@ -48,14 +57,6 @@ interface PricingResultViewProps {
   readonly letter: string;
   readonly advancedView: boolean;
   readonly onNavigate: (route: LabRoute) => void;
-}
-
-export function SourceTag({ kind }: { kind: 'simulation' | 'model' }) {
-  return (
-    <span className={styles.tag} data-kind={kind}>
-      {kind === 'simulation' ? SIMULATION_TAG : MODEL_TAG}
-    </span>
-  );
 }
 
 /** One stacked bar on the scale `total`: three modes, each with its icon and share, never colour alone. */
@@ -118,6 +119,9 @@ interface CardProps extends PricingResultViewProps {
   readonly instanceLabel: string;
   readonly periodLabel: string;
   readonly bikeStations: number;
+  readonly hubPairsWithRoutes: number | null;
+  readonly centre: GeoPoint;
+  readonly radiusM: number;
 }
 
 function ResultCard({
@@ -128,8 +132,29 @@ function ResultCard({
   instanceLabel,
   periodLabel,
   bikeStations,
+  hubPairsWithRoutes,
+  centre,
+  radiusM,
   onNavigate,
 }: CardProps) {
+  const id = pricingVersionId(version.instanceVersionId, version.letter);
+  const hubPairs = useHubPairResults(id).data ?? null;
+  const hubs = useHubResults(id).data ?? null;
+  const [tableOpen, setTableOpen] = useState(false);
+  const [measure, setMeasure] = useState<MapMeasure>('ridesStarting');
+  const [shownPair, setShownPair] = useState<string | null>(null);
+  const hubLabels = useMemo(
+    () => new Map((hubs ?? []).map((hub) => [hub.hubId, hub.label])),
+    [hubs],
+  );
+  const shown = useMemo(() => {
+    const found = hubPairs?.find(
+      (item) => `${item.originHub}>${item.destinationHub}` === shownPair,
+    );
+    return found === undefined
+      ? null
+      : { originHub: found.originHub, destinationHub: found.destinationHub };
+  }, [hubPairs, shownPair]);
   const { modelPrices, flat } = result.simulations;
   const total = periodTravellers(modelPrices);
   const points = carShareChangePoints(flat.travellers.car, modelPrices.travellers.car, total);
@@ -265,6 +290,44 @@ function ResultCard({
           ))}
         </ul>
       </section>
+
+      {hubPairs !== null && (
+        <section className={styles.pairs} aria-labelledby="hub-pairs-title">
+          <h2 id="hub-pairs-title" className={styles.pairsTitle}>
+            <button
+              type="button"
+              className={styles.disclosure}
+              aria-expanded={tableOpen}
+              aria-controls="hub-pairs-table"
+              onClick={() => {
+                setTableOpen((open) => !open);
+              }}
+            >
+              <span aria-hidden="true">{tableOpen ? '▾' : '▸'}</span>{' '}
+              {HUB_PAIRS_LINK(hubPairCounts(hubPairs, hubPairsWithRoutes ?? hubPairs.length))}
+            </button>
+          </h2>
+          {tableOpen && (
+            <div id="hub-pairs-table">
+              <HubPairTable
+                results={hubPairs}
+                hubLabels={hubLabels}
+                shownPair={shownPair}
+                onShowOnMap={setShownPair}
+              />
+            </div>
+          )}
+        </section>
+      )}
+      <ResultMap
+        centre={centre}
+        radiusM={radiusM}
+        hubs={hubs}
+        measure={measure}
+        onMeasure={setMeasure}
+        shownPair={shown}
+        periodLabel={periodLabel}
+      />
     </div>
   );
 }
@@ -301,6 +364,12 @@ export function PricingResultView(props: PricingResultViewProps) {
       instanceLabel={instanceLabel}
       periodLabel={period?.label ?? ''}
       bikeStations={view.data?.version.counts?.bikeStations ?? 0}
+      hubPairsWithRoutes={view.data?.version.counts?.hubPairsWithRoutes ?? null}
+      centre={{
+        lat: view.data?.version.parameters.centerLat ?? 0,
+        lon: view.data?.version.parameters.centerLon ?? 0,
+      }}
+      radiusM={view.data?.version.parameters.radiusM ?? 0}
     />
   );
   // A read in flight keeps the earlier render at 50 % opacity under the skeleton.

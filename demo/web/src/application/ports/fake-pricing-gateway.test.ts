@@ -5,6 +5,8 @@ import {
   samplePricingDraft,
   samplePricingGoals,
   samplePricingResult,
+  sampleHubPairResults,
+  sampleHubResults,
   sampleSealedPricing,
 } from './fake-pricing-gateway';
 
@@ -100,5 +102,37 @@ describe('the in-memory pricing gateway', () => {
   it('samples a result whose prices take fewer travellers to the car than the flat price', () => {
     const { modelPrices, flat } = samplePricingResult().simulations;
     expect(modelPrices.travellers.car).toBeLessThan(flat.travellers.car);
+  });
+
+  it('answers the hub-pair and hub results of a finished version, none for the others, or what was supplied', async () => {
+    const { gateway } = fakePricing([sampleSealedPricing(), samplePricingDraft()]);
+    expect(await gateway.hubPairResults('geneva-3km.v1.A')).toEqual(sampleHubPairResults());
+    expect(await gateway.hubResults('geneva-3km.v1.A')).toEqual(sampleHubResults());
+    expect(await gateway.hubPairResults('geneva-3km.v1.D')).toBeNull();
+    expect(await gateway.hubResults('geneva-3km.v1.D')).toBeNull();
+
+    const supplied = fakePricing(
+      [sampleSealedPricing()],
+      {},
+      {
+        hubPairs: { 'geneva-3km.v1.A': [] },
+        hubs: { 'geneva-3km.v1.A': null },
+      },
+    ).gateway;
+    expect(await supplied.hubPairResults('geneva-3km.v1.A')).toEqual([]);
+    expect(await supplied.hubResults('geneva-3km.v1.A')).toBeNull();
+  });
+
+  it('samples one priced pair with three options, one without rides and one with nothing offered', () => {
+    const [priced, noRides, none] = sampleHubPairResults();
+    expect(priced?.meanBikePrice).not.toBeNull();
+    expect(priced?.options).toHaveLength(3);
+    expect(noRides?.meanBikePrice).toBeNull();
+    expect(noRides?.minBikePrice).not.toBeNull();
+    expect(none?.minBikePrice).toBeNull();
+    const hubs = new Set(sampleHubResults().map((hub) => hub.hubId));
+    for (const pair of sampleHubPairResults()) {
+      expect(hubs.has(pair.originHub) && hubs.has(pair.destinationHub)).toBe(true);
+    }
   });
 });

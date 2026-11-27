@@ -2,6 +2,9 @@ import {
   GOAL_NAMES,
   type GoalComparison,
   type GoalName,
+  type HubPairResult,
+  type HubResult,
+  type OptionResult,
   type PricingResult,
   type ResultNumber,
 } from '../../domain/pricing-result';
@@ -164,6 +167,114 @@ export function samplePricingResult(overrides: Partial<PricingResult> = {}): Pri
   };
 }
 
+const leg = (
+  mode: string,
+  line: string | null,
+  fromPlace: string | null,
+  toPlace: string | null,
+  durationS: number,
+) => ({ mode, line, fromPlace, toPlace, durationS });
+
+function sampleOption(
+  arcId: string,
+  price: number | null,
+  riders: number | null,
+  minutes: number,
+  legs: OptionResult['legs'],
+): OptionResult {
+  return {
+    arcId,
+    mode: 'pt_bike',
+    legs,
+    duration: n(minutes * 60, 'trip_planner', 's', 'advanced'),
+    bikeLegs: n(1, 'input', 'bike_legs', 'advanced'),
+    bikePrice: price === null ? null : n(price, 'model', 'chf_per_bike_leg', 'advanced'),
+    riders: riders === null ? null : n(riders, 'model', 'travellers', 'advanced'),
+  };
+}
+
+const travellers = (car: number, ptOnly: number, ptBike: number) => ({ car, ptOnly, ptBike });
+
+/** Three pairs, one of each row state: priced (three options), no bike rides, none offered. */
+export function sampleHubPairResults(): HubPairResult[] {
+  const price = (value: number) => n(value, 'derived', 'chf_per_bike_leg', 'advanced');
+  return [
+    {
+      originHub: 'H4',
+      destinationHub: 'H9',
+      meanBikePrice: price(0.95),
+      minBikePrice: n(0.6, 'model', 'chf_per_bike_leg', 'advanced'),
+      maxBikePrice: n(1.4, 'model', 'chf_per_bike_leg', 'advanced'),
+      travellers: travellers(310.4, 220, 41.6),
+      options: [
+        sampleOption('H4-H9-a', 1.4, 3.2, 14, [
+          leg('FOOT', null, 'Start', 'Plainpalais', 60),
+          leg('TRAM', '12', 'Plainpalais', 'Rive', 420),
+          leg('BICYCLE', null, 'Rive', 'Eaux-Vives', 300),
+        ]),
+        sampleOption('H4-H9-b', 0.6, 30.8, 12, [
+          leg('BUS', '1', 'Plainpalais', 'Cornavin', 300),
+          leg('BICYCLE', null, 'Cornavin', 'Eaux-Vives', 400),
+        ]),
+        sampleOption('H4-H9-c', 0.9, 7.6, 16, [leg('BICYCLE', null, 'Plainpalais', 'Rive', 900)]),
+      ],
+    },
+    {
+      originHub: 'H9',
+      destinationHub: 'H4',
+      meanBikePrice: null,
+      minBikePrice: n(0.7, 'model', 'chf_per_bike_leg', 'advanced'),
+      maxBikePrice: n(1.2, 'model', 'chf_per_bike_leg', 'advanced'),
+      travellers: travellers(120, 80, 0),
+      options: [
+        sampleOption('H9-H4-a', 0.7, 0, 15, [leg('TRAM', '12', 'Rive', 'Plainpalais', 500)]),
+      ],
+    },
+    {
+      originHub: 'H9',
+      destinationHub: 'H12',
+      meanBikePrice: null,
+      minBikePrice: null,
+      maxBikePrice: null,
+      travellers: travellers(60, 40, 0),
+      options: [sampleOption('H9-H12-a', null, null, 20, [])],
+    },
+  ];
+}
+
+export function sampleHubResults(): HubResult[] {
+  const rides = (value: number) => n(value, 'derived', 'bike_rides', 'advanced');
+  return [
+    {
+      hubId: 'H4',
+      label: 'H4 Plainpalais',
+      lat: 46.198,
+      lon: 6.139,
+      ridesStarting: rides(42),
+      ridesEnding: rides(10),
+      meanBikePrice: n(0.95, 'derived', 'chf_per_bike_leg', 'advanced'),
+    },
+    {
+      hubId: 'H9',
+      label: 'H9 Eaux-Vives',
+      lat: 46.2,
+      lon: 6.16,
+      ridesStarting: rides(8),
+      ridesEnding: rides(36),
+      meanBikePrice: null,
+    },
+    {
+      hubId: 'H12',
+      label: 'H12 Cornavin',
+      lat: 46.21,
+      lon: 6.142,
+      ridesStarting: rides(0),
+      ridesEnding: rides(4),
+      meanBikePrice: null,
+    },
+  ];
+}
+
 export interface FakePricing {
   readonly gateway: PricingGateway;
   /** The versions as stored, in creation order. */
@@ -177,6 +288,10 @@ export interface FakePricing {
 export function fakePricing(
   initial: readonly PricingVersion[] = [],
   results: Readonly<Record<string, PricingResult | null>> = {},
+  details: {
+    readonly hubPairs?: Readonly<Record<string, HubPairResult[] | null>>;
+    readonly hubs?: Readonly<Record<string, HubResult[] | null>>;
+  } = {},
 ): FakePricing {
   let stored = [...initial];
   const replace = (next: PricingVersion) => {
@@ -193,6 +308,20 @@ export function fakePricing(
       return Promise.resolve(
         found?.state === 'result' ? samplePricingResult({ pricingVersionId: id }) : null,
       );
+    },
+    hubPairResults: (id) => {
+      if (details.hubPairs !== undefined && id in details.hubPairs) {
+        return Promise.resolve(details.hubPairs[id] ?? null);
+      }
+      const found = stored.find((version) => version.id === id);
+      return Promise.resolve(found?.state === 'result' ? sampleHubPairResults() : null);
+    },
+    hubResults: (id) => {
+      if (details.hubs !== undefined && id in details.hubs) {
+        return Promise.resolve(details.hubs[id] ?? null);
+      }
+      const found = stored.find((version) => version.id === id);
+      return Promise.resolve(found?.state === 'result' ? sampleHubResults() : null);
     },
     create: (instanceVersionId, basedOn) => {
       const used = new Set(stored.map((version) => version.letter));

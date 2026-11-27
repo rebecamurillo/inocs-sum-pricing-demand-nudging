@@ -13,7 +13,14 @@ import type { Gateways } from '../../application/ports/gateways';
 import type { PricingResult } from '../../domain/pricing-result';
 import type { LabRoute } from '../../domain/route';
 import { GatewaysProvider } from '../hooks/gateways';
+import { MapProvider } from '../map/MapContext';
 import { PricingResultView } from './PricingResultView';
+
+function nth<T>(list: readonly T[], at: number): T {
+  const found = list[at];
+  if (found === undefined) throw new Error(`No element at ${String(at)}.`);
+  return found;
+}
 
 const version = sampleSealedPricing({ name: 'Incentive', state: 'result' });
 
@@ -35,14 +42,16 @@ function mount(options: { result?: PricingResult; gateway?: Gateways['pricing'] 
   render(
     <QueryClientProvider client={client}>
       <GatewaysProvider gateways={gateways}>
-        <PricingResultView
-          instanceVersionId="geneva-3km.v1"
-          instanceId="geneva-3km"
-          number={1}
-          letter="A"
-          advancedView={false}
-          onNavigate={onNavigate}
-        />
+        <MapProvider>
+          <PricingResultView
+            instanceVersionId="geneva-3km.v1"
+            instanceId="geneva-3km"
+            number={1}
+            letter="A"
+            advancedView={false}
+            onNavigate={onNavigate}
+          />
+        </MapProvider>
       </GatewaysProvider>
     </QueryClientProvider>,
   );
@@ -276,5 +285,55 @@ describe('PricingResultView', () => {
     expect(
       await screen.findByText('The result could not be read: no stored result.'),
     ).toBeVisible();
+  });
+
+  describe('price and flow per hub pair', () => {
+    const linkName = /^Price and flow per hub pair \(/;
+
+    it('ends the result with the link, counting the pairs with routes and those with a bike option', async () => {
+      mount();
+
+      const link = await screen.findByRole('button', { name: linkName });
+      expect(link).toHaveAttribute('aria-expanded', 'false');
+      expect(link).toHaveTextContent(/^▸ /);
+      expect(link).toHaveTextContent(
+        /Price and flow per hub pair \(\d[\d ]* hub pairs, 2 with a bike option offered\)$/,
+      );
+      expect(screen.queryByRole('table', { name: 'Price and flow per hub pair' })).toBeNull();
+      const goals = screen.getByRole('heading', { name: 'The three goals of this version' });
+      expect(goals.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('opens and closes the table, and a row opens its options', async () => {
+      mount();
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: linkName }));
+
+      const table = screen.getByRole('table', { name: 'Price and flow per hub pair' });
+      expect(within(table).getAllByRole('button', { name: 'Show on map' })).toHaveLength(3);
+      await user.click(within(table).getByText('H4 Plainpalais → H9 Eaux-Vives'));
+      expect(
+        within(screen.getByRole('table', { name: 'Offered bike options' })).getAllByRole('row'),
+      ).toHaveLength(4);
+
+      await user.click(screen.getByRole('button', { name: linkName }));
+      expect(screen.queryByRole('table', { name: 'Price and flow per hub pair' })).toBeNull();
+    });
+
+    it('presses "Show on map" for one pair at a time and releases it', async () => {
+      mount();
+      const user = userEvent.setup();
+      await user.click(await screen.findByRole('button', { name: linkName }));
+
+      const buttons = screen.getAllByRole('button', { name: 'Show on map' });
+      await user.click(nth(buttons, 0));
+      expect(buttons[0]).toHaveAttribute('aria-pressed', 'true');
+      await user.click(nth(buttons, 1));
+      expect(buttons[0]).toHaveAttribute('aria-pressed', 'false');
+      expect(buttons[1]).toHaveAttribute('aria-pressed', 'true');
+      await user.click(nth(buttons, 1));
+      expect(buttons[1]).toHaveAttribute('aria-pressed', 'false');
+    });
   });
 });

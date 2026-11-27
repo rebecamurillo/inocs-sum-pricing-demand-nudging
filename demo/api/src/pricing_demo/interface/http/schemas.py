@@ -1290,6 +1290,24 @@ class RouteLegResource(BaseModel):
     duration_s: float
     distance_m: float
     line_kind: Literal["street", "shape", "straight"]
+    line: str | None = Field(
+        description=(
+            "The line's public code; null for a leg without one (a street leg) and for a leg"
+            " stored before the names were kept."
+        )
+    )
+    from_place: str | None = Field(
+        description=(
+            "Where the leg starts; null when the trip planner gave no name and for a leg"
+            " stored before the names were kept."
+        )
+    )
+    to_place: str | None = Field(
+        description=(
+            "Where the leg ends; null when the trip planner gave no name and for a leg"
+            " stored before the names were kept."
+        )
+    )
 
 
 class OptionResultResource(BaseModel):
@@ -1314,6 +1332,9 @@ class OptionResultResource(BaseModel):
                     duration_s=leg.duration_s,
                     distance_m=leg.distance_m,
                     line_kind=leg.line_kind,
+                    line=leg.line,
+                    from_place=leg.from_place,
+                    to_place=leg.to_place,
                 )
                 for leg in item.legs
             ],

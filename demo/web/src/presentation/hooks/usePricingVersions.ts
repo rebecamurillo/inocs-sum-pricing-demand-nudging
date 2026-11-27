@@ -43,6 +43,8 @@ export function usePricingList(instanceVersionId: string | null) {
     void client.invalidateQueries({ queryKey: ['pricing-list'] });
     void client.invalidateQueries({ queryKey: ['pricing-version'] });
     void client.invalidateQueries({ queryKey: ['pricing-result'] });
+    void client.invalidateQueries({ queryKey: ['pricing-hub-pairs'] });
+    void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
   }, [signature, client]);
   return query;
 }
@@ -73,6 +75,31 @@ export function usePricingResult(id: string | null) {
   });
 }
 
+export const hubPairResultsKey = (id: string | null) => ['pricing-hub-pairs', id] as const;
+export const hubResultsKey = (id: string | null) => ['pricing-hubs', id] as const;
+
+/** The model's price and flow per hub pair; `id` null reads nothing. */
+export function useHubPairResults(id: string | null) {
+  const { pricing } = useGateways();
+  return useQuery({
+    queryKey: hubPairResultsKey(id),
+    queryFn: () => pricing.hubPairResults(id ?? ''),
+    enabled: id !== null,
+    retry: false,
+  });
+}
+
+/** The model's bike rides and mean price per hub; `id` null reads nothing. */
+export function useHubResults(id: string | null) {
+  const { pricing } = useGateways();
+  return useQuery({
+    queryKey: hubResultsKey(id),
+    queryFn: () => pricing.hubResults(id ?? ''),
+    enabled: id !== null,
+    retry: false,
+  });
+}
+
 /** Reads the version, the lists and the run list again when the followed run changes state. */
 export function usePricingRunSync(run: Run | null) {
   const client = useQueryClient();
@@ -87,6 +114,8 @@ export function usePricingRunSync(run: Run | null) {
     void client.invalidateQueries({ queryKey: ['pricing-list'] });
     void client.invalidateQueries({ queryKey: ['pricing-version'] });
     void client.invalidateQueries({ queryKey: ['pricing-result'] });
+    void client.invalidateQueries({ queryKey: ['pricing-hub-pairs'] });
+    void client.invalidateQueries({ queryKey: ['pricing-hubs'] });
     void client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
     void client.invalidateQueries({ queryKey: ACTIVE_RUNS_KEY });
   }, [signature, client]);

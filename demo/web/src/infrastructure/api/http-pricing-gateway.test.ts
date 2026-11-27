@@ -246,4 +246,116 @@ describe('HttpPricingGateway', () => {
       });
     });
   });
+
+  describe('hub-pair results and hub results', () => {
+    const num = (value: number, source: string, unit = 'travellers') => ({
+      value,
+      unit,
+      source,
+      group: 'advanced',
+    });
+    const leg = (mode: string, extra: object) => ({
+      mode,
+      duration_s: 300,
+      distance_m: 900,
+      line_kind: 'street',
+      ...extra,
+    });
+    const pair = {
+      origin_hub: 'H4',
+      destination_hub: 'H9',
+      mean_bike_price: num(0.95, 'derived', 'chf'),
+      min_bike_price: num(0.6, 'model', 'chf'),
+      max_bike_price: num(1.4, 'model', 'chf'),
+      travellers: { car: num(310, 'model'), pt_only: num(220, 'model'), pt_bike: num(42, 'model') },
+      options: [
+        {
+          arc_id: 'a',
+          mode: 'pt_bike',
+          legs: [
+            leg('TRAM', { line: '12', from_place: 'Plainpalais', to_place: 'Rive' }),
+            leg('BICYCLE', { line: null, from_place: null, to_place: null }),
+            leg('FOOT', {}),
+          ],
+          duration: num(780, 'trip_planner', 's'),
+          bike_legs: num(1, 'input', 'bike_legs'),
+          bike_price: num(1.4, 'model', 'chf'),
+          riders: null,
+        },
+      ],
+    };
+
+    it('reads the hub-pair route and maps the pair, its options and its legs', async () => {
+      const fetchImpl = answering(200, { items: [pair] });
+
+      const found = await new HttpPricingGateway(fetchImpl).hubPairResults('x.v1.B');
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/pricing-versions/x.v1.B/hub-pair-results');
+      const [first] = found ?? [];
+      expect(first).toMatchObject({ originHub: 'H4', destinationHub: 'H9' });
+      expect(first?.meanBikePrice?.value).toBe(0.95);
+      expect(first?.travellers).toEqual({ car: 310, ptOnly: 220, ptBike: 42 });
+      const option = first?.options[0];
+      expect(option?.legs[0]).toEqual({
+        mode: 'TRAM',
+        line: '12',
+        fromPlace: 'Plainpalais',
+        toPlace: 'Rive',
+        durationS: 300,
+      });
+      expect(option?.legs[1]).toMatchObject({ line: null, fromPlace: null });
+      expect(option?.legs[2]).toMatchObject({ line: null, fromPlace: null, toPlace: null });
+      expect(option?.bikePrice?.value).toBe(1.4);
+      expect(option?.riders).toBeNull();
+    });
+
+    it('maps a pair with nothing offered', async () => {
+      const bare = { ...pair, mean_bike_price: null, min_bike_price: null, max_bike_price: null };
+      const found = await new HttpPricingGateway(answering(200, { items: [bare] })).hubPairResults(
+        'x.v1.B',
+      );
+      expect(found?.[0]?.minBikePrice).toBeNull();
+    });
+
+    it('reads the hub route', async () => {
+      const hub = {
+        hub_id: 'H4',
+        label: 'H4 Plainpalais',
+        lat: 46.2,
+        lon: 6.1,
+        rides_starting: num(42, 'derived', 'bike_rides'),
+        rides_ending: num(10, 'derived', 'bike_rides'),
+        mean_bike_price: null,
+      };
+      const fetchImpl = answering(200, { items: [hub] });
+
+      const found = await new HttpPricingGateway(fetchImpl).hubResults('x.v1.B');
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/pricing-versions/x.v1.B/hub-results');
+      expect(found).toEqual([
+        {
+          hubId: 'H4',
+          label: 'H4 Plainpalais',
+          lat: 46.2,
+          lon: 6.1,
+          ridesStarting: num(42, 'derived', 'bike_rides'),
+          ridesEnding: num(10, 'derived', 'bike_rides'),
+          meanBikePrice: null,
+        },
+      ]);
+    });
+
+    it('answers null for a 404 and throws for another status', async () => {
+      const none = answering(404, { code: 'no_result', title: 'No result', detail: 'x' });
+      expect(await new HttpPricingGateway(none).hubPairResults('x.v1.B')).toBeNull();
+      expect(await new HttpPricingGateway(none).hubResults('x.v1.B')).toBeNull();
+      const broken = answering(500, { code: 'boom', title: 'Boom', detail: 'It broke.' });
+      await expect(new HttpPricingGateway(broken).hubResults('x.v1.B')).rejects.toMatchObject({
+        code: 'boom',
+      });
+      await expect(new HttpPricingGateway(broken).hubPairResults('x.v1.B')).rejects.toMatchObject({
+        code: 'boom',
+      });
+    });
+  });
 });

@@ -154,6 +154,9 @@ def test_the_hub_pair_results_list_each_pair_with_its_prices_and_options(
     assert option["bike_legs"]["source"] == "input"
     assert {"mode", "duration_s", "distance_m", "line_kind"} <= set(option["legs"][0])
     assert all(item["source"] in SOURCES for item in numbers_in(items))
+    legs = [leg for item in items for o in item["options"] for leg in o["legs"]]
+    assert all({"line", "from_place", "to_place"} <= set(leg) for leg in legs)
+    assert any(leg["line"] and leg["to_place"] for leg in legs)
 
 
 def test_the_hub_results_list_each_hub_with_its_centre_and_rides(results_app: ResultsApp) -> None:
