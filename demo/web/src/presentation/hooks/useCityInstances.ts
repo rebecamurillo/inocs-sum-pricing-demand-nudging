@@ -1,14 +1,27 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { StartFrom } from '../../application/ports/city-instance-gateway';
+import {
+  createInstance,
+  discardDraft,
+  openDraft,
+  restoreDefaults,
+  saveAndBuild,
+  saveDraft,
+  startFrom as startFromSource,
+} from '../../application/use-cases/edit-draft';
 import {
   loadInstanceGeometry,
   loadInstanceMenu,
   loadInstanceView,
+  loadNewInstanceBasis,
   loadRouteFailures,
+  type InstanceView,
 } from '../../application/use-cases/load-instance-view';
-import type { RoutesSummary } from '../../domain/city-instance';
+import type { InstanceVersion, ParameterName, RoutesSummary } from '../../domain/city-instance';
 import { useGateways } from './gateways';
 
 export const INSTANCE_MENU_KEY = ['instance-menu'] as const;
+export const instanceViewKey = (versionId: string | null) => ['instance-view', versionId] as const;
 
 /** The instances and their versions, for the menu. */
 export function useInstanceMenu() {
@@ -23,7 +36,7 @@ export function useInstanceMenu() {
 export function useInstanceView(versionId: string | null) {
   const { cityInstances } = useGateways();
   return useQuery({
-    queryKey: ['instance-view', versionId],
+    queryKey: instanceViewKey(versionId),
     queryFn: () => loadInstanceView({ cityInstances }, versionId ?? ''),
     enabled: versionId !== null,
     retry: false,
@@ -52,4 +65,84 @@ export function useRouteFailures(routes: RoutesSummary | null, enabled: boolean)
     staleTime: Infinity,
     retry: false,
   });
+}
+
+/** The latest city data set and the versions a new instance can start from. */
+export function useNewInstanceBasis() {
+  const { cityInstances, cityDatasets } = useGateways();
+  return useQuery({
+    queryKey: ['new-instance-basis'],
+    queryFn: () => loadNewInstanceBasis({ cityInstances, cityDatasets }),
+    retry: false,
+  });
+}
+
+/**
+ * The writes of the draft forms. Each one refreshes what it changed: a created or discarded
+ * draft and a queued build refetch the menu, a `PATCH` answer replaces the version it was for.
+ */
+export function useDraftActions() {
+  const { cityInstances } = useGateways();
+  const gateways = { cityInstances };
+  const client = useQueryClient();
+
+  const refetchMenu = () => client.invalidateQueries({ queryKey: INSTANCE_MENU_KEY });
+  const refetchVersion = (id: string) =>
+    client.invalidateQueries({ queryKey: instanceViewKey(id) });
+  const keepAnswer = async (answer: InstanceVersion) => {
+    // A read still in flight (a refetch on focus) may predate this answer: it must not land after it.
+    await client.cancelQueries({ queryKey: instanceViewKey(answer.id) });
+    client.setQueryData<InstanceView | null>(instanceViewKey(answer.id), (old) =>
+      old === undefined || old === null ? old : { ...old, version: answer },
+    );
+  };
+
+  const create = useMutation({
+    mutationFn: (input: { name: string; datasetId: string; startFrom: StartFrom }) =>
+      createInstance(gateways, input.name, input.datasetId, input.startFrom),
+    onSuccess: (result) => (result.kind === 'created' ? refetchMenu() : undefined),
+  });
+  const draft = useMutation({
+    mutationFn: (input: { instanceId: string; basedOnId: string }) =>
+      openDraft(gateways, input.instanceId, input.basedOnId),
+    onSuccess: (result) => (result.existed ? undefined : refetchMenu()),
+  });
+  const discard = useMutation({
+    mutationFn: (id: string) => discardDraft(gateways, id),
+    onSuccess: (_none, id) => {
+      client.removeQueries({ queryKey: instanceViewKey(id) });
+      return refetchMenu();
+    },
+  });
+  const build = useMutation({
+    mutationFn: (input: { id: string; flush: () => Promise<void> }) =>
+      saveAndBuild(gateways, input.id, input.flush),
+    onSuccess: (result, input) => {
+      if (result.kind !== 'queued') return undefined;
+      return Promise.all([refetchMenu(), refetchVersion(input.id)]);
+    },
+  });
+
+  return {
+    create,
+    draft,
+    discard,
+    build,
+    /** One `PATCH`; the answer replaces the cached version. */
+    patch: async (id: string, changes: Partial<Record<ParameterName, number>>) => {
+      const answer = await saveDraft(gateways, id, changes);
+      await keepAnswer(answer);
+      return answer;
+    },
+    restoreDefaults: async (version: InstanceVersion) => {
+      const answer = await restoreDefaults(gateways, version);
+      await keepAnswer(answer);
+      return answer;
+    },
+    startFrom: async (version: InstanceVersion, source: StartFrom) => {
+      const answer = await startFromSource(gateways, version, source);
+      await keepAnswer(answer);
+      return answer;
+    },
+  };
 }

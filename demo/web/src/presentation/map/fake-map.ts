@@ -1,4 +1,46 @@
-import type { MapFactory, MapHandle, MapLayerSpec, MapOptions, MapSourceSpec } from './map-factory';
+import type { GeoPoint } from '../../domain/map';
+import type {
+  MapFactory,
+  MapHandle,
+  MapLayerSpec,
+  MapOptions,
+  MapSourceSpec,
+  MarkerHandle,
+  MarkerOptions,
+} from './map-factory';
+
+/** A marker the fake map holds; tests move it with `drag` and `dragEnd`. */
+export class FakeMarker implements MarkerHandle {
+  removed = false;
+  readonly positions: GeoPoint[];
+
+  constructor(
+    position: GeoPoint,
+    readonly options: MarkerOptions,
+  ) {
+    this.positions = [position];
+  }
+
+  get position(): GeoPoint {
+    return this.positions[this.positions.length - 1] ?? { lat: 0, lon: 0 };
+  }
+  setPosition(position: GeoPoint): void {
+    this.positions.push(position);
+  }
+  remove(): void {
+    this.removed = true;
+  }
+  /** The visitor drags the marker to `position`. */
+  drag(position: GeoPoint): void {
+    this.positions.push(position);
+    this.options.onDrag?.(position);
+  }
+  /** The visitor drops the marker at `position`. */
+  dragEnd(position: GeoPoint): void {
+    this.positions.push(position);
+    this.options.onDragEnd?.(position);
+  }
+}
 
 /** A map that records the calls the components make; the factory of the unit tests. */
 export class FakeMap implements MapHandle {
@@ -7,6 +49,7 @@ export class FakeMap implements MapHandle {
   readonly layers: MapLayerSpec[] = [];
   readonly fits: { bounds: readonly number[]; animate: boolean }[] = [];
   readonly styles: MapOptions['style'][] = [];
+  readonly markers: FakeMarker[] = [];
   removed = false;
   private readonly listeners = new Set<() => void>();
   private styleLoaded = false;
@@ -54,6 +97,12 @@ export class FakeMap implements MapHandle {
     this.calls.push('setStyle');
     this.styles.push(style);
     this.styleLoaded = false;
+  }
+  addMarker(position: GeoPoint, options: MarkerOptions): FakeMarker {
+    this.calls.push(`addMarker:${options.label}`);
+    const marker = new FakeMarker(position, options);
+    this.markers.push(marker);
+    return marker;
   }
   resize(): void {
     this.calls.push('resize');

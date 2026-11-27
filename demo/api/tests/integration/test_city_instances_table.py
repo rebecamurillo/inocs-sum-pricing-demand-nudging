@@ -272,6 +272,7 @@ def test_two_patches_of_different_parameters_sent_at_once_both_stay(
         PostgresCityDatasets(migrated_database),
         postgres_planning(migrated_database, InMemoryBuildSources()),
         postgres_built(migrated_database),
+        PostgresPackageFingerprints(migrated_database),
     )
     errors: list[BaseException] = []
 

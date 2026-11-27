@@ -322,7 +322,7 @@ artefact also keeps the run that produced it (`run_id`) and the counts that run'
 (`reported_counts`): an ingest-only rerun, which has no preparation to ask, reads them back.
 `GET /instance-versions/{id}` derives its five headline numbers and its routes summary from
 these, and both are null until every step of the version is linked to an ingested artefact.
-The resource also carries `sealed_at` (the instant the version was saved, null for a draft).
+The resource also carries `created_at` (when the version was created, for the one-draft message), `sealed_at` (the instant the version was saved, null for a draft) and `package_defaults` (for a draft, the latest package fingerprint's defaults with the data set's preset centre and radius, derived by `build_view` through `parameters_from_defaults`; null for a saved version or while no fingerprint is recorded), so "Restore the package defaults" needs no other read.
 
 **Route failures.** `CityPreparation.prepare` calls `route_failed` once per failed
 trip-planner query as it happens; the executor writes one `route_failures` row for each (run,
@@ -429,7 +429,20 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   `InstanceView` the card: it shows the skeleton while its reads are pending, declares
   `l1Layers(...)` and the study circle's fit, and, for "Show on map" on a route failure, the dotted
   red `unroutedPairLayer(...)` and a legend entry (`useMapLegend`) that `MapPane` lists over the
-  map. `presentation/hooks/useCityInstances.ts` holds the queries.
+  map. `presentation/hooks/useCityInstances.ts` holds the queries and the writes.
+- Creating and editing an instance (L-1 forms). The gateway also creates an instance
+  (`POST /city-instances`), creates a draft (`POST /city-instances/{id}/versions`, a 409
+  `draft_exists` names the existing one), patches (`PATCH /instance-versions/{id}`), discards and
+  builds; the use cases are in `application/use-cases/edit-draft.ts`. A link to a draft version
+  shows `DraftForm`: the edit form, or the new-instance form when the draft is number 1 (Name
+  read-only, City data, Start from). Before the first `POST` the new-instance form is a state of
+  `#/lab` (`NewInstanceForm`). Every sentence is built in `domain/draft-text.ts`: the heading, the
+  save box, the rule lines with their units, the banners, the primary's note. Typed values
+  and dragged ones are saved by `useAutosave`: one `PATCH` 500 ms after the last change,
+  never two at once, and "Save and build" awaits the flushed one before the `POST`; the answer
+  of a `PATCH` feeds the rules box, the save box and the table of changes, never the inputs.
+  The draft's map has two markers (centre, and the radius on the circle's east edge) added
+  through `MapHandle.addMarker` by `useMapHandles`; the real handle uses MapLibre's `Marker`.
 - The footer's statement, the model's author and the "Run unmodified." switch are constants of
   `domain/footer.ts`; the funding mark is a bundled file in `presentation/assets/`.
 - Styling is plain CSS on the SUM tokens in `presentation/styles/tokens.css` (light mode

@@ -15,8 +15,14 @@ import {
   showPairsLink,
   versionTag,
 } from '../../domain/l1-text';
+import { oneDraftMessage, versionNumberOf } from '../../domain/draft-text';
 import { circleBounds } from '../../domain/map';
-import { useInstanceGeometry, useInstanceView, useRouteFailures } from '../hooks/useCityInstances';
+import {
+  useDraftActions,
+  useInstanceGeometry,
+  useInstanceView,
+  useRouteFailures,
+} from '../hooks/useCityInstances';
 import { UNROUTED_COLOUR, l1Layers, unroutedPairLayer } from '../map/l1-layers';
 import { useMapFit, useMapLayers, useMapLegend, type LegendEntry } from '../map/MapContext';
 import { LoadingCard } from './LoadingCard';
@@ -124,10 +130,27 @@ function RoutesBox({
   );
 }
 
-function SavedInstance({ view, advancedView }: { view: InstanceViewValue; advancedView: boolean }) {
+/** Where "Edit as a new version" leads: the draft, and the sentence to show when it already existed. */
+export interface OpenedDraft {
+  readonly instanceId: string;
+  readonly number: number;
+  readonly message: string | null;
+}
+
+function SavedInstance({
+  view,
+  advancedView,
+  onOpenDraft,
+}: {
+  view: InstanceViewValue;
+  advancedView: boolean;
+  onOpenDraft?: (draft: OpenedDraft) => void;
+}) {
   const { version, instanceName, dataset, pricingVersionCount } = view;
   const geometry = useInstanceGeometry(version.id).data ?? null;
   const [shown, setShown] = useState<ReadonlySet<number>>(new Set());
+  const actions = useDraftActions();
+  const [editError, setEditError] = useState<string | null>(null);
   const failures = useRouteFailures(version.routes, false).data;
 
   const declaration = useMemo(
@@ -171,6 +194,27 @@ function SavedInstance({ view, advancedView }: { view: InstanceViewValue; advanc
     const next = new Set(shown);
     if (!next.delete(index)) next.add(index);
     setShown(next);
+  };
+
+  const edit = () => {
+    setEditError(null);
+    actions.draft.mutateAsync({ instanceId: version.instanceId, basedOnId: version.id }).then(
+      (opened) => {
+        const based =
+          opened.version.basedOnId === null ? null : versionNumberOf(opened.version.basedOnId);
+        onOpenDraft?.({
+          instanceId: version.instanceId,
+          number: opened.version.number,
+          message:
+            opened.existed && based !== null
+              ? oneDraftMessage(based, opened.version.createdAt)
+              : null,
+        });
+      },
+      (error: unknown) => {
+        setEditError(error instanceof Error ? error.message : String(error));
+      },
+    );
   };
 
   return (
@@ -221,10 +265,16 @@ function SavedInstance({ view, advancedView }: { view: InstanceViewValue; advanc
       ))}
       <p className={styles.closing}>{NEVER_CHANGED}</p>
       <div className={styles.actions}>
-        <button type="button" className={styles.button}>
+        <button
+          type="button"
+          className={styles.button}
+          disabled={actions.draft.isPending}
+          onClick={edit}
+        >
           Edit as a new version
         </button>
       </div>
+      {editError !== null && <p className={styles.error}>{editError}</p>}
     </div>
   );
 }
@@ -233,9 +283,11 @@ function SavedInstance({ view, advancedView }: { view: InstanceViewValue; advanc
 export function InstanceView({
   versionId,
   advancedView,
+  onOpenDraft,
 }: {
   versionId: string;
   advancedView: boolean;
+  onOpenDraft?: (draft: OpenedDraft) => void;
 }) {
   const query = useInstanceView(versionId);
   if (query.isPending) return <LoadingCard />;
@@ -245,5 +297,5 @@ export function InstanceView({
     );
   }
   if (query.data === null) return <p>Nothing at this link.</p>;
-  return <SavedInstance view={query.data} advancedView={advancedView} />;
+  return <SavedInstance view={query.data} advancedView={advancedView} onOpenDraft={onOpenDraft} />;
 }

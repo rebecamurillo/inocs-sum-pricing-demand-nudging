@@ -6,6 +6,8 @@ import type {
 } from '../../domain/city-instance';
 import type { InstanceMenuEntry } from '../../domain/city-instance';
 import type { MapHubPair, MapStation } from '../../domain/map';
+import { latestDataset } from '../../domain/map';
+import type { CityDatasetGateway } from '../ports/city-dataset-gateway';
 import type { CityInstanceGateway, InstanceHub } from '../ports/city-instance-gateway';
 
 /** Everything the saved instance card writes, read in one go. */
@@ -75,4 +77,33 @@ export async function loadInstanceGeometry(
     cityInstances.hubPairs(versionId),
   ]);
   return { stations, hubs, hubPairs };
+}
+
+/** What the new-instance form offers: the city data to build on and the saved versions to copy. */
+export interface NewInstanceBasis {
+  /** The latest city data set; null while none is imported. */
+  readonly dataset: DatasetInfo | null;
+  readonly copies: readonly {
+    readonly versionId: string;
+    readonly name: string;
+    readonly number: number;
+  }[];
+}
+
+export async function loadNewInstanceBasis(gateways: {
+  cityInstances: CityInstanceGateway;
+  cityDatasets: CityDatasetGateway;
+}): Promise<NewInstanceBasis> {
+  const [datasets, menu] = await Promise.all([
+    gateways.cityDatasets.list(),
+    gateways.cityInstances.menu(),
+  ]);
+  const latest = latestDataset(datasets);
+  const dataset = latest === null ? null : await gateways.cityInstances.dataset(latest.id);
+  const copies = menu.flatMap((entry) =>
+    entry.versions
+      .filter((version) => version.status === 'sealed')
+      .map((version) => ({ versionId: version.id, name: entry.name, number: version.number })),
+  );
+  return { dataset, copies };
 }

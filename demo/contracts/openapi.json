@@ -876,6 +876,12 @@
             ],
             "description": "Null until the version is built."
           },
+          "created_at": {
+            "description": "When the version was created.",
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -887,6 +893,17 @@
           "number": {
             "title": "Number",
             "type": "integer"
+          },
+          "package_defaults": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstanceParametersResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The model package's default values with the data set's preset centre and radius, for a draft; null for a saved version or while the package is not known."
           },
           "parameters": {
             "$ref": "#/components/schemas/InstanceParametersResource"
@@ -949,6 +966,7 @@
           "number",
           "based_on_id",
           "status",
+          "created_at",
           "sealed_at",
           "state",
           "parameters",
@@ -957,7 +975,8 @@
           "changes",
           "counts",
           "routes",
-          "build_plan"
+          "build_plan",
+          "package_defaults"
         ],
         "title": "InstanceVersionResource",
         "type": "object"

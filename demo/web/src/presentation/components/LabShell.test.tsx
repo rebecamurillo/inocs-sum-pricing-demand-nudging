@@ -1,15 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
 import {
   emptyCityInstances,
   fakeCityInstances,
+  sampleDraft,
+  sampleMenu,
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
 import { DEFAULT_LAYOUT, type LayoutPreferencesValue } from '../../domain/layout';
+import type { CityDataset } from '../../domain/map';
 import type { SystemStatus } from '../../domain/system-status';
 import { GatewaysProvider } from '../hooks/gateways';
 import { INSTANCE_MENU_KEY } from '../hooks/useCityInstances';
@@ -28,6 +31,7 @@ const status: SystemStatus = {
 function renderShell(
   initial: LayoutPreferencesValue = DEFAULT_LAYOUT,
   cityInstances: CityInstanceGateway = emptyCityInstances,
+  datasets: CityDataset[] = [],
 ) {
   const saved: LayoutPreferencesValue[] = [];
   const gateways: Gateways = {
@@ -38,7 +42,7 @@ function renderShell(
         saved.push(value);
       },
     },
-    cityDatasets: { list: () => Promise.resolve([]) },
+    cityDatasets: { list: () => Promise.resolve(datasets) },
     basemap: { exists: () => Promise.resolve(false), url: () => '' },
     cityInstances,
   };
@@ -116,7 +120,7 @@ describe('LabShell · the empty Lab', () => {
   it('has none of the elements the story leaves out', () => {
     renderShell();
 
-    for (const text of ['← Home', 'Next version', 'Simulation', '+ New', 'Run unmodified']) {
+    for (const text of ['← Home', 'Next version', 'Simulation', 'Run unmodified']) {
       expect(screen.queryByText(text, { exact: false })).not.toBeInTheDocument();
     }
     expect(screen.queryByRole('link')).not.toBeInTheDocument();
@@ -249,11 +253,13 @@ describe('LabShell · the grip', () => {
 });
 
 describe('LabShell · keyboard in the menu', () => {
-  it('moves between the three items with ↑ and ↓ and opens one with Enter', async () => {
+  it('moves between the four items with ↑ and ↓ and opens one with Enter', async () => {
     renderShell();
     const user = userEvent.setup();
     screen.getByRole('button', { name: 'City instances' }).focus();
 
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('button', { name: '+ New' })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
     expect(screen.getByRole('button', { name: 'Compare versions' })).toHaveFocus();
     await user.keyboard('{ArrowDown}');
@@ -478,5 +484,217 @@ describe('LabShell · an open instance version', () => {
     await userEvent.setup().keyboard('{ArrowUp}');
 
     expect(screen.getByRole('button', { name: 'Geneva 3 km v1 ready' })).toHaveFocus();
+  });
+});
+
+describe('LabShell · creating and editing', () => {
+  const dataset: CityDataset = {
+    id: 'geneva-2026-11-26',
+    centre: { lat: 46.2, lon: 6.14 },
+    radiusM: 3000,
+    availableArea: [6, 46, 6.3, 46.4],
+  };
+
+  it('puts "+ New" in the empty Lab menu and "+ New city instance" on the card', async () => {
+    renderShell(DEFAULT_LAYOUT, emptyCityInstances, [dataset]);
+
+    expect(screen.getByRole('button', { name: 'City instances' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ New' })).toBeInTheDocument();
+    expect(screen.getByText('No instance yet')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'No city instance yet. Create one from the Geneva data: it prepares the area, the hubs, the routes and the travellers of one period.',
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '+ New city instance' })).toBeEnabled();
+    });
+    expect(screen.queryByText(/No city data is imported yet/)).not.toBeInTheDocument();
+  });
+
+  it('disables the primary and says why while no city data is imported', async () => {
+    renderShell(DEFAULT_LAYOUT, emptyCityInstances, []);
+
+    expect(
+      await screen.findByText(
+        "No city data is imported yet. A city instance needs a timetable and bike stations; the maintainer imports Geneva's with one command (demo/README.md).",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '+ New city instance' })).toBeDisabled();
+  });
+
+  it.each(['+ New', '+ New city instance'])(
+    'opens the new-instance form from "%s"',
+    async (label) => {
+      renderShell(DEFAULT_LAYOUT, emptyCityInstances, [dataset]);
+      const user = userEvent.setup();
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: '+ New city instance' })).toBeEnabled();
+      });
+
+      await user.click(screen.getByRole('button', { name: label }));
+
+      expect(await screen.findByRole('heading', { name: 'New city instance' })).toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Name' })).toHaveValue('');
+      expect(screen.queryByRole('button', { name: '+ New city instance' })).not.toBeInTheDocument();
+    },
+  );
+
+  it('opens the new-instance form from "+ New" while a saved version is open', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances(), [dataset]);
+    const user = userEvent.setup();
+    await screen.findByRole('button', { name: 'Edit as a new version' });
+
+    await user.click(screen.getByRole('button', { name: '+ New' }));
+
+    expect(await screen.findByRole('heading', { name: 'New city instance' })).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/lab');
+  });
+
+  it('closes the new-instance form with any other link', async () => {
+    renderShell(DEFAULT_LAYOUT, emptyCityInstances, [dataset]);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: '+ New' }));
+    await screen.findByRole('heading', { name: 'New city instance' });
+
+    await user.click(screen.getByRole('button', { name: 'Compare versions' }));
+
+    expect(screen.queryByRole('heading', { name: 'New city instance' })).not.toBeInTheDocument();
+    expect(
+      screen.getByText('Compare needs two pricing versions of this city instance.'),
+    ).toBeInTheDocument();
+  });
+
+  it('creates the instance on Name blur and opens its draft as the new-instance form', async () => {
+    const state = { created: false };
+    const draftOne = {
+      ...sampleDraft,
+      id: 'geneva-4km.v1',
+      instanceId: 'geneva-4km',
+      number: 1,
+      basedOnId: null,
+    };
+    const cityInstances = fakeCityInstances({
+      menu: () =>
+        Promise.resolve(
+          state.created
+            ? [
+                {
+                  id: 'geneva-4km',
+                  name: 'Geneva 4 km',
+                  datasetId: 'geneva-2026-11-26',
+                  versions: [
+                    {
+                      id: 'geneva-4km.v1',
+                      number: 1,
+                      status: 'draft',
+                      state: 'draft',
+                      pricingVersionCount: 0,
+                    },
+                  ],
+                },
+              ]
+            : [],
+        ),
+      createInstance: () => {
+        state.created = true;
+        return Promise.resolve({ kind: 'created', version: draftOne });
+      },
+      version: (id) => Promise.resolve(id === 'geneva-4km.v1' ? draftOne : null),
+    });
+    renderShell(DEFAULT_LAYOUT, cityInstances, [dataset]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '+ New' }));
+
+    await user.type(await screen.findByRole('textbox', { name: 'Name' }), 'Geneva 4 km{Enter}');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Geneva 4 km · new version (draft)' }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/lab/geneva-4km.v1');
+    expect(screen.getByRole('textbox', { name: 'Name' })).toHaveAttribute('readonly');
+    expect(screen.getByRole('button', { name: 'Save as v1 and build' })).toBeInTheDocument();
+  });
+
+  const firstEntry = sampleMenu[0] ?? { id: '', name: '', datasetId: '', versions: [] };
+
+  function menuWithDraft(drafted: { value: boolean }) {
+    return () =>
+      Promise.resolve(
+        drafted.value
+          ? [
+              {
+                ...firstEntry,
+                versions: [
+                  ...(sampleMenu[0]?.versions ?? []),
+                  {
+                    id: 'geneva-3km.v2',
+                    number: 2,
+                    status: 'draft' as const,
+                    state: 'draft',
+                    pricingVersionCount: 0,
+                  },
+                ],
+              },
+              ...sampleMenu.slice(1),
+            ]
+          : sampleMenu,
+      );
+  }
+
+  it('"Edit as a new version" creates the draft and opens its form', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    const drafted = { value: false };
+    const createDraft = vi.fn(() => {
+      drafted.value = true;
+      return Promise.resolve({ kind: 'created' as const, version: sampleDraft });
+    });
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: menuWithDraft(drafted), createDraft }));
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit as a new version' }));
+
+    expect(createDraft).toHaveBeenCalledWith('geneva-3km', 'geneva-3km.v1');
+    expect(
+      await screen.findByRole('heading', { name: 'Geneva 3 km · new version (draft)' }),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v2');
+    expect(screen.queryByText(/already has a draft/)).not.toBeInTheDocument();
+  });
+
+  it('opens the draft the instance already has, with the one-draft sentence', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    const drafted = { value: true };
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({
+        menu: menuWithDraft(drafted),
+        createDraft: () => Promise.resolve({ kind: 'draft_exists', draftId: 'geneva-3km.v2' }),
+      }),
+    );
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit as a new version' }));
+
+    expect(
+      await screen.findByText(
+        'This instance already has a draft, started from v1 on 24 Nov. Continue it, or discard it first.',
+      ),
+    ).toBeInTheDocument();
+    expect(window.location.hash).toBe('#/lab/geneva-3km.v2');
+  });
+
+  it('shows the draft form for a link to a draft version', async () => {
+    window.location.hash = '#/lab/geneva-3km.v2';
+    renderShell(DEFAULT_LAYOUT, fakeCityInstances({ menu: menuWithDraft({ value: true }) }));
+
+    expect(
+      await screen.findByRole('heading', { name: 'Geneva 3 km · new version (draft)' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Instance set-up', { selector: 'h2' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent(
+      'Geneva 3 km v2 › Instance set-up',
+    );
   });
 });

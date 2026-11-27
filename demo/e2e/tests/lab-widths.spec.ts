@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { buildFakeInstance } from '../support/build';
+import { awaitPackageDefaults, buildFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
 
 const viewports = [
@@ -42,11 +42,45 @@ async function holdsAtEverySize(page: Page, card: ReturnType<Page['getByRole']> 
 }
 
 test.describe('Lab', () => {
-  test('Lab · every built view holds at 1440, 1280 and 1280 × 720 with Aa', async ({ page }) => {
+  test('Lab · every built view holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
     await page.goto('/');
     await expect(page.getByRole('main')).toBeVisible();
 
     await holdsAtEverySize(page, null);
+
+    // The new-instance form, then the edit and rule-broken states of a built instance.
+    const datasetId = await control.insertCityDataset();
+    await awaitPackageDefaults(request, datasetId);
+    await page.goto('/');
+    await page.getByRole('button', { name: '+ New', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'New city instance' })).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+
+    const name = page.getByRole('textbox', { name: 'Name', exact: true });
+    await name.fill('Geneva 2 km');
+    await name.press('Enter');
+    await expect(
+      page.getByRole('heading', { name: 'Geneva 2 km · new version (draft)' }),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+
+    const { version } = await buildFakeInstance(request, control);
+    await page.goto(`/#/lab/${version}`);
+    // The page was loaded before this instance existed: read the menu again.
+    await page.reload();
+    await page.getByRole('button', { name: 'Edit as a new version' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Geneva 3 km · new version (draft)' }),
+    ).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+
+    await page.getByRole('textbox', { name: 'Grouping distance', exact: true }).fill('1000');
+    await expect(page.getByText('One rule is not met.')).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
   });
 
   test('Lab · L-1 saved holds at 1440, 1280 and 1280 × 720 with Aa', async ({

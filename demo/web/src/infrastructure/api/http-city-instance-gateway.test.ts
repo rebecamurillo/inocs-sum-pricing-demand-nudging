@@ -10,6 +10,8 @@ const versionWire = {
   number: 1,
   based_on_id: null,
   status: 'sealed',
+  created_at: '2026-11-12T09:00:00Z',
+  package_defaults: null,
   sealed_at: '2026-11-12T10:00:00Z',
   state: 'ready',
   parameters: {
@@ -61,6 +63,57 @@ const versionWire = {
     run_id: 'run-1',
   },
   build_plan: { steps: [], build_verdict: { allowed: true, reasons: [] } },
+};
+
+const draftWire = {
+  ...versionWire,
+  id: 'geneva-3km.v2',
+  number: 2,
+  based_on_id: 'geneva-3km.v1',
+  status: 'draft',
+  state: 'draft',
+  sealed_at: null,
+  counts: null,
+  routes: null,
+  created_at: '2026-11-24T10:00:00Z',
+  package_defaults: { ...versionWire.parameters, max_inventory_pct: 1 },
+  rules: [
+    {
+      rule: 'min_trip_distance_above_grouping',
+      passed: false,
+      values: [
+        { name: 'minimum trip distance', value: 500, unit: 'm' },
+        { name: 'grouping distance', value: 600, unit: 'm' },
+      ],
+    },
+  ],
+  changes: [{ parameter: 'clustering_threshold_m', before: 500, after: 600 }],
+  build_plan: {
+    steps: [
+      {
+        step: 'area',
+        number: 1,
+        period_id: null,
+        input_key: 'k',
+        action: 'kept',
+        causes: [],
+        last_duration_s: null,
+      },
+      {
+        step: 'hubs',
+        number: 2,
+        period_id: null,
+        input_key: 'k',
+        action: 'rebuilt',
+        causes: [{ kind: 'parameter', parameters: ['clustering_threshold_m'] }],
+        last_duration_s: 61.5,
+      },
+    ],
+    build_verdict: {
+      allowed: false,
+      reasons: [{ component: 'trip_planner', reason: 'The trip planner is down' }],
+    },
+  },
 };
 
 function gatewayAnswering(answer: Response | Error) {
@@ -307,5 +360,163 @@ describe('HttpCityInstanceGateway', () => {
       gatewayAnswering(new Response('<html>', { status: 200 })).gateway.menu(),
     );
     expect(notJson.detail).toBe('The answer is not JSON.');
+  });
+
+  it('maps what a draft adds: the base, the creation instant, the defaults, the rules, the changes and the plan', async () => {
+    const version = await gatewayAnswering(Response.json(draftWire)).gateway.version(
+      'geneva-3km.v2',
+    );
+
+    expect(version).toMatchObject({
+      basedOnId: 'geneva-3km.v1',
+      status: 'draft',
+      packageDefaults: { maxInventoryPct: 1, radiusM: 3000 },
+      rules: [
+        {
+          rule: 'min_trip_distance_above_grouping',
+          passed: false,
+          values: [
+            { name: 'minimum trip distance', value: 500, unit: 'm' },
+            { name: 'grouping distance', value: 600, unit: 'm' },
+          ],
+        },
+      ],
+      changes: [{ parameter: 'clustering_threshold_m', before: 500, after: 600 }],
+      buildPlan: {
+        steps: [
+          { step: 'area', number: 1, action: 'kept', causes: [], lastDurationS: null },
+          {
+            step: 'hubs',
+            number: 2,
+            action: 'rebuilt',
+            causes: [{ kind: 'parameter', parameters: ['clustering_threshold_m'] }],
+            lastDurationS: 61.5,
+          },
+        ],
+        verdict: {
+          allowed: false,
+          reasons: [{ component: 'tripPlanner', reason: 'The trip planner is down' }],
+        },
+      },
+    });
+    expect(version?.createdAt.toISOString()).toBe('2026-11-24T10:00:00.000Z');
+  });
+});
+
+describe('HttpCityInstanceGateway writes', () => {
+  const problem = (status: number, fields: Record<string, unknown>) =>
+    new Response(JSON.stringify({ type: 'about:blank', title: 'Problem', status, ...fields }), {
+      status,
+      headers: { 'Content-Type': 'application/problem+json' },
+    });
+
+  it('creates an instance from the package defaults or from a copy', async () => {
+    const created = gatewayAnswering(Response.json(draftWire, { status: 201 }));
+    const result = await created.gateway.createInstance('Geneva 3 km', 'ds-1', {
+      kind: 'package_defaults',
+    });
+
+    expect(result).toMatchObject({ kind: 'created', version: { id: 'geneva-3km.v2' } });
+    const [path, init] = created.fetchFake.mock.calls[0] ?? [];
+    expect(path).toBe('/api/v1/city-instances');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      name: 'Geneva 3 km',
+      dataset_id: 'ds-1',
+      start_from: { kind: 'package_defaults' },
+    });
+
+    const copy = gatewayAnswering(Response.json(draftWire, { status: 201 }));
+    await copy.gateway.createInstance('Geneva 4 km', 'ds-1', { kind: 'copy', versionId: 'a.v1' });
+    expect(JSON.parse(copy.fetchFake.mock.calls[0]?.[1]?.body as string)).toMatchObject({
+      start_from: { kind: 'copy', instance_version_id: 'a.v1' },
+    });
+  });
+
+  it('answers name_taken with the problem detail and fails for another problem', async () => {
+    const taken = gatewayAnswering(problem(409, { code: 'name_taken', detail: 'Name used.' }));
+    expect(await taken.gateway.createInstance('A', 'ds', { kind: 'package_defaults' })).toEqual({
+      kind: 'name_taken',
+      detail: 'Name used.',
+    });
+    const missing = await failureOf(
+      gatewayAnswering(
+        problem(409, { code: 'package_defaults_missing', detail: 'No package yet.' }),
+      ).gateway.createInstance('A', 'ds', { kind: 'package_defaults' }),
+    );
+    expect(missing.code).toBe('package_defaults_missing');
+  });
+
+  it('creates a draft, or names the existing one', async () => {
+    const created = gatewayAnswering(Response.json(draftWire, { status: 201 }));
+    expect(await created.gateway.createDraft('geneva-3km', 'geneva-3km.v1')).toMatchObject({
+      kind: 'created',
+    });
+    expect(created.fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/city-instances/geneva-3km/versions');
+    expect(JSON.parse(created.fetchFake.mock.calls[0]?.[1]?.body as string)).toEqual({
+      based_on_id: 'geneva-3km.v1',
+    });
+
+    const exists = gatewayAnswering(
+      problem(409, { code: 'draft_exists', detail: 'A draft exists.', draft_id: 'geneva-3km.v2' }),
+    );
+    expect(await exists.gateway.createDraft('geneva-3km', 'geneva-3km.v1')).toEqual({
+      kind: 'draft_exists',
+      draftId: 'geneva-3km.v2',
+    });
+  });
+
+  it('patches with the wire names and maps the answer', async () => {
+    const { gateway, fetchFake } = gatewayAnswering(Response.json(draftWire));
+
+    const version = await gateway.patch('geneva-3km.v2', { clustering_threshold_m: 600 });
+
+    expect(version.id).toBe('geneva-3km.v2');
+    const [path, init] = fetchFake.mock.calls[0] ?? [];
+    expect(path).toBe('/api/v1/instance-versions/geneva-3km.v2');
+    expect(init?.method).toBe('PATCH');
+    expect(JSON.parse(init?.body as string)).toEqual({ clustering_threshold_m: 600 });
+    const failure = await failureOf(
+      gatewayAnswering(
+        problem(409, { code: 'version_sealed', title: 'Sealed', detail: 'It is saved.' }),
+      ).gateway.patch('x.v1', { seed: 1 }),
+    );
+    expect(failure.code).toBe('version_sealed');
+  });
+
+  it('discards a draft', async () => {
+    const { gateway, fetchFake } = gatewayAnswering(new Response(null, { status: 204 }));
+
+    await gateway.discard('geneva-3km.v2');
+
+    expect(fetchFake.mock.calls[0]?.[0]).toBe('/api/v1/instance-versions/geneva-3km.v2');
+    expect(fetchFake.mock.calls[0]?.[1]?.method).toBe('DELETE');
+    const failure = await failureOf(
+      gatewayAnswering(new Response('x', { status: 500 })).gateway.discard('x.v1'),
+    );
+    expect(failure.code).toBe('unexpected_response');
+  });
+
+  it('queues a build, or reports the refusal with its detail', async () => {
+    const queued = gatewayAnswering(Response.json({ id: 'run-9' }, { status: 202 }));
+    expect(await queued.gateway.build('geneva-3km.v2')).toEqual({ kind: 'queued', runId: 'run-9' });
+    expect(queued.fetchFake.mock.calls[0]?.[0]).toBe(
+      '/api/v1/instance-versions/geneva-3km.v2/builds',
+    );
+    expect(queued.fetchFake.mock.calls[0]?.[1]?.method).toBe('POST');
+
+    for (const status of [409, 503]) {
+      const refused = gatewayAnswering(problem(status, { code: 'x', detail: 'Refused.' }));
+      expect(await refused.gateway.build('a.v2')).toEqual({ kind: 'refused', detail: 'Refused.' });
+    }
+    const failure = await failureOf(
+      gatewayAnswering(new Response('x', { status: 500 })).gateway.build('a.v2'),
+    );
+    expect(failure.code).toBe('unexpected_response');
+  });
+
+  it('reports an unreachable API for a write', async () => {
+    const failure = await failureOf(gatewayAnswering(new Error('offline')).gateway.discard('a.v2'));
+    expect(failure.code).toBe('api_unreachable');
   });
 });

@@ -75,3 +75,30 @@ export interface MapHubPair {
   readonly originHub: string;
   readonly destinationHub: string;
 }
+
+/** The point `distanceM` metres from `from` along `bearingDeg` (0 north, 90 east) on the sphere. */
+export function destinationPoint(from: GeoPoint, distanceM: number, bearingDeg: number): GeoPoint {
+  const angular = distanceM / EARTH_RADIUS_M;
+  const bearing = bearingDeg * DEG;
+  const lat1 = from.lat * DEG;
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angular) + Math.cos(lat1) * Math.sin(angular) * Math.cos(bearing),
+  );
+  const lon2 =
+    from.lon * DEG +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angular) * Math.cos(lat1),
+      Math.cos(angular) - Math.sin(lat1) * Math.sin(lat2),
+    );
+  return { lat: lat2 / DEG, lon: lon2 / DEG };
+}
+
+/** The great-circle distance between two points, in metres (haversine). */
+export function distanceM(a: GeoPoint, b: GeoPoint): number {
+  const dLat = (b.lat - a.lat) * DEG;
+  const dLon = (b.lon - a.lon) * DEG;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * DEG) * Math.cos(b.lat * DEG) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
+}

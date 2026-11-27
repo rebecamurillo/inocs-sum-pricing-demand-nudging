@@ -565,12 +565,20 @@ export interface components {
             changes: components["schemas"]["ParameterChangeResource"][];
             /** @description Null until the version is built. */
             counts: components["schemas"]["InstanceCounts"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the version was created.
+             */
+            created_at: string;
             /** Id */
             id: string;
             /** Instance Id */
             instance_id: string;
             /** Number */
             number: number;
+            /** @description The model package's default values with the data set's preset centre and radius, for a draft; null for a saved version or while the package is not known. */
+            package_defaults: components["schemas"]["InstanceParametersResource"] | null;
             parameters: components["schemas"]["InstanceParametersResource"];
             /** Periods */
             periods: components["schemas"]["InstancePeriodResource"][];

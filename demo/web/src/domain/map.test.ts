@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { circleBounds, circlePolygon, latestDataset, type CityDataset } from './map';
+import {
+  circleBounds,
+  circlePolygon,
+  destinationPoint,
+  distanceM,
+  latestDataset,
+  type CityDataset,
+} from './map';
 
 const geneva = { lat: 46.2, lon: 6.14 };
 
@@ -63,5 +70,32 @@ describe('latestDataset', () => {
 
   it('is null for an empty list', () => {
     expect(latestDataset([])).toBeNull();
+  });
+});
+
+describe('destinationPoint and distanceM', () => {
+  it('goes east by the distance and measures it back', () => {
+    const east = destinationPoint(geneva, 3000, 90);
+
+    expect(east.lat).toBeCloseTo(geneva.lat, 3);
+    expect(east.lon).toBeGreaterThan(geneva.lon);
+    expect(distanceM(geneva, east)).toBeCloseTo(3000, 3);
+  });
+
+  it('goes north by the distance', () => {
+    const north = destinationPoint(geneva, 1000, 0);
+
+    expect(north.lon).toBeCloseTo(geneva.lon, 6);
+    expect(distanceM(geneva, north)).toBeCloseTo(1000, 3);
+  });
+
+  it('is 0 between a point and itself', () => {
+    expect(distanceM(geneva, geneva)).toBe(0);
+  });
+
+  it('agrees with the circle polygon', () => {
+    const [first] = circlePolygon(geneva, 2000, 8);
+    expect(first).toBeDefined();
+    expect(distanceM(geneva, { lat: first?.[1] ?? 0, lon: first?.[0] ?? 0 })).toBeCloseTo(2000, 3);
   });
 });

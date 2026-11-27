@@ -586,3 +586,41 @@ def test_a_sealed_version_carries_the_instant_it_was_saved_and_a_draft_none(
 
     assert body["status"] == "sealed"
     assert datetime.fromisoformat(body["sealed_at"]) == instances_app.clock.now()
+
+
+def test_a_draft_answers_its_creation_instant_and_the_package_defaults(
+    instances_app: CityInstancesApp,
+) -> None:
+    created = create(instances_app)
+
+    patched = instances_app.client.patch(VERSION, json={"radius_m": 4000, "seed": 7}).json()
+    fetched = instances_app.client.get(VERSION).json()
+
+    for body in (created, patched, fetched):
+        assert datetime.fromisoformat(body["created_at"]) == SERVER_TIME
+        # The values `POST /city-instances` from the package defaults starts with.
+        assert body["package_defaults"] == created["parameters"]
+    assert patched["parameters"]["radius_m"] == 4000
+
+
+def test_a_sealed_version_answers_null_package_defaults(
+    instances_app: CityInstancesApp,
+) -> None:
+    valid_draft(instances_app)
+    instances_app.client.post(BUILDS)
+
+    body = instances_app.client.get(VERSION).json()
+
+    assert body["package_defaults"] is None
+    assert datetime.fromisoformat(body["created_at"]) == SERVER_TIME
+
+
+def test_a_draft_answers_null_package_defaults_while_no_package_is_recorded() -> None:
+    app = CityInstancesApp(with_fingerprint=False)
+    app.fingerprints.record(FAKE_FINGERPRINT, SERVER_TIME)
+    create(app)
+    app.fingerprints.clear()
+
+    body = app.client.get(VERSION).json()
+
+    assert body["package_defaults"] is None

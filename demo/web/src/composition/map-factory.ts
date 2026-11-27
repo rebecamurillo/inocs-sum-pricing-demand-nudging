@@ -1,5 +1,6 @@
 import {
   Map as MapLibreMap,
+  Marker,
   addProtocol,
   type LayerSpecification,
   type SourceSpecification,
@@ -7,13 +8,15 @@ import {
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
-import type { GeoBounds } from '../domain/map';
+import type { GeoBounds, GeoPoint } from '../domain/map';
 import type {
   MapFactory,
   MapHandle,
   MapLayerSpec,
   MapSourceSpec,
   MapStyleSpec,
+  MarkerHandle,
+  MarkerOptions,
 } from '../presentation/map/map-factory';
 
 // The `pmtiles://` protocol is global to MapLibre: register it once for the page.
@@ -63,6 +66,44 @@ class MapLibreHandle implements MapHandle {
   setStyle(style: MapStyleSpec): void {
     this.styleLoaded = false;
     this.map.setStyle(asStyle(style), { diff: false });
+  }
+  addMarker(position: GeoPoint, options: MarkerOptions): MarkerHandle {
+    const element = document.createElement('div');
+    element.setAttribute('role', 'img');
+    element.setAttribute('aria-label', options.label);
+    element.title = options.label;
+    // A white-ringed dot in the ink colour of the tokens; drawn here because a marker is a DOM
+    // node MapLibre owns, outside React.
+    Object.assign(element.style, {
+      width: '18px',
+      height: '18px',
+      borderRadius: '50%',
+      background: '#2e2d29',
+      border: '3px solid #ffffff',
+      boxShadow: '0 0 0 1px #2e2d29',
+      cursor: options.draggable ? 'grab' : 'default',
+    });
+    const marker = new Marker({ element, draggable: options.draggable })
+      .setLngLat([position.lon, position.lat])
+      .addTo(this.map);
+    const where = (): GeoPoint => {
+      const at = marker.getLngLat();
+      return { lat: at.lat, lon: at.lng };
+    };
+    marker.on('drag', () => {
+      options.onDrag?.(where());
+    });
+    marker.on('dragend', () => {
+      options.onDragEnd?.(where());
+    });
+    return {
+      setPosition: (next) => {
+        marker.setLngLat([next.lon, next.lat]);
+      },
+      remove: () => {
+        marker.remove();
+      },
+    };
   }
   resize(): void {
     this.map.resize();

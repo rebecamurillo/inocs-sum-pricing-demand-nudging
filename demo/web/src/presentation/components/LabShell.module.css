@@ -242,3 +242,25 @@
   border: 1px solid var(--line);
   border-radius: 99px;
 }
+
+.primary {
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.875rem;
+  font: inherit;
+  color: #ffffff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--blue-d);
+}
+
+.primary:disabled {
+  color: var(--ink-2);
+  background: var(--tint);
+  border-color: var(--line);
+  cursor: not-allowed;
+}

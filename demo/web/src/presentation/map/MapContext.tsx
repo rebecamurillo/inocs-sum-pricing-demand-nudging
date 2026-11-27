@@ -4,11 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
-import type { GeoBounds } from '../../domain/map';
-import type { MapDeclaration, MapFactory, MapHandle } from './map-factory';
+import { destinationPoint, distanceM, type GeoBounds, type GeoPoint } from '../../domain/map';
+import type { MapDeclaration, MapFactory, MapHandle, MarkerHandle } from './map-factory';
 
 const MapFactoryContext = createContext<MapFactory | null>(null);
 
@@ -147,4 +148,88 @@ export function useMapLegend(entries: readonly LegendEntry[]): void {
       setLegend([]);
     };
   }, [entries, setLegend]);
+}
+
+/** The study circle a draft form edits. */
+export interface StudyCircle {
+  readonly centre: GeoPoint;
+  readonly radiusM: number;
+}
+
+const RADIUS_BEARING_DEG = 90;
+const COORDINATE_DECIMALS = 1e5;
+const RADIUS_STEP_M = 100;
+
+/**
+ * A draggable centre marker and a radius marker on the east edge of the study circle. Dragging
+ * the centre reports the new centre; dragging the radius marker reports the distance to the
+ * centre, to 0.1 km. The markers exist while `circle` is not null and the map is ready, follow
+ * the circle's values and are removed when the circle goes away.
+ */
+export function useMapHandles(
+  circle: StudyCircle | null,
+  onCentre: (centre: GeoPoint) => void,
+  onRadius: (radiusM: number) => void,
+): void {
+  const { ready } = useMapContext();
+  const active = circle !== null;
+  const latest = useRef({ circle, onCentre, onRadius });
+  const markers = useRef<{ centre: MarkerHandle; radius: MarkerHandle } | null>(null);
+
+  useEffect(() => {
+    latest.current = { circle, onCentre, onRadius };
+  });
+
+  useEffect(() => {
+    const current = latest.current.circle;
+    if (ready === null || !active || current === null) return undefined;
+    const centre = ready.handle.addMarker(current.centre, {
+      draggable: true,
+      label: 'Study circle centre: drag to move it',
+      onDrag: (position) => {
+        latest.current.onCentre(roundCentre(position));
+      },
+      onDragEnd: (position) => {
+        latest.current.onCentre(roundCentre(position));
+      },
+    });
+    const reportRadius = (position: GeoPoint) => {
+      const at = latest.current.circle;
+      if (at === null) return;
+      const metres = distanceM(at.centre, position);
+      latest.current.onRadius(Math.round(metres / RADIUS_STEP_M) * RADIUS_STEP_M);
+    };
+    const radius = ready.handle.addMarker(
+      destinationPoint(current.centre, current.radiusM, RADIUS_BEARING_DEG),
+      {
+        draggable: true,
+        label: 'Study circle edge: drag to change the radius',
+        onDrag: reportRadius,
+        onDragEnd: reportRadius,
+      },
+    );
+    markers.current = { centre, radius };
+    return () => {
+      centre.remove();
+      radius.remove();
+      markers.current = null;
+    };
+  }, [ready, active]);
+
+  const lat = circle?.centre.lat;
+  const lon = circle?.centre.lon;
+  const radiusM = circle?.radiusM;
+  useEffect(() => {
+    const held = markers.current;
+    if (held === null || lat === undefined || lon === undefined || radiusM === undefined) return;
+    held.centre.setPosition({ lat, lon });
+    held.radius.setPosition(destinationPoint({ lat, lon }, radiusM, RADIUS_BEARING_DEG));
+  }, [lat, lon, radiusM, ready]);
+}
+
+function roundCentre(position: GeoPoint): GeoPoint {
+  return {
+    lat: Math.round(position.lat * COORDINATE_DECIMALS) / COORDINATE_DECIMALS,
+    lon: Math.round(position.lon * COORDINATE_DECIMALS) / COORDINATE_DECIMALS,
+  };
 }

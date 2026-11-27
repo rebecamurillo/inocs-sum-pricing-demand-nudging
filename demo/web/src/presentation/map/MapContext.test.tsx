@@ -1,12 +1,14 @@
 import { act, render, renderHook } from '@testing-library/react';
 import { useMemo, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { distanceM } from '../../domain/map';
 import { FakeMap, fakeMapFactory } from './fake-map';
 import {
   MapFactoryProvider,
   MapProvider,
   useMapFactory,
   useMapFit,
+  useMapHandles,
   useMapLayers,
   useMapPaneContext,
 } from './MapContext';
@@ -195,5 +197,112 @@ describe('useMapFit', () => {
     rerender({ on: false });
 
     expect(result.current.ctx.fitTarget).toBeNull();
+  });
+});
+
+describe('useMapHandles', () => {
+  const circle = { centre: { lat: 46.2, lon: 6.14 }, radiusM: 3000 };
+
+  function mounted(initial: typeof circle | null) {
+    const { map, wrapper } = rig();
+    const onCentre = vi.fn();
+    const onRadius = vi.fn();
+    const hook = renderHook(
+      ({ at }) => {
+        const ctx = useMapPaneContext();
+        useMapHandles(at, onCentre, onRadius);
+        return ctx;
+      },
+      { wrapper, initialProps: { at: initial } },
+    );
+    act(() => {
+      hook.result.current.attach(map);
+    });
+    act(() => {
+      map.emitStyleReady();
+    });
+    return { map, onCentre, onRadius, ...hook };
+  }
+
+  it('adds no marker before the map is ready or without a circle', () => {
+    const { wrapper, map } = rig();
+    renderHook(
+      () => {
+        useMapHandles(circle, vi.fn(), vi.fn());
+      },
+      { wrapper },
+    );
+    expect(map.markers).toEqual([]);
+
+    const none = mounted(null);
+    expect(none.map.markers).toEqual([]);
+  });
+
+  it('adds a draggable centre marker and a radius marker on the circle edge', () => {
+    const { map } = mounted(circle);
+
+    expect(map.markers.map((marker) => marker.options.label)).toEqual([
+      'Study circle centre: drag to move it',
+      'Study circle edge: drag to change the radius',
+    ]);
+    expect(map.markers.every((marker) => marker.options.draggable)).toBe(true);
+    const [centre, edge] = map.markers;
+    expect(centre?.position).toEqual(circle.centre);
+    expect(distanceM(circle.centre, edge?.position ?? circle.centre)).toBeCloseTo(3000, 0);
+  });
+
+  it('reports the centre of a drag, to five decimals', () => {
+    const { map, onCentre } = mounted(circle);
+
+    act(() => {
+      map.markers[0]?.drag({ lat: 46.2123456789, lon: 6.1512345678 });
+    });
+    act(() => {
+      map.markers[0]?.dragEnd({ lat: 46.21235, lon: 6.15123 });
+    });
+
+    expect(onCentre).toHaveBeenNthCalledWith(1, { lat: 46.21235, lon: 6.15123 });
+    expect(onCentre).toHaveBeenNthCalledWith(2, { lat: 46.21235, lon: 6.15123 });
+  });
+
+  it('reports the radius of a drag as the distance to the centre in steps of 100 m', () => {
+    const { map, onRadius } = mounted(circle);
+    const [, edge] = map.markers;
+
+    act(() => {
+      // About 4 060 m east of the centre.
+      edge?.drag({ lat: 46.2, lon: 6.14 + 4060 / (111_195 * Math.cos((46.2 * Math.PI) / 180)) });
+    });
+
+    expect(onRadius).toHaveBeenCalledWith(4100);
+  });
+
+  it('moves the markers with the values and removes them with the circle', () => {
+    const { map, rerender } = mounted(circle);
+    const [centre, edge] = map.markers;
+
+    rerender({ at: { centre: { lat: 46.25, lon: 6.2 }, radiusM: 2000 } });
+    expect(centre?.position).toEqual({ lat: 46.25, lon: 6.2 });
+    expect(distanceM({ lat: 46.25, lon: 6.2 }, edge?.position ?? circle.centre)).toBeCloseTo(
+      2000,
+      0,
+    );
+    expect(map.markers).toHaveLength(2);
+
+    rerender({ at: null });
+    expect(map.markers.every((marker) => marker.removed)).toBe(true);
+  });
+
+  it('adds fresh markers after a new style and removes the old ones', () => {
+    const { map } = mounted(circle);
+
+    act(() => {
+      map.setStyle({ version: 8, sources: {}, layers: [] });
+      map.emitStyleReady();
+    });
+
+    expect(map.markers).toHaveLength(4);
+    expect(map.markers.slice(0, 2).every((marker) => marker.removed)).toBe(true);
+    expect(map.markers.slice(2).every((marker) => !marker.removed)).toBe(true);
   });
 });

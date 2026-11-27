@@ -5,12 +5,15 @@ from pricing_demo.application.build_planning import BuildPlanning
 from pricing_demo.application.built_counts import BuiltCounts
 from pricing_demo.application.ports.city_datasets import CityDatasets
 from pricing_demo.application.ports.city_instances import CityInstances
+from pricing_demo.application.ports.package_fingerprints import PackageFingerprints
 from pricing_demo.domain.build_plan import BuildPlan
 from pricing_demo.domain.city_instances import (
+    InstanceParameters,
     InstancePeriod,
     InstanceVersion,
     InstanceVersionNotFound,
     ParameterChange,
+    parameters_from_defaults,
     what_changes,
 )
 from pricing_demo.domain.instance_rules import RuleResult, check_rules
@@ -32,6 +35,9 @@ class InstanceVersionView:
     # The five headline numbers and the routes summary: None until the version is built.
     counts: Mapping[str, Number] | None = None
     routes: RoutesSummary | None = None
+    # The package's default values with the data set's preset, for a draft; None for a saved
+    # version or while no package is recorded.
+    package_defaults: InstanceParameters | None = None
 
 
 def build_view(
@@ -40,6 +46,7 @@ def build_view(
     datasets: CityDatasets,
     planning: BuildPlanning,
     built: BuiltCounts,
+    fingerprints: PackageFingerprints,
 ) -> InstanceVersionView:
     """The version with its periods, the rule results of its values, what differs from the
     version it is based on, its build plan and the verdict on that plan."""
@@ -54,6 +61,10 @@ def build_view(
     changes = what_changes(based_on.parameters, version.parameters) if based_on else []
     plan = planning.plan(version)
     counts, routes = built.of(version.id)
+    fingerprint = fingerprints.latest() if version.status == "draft" else None
+    package_defaults = (
+        parameters_from_defaults(fingerprint.defaults, dataset.preset) if fingerprint else None
+    )
     return InstanceVersionView(
         version,
         periods,
@@ -64,4 +75,5 @@ def build_view(
         planning.verdict(plan),
         counts,
         routes,
+        package_defaults,
     )

@@ -37,10 +37,18 @@ test.describe('Lab', () => {
     await expect(page.getByRole('contentinfo')).toContainText(
       'Pricing model: placeholder, Inria INOCS.',
     );
-    for (const absent of ['← Home', 'Next version', 'Simulation', '+ New', 'Run unmodified']) {
+    for (const absent of ['← Home', 'Next version', 'Simulation', 'Run unmodified']) {
       await expect(page.getByText(absent)).toHaveCount(0);
     }
     await expect(page.getByRole('link')).toHaveCount(0);
+    // The menu's "+ New" and the card's primary, which a Lab without city data disables.
+    await expect(page.getByRole('button', { name: '+ New', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '+ New city instance' })).toBeDisabled();
+    await expect(
+      page.getByText(
+        "No city data is imported yet. A city instance needs a timetable and bike stations; the maintainer imports Geneva's with one command (demo/README.md).",
+      ),
+    ).toBeVisible();
 
     // Every request goes to the stack's own host.
     const origin = new URL(baseURL ?? '').origin;

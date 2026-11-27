@@ -154,6 +154,7 @@ def create_application(settings: Settings) -> FastAPI:
         get_system_status.execute,
     )
 
+    fingerprints = PostgresPackageFingerprints(engine)
     return create_app(
         api_version=api_version,
         routers=[
@@ -163,15 +164,15 @@ def create_application(settings: Settings) -> FastAPI:
                 CreateCityInstance(
                     instances,
                     datasets,
-                    PostgresPackageFingerprints(engine),
+                    fingerprints,
                     clock,
                     planning,
                     built,
                 ),
                 ListCityInstances(instances, builds),
-                CreateInstanceVersion(instances, datasets, clock, planning, built),
-                GetInstanceVersion(instances, datasets, planning, built),
-                UpdateInstanceVersion(instances, datasets, planning, built),
+                CreateInstanceVersion(instances, datasets, clock, planning, built, fingerprints),
+                GetInstanceVersion(instances, datasets, planning, built, fingerprints),
+                UpdateInstanceVersion(instances, datasets, planning, built, fingerprints),
                 DeleteInstanceVersion(instances),
                 BuildInstanceVersion(instances, datasets, builds, planning, UuidV7Source(), clock),
                 GetRun(run_repository, clock),

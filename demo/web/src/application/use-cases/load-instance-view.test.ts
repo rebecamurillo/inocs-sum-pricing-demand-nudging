@@ -10,6 +10,7 @@ import {
   loadInstanceGeometry,
   loadInstanceMenu,
   loadInstanceView,
+  loadNewInstanceBasis,
   loadRouteFailures,
 } from './load-instance-view';
 
@@ -117,5 +118,59 @@ describe('loadInstanceMenu and loadInstanceGeometry', () => {
     expect(geometry.stations.map((s) => s.id)).toEqual(['p1', 'b1']);
     expect(geometry.hubs.map((h) => h.label)).toEqual(['Hub H1', 'Hub H2']);
     expect(geometry.hubPairs).toEqual([{ originHub: 'H1', destinationHub: 'H2' }]);
+  });
+});
+
+describe('loadNewInstanceBasis', () => {
+  const cityDatasets = {
+    list: () =>
+      Promise.resolve([
+        {
+          id: 'geneva-2026-11-26',
+          centre: { lat: 46.2, lon: 6.14 },
+          radiusM: 3000,
+          availableArea: [6, 46, 6.3, 46.4] as const,
+        },
+      ]),
+  };
+
+  it('offers the latest data set and a copy of each saved version', async () => {
+    const basis = await loadNewInstanceBasis({ cityInstances: fakeCityInstances(), cityDatasets });
+
+    expect(basis.dataset).toEqual(sampleDataset);
+    expect(basis.copies).toEqual([
+      { versionId: 'geneva-3km.v1', name: 'Geneva 3 km', number: 1 },
+      { versionId: 'geneva-2km.v1', name: 'Geneva 2 km', number: 1 },
+    ]);
+  });
+
+  it('has no data set and no copy on an empty Lab', async () => {
+    const basis = await loadNewInstanceBasis({
+      cityInstances: fakeCityInstances({ menu: () => Promise.resolve([]) }),
+      cityDatasets: { list: () => Promise.resolve([]) },
+    });
+
+    expect(basis).toEqual({ dataset: null, copies: [] });
+  });
+
+  it('leaves a draft out of the copies', async () => {
+    const basis = await loadNewInstanceBasis({
+      cityInstances: fakeCityInstances({
+        menu: () =>
+          Promise.resolve([
+            {
+              id: 'a',
+              name: 'A',
+              datasetId: 'd',
+              versions: [
+                { id: 'a.v1', number: 1, status: 'draft', state: 'draft', pricingVersionCount: 0 },
+              ],
+            },
+          ]),
+      }),
+      cityDatasets,
+    });
+
+    expect(basis.copies).toEqual([]);
   });
 });

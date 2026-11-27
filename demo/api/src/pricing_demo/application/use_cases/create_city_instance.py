@@ -73,4 +73,6 @@ class CreateCityInstance:
         instance = CityInstance(slug, name, dataset_id, next_number=2, created_at=now)
         draft = InstanceVersion(draft_id, slug, 1, based_on_id, "draft", parameters, now)
         self._instances.create(instance, draft, first_period(draft_id, dataset))
-        return build_view(draft, self._instances, self._datasets, self._planning, self._built)
+        return build_view(
+            draft, self._instances, self._datasets, self._planning, self._built, self._fingerprints
+        )

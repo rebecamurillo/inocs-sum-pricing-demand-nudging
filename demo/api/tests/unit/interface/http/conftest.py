@@ -223,10 +223,19 @@ class CityInstancesApp:
                         ),
                         ListCityInstances(self.instances, self.rig.builds),
                         CreateInstanceVersion(
-                            self.instances, self.datasets, self.clock, planning, built
+                            self.instances,
+                            self.datasets,
+                            self.clock,
+                            planning,
+                            built,
+                            self.fingerprints,
                         ),
-                        GetInstanceVersion(self.instances, self.datasets, planning, built),
-                        UpdateInstanceVersion(self.instances, self.datasets, planning, built),
+                        GetInstanceVersion(
+                            self.instances, self.datasets, planning, built, self.fingerprints
+                        ),
+                        UpdateInstanceVersion(
+                            self.instances, self.datasets, planning, built, self.fingerprints
+                        ),
                         DeleteInstanceVersion(self.instances),
                         self.rig.build,
                         GetRun(self.runs, self.clock),

@@ -605,6 +605,7 @@ class InstanceVersionResource(BaseModel):
     number: int
     based_on_id: str | None
     status: Literal["draft", "sealed"]
+    created_at: datetime = Field(description="When the version was created.")
     sealed_at: datetime | None = Field(description="When the version was saved; null for a draft.")
     state: str = Field(
         description="`draft`; for a saved version the state of its latest build: `queued`, "
@@ -619,6 +620,10 @@ class InstanceVersionResource(BaseModel):
     counts: InstanceCounts | None = Field(description="Null until the version is built.")
     routes: RoutesSummaryResource | None = Field(description="Null until the version is built.")
     build_plan: BuildPlanResource
+    package_defaults: InstanceParametersResource | None = Field(
+        description="The model package's default values with the data set's preset centre and "
+        "radius, for a draft; null for a saved version or while the package is not known."
+    )
 
     @classmethod
     def from_view(cls, view: InstanceVersionView) -> "InstanceVersionResource":
@@ -629,6 +634,7 @@ class InstanceVersionResource(BaseModel):
             number=version.number,
             based_on_id=version.based_on_id,
             status=version.status,
+            created_at=version.created_at,
             sealed_at=version.sealed_at,
             state=view.state,
             parameters=InstanceParametersResource(**version.parameters.as_dict()),
@@ -644,6 +650,9 @@ class InstanceVersionResource(BaseModel):
             if view.routes is not None
             else None,
             build_plan=BuildPlanResource.from_domain(view.plan, view.build_verdict),
+            package_defaults=InstanceParametersResource(**view.package_defaults.as_dict())
+            if view.package_defaults is not None
+            else None,
         )
 
 

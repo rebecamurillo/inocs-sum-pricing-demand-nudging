@@ -6,6 +6,7 @@ import {
   MIN_MAP_SHARE,
   clampMapShare,
 } from '../../domain/layout';
+import { NEW_INSTANCE_ACTION, NO_CITY_DATA } from '../../domain/draft-text';
 import { breadcrumb, periodChip } from '../../domain/l1-text';
 import type { LabRoute } from '../../domain/route';
 import {
@@ -13,7 +14,7 @@ import {
   missingInstanceVersionLabel,
   nothingAtThisLink,
 } from '../../domain/unknown-link';
-import { useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
+import { useInstanceMenu, useInstanceView, useNewInstanceBasis } from '../hooks/useCityInstances';
 import { useHashRoute } from '../hooks/useHashRoute';
 import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { useSystemStatus } from '../hooks/useSystemStatus';
@@ -22,7 +23,9 @@ import { MapProvider } from '../map/MapContext';
 import { LoadingCard } from './LoadingCard';
 import { Footer } from './Footer';
 import { InstanceMenu } from './InstanceMenu';
-import { InstanceView } from './InstanceView';
+import { DraftForm } from './DraftForm';
+import { InstanceView, type OpenedDraft } from './InstanceView';
+import { NewInstanceForm } from './NewInstanceForm';
 import styles from './LabShell.module.css';
 
 const MENU_WIDTH_PX = 264;
@@ -81,10 +84,33 @@ function MenuItem({
   );
 }
 
+/** The empty card's primary: disabled, with the reason, while no city data is imported. */
+function NewInstanceAction({ onNew }: { onNew: () => void }) {
+  const basis = useNewInstanceBasis();
+  const noCityData = basis.data?.dataset === null;
+  return (
+    <>
+      {noCityData && <p className={styles.cardText}>{NO_CITY_DATA}</p>}
+      <button
+        type="button"
+        className={styles.primary}
+        disabled={basis.data?.dataset == null}
+        onClick={onNew}
+      >
+        {NEW_INSTANCE_ACTION}
+      </button>
+    </>
+  );
+}
+
 export function LabShell() {
   const { route, navigate } = useHashRoute();
   const layout = useLayoutPreferences();
   const [choice, setChoice] = useState<MenuChoice>('instances');
+  // The new-instance form before its `POST` is a state of `#/lab`; it ends with any other link.
+  const [creating, setCreating] = useState(false);
+  // The sentence a draft opens with when the instance already had it: (draft id, sentence).
+  const [notice, setNotice] = useState<{ versionId: string; message: string } | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLElement>(null);
   // The poll runs for the views that come; the shell renders nothing from it yet.
@@ -92,6 +118,13 @@ export function LabShell() {
 
   const menu = useInstanceMenu();
   const entries = menu.data ?? [];
+  // Reset on a change of link, not on the render that follows "+ New": its hash change is
+  // still to come when "+ New" is clicked on another link.
+  const [seenRoute, setSeenRoute] = useState(route);
+  if (seenRoute !== route) {
+    setSeenRoute(route);
+    if (route.kind !== 'lab') setCreating(false);
+  }
 
   const { menuOpen, mapShown, advancedView, largeText } = layout.preferences;
   const mapShare = layout.mapShare(EMPTY_LAB_VIEW);
@@ -120,14 +153,32 @@ export function LabShell() {
       : unknownLink === null && !menuPending && !menuFailed
         ? choice
         : 'instances';
+  // The empty Lab: the card of City instances, with no instance listed.
+  const emptyLab =
+    menu.data !== undefined &&
+    entries.length === 0 &&
+    unknownLink === null &&
+    current === 'instances';
   const openedView = useInstanceView(openVersion?.versionId ?? null).data ?? null;
   const firstPeriod = openedView?.version.periods[0];
 
   const openVersionRow = (instanceId: string, number: number) => {
+    setCreating(false);
     navigate({ kind: 'instance', instance: { instanceId, version: number }, period: null });
   };
 
+  const openDraft = ({ instanceId, number, message }: OpenedDraft) => {
+    setNotice(message === null ? null : { versionId: `${instanceId}.v${String(number)}`, message });
+    navigate({ kind: 'instance', instance: { instanceId, version: number }, period: null });
+  };
+
+  const startNew = () => {
+    setCreating(true);
+    if (route.kind !== 'lab') navigate({ kind: 'lab', period: null });
+  };
+
   const open = (next: MenuChoice) => {
+    setCreating(false);
     setChoice(next);
     if (route.kind !== 'lab') navigate({ kind: 'lab', period: null });
   };
@@ -206,17 +257,15 @@ export function LabShell() {
                     onOpen={open}
                     onKeyDown={onMenuKeyDown}
                   />
-                  {/* Story 2-11 gives "+ New" its form; the empty Lab has no such button. */}
-                  {entries.length > 0 && (
-                    <button
-                      type="button"
-                      data-menu-item=""
-                      className={styles.newButton}
-                      onKeyDown={onMenuKeyDown}
-                    >
-                      + New
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    data-menu-item=""
+                    className={styles.newButton}
+                    onKeyDown={onMenuKeyDown}
+                    onClick={startNew}
+                  >
+                    + New
+                  </button>
                 </div>
                 {/* "No instance yet" only once the menu has answered with an empty list. */}
                 {menu.data !== undefined && (
@@ -305,11 +354,24 @@ export function LabShell() {
           <main className={styles.card}>
             {openVersion !== null ? (
               // Keyed by version: rows shown on the map and the open table go with the version.
-              <InstanceView
-                key={openVersion.versionId}
-                versionId={openVersion.versionId}
-                advancedView={advancedView}
-              />
+              linkedVersion?.status === 'draft' ? (
+                <DraftForm
+                  key={openVersion.versionId}
+                  versionId={openVersion.versionId}
+                  advancedView={advancedView}
+                  onNavigate={navigate}
+                  notice={notice?.versionId === openVersion.versionId ? notice.message : null}
+                />
+              ) : (
+                <InstanceView
+                  key={openVersion.versionId}
+                  versionId={openVersion.versionId}
+                  advancedView={advancedView}
+                  onOpenDraft={openDraft}
+                />
+              )
+            ) : creating ? (
+              <NewInstanceForm onNavigate={navigate} />
             ) : menuPending ? (
               <LoadingCard />
             ) : menuFailed ? (
@@ -317,11 +379,14 @@ export function LabShell() {
                 The city instance could not be read: {menu.error.message}
               </p>
             ) : (
-              <p className={styles.cardText}>
-                {unknownLink === null
-                  ? cardTexts[current ?? 'instances']
-                  : unknownLinkSentence(unknownLink, linkedEntry?.name ?? null)}
-              </p>
+              <>
+                <p className={styles.cardText}>
+                  {unknownLink === null
+                    ? cardTexts[current ?? 'instances']
+                    : unknownLinkSentence(unknownLink, linkedEntry?.name ?? null)}
+                </p>
+                {emptyLab && <NewInstanceAction onNew={startNew} />}
+              </>
             )}
           </main>
 

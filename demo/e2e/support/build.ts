@@ -58,3 +58,58 @@ export async function buildFakeInstance(
     .toBe('succeeded');
   return { version, runId: run.id };
 }
+
+/**
+ * Wait until the worker has recorded the package's defaults, which a new instance starts from.
+ * A throwaway instance is created and discarded: its draft is the only version, so discarding it
+ * removes the instance too.
+ */
+export async function awaitPackageDefaults(
+  request: APIRequestContext,
+  datasetId: string,
+): Promise<void> {
+  const probe = {
+    name: 'Probe',
+    dataset_id: datasetId,
+    start_from: { kind: 'package_defaults' },
+  };
+  await expect
+    .poll(async () => (await request.post('/api/v1/city-instances', { data: probe })).status(), {
+      timeout: PACKAGE_TIMEOUT_MS,
+      message: 'the package defaults are known',
+    })
+    .toBe(201);
+  const discarded = await request.delete('/api/v1/instance-versions/probe.v1');
+  expect(discarded.status()).toBe(204);
+}
+
+interface CountsAnswer {
+  counts: Record<
+    'stops' | 'bike_stations' | 'hubs' | 'hub_pairs_with_routes' | 'travellers',
+    { value: number }
+  > | null;
+}
+
+/** Wait until a version is built and return its five headline counts as the API gives them. */
+export async function builtCounts(
+  request: APIRequestContext,
+  version: string,
+): Promise<Record<string, number>> {
+  let found: Record<string, number> = {};
+  await expect
+    .poll(
+      async () => {
+        const answer = (await (
+          await request.get(`/api/v1/instance-versions/${version}`)
+        ).json()) as CountsAnswer;
+        if (answer.counts === null) return false;
+        found = Object.fromEntries(
+          Object.entries(answer.counts).map(([name, number]) => [name, number.value]),
+        );
+        return true;
+      },
+      { timeout: BUILD_TIMEOUT_MS, message: `${version} is built` },
+    )
+    .toBe(true);
+  return found;
+}

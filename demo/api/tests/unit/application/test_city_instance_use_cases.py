@@ -72,10 +72,14 @@ class Rig:
             self.instances, self.datasets, self.fingerprints, self.clock, planning, built
         )
         self.create_version = CreateInstanceVersion(
-            self.instances, self.datasets, self.clock, planning, built
+            self.instances, self.datasets, self.clock, planning, built, self.fingerprints
         )
-        self.update = UpdateInstanceVersion(self.instances, self.datasets, planning, built)
-        self.get = GetInstanceVersion(self.instances, self.datasets, planning, built)
+        self.update = UpdateInstanceVersion(
+            self.instances, self.datasets, planning, built, self.fingerprints
+        )
+        self.get = GetInstanceVersion(
+            self.instances, self.datasets, planning, built, self.fingerprints
+        )
         self.delete = DeleteInstanceVersion(self.instances)
         self.menu = ListCityInstances(self.instances, builds)
 
@@ -269,3 +273,45 @@ def test_the_menu_lists_instances_with_their_versions_by_number() -> None:
     assert [entry.instance.id for entry in menu] == ["geneva-3km", "lyon"]
     assert [version.number for version in menu[0].versions] == [1]
     assert replace(menu[0].versions[0], parameters=menu[0].versions[0].parameters).status == "draft"
+
+
+def test_a_draft_carries_the_package_defaults_and_its_creation_instant() -> None:
+    rig = Rig()
+
+    view = rig.geneva()
+
+    assert view.version.created_at == T0
+    # The values a new instance from the package defaults starts with.
+    assert view.package_defaults == view.version.parameters
+    edited = rig.update.execute(view.version.id, {"radius_m": 4000, "seed": 7})
+    assert edited.package_defaults == view.package_defaults
+    assert rig.get.execute(view.version.id).package_defaults == view.package_defaults
+
+
+def test_a_second_draft_carries_the_package_defaults() -> None:
+    rig = Rig()
+    first = rig.geneva()
+    rig.update.execute(first.version.id, {"radius_m": 4000})
+    rig.instances.seal(first.version.id, T0)
+
+    draft = rig.create_version.execute("geneva-3km", first.version.id)
+
+    assert draft.version.parameters.radius_m == 4000
+    assert draft.package_defaults is not None
+    assert draft.package_defaults.radius_m == 3000
+
+
+def test_a_sealed_version_has_no_package_defaults() -> None:
+    rig = Rig()
+    rig.geneva()
+    rig.instances.seal("geneva-3km.v1", T0)
+
+    assert rig.get.execute("geneva-3km.v1").package_defaults is None
+
+
+def test_a_draft_has_no_package_defaults_while_no_package_is_recorded() -> None:
+    rig = Rig()
+    rig.geneva()
+    rig.fingerprints.clear()
+
+    assert rig.get.execute("geneva-3km.v1").package_defaults is None

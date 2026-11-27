@@ -1,4 +1,4 @@
-import type { GeoBounds } from '../../domain/map';
+import type { GeoBounds, GeoPoint } from '../../domain/map';
 
 /**
  * The narrow view of a map the components use. The real map (MapLibre GL JS) is built by a
@@ -52,6 +52,21 @@ export interface CameraOptions {
   readonly animate: boolean;
 }
 
+export interface MarkerOptions {
+  readonly draggable: boolean;
+  /** The marker's accessible name. */
+  readonly label: string;
+  /** Called with the marker's position at every step of a drag. */
+  readonly onDrag?: (position: GeoPoint) => void;
+  /** Called with the marker's position when a drag ends. */
+  readonly onDragEnd?: (position: GeoPoint) => void;
+}
+
+export interface MarkerHandle {
+  setPosition(position: GeoPoint): void;
+  remove(): void;
+}
+
 export interface MapHandle {
   addSource(id: string, source: MapSourceSpec): void;
   removeSource(id: string): void;
@@ -61,6 +76,8 @@ export interface MapHandle {
   hasLayer(id: string): boolean;
   /** Replaces the whole style: the sources and layers views declared are gone afterwards. */
   setStyle(style: MapStyleSpec): void;
+  /** A marker over the map, outside the style: `setStyle` does not remove it. */
+  addMarker(position: GeoPoint, options: MarkerOptions): MarkerHandle;
   resize(): void;
   fitBounds(bounds: GeoBounds, options: CameraOptions): void;
   jumpTo(center: readonly [number, number], zoom: number): void;

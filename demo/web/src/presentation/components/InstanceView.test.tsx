@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CityInstanceGateway } from '../../application/ports/city-instance-gateway';
 import {
   fakeCityInstances,
+  sampleDraft,
   sampleFailedRoutes,
   sampleVersion,
 } from '../../application/ports/fake-city-instance-gateway';
@@ -14,7 +15,7 @@ import { GatewaysProvider } from '../hooks/gateways';
 import { fakeMapFactory, installBrowserStubs, type FakeMap } from '../map/fake-map';
 import { MapFactoryProvider, MapProvider } from '../map/MapContext';
 import { MapPane } from '../map/MapPane';
-import { InstanceView } from './InstanceView';
+import { InstanceView, type OpenedDraft } from './InstanceView';
 
 const failures: RouteFailure[] = [
   {
@@ -37,7 +38,11 @@ const failures: RouteFailure[] = [
 
 const failedVersion = { ...sampleVersion, routes: sampleFailedRoutes };
 
-function mount(cityInstances: CityInstanceGateway, advancedView = false) {
+function mount(
+  cityInstances: CityInstanceGateway,
+  advancedView = false,
+  onOpenDraft?: (draft: OpenedDraft) => void,
+) {
   const gateways: Gateways = {
     systemStatus: { load: () => Promise.reject(new Error('not called')) },
     layoutPreferences: { load: vi.fn(), save: vi.fn() },
@@ -54,7 +59,11 @@ function mount(cityInstances: CityInstanceGateway, advancedView = false) {
         <MapFactoryProvider factory={factory}>
           <MapProvider>
             <MapPane shown datasetId={null} />
-            <InstanceView versionId="geneva-3km.v1" advancedView={advancedView} />
+            <InstanceView
+              versionId="geneva-3km.v1"
+              advancedView={advancedView}
+              onOpenDraft={onOpenDraft}
+            />
           </MapProvider>
         </MapFactoryProvider>
       </GatewaysProvider>
@@ -369,5 +378,62 @@ describe('InstanceView · the Routes line', () => {
     );
 
     expect(await found('The failed queries could not be read.')).toBeInTheDocument();
+  });
+});
+
+describe('InstanceView · Edit as a new version', () => {
+  it('creates the draft based on this version and hands it over', async () => {
+    const createDraft = vi.fn(() =>
+      Promise.resolve({ kind: 'created' as const, version: sampleDraft }),
+    );
+    const onOpenDraft = vi.fn();
+    mount(fakeCityInstances({ createDraft }), false, onOpenDraft);
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Edit as a new version' }));
+
+    expect(createDraft).toHaveBeenCalledWith('geneva-3km', 'geneva-3km.v1');
+    await waitFor(() => {
+      expect(onOpenDraft).toHaveBeenCalledWith({
+        instanceId: 'geneva-3km',
+        number: 2,
+        message: null,
+      });
+    });
+  });
+
+  it('hands over the existing draft with the one-draft sentence', async () => {
+    const onOpenDraft = vi.fn();
+    mount(
+      fakeCityInstances({
+        createDraft: () => Promise.resolve({ kind: 'draft_exists', draftId: 'geneva-3km.v2' }),
+      }),
+      false,
+      onOpenDraft,
+    );
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Edit as a new version' }));
+
+    await waitFor(() => {
+      expect(onOpenDraft).toHaveBeenCalledWith({
+        instanceId: 'geneva-3km',
+        number: 2,
+        message:
+          'This instance already has a draft, started from v1 on 24 Nov. Continue it, or discard it first.',
+      });
+    });
+  });
+
+  it('shows the error when the draft cannot be created', async () => {
+    mount(fakeCityInstances({ createDraft: () => Promise.reject(new Error('The API is down.')) }));
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole('button', { name: 'Edit as a new version' }));
+
+    expect(await screen.findByText('The API is down.')).toBeInTheDocument();
   });
 });
