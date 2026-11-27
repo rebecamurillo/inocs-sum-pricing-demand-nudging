@@ -12,6 +12,7 @@ import type { Gateways } from '../../application/ports/gateways';
 import { DEFAULT_LAYOUT, type LayoutPreferencesValue } from '../../domain/layout';
 import type { SystemStatus } from '../../domain/system-status';
 import { GatewaysProvider } from '../hooks/gateways';
+import { INSTANCE_MENU_KEY } from '../hooks/useCityInstances';
 import { fakeMapFactory, installBrowserStubs } from '../map/fake-map';
 import { MapFactoryProvider } from '../map/MapContext';
 import { LabShell } from './LabShell';
@@ -43,6 +44,8 @@ function renderShell(
   };
   const { factory, maps } = fakeMapFactory();
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // The empty-Lab tests start from a menu already known to be empty (story 2-10, 2026-11-27).
+  if (cityInstances === emptyCityInstances) client.setQueryData(INSTANCE_MENU_KEY, []);
   render(
     <QueryClientProvider client={client}>
       <GatewaysProvider gateways={gateways}>
@@ -371,11 +374,71 @@ describe('LabShell · an open instance version', () => {
       }),
     );
 
-    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    // The menu answers first (its skeleton gives way to the version read's skeleton).
+    await screen.findByRole('button', { name: 'Instance set-up' });
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument();
     release();
 
     expect(await screen.findByText('City instance · pipeline steps 1 to 4')).toBeInTheDocument();
     expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
+  });
+
+  it('shows the skeleton, not "Nothing at this link", while the menu is read', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const base = instances();
+    renderShell(
+      DEFAULT_LAYOUT,
+      instances({
+        menu: async () => {
+          await gate;
+          return base.menu();
+        },
+      }),
+    );
+
+    expect(await screen.findByRole('status', { name: 'Loading' })).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing at this link/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Breadcrumb')).toHaveTextContent('City instances');
+    release();
+
+    expect(await screen.findByText('City instance · pipeline steps 1 to 4')).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing at this link/)).not.toBeInTheDocument();
+  });
+
+  it('shows the read error, not "Nothing at this link", when the menu cannot be read', async () => {
+    window.location.hash = '#/lab/geneva-3km.v1';
+    renderShell(DEFAULT_LAYOUT, instances({ menu: () => Promise.reject(new Error('offline')) }));
+
+    expect(
+      await screen.findByText(/The city instance could not be read: offline/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing at this link/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/may have been deleted/)).not.toBeInTheDocument();
+  });
+
+  it('writes "No instance yet" only once the menu has answered with no instance', async () => {
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    renderShell(
+      DEFAULT_LAYOUT,
+      instances({
+        menu: async () => {
+          await gate;
+          return [];
+        },
+      }),
+    );
+
+    expect(screen.queryByText('No instance yet')).not.toBeInTheDocument();
+    release();
+
+    expect(await screen.findByText('No instance yet')).toBeInTheDocument();
   });
 
   it('has no period chip when no instance version is open', () => {

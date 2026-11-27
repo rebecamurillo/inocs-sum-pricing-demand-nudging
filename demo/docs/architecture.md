@@ -422,8 +422,10 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   `/city-datasets` and `/runs/{id}/route-failures`) feeds the use cases of
   `application/use-cases/load-instance-view.ts`. Every sentence of the view is built by a pure
   function of `domain/l1-text.ts`, so components only place text. `LabShell` decides from the
-  menu whether an instance link names an existing version (the menu answering later than the
-  first render counts as an empty one), shows `InstanceMenu` and the period chip, and gives
+  menu whether an instance link names an existing version (while the menu is pending the card
+  shows the skeleton, when its read fails "The city instance could not be read: {message}", and
+  "Nothing at this link" only once it has answered without the version), shows `InstanceMenu`
+  once the menu has answered ("No instance yet" only for an empty list) and the period chip, and gives
   `InstanceView` the card: it shows the skeleton while its reads are pending, declares
   `l1Layers(...)` and the study circle's fit, and, for "Show on map" on a route failure, the dotted
   red `unroutedPairLayer(...)` and a legend entry (`useMapLegend`) that `MapPane` lists over the

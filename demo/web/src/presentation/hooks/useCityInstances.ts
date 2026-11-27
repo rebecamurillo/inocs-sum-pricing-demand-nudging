@@ -8,11 +8,13 @@ import {
 import type { RoutesSummary } from '../../domain/city-instance';
 import { useGateways } from './gateways';
 
+export const INSTANCE_MENU_KEY = ['instance-menu'] as const;
+
 /** The instances and their versions, for the menu. */
 export function useInstanceMenu() {
   const { cityInstances } = useGateways();
   return useQuery({
-    queryKey: ['instance-menu'],
+    queryKey: INSTANCE_MENU_KEY,
     queryFn: () => loadInstanceMenu({ cityInstances }),
   });
 }

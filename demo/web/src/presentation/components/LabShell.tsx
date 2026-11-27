@@ -19,6 +19,7 @@ import { useLayoutPreferences } from '../hooks/useLayoutPreferences';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { MapPane } from '../map/MapPane';
 import { MapProvider } from '../map/MapContext';
+import { LoadingCard } from './LoadingCard';
 import { Footer } from './Footer';
 import { InstanceMenu } from './InstanceMenu';
 import { InstanceView } from './InstanceView';
@@ -89,7 +90,8 @@ export function LabShell() {
   // The poll runs for the views that come; the shell renders nothing from it yet.
   useSystemStatus();
 
-  const entries = useInstanceMenu().data ?? [];
+  const menu = useInstanceMenu();
+  const entries = menu.data ?? [];
 
   const { menuOpen, mapShown, advancedView, largeText } = layout.preferences;
   const mapShare = layout.mapShare(EMPTY_LAB_VIEW);
@@ -107,9 +109,17 @@ export function LabShell() {
     linkedEntry !== undefined && linkedVersion !== undefined
       ? { instanceId: linkedEntry.id, versionId: linkedVersion.id }
       : null;
-  const unknownLink = route.kind === 'lab' || openVersion !== null ? null : route;
+  // A link naming an instance version waits for the menu; only an answered menu says it is unknown.
+  const menuPending = route.kind === 'instance' && menu.isPending;
+  const menuFailed = route.kind === 'instance' && menu.isError;
+  const unknownLink =
+    route.kind === 'lab' || openVersion !== null || menuPending || menuFailed ? null : route;
   const current: MenuChoice | null =
-    openVersion !== null ? null : unknownLink === null ? choice : 'instances';
+    openVersion !== null
+      ? null
+      : unknownLink === null && !menuPending && !menuFailed
+        ? choice
+        : 'instances';
   const openedView = useInstanceView(openVersion?.versionId ?? null).data ?? null;
   const firstPeriod = openedView?.version.periods[0];
 
@@ -208,13 +218,16 @@ export function LabShell() {
                     </button>
                   )}
                 </div>
-                <InstanceMenu
-                  entries={entries}
-                  open={openVersion}
-                  setupCurrent={openVersion !== null}
-                  onOpenVersion={openVersionRow}
-                  onKeyDown={onMenuKeyDown}
-                />
+                {/* "No instance yet" only once the menu has answered with an empty list. */}
+                {menu.data !== undefined && (
+                  <InstanceMenu
+                    entries={entries}
+                    open={openVersion}
+                    setupCurrent={openVersion !== null}
+                    onOpenVersion={openVersionRow}
+                    onKeyDown={onMenuKeyDown}
+                  />
+                )}
                 <MenuItem
                   choice="compare"
                   current={current}
@@ -297,6 +310,12 @@ export function LabShell() {
                 versionId={openVersion.versionId}
                 advancedView={advancedView}
               />
+            ) : menuPending ? (
+              <LoadingCard />
+            ) : menuFailed ? (
+              <p className={styles.error}>
+                The city instance could not be read: {menu.error.message}
+              </p>
             ) : (
               <p className={styles.cardText}>
                 {unknownLink === null

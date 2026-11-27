@@ -194,6 +194,11 @@
   margin: 0;
 }
 
+.error {
+  margin: 0;
+  color: var(--red-ink);
+}
+
 .grip {
   grid-column: 3;
   grid-row: 2;
