@@ -18,6 +18,7 @@ from pricing_demo.application.result_lookup import ResultLookup
 from pricing_demo.application.step_durations import StepDurations
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.cancel_run import CancelRun
+from pricing_demo.application.use_cases.compare_pricing_versions import ComparePricingVersions
 from pricing_demo.application.use_cases.create_city_instance import CreateCityInstance
 from pricing_demo.application.use_cases.create_instance_version import CreateInstanceVersion
 from pricing_demo.application.use_cases.create_pricing_version import CreatePricingVersion
@@ -85,6 +86,7 @@ from pricing_demo.infrastructure.persistence.truncate import truncate_all
 from pricing_demo.interface.http.app import Lifespan, create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
+from pricing_demo.interface.http.routers.comparisons import build_comparisons_router
 from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.showcase import build_showcase_router
@@ -186,6 +188,15 @@ def create_application(settings: Settings) -> FastAPI:
     solves = PostgresSolves(engine)
     lookup = ResultLookup(pricing_versions, solves, simulations)
     showcase = PostgresShowcase(engine)
+    get_result = GetPricingResult(
+        lookup,
+        simulations,
+        instances,
+        datasets,
+        artifacts,
+        fingerprints,
+        get_system_status.execute,
+    )
     return create_app(
         api_version=api_version,
         routers=[
@@ -236,17 +247,12 @@ def create_application(settings: Settings) -> FastAPI:
                 ListPricingVersionSimulations(
                     pricing_versions, simulations, get_system_status.execute
                 ),
-                GetPricingResult(
-                    lookup,
-                    simulations,
-                    instances,
-                    datasets,
-                    artifacts,
-                    fingerprints,
-                    get_system_status.execute,
-                ),
+                get_result,
                 ListHubPairResults(lookup, solves, artifacts, read_model),
                 ListHubResults(lookup, artifacts, read_model),
+            ),
+            build_comparisons_router(
+                ComparePricingVersions(pricing_versions, get_result, solves, instances)
             ),
             build_showcase_router(
                 MarkShowcase(lookup, showcase, clock), GetShowcase(showcase, lookup, instances)

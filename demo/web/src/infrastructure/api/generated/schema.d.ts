@@ -73,6 +73,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/comparisons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Two to four finished pricing versions of one instance version, side by side */
+        get: operations["comparePricingVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/instance-versions/{version_id}": {
         parameters: {
             query?: never;
@@ -538,6 +555,148 @@ export interface components {
             versions: components["schemas"]["MenuVersion"][];
         };
         /**
+         * ComparedSimulationResource
+         * @description A simulation a compared version is read with: the latest of its scheme.
+         */
+        ComparedSimulationResource: {
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            /** Rule Current */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+        };
+        /** ComparedVersionResource */
+        ComparedVersionResource: {
+            /**
+             * Flat Reference
+             * @description The `id` of its entry in `flat_references`.
+             */
+            flat_reference: string;
+            /**
+             * Goals
+             * @description The eight goals of the version, keyed by goal name.
+             */
+            goals: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Id */
+            id: string;
+            /** Letter */
+            letter: string;
+            /** Model Split */
+            model_split: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Name */
+            name: string;
+            package: components["schemas"]["PackageResource"];
+            /**
+             * Simulations
+             * @description `model_prices`, then `flat`.
+             */
+            simulations: components["schemas"]["ComparedSimulationResource"][];
+            /** Solve Key */
+            solve_key: string;
+        };
+        /** ComparisonGroupResource */
+        ComparisonGroupResource: {
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "simulated" | "model" | "derived" | "goals_that_differ" | "solver";
+            /** Rows */
+            rows: components["schemas"]["ComparisonRowResource"][];
+        };
+        /** ComparisonInstanceVersion */
+        ComparisonInstanceVersion: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @description The instance name and number, as "{name} v{number}".
+             */
+            name: string;
+        };
+        /** ComparisonPeriod */
+        ComparisonPeriod: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** ComparisonResponse */
+        ComparisonResponse: {
+            /** Flat References */
+            flat_references: components["schemas"]["FlatReferenceResource"][];
+            /**
+             * Groups
+             * @description `simulated`, `model`, `derived`, `goals_that_differ`, `solver`.
+             */
+            groups: components["schemas"]["ComparisonGroupResource"][];
+            /** Hub Differences */
+            hub_differences: components["schemas"]["HubDifferenceResource"][];
+            /**
+             * Identical Solves
+             * @description Letters of versions whose result is the same stored solve; empty when none.
+             */
+            identical_solves: string[][];
+            instance_version: components["schemas"]["ComparisonInstanceVersion"];
+            pair_differences: components["schemas"]["PairDifferences"];
+            period: components["schemas"]["ComparisonPeriod"];
+            /**
+             * Versions
+             * @description In letter order.
+             */
+            versions: components["schemas"]["ComparedVersionResource"][];
+        };
+        /** ComparisonRowResource */
+        ComparisonRowResource: {
+            /**
+             * Best
+             * @description The letters with the best value; empty when none.
+             */
+            best: string[];
+            /**
+             * Changes
+             * @description Simulated group only: the model's prices minus the flat simulation.
+             */
+            changes: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            };
+            /**
+             * Flats
+             * @description Simulated group only: the value per flat reference id.
+             */
+            flats: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            };
+            /**
+             * Key
+             * @description A stable key; the screen owns the label.
+             */
+            key: string;
+            /**
+             * Values
+             * @description Per version letter; null when the version has no value.
+             */
+            values: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            };
+        };
+        /**
          * ComponentName
          * @description The parts of the system an action depends on, in the order they are reported.
          * @enum {string}
@@ -596,6 +755,33 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** FlatReferenceResource */
+        FlatReferenceResource: {
+            /**
+             * Id
+             * @description The flat simulation's key.
+             */
+            id: string;
+            /**
+             * Letters
+             * @description The versions this flat simulation serves.
+             */
+            letters: string[];
+            /** Rule Current */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Values */
+            values: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+        };
         /**
          * GoalResource
          * @description One goal: what the model's own result says (absent when it says nothing), the value
@@ -612,6 +798,19 @@ export interface components {
              * @enum {string}
              */
             name: "ridership" | "revenue" | "cost" | "profit" | "mean_bike_price" | "stations_empty" | "stations_full";
+        };
+        /** HubDifferenceResource */
+        HubDifferenceResource: {
+            /** Hub Id */
+            hub_id: string;
+            mean_price_a: components["schemas"]["NumberResource"] | null;
+            mean_price_b: components["schemas"]["NumberResource"] | null;
+            /** @description The mean bike price of `b` minus `b`'s flat price per ride. */
+            price_b_minus_flat: components["schemas"]["NumberResource"] | null;
+            price_difference: components["schemas"]["NumberResource"] | null;
+            rides_starting_a: components["schemas"]["NumberResource"] | null;
+            rides_starting_b: components["schemas"]["NumberResource"] | null;
+            rides_starting_difference: components["schemas"]["NumberResource"] | null;
         };
         /** HubList */
         HubList: {
@@ -938,6 +1137,41 @@ export interface components {
              * @enum {string}
              */
             kind: "package_defaults";
+        };
+        /** PackageResource */
+        PackageResource: {
+            /** Commit */
+            commit: string | null;
+            /** Fingerprint */
+            fingerprint: string;
+        };
+        /** PairDifferenceResource */
+        PairDifferenceResource: {
+            /** Destination Hub */
+            destination_hub: string;
+            mean_price_a: components["schemas"]["NumberResource"];
+            mean_price_b: components["schemas"]["NumberResource"];
+            /** Origin Hub */
+            origin_hub: string;
+            price_difference: components["schemas"]["NumberResource"];
+            travellers_a: components["schemas"]["NumberResource"];
+            travellers_b: components["schemas"]["NumberResource"];
+            travellers_difference: components["schemas"]["NumberResource"];
+        };
+        /** PairDifferences */
+        PairDifferences: {
+            /**
+             * A
+             * @description The letter of the version before the last.
+             */
+            a: string;
+            /**
+             * B
+             * @description The letter of the last version; differences are `b` minus `a`.
+             */
+            b: string;
+            /** Pairs */
+            pairs: components["schemas"]["PairDifferenceResource"][];
         };
         /** ParameterChangeResource */
         ParameterChangeResource: {
@@ -1974,6 +2208,67 @@ export interface operations {
                 };
             };
             /** @description The request is not valid, or the version to base on is unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    comparePricingVersions: {
+        parameters: {
+            query: {
+                /** @description Two to four pricing version ids, separated by commas. */
+                pricing_versions: string;
+                /** @description The period's id; the versions' first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `different_instances`: the versions belong to different instance versions, or `no_result`: a version has no result */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `version_count_out_of_range`: fewer than two or more than four versions, or the request is not valid */
             422: {
                 headers: {
                     [name: string]: unknown;

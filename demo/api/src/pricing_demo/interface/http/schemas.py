@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, field_validator
 from pricing_demo.application.instance_version_view import InstanceVersionView
 from pricing_demo.application.pricing_version_view import PricingVersionView
 from pricing_demo.application.run_view import RunView
+from pricing_demo.application.use_cases.compare_pricing_versions import (
+    ComparedVersionView,
+    Comparison,
+)
 from pricing_demo.application.use_cases.get_pricing_result import (
     GoalComparison,
     PricingResult,
@@ -28,6 +32,13 @@ from pricing_demo.domain.city_instances import (
     InstancePeriod,
     Number,
     ParameterChange,
+)
+from pricing_demo.domain.comparison import (
+    ComparisonGroup,
+    ComparisonRow,
+    FlatReference,
+    HubDifference,
+    PairDifference,
 )
 from pricing_demo.domain.failure_codes import FAILURE_CODES
 from pricing_demo.domain.instance_rules import RuleResult, RuleValue
@@ -1447,4 +1458,230 @@ class ShowcaseResponse(BaseModel):
             instance_version_id=view.instance_version_id,
             instance_version_name=view.instance_version_name,
             headline=_numbers(view.headline),
+        )
+
+
+class ComparisonInstanceVersion(BaseModel):
+    id: str
+    name: str = Field(description='The instance name and number, as "{name} v{number}".')
+
+
+class ComparisonPeriod(BaseModel):
+    id: str
+    name: str
+
+
+class PackageResource(BaseModel):
+    fingerprint: str
+    commit: str | None
+
+
+class ComparedSimulationResource(BaseModel):
+    """A simulation a compared version is read with: the latest of its scheme."""
+
+    price_scheme: Literal["model_prices", "flat"]
+    simulation_key: str
+    rule_id: str
+    rule_version: int
+    rule_parameters: dict[str, float]
+    rule_current: bool
+
+
+class ComparedVersionResource(BaseModel):
+    id: str
+    letter: str
+    name: str
+    goals: dict[str, NumberResource] = Field(
+        description="The eight goals of the version, keyed by goal name."
+    )
+    package: PackageResource
+    simulations: list[ComparedSimulationResource] = Field(
+        description="`model_prices`, then `flat`."
+    )
+    model_split: dict[str, NumberResource]
+    flat_reference: str = Field(description="The `id` of its entry in `flat_references`.")
+    solve_key: str
+
+    @classmethod
+    def from_view(cls, view: ComparedVersionView) -> "ComparedVersionResource":
+        return cls(
+            id=view.version.id,
+            letter=view.version.letter,
+            name=view.version.name,
+            goals=_numbers(view.goals),
+            package=PackageResource(
+                fingerprint=view.package_fingerprint, commit=view.package_commit
+            ),
+            simulations=[
+                ComparedSimulationResource(
+                    price_scheme=item.link.price_scheme,
+                    simulation_key=item.link.simulation_key,
+                    rule_id=item.link.rule_id,
+                    rule_version=item.link.rule_version,
+                    rule_parameters=dict(item.summary.rule_parameters),
+                    rule_current=item.rule_current,
+                )
+                for item in view.result.simulations
+            ],
+            model_split=_numbers(view.result.model_split),
+            flat_reference=view.flat_reference,
+            solve_key=view.result.provenance.solve_key,
+        )
+
+
+class FlatReferenceResource(BaseModel):
+    id: str = Field(description="The flat simulation's key.")
+    letters: list[str] = Field(description="The versions this flat simulation serves.")
+    values: dict[str, NumberResource]
+    rule_id: str
+    rule_version: int
+    rule_parameters: dict[str, float]
+    rule_current: bool
+
+    @classmethod
+    def from_domain(cls, item: FlatReference) -> "FlatReferenceResource":
+        return cls(
+            id=item.id,
+            letters=list(item.letters),
+            values=_numbers(item.values),
+            rule_id=item.rule_id,
+            rule_version=item.rule_version,
+            rule_parameters=dict(item.rule_parameters),
+            rule_current=item.rule_current,
+        )
+
+
+def _optional_numbers(
+    items: Mapping[str, DomainNumber | None],
+) -> "dict[str, NumberResource | None]":
+    return {name: _number(item) for name, item in items.items()}
+
+
+class ComparisonRowResource(BaseModel):
+    key: str = Field(description="A stable key; the screen owns the label.")
+    values: dict[str, NumberResource | None] = Field(
+        description="Per version letter; null when the version has no value."
+    )
+    changes: dict[str, NumberResource | None] = Field(
+        description="Simulated group only: the model's prices minus the flat simulation."
+    )
+    flats: dict[str, NumberResource | None] = Field(
+        description="Simulated group only: the value per flat reference id."
+    )
+    best: list[str] = Field(description="The letters with the best value; empty when none.")
+
+    @classmethod
+    def from_domain(cls, item: ComparisonRow) -> "ComparisonRowResource":
+        return cls(
+            key=item.key,
+            values=_optional_numbers(item.values),
+            changes=_optional_numbers(item.changes),
+            flats=_optional_numbers(item.flats),
+            best=list(item.best),
+        )
+
+
+class ComparisonGroupResource(BaseModel):
+    name: Literal["simulated", "model", "derived", "goals_that_differ", "solver"]
+    rows: list[ComparisonRowResource]
+
+    @classmethod
+    def from_domain(cls, item: ComparisonGroup) -> "ComparisonGroupResource":
+        return cls(
+            name=item.name,
+            rows=[ComparisonRowResource.from_domain(row) for row in item.rows],
+        )
+
+
+class PairDifferenceResource(BaseModel):
+    origin_hub: str
+    destination_hub: str
+    mean_price_a: NumberResource
+    mean_price_b: NumberResource
+    price_difference: NumberResource
+    travellers_a: NumberResource
+    travellers_b: NumberResource
+    travellers_difference: NumberResource
+
+    @classmethod
+    def from_domain(cls, item: PairDifference) -> "PairDifferenceResource":
+        return cls(
+            origin_hub=item.origin_hub,
+            destination_hub=item.destination_hub,
+            mean_price_a=NumberResource.from_domain(item.mean_price_a),
+            mean_price_b=NumberResource.from_domain(item.mean_price_b),
+            price_difference=NumberResource.from_domain(item.price_difference),
+            travellers_a=NumberResource.from_domain(item.travellers_a),
+            travellers_b=NumberResource.from_domain(item.travellers_b),
+            travellers_difference=NumberResource.from_domain(item.travellers_difference),
+        )
+
+
+class PairDifferences(BaseModel):
+    a: str = Field(description="The letter of the version before the last.")
+    b: str = Field(description="The letter of the last version; differences are `b` minus `a`.")
+    pairs: list[PairDifferenceResource]
+
+
+class HubDifferenceResource(BaseModel):
+    hub_id: str
+    mean_price_a: NumberResource | None
+    mean_price_b: NumberResource | None
+    price_difference: NumberResource | None
+    price_b_minus_flat: NumberResource | None = Field(
+        description="The mean bike price of `b` minus `b`'s flat price per ride."
+    )
+    rides_starting_a: NumberResource | None
+    rides_starting_b: NumberResource | None
+    rides_starting_difference: NumberResource | None
+
+    @classmethod
+    def from_domain(cls, item: HubDifference) -> "HubDifferenceResource":
+        return cls(
+            hub_id=item.hub_id,
+            mean_price_a=_number(item.mean_price_a),
+            mean_price_b=_number(item.mean_price_b),
+            price_difference=_number(item.price_difference),
+            price_b_minus_flat=_number(item.price_b_minus_flat),
+            rides_starting_a=_number(item.rides_starting_a),
+            rides_starting_b=_number(item.rides_starting_b),
+            rides_starting_difference=_number(item.rides_starting_difference),
+        )
+
+
+class ComparisonResponse(BaseModel):
+    instance_version: ComparisonInstanceVersion
+    period: ComparisonPeriod
+    versions: list[ComparedVersionResource] = Field(description="In letter order.")
+    flat_references: list[FlatReferenceResource]
+    groups: list[ComparisonGroupResource] = Field(
+        description="`simulated`, `model`, `derived`, `goals_that_differ`, `solver`."
+    )
+    pair_differences: PairDifferences
+    hub_differences: list[HubDifferenceResource]
+    identical_solves: list[list[str]] = Field(
+        description="Letters of versions whose result is the same stored solve; empty when none."
+    )
+
+    @classmethod
+    def from_domain(cls, item: Comparison) -> "ComparisonResponse":
+        return cls(
+            instance_version=ComparisonInstanceVersion(
+                id=item.instance_version_id, name=item.instance_version_name
+            ),
+            period=ComparisonPeriod(id=item.period_id, name=item.period_name),
+            versions=[ComparedVersionResource.from_view(view) for view in item.versions],
+            flat_references=[
+                FlatReferenceResource.from_domain(ref) for ref in item.flat_references
+            ],
+            groups=[ComparisonGroupResource.from_domain(group) for group in item.groups],
+            pair_differences=PairDifferences(
+                a=item.pair_difference_letters[0],
+                b=item.pair_difference_letters[1],
+                pairs=[PairDifferenceResource.from_domain(pair) for pair in item.pair_differences],
+            ),
+            hub_differences=[
+                HubDifferenceResource.from_domain(hub) for hub in item.hub_differences
+            ],
+            identical_solves=[list(letters) for letters in item.identical_solves],
         )

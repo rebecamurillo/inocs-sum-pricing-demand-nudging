@@ -56,6 +56,7 @@ from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailur
 from pricing_demo.interface.http.app import create_app
 from pricing_demo.interface.http.routers.city_datasets import build_city_datasets_router
 from pricing_demo.interface.http.routers.city_instances import build_city_instances_router
+from pricing_demo.interface.http.routers.comparisons import build_comparisons_router
 from pricing_demo.interface.http.routers.pricing_versions import build_pricing_versions_router
 from pricing_demo.interface.http.routers.runs import build_runs_router
 from pricing_demo.interface.http.routers.showcase import build_showcase_router
@@ -333,6 +334,7 @@ class ResultsApp:
                         self.results.hub_pairs,
                         self.results.hubs,
                     ),
+                    build_comparisons_router(self.results.compare),
                     build_showcase_router(self.results.mark, self.results.get_showcase),
                 ],
             ),

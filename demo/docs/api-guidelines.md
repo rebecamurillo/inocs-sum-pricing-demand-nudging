@@ -86,6 +86,10 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   has not succeeded, or its solve, its summary or one of its two simulations is missing.
   `is_showcase` (409) refuses the deletion of the showcased pricing version; `no_showcase` (404)
   answers `GET /showcase` when none is marked. Neither has an extension member.
+  `GET /comparisons` answers `409 different_instances` (the versions belong to different instance
+  versions), `409 no_result` (a version has no result; the three result routes answer `404`
+  instead) and `422 version_count_out_of_range` (fewer than two or more than four ids). None has
+  an extension member.
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

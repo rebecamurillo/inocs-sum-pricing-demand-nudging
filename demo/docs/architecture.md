@@ -401,6 +401,16 @@ the latest simulation of each scheme and every number as `{value, unit, source, 
 solve's quality, the objective's terms and the package summary's averages are in the advanced group
 only.
 
+`GET /api/v1/comparisons?pricing_versions=a,b[,c,d]&period=` (`ComparePricingVersions`) puts two to
+four finished versions of one instance version side by side. It checks, in this order, the count
+(`VersionCountOutOfRange`, `422 version_count_out_of_range`), that each id exists (`404`), that
+the versions share an instance version (`DifferentInstances`, `409 different_instances`), and that
+each has a result (`409 no_result`: `ResultNotFound` from `GetPricingResult`, which reuses
+`ResultLookup`, becomes `NoResult`; the result routes keep their `404`). Nothing is stored: the
+rows, the best values, the flat references (one per flat simulation key), the identical-solve
+groups and the per-pair and per-hub differences are computed in `domain/comparison.py` from the
+stored results on each request.
+
 ### Builds and the artefact store
 
 `POST /api/v1/instance-versions/{id}/builds` (`BuildInstanceVersion`) checks, in this order,

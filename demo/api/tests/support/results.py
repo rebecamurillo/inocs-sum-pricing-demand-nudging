@@ -5,6 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from pricing_demo.application.result_lookup import ResultLookup
+from pricing_demo.application.use_cases.compare_pricing_versions import ComparePricingVersions
 from pricing_demo.application.use_cases.get_pricing_result import GetPricingResult
 from pricing_demo.application.use_cases.get_showcase import GetShowcase
 from pricing_demo.application.use_cases.list_hub_pair_results import ListHubPairResults
@@ -35,6 +36,9 @@ class ResultRig(PricingRig):
             base.artifacts,
             self.fingerprints,
             base.status,
+        )
+        self.compare = ComparePricingVersions(
+            base.pricing, self.result, base.solves, base.instances
         )
         self.hub_pairs = ListHubPairResults(
             self.lookup, base.solves, base.artifacts, base.read_model

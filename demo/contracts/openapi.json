@@ -239,6 +239,318 @@
         "title": "CityInstanceMenuItem",
         "type": "object"
       },
+      "ComparedSimulationResource": {
+        "description": "A simulation a compared version is read with: the latest of its scheme.",
+        "properties": {
+          "price_scheme": {
+            "enum": [
+              "model_prices",
+              "flat"
+            ],
+            "title": "Price Scheme",
+            "type": "string"
+          },
+          "rule_current": {
+            "title": "Rule Current",
+            "type": "boolean"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Rule Parameters",
+            "type": "object"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          },
+          "simulation_key": {
+            "title": "Simulation Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price_scheme",
+          "simulation_key",
+          "rule_id",
+          "rule_version",
+          "rule_parameters",
+          "rule_current"
+        ],
+        "title": "ComparedSimulationResource",
+        "type": "object"
+      },
+      "ComparedVersionResource": {
+        "properties": {
+          "flat_reference": {
+            "description": "The `id` of its entry in `flat_references`.",
+            "title": "Flat Reference",
+            "type": "string"
+          },
+          "goals": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "description": "The eight goals of the version, keyed by goal name.",
+            "title": "Goals",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "letter": {
+            "title": "Letter",
+            "type": "string"
+          },
+          "model_split": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "title": "Model Split",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "package": {
+            "$ref": "#/components/schemas/PackageResource"
+          },
+          "simulations": {
+            "description": "`model_prices`, then `flat`.",
+            "items": {
+              "$ref": "#/components/schemas/ComparedSimulationResource"
+            },
+            "title": "Simulations",
+            "type": "array"
+          },
+          "solve_key": {
+            "title": "Solve Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "letter",
+          "name",
+          "goals",
+          "package",
+          "simulations",
+          "model_split",
+          "flat_reference",
+          "solve_key"
+        ],
+        "title": "ComparedVersionResource",
+        "type": "object"
+      },
+      "ComparisonGroupResource": {
+        "properties": {
+          "name": {
+            "enum": [
+              "simulated",
+              "model",
+              "derived",
+              "goals_that_differ",
+              "solver"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ComparisonRowResource"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "rows"
+        ],
+        "title": "ComparisonGroupResource",
+        "type": "object"
+      },
+      "ComparisonInstanceVersion": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "The instance name and number, as \"{name} v{number}\".",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ComparisonInstanceVersion",
+        "type": "object"
+      },
+      "ComparisonPeriod": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "ComparisonPeriod",
+        "type": "object"
+      },
+      "ComparisonResponse": {
+        "properties": {
+          "flat_references": {
+            "items": {
+              "$ref": "#/components/schemas/FlatReferenceResource"
+            },
+            "title": "Flat References",
+            "type": "array"
+          },
+          "groups": {
+            "description": "`simulated`, `model`, `derived`, `goals_that_differ`, `solver`.",
+            "items": {
+              "$ref": "#/components/schemas/ComparisonGroupResource"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "hub_differences": {
+            "items": {
+              "$ref": "#/components/schemas/HubDifferenceResource"
+            },
+            "title": "Hub Differences",
+            "type": "array"
+          },
+          "identical_solves": {
+            "description": "Letters of versions whose result is the same stored solve; empty when none.",
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Identical Solves",
+            "type": "array"
+          },
+          "instance_version": {
+            "$ref": "#/components/schemas/ComparisonInstanceVersion"
+          },
+          "pair_differences": {
+            "$ref": "#/components/schemas/PairDifferences"
+          },
+          "period": {
+            "$ref": "#/components/schemas/ComparisonPeriod"
+          },
+          "versions": {
+            "description": "In letter order.",
+            "items": {
+              "$ref": "#/components/schemas/ComparedVersionResource"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance_version",
+          "period",
+          "versions",
+          "flat_references",
+          "groups",
+          "pair_differences",
+          "hub_differences",
+          "identical_solves"
+        ],
+        "title": "ComparisonResponse",
+        "type": "object"
+      },
+      "ComparisonRowResource": {
+        "properties": {
+          "best": {
+            "description": "The letters with the best value; empty when none.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Best",
+            "type": "array"
+          },
+          "changes": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberResource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Simulated group only: the model's prices minus the flat simulation.",
+            "title": "Changes",
+            "type": "object"
+          },
+          "flats": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberResource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Simulated group only: the value per flat reference id.",
+            "title": "Flats",
+            "type": "object"
+          },
+          "key": {
+            "description": "A stable key; the screen owns the label.",
+            "title": "Key",
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/NumberResource"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "description": "Per version letter; null when the version has no value.",
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "key",
+          "values",
+          "changes",
+          "flats",
+          "best"
+        ],
+        "title": "ComparisonRowResource",
+        "type": "object"
+      },
       "ComponentName": {
         "description": "The parts of the system an action depends on, in the order they are reported.",
         "enum": [
@@ -410,6 +722,60 @@
         "title": "FieldError",
         "type": "object"
       },
+      "FlatReferenceResource": {
+        "properties": {
+          "id": {
+            "description": "The flat simulation's key.",
+            "title": "Id",
+            "type": "string"
+          },
+          "letters": {
+            "description": "The versions this flat simulation serves.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Letters",
+            "type": "array"
+          },
+          "rule_current": {
+            "title": "Rule Current",
+            "type": "boolean"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "rule_parameters": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Rule Parameters",
+            "type": "object"
+          },
+          "rule_version": {
+            "title": "Rule Version",
+            "type": "integer"
+          },
+          "values": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumberResource"
+            },
+            "title": "Values",
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "letters",
+          "values",
+          "rule_id",
+          "rule_version",
+          "rule_parameters",
+          "rule_current"
+        ],
+        "title": "FlatReferenceResource",
+        "type": "object"
+      },
       "GoalResource": {
         "description": "One goal: what the model's own result says (absent when it says nothing), the value\nsimulated with the model's prices and with the flat price, and their difference.",
         "properties": {
@@ -476,6 +842,97 @@
           "change"
         ],
         "title": "GoalResource",
+        "type": "object"
+      },
+      "HubDifferenceResource": {
+        "properties": {
+          "hub_id": {
+            "title": "Hub Id",
+            "type": "string"
+          },
+          "mean_price_a": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mean_price_b": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "price_b_minus_flat": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The mean bike price of `b` minus `b`'s flat price per ride."
+          },
+          "price_difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rides_starting_a": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rides_starting_b": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rides_starting_difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumberResource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "hub_id",
+          "mean_price_a",
+          "mean_price_b",
+          "price_difference",
+          "price_b_minus_flat",
+          "rides_starting_a",
+          "rides_starting_b",
+          "rides_starting_difference"
+        ],
+        "title": "HubDifferenceResource",
         "type": "object"
       },
       "HubList": {
@@ -1435,6 +1892,101 @@
           "kind"
         ],
         "title": "PackageDefaultsStart",
+        "type": "object"
+      },
+      "PackageResource": {
+        "properties": {
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "commit"
+        ],
+        "title": "PackageResource",
+        "type": "object"
+      },
+      "PairDifferenceResource": {
+        "properties": {
+          "destination_hub": {
+            "title": "Destination Hub",
+            "type": "string"
+          },
+          "mean_price_a": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "mean_price_b": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "origin_hub": {
+            "title": "Origin Hub",
+            "type": "string"
+          },
+          "price_difference": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "travellers_a": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "travellers_b": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "travellers_difference": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "origin_hub",
+          "destination_hub",
+          "mean_price_a",
+          "mean_price_b",
+          "price_difference",
+          "travellers_a",
+          "travellers_b",
+          "travellers_difference"
+        ],
+        "title": "PairDifferenceResource",
+        "type": "object"
+      },
+      "PairDifferences": {
+        "properties": {
+          "a": {
+            "description": "The letter of the version before the last.",
+            "title": "A",
+            "type": "string"
+          },
+          "b": {
+            "description": "The letter of the last version; differences are `b` minus `a`.",
+            "title": "B",
+            "type": "string"
+          },
+          "pairs": {
+            "items": {
+              "$ref": "#/components/schemas/PairDifferenceResource"
+            },
+            "title": "Pairs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "pairs"
+        ],
+        "title": "PairDifferences",
         "type": "object"
       },
       "ParameterChangeResource": {
@@ -3930,6 +4482,98 @@
         "summary": "Create the draft of a new version, based on a version",
         "tags": [
           "city-instances"
+        ]
+      }
+    },
+    "/api/v1/comparisons": {
+      "get": {
+        "operationId": "comparePricingVersions",
+        "parameters": [
+          {
+            "description": "Two to four pricing version ids, separated by commas.",
+            "in": "query",
+            "name": "pricing_versions",
+            "required": true,
+            "schema": {
+              "description": "Two to four pricing version ids, separated by commas.",
+              "title": "Pricing Versions",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The period's id; the versions' first period when absent.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The period's id; the versions' first period when absent.",
+              "title": "Period"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComparisonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`pricing_version_not_found`"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`different_instances`: the versions belong to different instance versions, or `no_result`: a version has no result"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "`version_count_out_of_range`: fewer than two or more than four versions, or the request is not valid"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unexpected error"
+          }
+        },
+        "summary": "Two to four finished pricing versions of one instance version, side by side",
+        "tags": [
+          "comparisons"
         ]
       }
     },

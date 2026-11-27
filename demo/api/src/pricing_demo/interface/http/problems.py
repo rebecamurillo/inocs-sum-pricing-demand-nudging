@@ -45,6 +45,7 @@ from pricing_demo.domain.city_instances import (
     PeriodNotFound,
     VersionSealed,
 )
+from pricing_demo.domain.comparison import DifferentInstances, VersionCountOutOfRange
 from pricing_demo.domain.errors import DomainError
 from pricing_demo.domain.failure_codes import UnknownFailureCode
 from pricing_demo.domain.pricing_rules import PricingRuleBroken
@@ -158,6 +159,12 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     AlreadyRun: Problem(409, "already_run", "The pricing version already has its result"),
     NoResult: Problem(409, "no_result", "The pricing version has no result yet"),
     ResultNotFound: Problem(404, "no_result", "The pricing version has no result yet"),
+    DifferentInstances: Problem(
+        409, "different_instances", "The pricing versions belong to different instance versions"
+    ),
+    VersionCountOutOfRange: Problem(
+        422, "version_count_out_of_range", "A comparison takes two to four pricing versions"
+    ),
     IsShowcase: Problem(409, "is_showcase", "The pricing version is the showcase"),
     NoShowcase: Problem(404, "no_showcase", "No pricing version is the showcase"),
     SimulationCurrent: Problem(
