@@ -1,31 +1,54 @@
-export type ComponentName = 'storage' | 'pricingModel' | 'solver' | 'tripPlanner';
+export type ComponentName =
+  'storage' | 'runner' | 'solver' | 'package' | 'tripPlanner' | 'cityData';
+
+export type ComponentState = 'available' | 'limited' | 'unavailable';
 
 export interface ComponentStatus {
   readonly name: ComponentName;
-  readonly available: boolean;
-  /** Why the component is unavailable; null when it is available. */
+  readonly state: ComponentState;
+  /** Why the component is limited or unavailable; null when it is available. */
   readonly reason: string | null;
 }
 
+/** An action the Lab can start or refuse, with the components that refuse it. */
+export interface Verdict {
+  readonly allowed: boolean;
+  readonly reasons: readonly { readonly component: ComponentName; readonly reason: string }[];
+}
+
+/** The traveller simulation rule the Lab simulates with now; the API names none while no runner is alive. */
+export interface SimulationRuleRef {
+  readonly id: string;
+  readonly version: number;
+}
+
 export interface SystemStatus {
-  readonly apiVersion: string;
   readonly components: readonly ComponentStatus[];
-  readonly canReadStoredResults: boolean;
-  readonly canStartRuns: boolean;
+  readonly canBuildInstances: Verdict;
+  readonly canRunPricing: Verdict;
+  readonly canSimulate: Verdict;
+  readonly simulationRule: SimulationRuleRef | null;
 }
 
 const labels: Readonly<Record<ComponentName, string>> = {
   storage: 'Storage',
-  pricingModel: 'Pricing model',
+  runner: 'Runner',
   solver: 'Solver',
+  package: 'Pricing package',
   tripPlanner: 'Trip planner',
+  cityData: 'City data',
+};
+
+const stateLabels: Readonly<Record<ComponentState, string>> = {
+  available: 'Available',
+  limited: 'Limited',
+  unavailable: 'Unavailable',
 };
 
 export function componentLabel(name: ComponentName): string {
   return labels[name];
 }
 
-/** The unavailable components, in report order: what prevents new runs from starting. */
-export function blockingComponents(status: SystemStatus): readonly ComponentStatus[] {
-  return status.components.filter((component) => !component.available);
+export function stateLabel(state: ComponentState): string {
+  return stateLabels[state];
 }

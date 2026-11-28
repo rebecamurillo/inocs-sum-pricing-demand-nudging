@@ -36,6 +36,15 @@ at once; the work continues on the server and is a resource of its own with a st
 running step, the finished steps and, on failure, the step and the reason. The client reads
 it again to follow progress. Leaving the page changes nothing.
 
+A request that queues a run (`POST /api/v1/instance-versions/{id}/builds`) answers `202` with
+the run as its body. Asking again after a failure is the same `POST`: the steps already done
+come back as `kept`.
+
+The pattern: the `202` carries a `Location` header naming the run, `GET /api/v1/runs/{id}`
+reads it, and `PUT /api/v1/runs/{id}/cancellation` asks it to stop. A separate worker
+process executes the run ([D-12](decisions.md)); the API only stores and reads it, so a
+request never waits for the work and a restart of the API does not stop it.
+
 ## Errors
 
 Every error body is a problem document (RFC 9457, `application/problem+json`):
@@ -62,6 +71,25 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   error that reaches the mapping without an entry is a fault of the server: `500`.
 - Every error the framework produces itself (unknown route, wrong method, unreadable body,
   failed validation) is a problem document too, and the contract documents `422` as one.
+- A problem document may carry one named extension member that identifies what the request
+  conflicts with or what blocks it: `draft_id` on `draft_exists` (the draft the instance
+  already has), `run_id` on `run_active` (the run in progress), `failures` on `rule_broken`
+  (each broken rule with both values it compares), `pricing_failures` on `rule_broken` of a
+  pricing version (each broken rule with its goal, value and message), `reasons` on
+  `component_unavailable`
+  (each missing component with its reason) and `pricing_version_ids` on `has_pricing_versions`
+  (the pricing versions that block a deletion, in letter order). `already_run` (409) has no
+  extension member: the version's result exists. `no_result` (409: the version has no succeeded
+  pricing run to simulate again) and `simulation_current` (409: both schemes already have a
+  simulation under the current rule) have none either. `no_result` is also a 404, on the three
+  result routes (`/result`, `/hub-pair-results`, `/hub-results`): the version's latest pricing run
+  has not succeeded, or its solve, its summary or one of its two simulations is missing.
+  `is_showcase` (409) refuses the deletion of the showcased pricing version, of its instance version and of its city instance (before `run_active` and `has_pricing_versions`); `no_showcase` (404)
+  answers `GET /showcase` when none is marked. Neither has an extension member.
+  `GET /comparisons` answers `409 different_instances` (the versions belong to different instance
+  versions), `409 no_result` (a version has no result; the three result routes answer `404`
+  instead) and `422 version_count_out_of_range` (fewer than two or more than four ids). None has
+  an extension member.
 - A stack trace or an internal path never reaches a response.
 
 ## Lists

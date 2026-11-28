@@ -1,0 +1,14 @@
+{
+  "last_updated": 1763000000,
+  "ttl": 60,
+  "version": "2.3",
+  "data": {
+    "stations": [
+      {"station_id": "1", "name": "Bike Alpha", "lat": 46.20810, "lon": 6.14470, "capacity": 10},
+      {"station_id": "2", "name": "Bike Beta", "lat": 46.20830, "lon": 6.14590, "capacity": 10},
+      {"station_id": "3", "name": "Bike Gamma", "lat": 46.20340, "lon": 6.15270, "capacity": 10},
+      {"station_id": "4", "name": "Bike Delta", "lat": 46.20300, "lon": 6.15390, "capacity": 10},
+      {"station_id": "9", "name": "Bike Far", "lat": 46.30000, "lon": 6.30000, "capacity": 10}
+    ]
+  }
+}

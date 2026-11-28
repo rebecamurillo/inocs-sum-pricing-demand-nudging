@@ -1,0 +1,115 @@
+.block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.caption {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.small {
+  display: block;
+  margin: 0;
+  font-size: 0.8125em;
+  color: var(--ink-2);
+}
+
+.wrapper {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.table,
+.inner {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375em;
+}
+
+.table th,
+.table td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.group {
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sortButton {
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+th[aria-sort='ascending'] .sortButton::after {
+  content: ' ▲';
+}
+
+th[aria-sort='descending'] .sortButton::after {
+  content: ' ▼';
+}
+
+.row[data-expandable='true'] {
+  cursor: pointer;
+}
+
+.row[aria-expanded='true'] {
+  background: var(--tint);
+}
+
+.price {
+  display: block;
+  font-weight: 600;
+}
+
+.row[data-state='noRides'] .price,
+.row[data-state='noneOffered'] .price {
+  font-weight: 400;
+  color: var(--ink-2);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.showOnMap {
+  padding: 0.125rem 0.5rem;
+  font: inherit;
+  color: var(--blue);
+  background: none;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.showOnMap[aria-pressed='true'] {
+  color: #ffffff;
+  background: var(--blue);
+}
+
+.options td {
+  background: var(--tint-2);
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

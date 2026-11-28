@@ -66,6 +66,89 @@ of mind is a new entry that names the one it replaces.
 - **Why:** agents write most of the code and copy what they find. A rule that only a
   document states is broken by the fiftieth copy.
 
+## D-8 — Artefact store and keyed steps (2026-11-26)
+
+- **Decision:** a build step's outputs are files named by the step's input key: the sha256 of
+  the canonical JSON of the step name, the parameters it reads, the keys of the steps it reads,
+  the snapshot hashes it reads, the routing moment (steps 3 and 4) and the package
+  fingerprint. They live in `var/data/artifacts/{step}/{key}/`, written under a temporary name
+  and renamed, read-only, with each file's sha256 and size in the `artifacts` table; a step
+  whose key has an artefact is `kept`. The worker computes the keys again before each step; the
+  API's plan is a forecast. Each instance version is linked to the artefact of each of its
+  steps in `instance_version_steps`, written as the step ends. ARCHITECTURE.md § 16 names this
+  entry D-8 (artefact store and read model); the read model is the next story's.
+- **Why:** an edit then rebuilds only the steps whose inputs changed, a failure keeps the steps
+  already done, and the files a result was computed from can be found and checked by hash. The
+  worker, not the API, has the last word on a key because the package fingerprint and the graph
+  manifest are the worker's to read and can change between the request and the run.
+
+## D-10 — The worker runs on the host for live runs (2026-11-26)
+
+- **Decision:** the worker, the only process that runs the package and the solver, runs on
+  the host for live runs: `make worker`, also started by `make dev`. `make up` runs it as a
+  container (`compose.yaml`, service `worker`) and the e2e stack runs it as a container with
+  fake adapters. The API never needs the host: the API in a container with the worker on the
+  host is a supported set-up (`docker compose up --detach db api web` beside `make worker`;
+  `make up` also starts the container worker, which would compete with the host worker for
+  the queue).
+- **Why:** a named-user academic Gurobi licence does not work inside a container. A container
+  worker with real adapters needs a container-capable licence (Gurobi WLS).
+
+## D-11 — The traveller simulation behind a port (2026-11-27)
+
+- **Decision:** the `TravellerSimulation` port (`application/ports/`) takes a period's
+  instance and a price scheme (`model_prices` or `flat`) and returns the outputs with the
+  rule's id, version and parameters. The placeholder rule `balanced-score` version 1 lives in
+  `domain/traveller_simulation.py`: half scaled price, half scaled travel time, ties to
+  PT + bike, PT alone, car, then instance order; one traveller of each hub pair in turn; a bike
+  or dock refusal moves a traveller to the next option (`displaced`), none left is `unserved`.
+  Station bounds are checked after every choice and conservation before returning; a broken
+  check raises `SimulationCheckFailed` (`simulation_check_failed`). The rule is provisional
+  until the model's author states hers (Q-39), which then arrives as a second adapter under
+  `infrastructure/pricing_model/`. ARCHITECTURE.md § 6.3.
+- **Why:** the flat-price reference is a simulation, not a second solve, and both schemes must
+  be compared by the same rule that can be replaced without touching the use cases.
+
+## D-12 — The worker and the queue (2026-11-26)
+
+- **Decision:** ARCHITECTURE.md § 16 correction 1 calls this entry D-7; D-7 was already
+  taken, so it is D-12. A separate worker process claims runs. It polls every second with
+  `SELECT … WHERE state = 'queued' ORDER BY queued_at LIMIT 1 FOR UPDATE SKIP LOCKED`, and the
+  claiming transaction sets `running`, `worker_id`, `started_at` and `heartbeat_at`. It
+  executes one run at a time, step by step, through a registry of step executors; a failed
+  step stops the run and later steps stay `pending`. It heartbeats its `workers` row and the
+  claimed run every 5 s and checks every 2 s whether a cancellation was requested, in which
+  case it asks the executor to stop and marks the step and the run `cancelled`. When a worker
+  starts, and every 10 s of its loop after that, every `running` run whose heartbeat is more
+  than 60 s old (except the run that worker has in hand) is queued again once (`attempt` 2,
+  `queued_at` kept), failed with the code `interrupted` when it is found stale a second time,
+  and cancelled when a cancellation was requested. Every write to an existing run, by the worker and by the API's
+  cancellation, is a read-modify-write under `SELECT … FOR UPDATE` in one transaction, so a
+  cancellation cannot overwrite a claim, a heartbeat or a step state.
+- **Why:** a run must go on when the person leaves the page or the API restarts. One run at a
+  time because one solve already uses four threads and the trip planner must not be loaded
+  twice. The lease (a heartbeat and a 60 s limit) lets a restarted worker tell a run that is
+  still alive from one that was abandoned, without any other coordination than PostgreSQL.
+
+## D-9 — The map: MapLibre and PMTiles from the trip planner's street extract (2026-11-27)
+
+- **Decision:** the Lab has one MapLibre GL JS map, mounted once in `LabShell` and never
+  re-created: hiding the map hides its pane, and views change what is drawn by declaring
+  sources and layers through a map context. The factory that builds it lives in
+  `composition/` and is injected; unit tests inject a fake. The background is a PMTiles file
+  that `make basemap` cuts with Planetiler (a pinned image) from the `.osm.pbf` in
+  `otp/data/`, clipped to the data set's available area, into `web/public/basemap/`
+  (git-ignored). The web server serves it as a static file with range requests. Without the
+  file, the map is the ground colour and every view works. The style has no text, glyphs,
+  sprite or remote address.
+- **Why:** the trip planner already needs the street extract, so the map adds no data source
+  and no tile service; everything runs offline, on one machine (UX-DR41). A map created once
+  keeps its camera, its tiles and its WebGL context across views and resizes.
+- **Rejected:** a hosted tile service or style (needs the internet and a key); raster tiles
+  (heavier, no styling in the identity's colours); a map created per view (flashes, loses the
+  camera and leaks contexts); labels from vector glyphs (needs glyph files; hub names are
+  HTML markers in the bundled fonts instead).
+
 ## Known debt
 
 Accepted for a tool that runs on one machine; each must be settled before any hosting.
@@ -94,11 +177,4 @@ Accepted for a tool that runs on one machine; each must be settled before any ho
 
 ## Open, for the initiative's architecture step
 
-- How long runs are queued and executed so that they outlive a request and a restart.
-- How the solver's licence reaches the API: a named-user academic licence does not work
-  inside a container, which may mean running the API on the host (`make dev`) for live runs.
-- How the system status tells a full licence from the size-limited one that `gurobipy`
-  ships with (`model-notes.md` entry 8). The skeleton's solver probe reports "available" as
-  soon as an environment starts.
 - The data model of city instances, pricing versions, results and periods.
-- The map and its basemap.

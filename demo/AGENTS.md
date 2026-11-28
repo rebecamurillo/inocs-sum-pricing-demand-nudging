@@ -29,16 +29,23 @@ Run from `demo/`. `make help` lists them.
 | `make install` | installs the API (`uv sync`), the web app and the e2e suite (`npm ci`), and the Playwright Chromium browser (`PLAYWRIGHT_ARGS=` skips the browser) | network |
 | `make check` | **the quality gate**: format check, lint, types, layer rules, unit and contract tests with coverage, contract freshness, web build, type check, lint and format check of `e2e/` | `make install` |
 | `make test` | unit and contract tests of `api/` and `web/` | `make install` |
+| `make test-model` | the characterisation tests: the unmodified package on committed fixtures (also the CI job `model`) | `make install` |
 | `make test-integration` | API tests against a throwaway PostgreSQL, removed afterwards | Docker |
 | `make e2e` | builds the e2e stack, runs every Playwright scenario, removes the stack | Docker, `make install` |
 | `make contract` | regenerates `contracts/openapi.json` and the web's API types | — |
 | `make format` | rewrites files to the formatters' output | — |
-| `make dev` | PostgreSQL in Docker, API and web on the host with reload | Docker |
+| `make dev` | PostgreSQL in Docker (and the trip planner when `otp/data/graph.obj` exists); API (with reload), worker and web on the host | Docker |
+| `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it | Docker |
+| `make city-data` | imports the Geneva timetable and the first bike-station snapshot as a city data set | Docker, internet, the `.osm.pbf` in `otp/data/` |
+| `make otp-graph` | builds OpenTripPlanner's graph from the latest city data set (`DATASET=<id>` for another) with the data set's service window | Docker, `make city-data`, the `.osm.pbf` in `otp/data/` |
+| `make basemap` | builds the map's background `web/public/basemap/{dataset}.pmtiles` from the data set's area with Planetiler (`DATASET=<id>` for another) | Docker, internet, `make city-data`, the `.osm.pbf` in `otp/data/` |
 | `make up` / `make down` | the whole local stack in Docker | Docker |
 | `make live-smoke` | checks the real package, solver and trip planner | Gurobi licence, running OpenTripPlanner |
+| `uv --directory api run pricing-demo-worker verify-build {instance version}` | rebuilds steps 1-4 of a built version with reuse off in `var/data/verify/` and compares the artefact hashes (exit 0 only on a match); a maintainer command, never part of `make check` or `make e2e` | Docker, running OpenTripPlanner, the data |
 
 A change is finished when `make check` and `make e2e` both exit 0, and `make test-integration`
-too when it touches `infrastructure/persistence/`. Report the commands you ran and their
+too when it touches `infrastructure/persistence/`, and `make test-model` when it touches
+`infrastructure/pricing_model/`. Report the commands you ran and their
 result; if one could not run (no Docker), say so instead of claiming it passed.
 
 ## Hard rules

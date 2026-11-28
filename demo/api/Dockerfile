@@ -11,6 +11,12 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
+# pyosmium (reads the header of the OpenStreetMap extract) links libexpat, which the slim
+# image does not carry.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libexpat1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # The layout matches the repository: pyproject.toml refers to ../../sum_nsm_dynamic_pricing.
 WORKDIR /app
 COPY sum_nsm_dynamic_pricing ./sum_nsm_dynamic_pricing
@@ -27,9 +33,14 @@ COPY demo/api/src ./src
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
-RUN useradd --system --create-home app
+# var/data is the worker's data directory (PRICING_DEMO_DATA_DIR, relative to this WORKDIR).
+# Created here and owned by `app`, so a named volume mounted on it is writable by the worker.
+RUN useradd --system --create-home app \
+    && mkdir -p /app/demo/api/var/data \
+    && chown -R app:app /app/demo/api/var
 USER app
 
 EXPOSE 8100
 
+# The API. The worker service runs `pricing-demo-worker` from the same image.
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn pricing_demo.asgi:app --host 0.0.0.0 --port 8100"]

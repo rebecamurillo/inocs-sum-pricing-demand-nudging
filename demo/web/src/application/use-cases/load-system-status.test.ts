@@ -5,10 +5,11 @@ import type { SystemStatusGateway } from '../ports/system-status-gateway';
 import { loadSystemStatus } from './load-system-status';
 
 const status: SystemStatus = {
-  apiVersion: '0.1.0',
-  components: [{ name: 'storage', available: true, reason: null }],
-  canReadStoredResults: true,
-  canStartRuns: true,
+  components: [{ name: 'storage', state: 'available', reason: null }],
+  canBuildInstances: { allowed: true, reasons: [] },
+  canRunPricing: { allowed: true, reasons: [] },
+  canSimulate: { allowed: true, reasons: [] },
+  simulationRule: null,
 };
 
 describe('loadSystemStatus', () => {

@@ -4,6 +4,477 @@
  */
 
 export interface paths {
+    "/api/v1/city-datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The imported city data sets, oldest first */
+        get: operations["listCityDatasets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/city-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The instances with their versions, oldest instance first */
+        get: operations["listCityInstances"];
+        put?: never;
+        /** Create a city instance with its first draft version */
+        post: operations["createCityInstance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/city-instances/{instance_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a city instance with all its versions */
+        delete: operations["deleteCityInstance"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/city-instances/{instance_id}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create the draft of a new version, based on a version */
+        post: operations["createInstanceVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/comparisons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Two to four finished pricing versions of one instance version, side by side */
+        get: operations["comparePricingVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One version: parameters, periods, rule results and what changes */
+        get: operations["getInstanceVersion"];
+        put?: never;
+        post?: never;
+        /** Delete an instance version (a draft or a saved one) */
+        delete: operations["deleteInstanceVersion"];
+        options?: never;
+        head?: never;
+        /** Change parameters of a draft; the answer reports every rule */
+        patch: operations["updateInstanceVersion"];
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/builds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seal a draft and queue its build, or queue the build again after a failure */
+        post: operations["buildInstanceVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/hub-pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The hub pairs of one period of a built version
+         * @description Ordered by `origin_hub`, then `destination_hub`.
+         */
+        get: operations["listHubPairs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/hubs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The hubs of a built version, with their stations and lines
+         * @description Ordered by `hub_id`.
+         */
+        get: operations["listHubs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/pricing-versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The pricing versions of an instance version, in letter order */
+        get: operations["listPricingVersions"];
+        put?: never;
+        /** Start a pricing version (a draft) on a built instance version */
+        post: operations["createPricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/route-pairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The hub pairs the routes step of a version routed
+         * @description Ordered by `origin_hub`, then `destination_hub`. Empty until the routes step is linked to the version, which is before the last step ends.
+         */
+        get: operations["listRoutePairs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance-versions/{version_id}/stations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The public transport stops and bike stations of a built version
+         * @description Ordered by `station_id`.
+         */
+        get: operations["listStations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/place-names": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The stop and bike-station names of an instance version that match a text
+         * @description Case and accent do not matter. A parent station and its platforms are one line. A text of fewer than two characters matches nothing.
+         */
+        get: operations["listPlaceNames"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One pricing version: goals, periods, state and rule results */
+        get: operations["getPricingVersion"];
+        put?: never;
+        post?: never;
+        /** Delete a pricing version (a draft is discarded) */
+        delete: operations["deletePricingVersion"];
+        options?: never;
+        head?: never;
+        /** Change the goals or the name of a draft; the answer reports every rule */
+        patch: operations["updatePricingVersion"];
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/hub-pair-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per hub pair: the bike price, the travellers per mode and the options */
+        get: operations["listHubPairResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/hub-results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per hub: the bike rides that start and end there and the mean bike price */
+        get: operations["listHubResults"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The numbers of a finished version, each with its unit, its source and its group */
+        get: operations["getPricingResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seal a draft and queue its pricing run, or queue the run again after a failure */
+        post: operations["runPricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pricing-versions/{pricing_version_id}/simulations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every stored simulation of a version, with its rule and whether it is current */
+        get: operations["listPricingVersionSimulations"];
+        put?: never;
+        /** Queue a simulation run: the stored solve, simulated again with the current rule */
+        post: operations["simulatePricingVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/route-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The stored options of one hub pair, with legs and geometry
+         * @description Each leg says whether its line follows a street path, a timetable shape or a straight line.
+         */
+        get: operations["listRouteOptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The stored runs, oldest queue time first */
+        get: operations["listRuns"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One run, with its steps and the state of its runner */
+        get: operations["getRun"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/cancellation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Cancel a run: at once when queued, at its next safe point when running */
+        put: operations["cancelRun"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The log excerpts of the run's steps, in step order */
+        get: operations["getRunLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/runs/{run_id}/route-failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The trip-planner queries that failed during the run's routes step
+         * @description Ordered by `origin_hub`, `destination_hub`, then `query`.
+         */
+        get: operations["listRouteFailures"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/showcase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The showcased pricing version with what Home draws */
+        get: operations["getShowcase"];
+        /** Make a finished pricing version and period the showcase */
+        put: operations["markShowcase"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system-status": {
         parameters: {
             query?: never;
@@ -11,8 +482,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Which components of the system work now */
+        /** Which components work now and which actions they allow */
         get: operations["getSystemStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/trip-quotes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A trip between two points, quoted hub to hub from stored data
+         * @description Reads the stored build and result only: no trip planner is called. Without a price the answer is 200 with the reason in `status`.
+         */
+        get: operations["quoteTrip"];
         put?: never;
         post?: never;
         delete?: never;
@@ -26,18 +517,296 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AdvancedResource
+         * @description The technical numbers: only here, never among the headline ones.
+         */
+        AdvancedResource: {
+            /** Numbers */
+            numbers: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Solver Status Name */
+            solver_status_name: string;
+        };
+        /**
+         * BlockingReasonResponse
+         * @description The component that blocks an action, with that component's own reason.
+         */
+        BlockingReasonResponse: {
+            component: components["schemas"]["ComponentName"];
+            /** Reason */
+            reason: string;
+        };
+        /** BuildPlanResource */
+        BuildPlanResource: {
+            /** @description Whether this plan can be built now, and what blocks it. */
+            build_verdict: components["schemas"]["VerdictResponse"];
+            /** Steps */
+            steps: components["schemas"]["PlannedStepResource"][];
+        };
+        /** CauseResource */
+        CauseResource: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "parameter" | "city_data" | "package" | "trip_planner_graph";
+            /**
+             * Parameters
+             * @description The parameter names, for a `parameter` cause.
+             */
+            parameters: string[];
+        };
+        /** CityDatasetList */
+        CityDatasetList: {
+            /** Items */
+            items: components["schemas"]["CityDatasetResource"][];
+        };
+        /** CityDatasetResource */
+        CityDatasetResource: {
+            available_area: components["schemas"]["PolygonResource"];
+            /**
+             * Bus Shapes
+             * @enum {string}
+             */
+            bus_shapes: "generated" | "none";
+            /** Bus Shapes Reason */
+            bus_shapes_reason: string | null;
+            /**
+             * Gbfs Fetched At
+             * Format: date-time
+             */
+            gbfs_fetched_at: string;
+            /** Gtfs Timezone */
+            gtfs_timezone: string;
+            /**
+             * Gtfs Valid From
+             * Format: date
+             */
+            gtfs_valid_from: string;
+            /**
+             * Gtfs Valid To
+             * Format: date
+             */
+            gtfs_valid_to: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            preset: components["schemas"]["PresetResource"];
+            routing_moment: components["schemas"]["RoutingMomentResource"];
+            /** Shape Tool Image */
+            shape_tool_image: string | null;
+        };
+        /** CityInstanceMenu */
+        CityInstanceMenu: {
+            /** Items */
+            items: components["schemas"]["CityInstanceMenuItem"][];
+        };
+        /** CityInstanceMenuItem */
+        CityInstanceMenuItem: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Versions */
+            versions: components["schemas"]["MenuVersion"][];
+        };
+        /**
+         * ComparedSimulationResource
+         * @description A simulation a compared version is read with: the latest of its scheme.
+         */
+        ComparedSimulationResource: {
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            /** Rule Current */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+        };
+        /** ComparedVersionResource */
+        ComparedVersionResource: {
+            /**
+             * Flat Reference
+             * @description The `id` of its entry in `flat_references`.
+             */
+            flat_reference: string;
+            /**
+             * Goals
+             * @description The eight goals of the version, keyed by goal name.
+             */
+            goals: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Id */
+            id: string;
+            /** Letter */
+            letter: string;
+            /** Model Split */
+            model_split: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Name */
+            name: string;
+            package: components["schemas"]["PackageResource"];
+            /**
+             * Simulations
+             * @description `model_prices`, then `flat`.
+             */
+            simulations: components["schemas"]["ComparedSimulationResource"][];
+            /** Solve Key */
+            solve_key: string;
+        };
+        /** ComparisonGroupResource */
+        ComparisonGroupResource: {
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "simulated" | "model" | "derived" | "goals_that_differ" | "solver";
+            /** Rows */
+            rows: components["schemas"]["ComparisonRowResource"][];
+        };
+        /** ComparisonInstanceVersion */
+        ComparisonInstanceVersion: {
+            /** Id */
+            id: string;
+            /**
+             * Name
+             * @description The instance name and number, as "{name} v{number}".
+             */
+            name: string;
+        };
+        /** ComparisonPeriod */
+        ComparisonPeriod: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** ComparisonResponse */
+        ComparisonResponse: {
+            /** Flat References */
+            flat_references: components["schemas"]["FlatReferenceResource"][];
+            /**
+             * Groups
+             * @description `simulated`, `model`, `derived`, `goals_that_differ`, `solver`.
+             */
+            groups: components["schemas"]["ComparisonGroupResource"][];
+            /** Hub Differences */
+            hub_differences: components["schemas"]["HubDifferenceResource"][];
+            /**
+             * Identical Solves
+             * @description Letters of versions whose result is the same stored solve; empty when none.
+             */
+            identical_solves: string[][];
+            instance_version: components["schemas"]["ComparisonInstanceVersion"];
+            pair_differences: components["schemas"]["PairDifferences"];
+            period: components["schemas"]["ComparisonPeriod"];
+            /**
+             * Versions
+             * @description In letter order.
+             */
+            versions: components["schemas"]["ComparedVersionResource"][];
+        };
+        /** ComparisonRowResource */
+        ComparisonRowResource: {
+            /**
+             * Best
+             * @description The letters with the best value; empty when none.
+             */
+            best: string[];
+            /**
+             * Changes
+             * @description Simulated group only: the model's prices minus the flat simulation.
+             */
+            changes: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            };
+            /**
+             * Flats
+             * @description Simulated group only: the value per flat reference id.
+             */
+            flats: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            };
+            /**
+             * Key
+             * @description A stable key; the screen owns the label.
+             */
+            key: string;
+            /**
+             * Values
+             * @description Per version letter; null when the version has no value.
+             */
+            values: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            };
+        };
+        /**
          * ComponentName
-         * @description The parts of the system a run depends on, in the order they are reported.
+         * @description The parts of the system an action depends on, in the order they are reported.
          * @enum {string}
          */
-        ComponentName: "storage" | "pricing_model" | "solver" | "trip_planner";
+        ComponentName: "storage" | "runner" | "solver" | "package" | "trip_planner" | "city_data";
+        /**
+         * ComponentState
+         * @enum {string}
+         */
+        ComponentState: "available" | "limited" | "unavailable";
         /** ComponentStatusResponse */
         ComponentStatusResponse: {
-            /** Available */
-            available: boolean;
             name: components["schemas"]["ComponentName"];
             /** Reason */
             reason: string | null;
+            state: components["schemas"]["ComponentState"];
+        };
+        /** CopyStart */
+        CopyStart: {
+            /** Instance Version Id */
+            instance_version_id: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "copy";
+        };
+        /** CreateCityInstanceRequest */
+        CreateCityInstanceRequest: {
+            /** Dataset Id */
+            dataset_id: string;
+            /** Name */
+            name: string;
+            /** Start From */
+            start_from: components["schemas"]["PackageDefaultsStart"] | components["schemas"]["CopyStart"];
+        };
+        /** CreateInstanceVersionRequest */
+        CreateInstanceVersionRequest: {
+            /** Based On Id */
+            based_on_id: string;
+        };
+        /** CreatePricingVersionRequest */
+        CreatePricingVersionRequest: {
+            /**
+             * Based On
+             * @description A pricing version of the same instance version to copy.
+             */
+            based_on?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /** FieldError */
         FieldError: {
@@ -45,6 +814,739 @@ export interface components {
             field: string;
             /** Message */
             message: string;
+        };
+        /** FlatReferenceResource */
+        FlatReferenceResource: {
+            /** @description The cost of one ride its simulated profit is computed with. */
+            cost_bike_chf: components["schemas"]["NumberResource"];
+            /**
+             * Id
+             * @description The flat column's id: its flat simulation's key and its cost of one ride.
+             */
+            id: string;
+            /**
+             * Letters
+             * @description The versions this flat column serves.
+             */
+            letters: string[];
+            /** Rule Current */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /**
+             * Simulation Key
+             * @description The stored flat simulation it reads; two references may share one.
+             */
+            simulation_key: string;
+            /** Values */
+            values: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+        };
+        /**
+         * GoalResource
+         * @description One goal: what the model's own result says (absent when it says nothing), the value
+         *     simulated with the model's prices and with the flat price, and their difference.
+         */
+        GoalResource: {
+            /** @description The simulation with the model's prices minus the simulation with the flat price; absent when either value is. */
+            change: components["schemas"]["NumberResource"] | null;
+            flat: components["schemas"]["NumberResource"] | null;
+            model: components["schemas"]["NumberResource"] | null;
+            model_prices: components["schemas"]["NumberResource"] | null;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "ridership" | "revenue" | "cost" | "profit" | "mean_bike_price" | "stations_empty" | "stations_full";
+        };
+        /** HubDifferenceResource */
+        HubDifferenceResource: {
+            /** Hub Id */
+            hub_id: string;
+            mean_price_a: components["schemas"]["NumberResource"] | null;
+            mean_price_b: components["schemas"]["NumberResource"] | null;
+            /** @description The mean bike price of `b` minus `b`'s flat price per ride. */
+            price_b_minus_flat: components["schemas"]["NumberResource"] | null;
+            price_difference: components["schemas"]["NumberResource"] | null;
+            rides_starting_a: components["schemas"]["NumberResource"] | null;
+            rides_starting_b: components["schemas"]["NumberResource"] | null;
+            rides_starting_difference: components["schemas"]["NumberResource"] | null;
+        };
+        /** HubList */
+        HubList: {
+            /** Items */
+            items: components["schemas"]["HubResource"][];
+        };
+        /** HubPairList */
+        HubPairList: {
+            /** Items */
+            items: components["schemas"]["HubPairResource"][];
+        };
+        /** HubPairResource */
+        HubPairResource: {
+            /** Demand */
+            demand: number;
+            /** Destination Hub */
+            destination_hub: string;
+            /** Euclid Dist M */
+            euclid_dist_m: number;
+            /** Origin Hub */
+            origin_hub: string;
+        };
+        /** HubPairResultList */
+        HubPairResultList: {
+            /** Items */
+            items: components["schemas"]["HubPairResultResource"][];
+        };
+        /** HubPairResultResource */
+        HubPairResultResource: {
+            /** Destination Hub */
+            destination_hub: string;
+            max_bike_price: components["schemas"]["NumberResource"] | null;
+            /** @description Absent when the pair has no offered PT + bike option. */
+            mean_bike_price: components["schemas"]["NumberResource"] | null;
+            min_bike_price: components["schemas"]["NumberResource"] | null;
+            /** Options */
+            options: components["schemas"]["OptionResultResource"][];
+            /** Origin Hub */
+            origin_hub: string;
+            /**
+             * Travellers
+             * @description Travellers per mode of the model's own result.
+             */
+            travellers: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+        };
+        /** HubResource */
+        HubResource: {
+            /** Bike Station Ids */
+            bike_station_ids: string[];
+            /** Hub Id */
+            hub_id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number;
+            /** Lines */
+            lines: string[];
+            /** Lon */
+            lon: number;
+            /**
+             * Outline
+             * @description A GeoJSON polygon, or null.
+             */
+            outline: {
+                [key: string]: unknown;
+            } | null;
+            /** Pt Station Ids */
+            pt_station_ids: string[];
+        };
+        /** HubResultList */
+        HubResultList: {
+            /** Items */
+            items: components["schemas"]["HubResultResource"][];
+        };
+        /** HubResultResource */
+        HubResultResource: {
+            /** Hub Id */
+            hub_id: string;
+            /** Label */
+            label: string;
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** @description Over the offered options that start at the hub; absent without any. */
+            mean_bike_price: components["schemas"]["NumberResource"] | null;
+            rides_ending: components["schemas"]["NumberResource"];
+            rides_starting: components["schemas"]["NumberResource"];
+        };
+        /**
+         * InstanceCounts
+         * @description The five headline counts of a built version.
+         */
+        InstanceCounts: {
+            bike_stations: components["schemas"]["NumberResource"];
+            hub_pairs_with_routes: components["schemas"]["NumberResource"];
+            hubs: components["schemas"]["NumberResource"];
+            stops: components["schemas"]["NumberResource"];
+            travellers: components["schemas"]["NumberResource"];
+        };
+        /** InstanceParametersResource */
+        InstanceParametersResource: {
+            /** Center Lat */
+            center_lat: number;
+            /** Center Lon */
+            center_lon: number;
+            /** Clustering Buffer M */
+            clustering_buffer_m: number;
+            /** Clustering Threshold M */
+            clustering_threshold_m: number;
+            /** Fixed Capacity */
+            fixed_capacity: number;
+            /** Max Demand */
+            max_demand: number;
+            /** Max Inventory Pct */
+            max_inventory_pct: number;
+            /** Max Park Time Min */
+            max_park_time_min: number;
+            /** Min Demand */
+            min_demand: number;
+            /** Min Inventory Pct */
+            min_inventory_pct: number;
+            /** Min Od Distance M */
+            min_od_distance_m: number;
+            /** Min Park Time Min */
+            min_park_time_min: number;
+            /** Radius M */
+            radius_m: number;
+            /** Seed */
+            seed: number;
+        };
+        /** InstancePeriodResource */
+        InstancePeriodResource: {
+            /** Arrive By */
+            arrive_by: boolean;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /** Id */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Routing Date
+             * Format: date
+             */
+            routing_date: string;
+            /** Routing Date Provisional */
+            routing_date_provisional: boolean;
+            /**
+             * Routing Time
+             * Format: time
+             */
+            routing_time: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+            /** Weekday */
+            weekday: number;
+        };
+        /**
+         * InstanceVersionPatch
+         * @description Any subset of the parameters. A value is stored as sent: a rule it breaks is reported
+         *     in the answer, never corrected.
+         */
+        InstanceVersionPatch: {
+            /** Center Lat */
+            center_lat?: number;
+            /** Center Lon */
+            center_lon?: number;
+            /** Clustering Buffer M */
+            clustering_buffer_m?: number;
+            /** Clustering Threshold M */
+            clustering_threshold_m?: number;
+            /** Fixed Capacity */
+            fixed_capacity?: number;
+            /** Max Demand */
+            max_demand?: number;
+            /** Max Inventory Pct */
+            max_inventory_pct?: number;
+            /** Max Park Time Min */
+            max_park_time_min?: number;
+            /** Min Demand */
+            min_demand?: number;
+            /** Min Inventory Pct */
+            min_inventory_pct?: number;
+            /** Min Od Distance M */
+            min_od_distance_m?: number;
+            /** Min Park Time Min */
+            min_park_time_min?: number;
+            /** Radius M */
+            radius_m?: number;
+            /** Seed */
+            seed?: number;
+        };
+        /** InstanceVersionResource */
+        InstanceVersionResource: {
+            /** Based On Id */
+            based_on_id: string | null;
+            build_plan: components["schemas"]["BuildPlanResource"];
+            /**
+             * Build Run Id
+             * @description The version's latest build run; null for a draft or a version never built.
+             */
+            build_run_id: string | null;
+            /**
+             * Changes
+             * @description The parameters that differ from `based_on_id`, in column order.
+             */
+            changes: components["schemas"]["ParameterChangeResource"][];
+            /** @description Null until the version is built. */
+            counts: components["schemas"]["InstanceCounts"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             * @description When the version was created.
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Instance Id */
+            instance_id: string;
+            /** Number */
+            number: number;
+            /** @description The model package's default values with the data set's preset centre and radius, for a draft; null for a saved version or while the package is not known. */
+            package_defaults: components["schemas"]["InstanceParametersResource"] | null;
+            parameters: components["schemas"]["InstanceParametersResource"];
+            /** Periods */
+            periods: components["schemas"]["InstancePeriodResource"][];
+            /** @description Null until the version is built. */
+            routes: components["schemas"]["RoutesSummaryResource"] | null;
+            /** Rules */
+            rules: components["schemas"]["RuleResultResource"][];
+            /**
+             * Sealed At
+             * @description When the version was saved; null for a draft.
+             */
+            sealed_at: string | null;
+            /**
+             * State
+             * @description `draft`; for a saved version the state of its latest build: `queued`, `building`, `ready`, `failed` or `cancelled` (`sealed` while it has none).
+             */
+            state: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sealed";
+        };
+        /** LineStringResource */
+        LineStringResource: {
+            /**
+             * Coordinates
+             * @description `[lon, lat]` positions.
+             */
+            coordinates: number[][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "LineString";
+        };
+        /** MenuVersion */
+        MenuVersion: {
+            /** Id */
+            id: string;
+            /** Number */
+            number: number;
+            /** Pricing Version Count */
+            pricing_version_count: number;
+            /**
+             * Pricing Version Letters
+             * @description The letters of the version's pricing versions, in letter order.
+             */
+            pricing_version_letters: string[];
+            /**
+             * State
+             * @description `draft`, or the state of the latest build: `queued`, `building`, `ready`, `failed`, `cancelled` (`sealed` while it has none).
+             */
+            state: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sealed";
+        };
+        /**
+         * NumberResource
+         * @description A number with its unit and where it comes from.
+         */
+        NumberResource: {
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "headline" | "advanced";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "model" | "package_summary" | "input" | "trip_planner" | "derived" | "simulation";
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
+        };
+        /** OptionResultResource */
+        OptionResultResource: {
+            /** Arc Id */
+            arc_id: string;
+            bike_legs: components["schemas"]["NumberResource"] | null;
+            /** @description Absent when the model does not offer it. */
+            bike_price: components["schemas"]["NumberResource"] | null;
+            duration: components["schemas"]["NumberResource"];
+            /** Legs */
+            legs: components["schemas"]["RouteLegResource"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "pt_bike" | "pt_only" | "car";
+            /** @description Absent when the model has no row for it. */
+            riders: components["schemas"]["NumberResource"] | null;
+        };
+        /** PackageDefaultsStart */
+        PackageDefaultsStart: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "package_defaults";
+        };
+        /** PackageResource */
+        PackageResource: {
+            /** Commit */
+            commit: string | null;
+            /** Fingerprint */
+            fingerprint: string;
+        };
+        /** PairDifferenceResource */
+        PairDifferenceResource: {
+            /** Destination Hub */
+            destination_hub: string;
+            mean_price_a: components["schemas"]["NumberResource"];
+            mean_price_b: components["schemas"]["NumberResource"];
+            /** Origin Hub */
+            origin_hub: string;
+            price_difference: components["schemas"]["NumberResource"];
+            travellers_a: components["schemas"]["NumberResource"];
+            travellers_b: components["schemas"]["NumberResource"];
+            travellers_difference: components["schemas"]["NumberResource"];
+        };
+        /** PairDifferences */
+        PairDifferences: {
+            /**
+             * A
+             * @description The letter of the version before the last.
+             */
+            a: string;
+            /**
+             * B
+             * @description The letter of the last version; differences are `b` minus `a`.
+             */
+            b: string;
+            /** Pairs */
+            pairs: components["schemas"]["PairDifferenceResource"][];
+        };
+        /** ParameterChangeResource */
+        ParameterChangeResource: {
+            /** After */
+            after: number;
+            /** Before */
+            before: number;
+            /** Parameter */
+            parameter: string;
+        };
+        /** PlaceNameLine */
+        PlaceNameLine: {
+            /** Hub Id */
+            hub_id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "stop" | "bike_station";
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name: string;
+        };
+        /** PlaceNameList */
+        PlaceNameList: {
+            /**
+             * Items
+             * @description At most 10; names that start with the text first, then alphabetical.
+             */
+            items: components["schemas"]["PlaceNameLine"][];
+        };
+        /** PlannedStepResource */
+        PlannedStepResource: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "kept" | "rebuilt";
+            /**
+             * Causes
+             * @description Why the key differs from the same step of `based_on_id`; empty when the version is based on none.
+             */
+            causes: components["schemas"]["CauseResource"][];
+            /**
+             * Input Key
+             * @description Null while the package fingerprint or the trip planner's graph manifest is unknown.
+             */
+            input_key: string | null;
+            /**
+             * Last Duration S
+             * @description Seconds the same step last took on the same data set and radius.
+             */
+            last_duration_s: number | null;
+            /** Number */
+            number: number;
+            /** Period Id */
+            period_id: string | null;
+            step: components["schemas"]["StepName"];
+        };
+        /**
+         * PolygonResource
+         * @description A GeoJSON polygon: one closed ring of [longitude, latitude] positions.
+         */
+        PolygonResource: {
+            /** Coordinates */
+            coordinates: number[][][];
+            /**
+             * Type
+             * @constant
+             */
+            type: "Polygon";
+        };
+        /** PresetResource */
+        PresetResource: {
+            /** Centre Lat */
+            centre_lat: number;
+            /** Centre Lon */
+            centre_lon: number;
+            /** Radius M */
+            radius_m: number;
+        };
+        /** PricingGoalsResource */
+        PricingGoalsResource: {
+            /** Car Parking Fee Chf */
+            car_parking_fee_chf: number;
+            /** Cost Bike Chf */
+            cost_bike_chf: number;
+            /**
+             * Flat Price Kind
+             * @constant
+             */
+            flat_price_kind: "per_ride";
+            /** Flat Price Per Ride Chf */
+            flat_price_per_ride_chf: number;
+            /** Lowest Price Chf */
+            lowest_price_chf: number;
+            /** Max Displayed Options */
+            max_displayed_options: number;
+            /** Pt Fare Chf */
+            pt_fare_chf: number;
+            /** Ridership Weight */
+            ridership_weight: number;
+            /** Station Balance Weight */
+            station_balance_weight: number;
+        };
+        /** PricingPeriodResource */
+        PricingPeriodResource: {
+            /** Id */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** PricingResultResponse */
+        PricingResultResponse: {
+            advanced: components["schemas"]["AdvancedResource"];
+            /**
+             * Coefficients
+             * @description The choice-model coefficients read from the package source, each null when not found; null as a whole when the package fingerprint is not stored.
+             */
+            coefficients: {
+                [key: string]: components["schemas"]["NumberResource"] | null;
+            } | null;
+            /** Goals */
+            goals: components["schemas"]["GoalResource"][];
+            /** Headline */
+            headline: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            hub_pairs_with_bike_option: components["schemas"]["NumberResource"];
+            /** Model Split */
+            model_split: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /** Period Id */
+            period_id: string;
+            /** Pricing Version Id */
+            pricing_version_id: string;
+            provenance: components["schemas"]["ProvenanceResource"];
+            /** Simulation History */
+            simulation_history: components["schemas"]["StoredSimulationResource"][];
+            /**
+             * Simulations
+             * @description The latest simulation of each scheme: `model_prices`, then `flat`.
+             */
+            simulations: components["schemas"]["SimulationResultResource"][];
+        };
+        /** PricingRuleResultResource */
+        PricingRuleResultResource: {
+            /**
+             * Field
+             * @description The goal the rule checks.
+             */
+            field: string;
+            /**
+             * Message
+             * @description Names the value, as a failure reads on the form.
+             */
+            message: string;
+            /** Passed */
+            passed: boolean;
+            /** Rule */
+            rule: string;
+            /** Value */
+            value: number;
+        };
+        /** PricingVersionList */
+        PricingVersionList: {
+            /** Items */
+            items: components["schemas"]["PricingVersionResource"][];
+        };
+        /**
+         * PricingVersionPatch
+         * @description Any subset of the eight goal values. A value is stored as sent: a rule it breaks is
+         *     reported in the answer, never corrected.
+         */
+        PricingVersionPatch: {
+            /** Car Parking Fee Chf */
+            car_parking_fee_chf?: number;
+            /** Cost Bike Chf */
+            cost_bike_chf?: number;
+            /** Flat Price Per Ride Chf */
+            flat_price_per_ride_chf?: number;
+            /** Lowest Price Chf */
+            lowest_price_chf?: number;
+            /** Max Displayed Options */
+            max_displayed_options?: number;
+            /**
+             * Name
+             * @description The version's name, trimmed; it may not be blank.
+             */
+            name?: string | null;
+            /** Pt Fare Chf */
+            pt_fare_chf?: number;
+            /** Ridership Weight */
+            ridership_weight?: number;
+            /** Station Balance Weight */
+            station_balance_weight?: number;
+        };
+        /** PricingVersionRef */
+        PricingVersionRef: {
+            /** Id */
+            id: string;
+            /** Letter */
+            letter: string;
+        };
+        /** PricingVersionResource */
+        PricingVersionResource: {
+            /** Based On Id */
+            based_on_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            goals: components["schemas"]["PricingGoalsResource"];
+            /** Id */
+            id: string;
+            /** Instance Version Id */
+            instance_version_id: string;
+            /** @description The sealed version whose fare, parking fee, options shown and flat price this draft kept; null when it started from the default values. */
+            kept_from: components["schemas"]["PricingVersionRef"] | null;
+            /**
+             * Last Duration S
+             * @description Seconds the pricing model last took on this instance's data set and radius, or null when it has not run there.
+             */
+            last_duration_s: number | null;
+            /** Letter */
+            letter: string;
+            /** Name */
+            name: string;
+            /** Periods */
+            periods: components["schemas"]["PricingPeriodResource"][];
+            /** Rules */
+            rules: components["schemas"]["PricingRuleResultResource"][];
+            /**
+             * Run Id
+             * @description The id of the version's latest pricing run; null for a draft.
+             */
+            run_id: string | null;
+            /** Sealed At */
+            sealed_at: string | null;
+            /**
+             * State
+             * @description Derived from the status and the version's last run.
+             * @enum {string}
+             */
+            state: "draft" | "queued" | "running" | "failed" | "cancelled" | "result";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "draft" | "sealed";
+        };
+        /** PricingVersionSimulationList */
+        PricingVersionSimulationList: {
+            /** Items */
+            items: components["schemas"]["PricingVersionSimulationResource"][];
+        };
+        /**
+         * PricingVersionSimulationResource
+         * @description One stored simulation of a pricing version: a period under a price scheme and a rule.
+         */
+        PricingVersionSimulationResource: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Period Id */
+            period_id: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            /**
+             * Rule Current
+             * @description True when the rule is the one the live worker uses now; false for every simulation when no worker is live.
+             */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
         };
         /**
          * ProblemDetails
@@ -55,8 +1557,38 @@ export interface components {
             code: string;
             /** Detail */
             detail: string;
+            /**
+             * Draft Id
+             * @description The existing draft, on a draft_exists conflict.
+             */
+            draft_id?: string | null;
             /** Errors */
             errors?: components["schemas"]["FieldError"][] | null;
+            /**
+             * Failures
+             * @description The rules the draft breaks, on a rule_broken conflict.
+             */
+            failures?: components["schemas"]["RuleResultResource"][] | null;
+            /**
+             * Pricing Failures
+             * @description The rules the pricing draft breaks, each with its goal and value, on a rule_broken conflict of a pricing version.
+             */
+            pricing_failures?: components["schemas"]["PricingRuleResultResource"][] | null;
+            /**
+             * Pricing Version Ids
+             * @description The pricing versions that block a deletion, in letter order, on a has_pricing_versions conflict.
+             */
+            pricing_version_ids?: string[] | null;
+            /**
+             * Reasons
+             * @description The components that block the action, on a component_unavailable answer.
+             */
+            reasons?: components["schemas"]["BlockingReasonResponse"][] | null;
+            /**
+             * Run Id
+             * @description The queued or running run, on a run_active conflict.
+             */
+            run_id?: string | null;
             /** Status */
             status: number;
             /** Title */
@@ -64,16 +1596,743 @@ export interface components {
             /** Type */
             type: string;
         };
+        /** ProvenanceResource */
+        ProvenanceResource: {
+            /** Bike Stations Fetched At */
+            bike_stations_fetched_at: string | null;
+            /**
+             * Bike Stations Source Url
+             * @description The address the bike-station snapshot was fetched from.
+             */
+            bike_stations_source_url: string | null;
+            /** Demonstrator Version */
+            demonstrator_version: string;
+            /** Dependency Lock Sha256 */
+            dependency_lock_sha256: string;
+            /** Derivation Version */
+            derivation_version: number;
+            /** Gbfs Sha256 */
+            gbfs_sha256: string | null;
+            /** Gtfs Sha256 */
+            gtfs_sha256: string | null;
+            /** Gurobi Version */
+            gurobi_version: string;
+            /**
+             * Input Keys
+             * @description The key of each build step's artefact.
+             */
+            input_keys: {
+                [key: string]: string;
+            };
+            /** Licence Kind */
+            licence_kind: string;
+            /** Package Commit */
+            package_commit: string | null;
+            /** Package Dirty */
+            package_dirty: boolean | null;
+            /** Package Fingerprint */
+            package_fingerprint: string;
+            /** Package Version */
+            package_version: string | null;
+            /** Platform */
+            platform: string;
+            /** Routing Date */
+            routing_date: string | null;
+            /** Routing Date Provisional */
+            routing_date_provisional: boolean | null;
+            /** Routing Time */
+            routing_time: string | null;
+            /** Run Id */
+            run_id: string;
+            /**
+             * Simulations
+             * @description The rule and the date of the latest simulation of each scheme.
+             */
+            simulations: components["schemas"]["SimulationProvenanceResource"][];
+            /** Solve Key */
+            solve_key: string;
+            /** Solver Parameters */
+            solver_parameters: {
+                [key: string]: unknown;
+            };
+            /**
+             * Timetable Operator
+             * @description The agency names of the timetable's agency.txt, joined by a comma.
+             */
+            timetable_operator: string | null;
+            /** Timetable Valid From */
+            timetable_valid_from: string | null;
+            /** Timetable Valid To */
+            timetable_valid_to: string | null;
+        };
+        /** QuotedHubResource */
+        QuotedHubResource: {
+            /** Hub Id */
+            hub_id: string;
+            /** Hub Name */
+            hub_name: string;
+        };
+        /** QuotedLegResource */
+        QuotedLegResource: {
+            duration_s: components["schemas"]["NumberResource"];
+            /** From Name */
+            from_name: string | null;
+            /** Line */
+            line: string | null;
+            /** Mode */
+            mode: string;
+            /** To Name */
+            to_name: string | null;
+        };
+        /** QuotedOptionResource */
+        QuotedOptionResource: {
+            /** Arc Id */
+            arc_id: string;
+            bike_legs: components["schemas"]["NumberResource"];
+            /** @description Per bike ride; PT + bike only. */
+            bike_price: components["schemas"]["NumberResource"] | null;
+            car_cost: components["schemas"]["NumberResource"] | null;
+            car_parking_fee: components["schemas"]["NumberResource"] | null;
+            duration_s: components["schemas"]["NumberResource"];
+            /** @description The model's flow on the option. */
+            flow: components["schemas"]["NumberResource"] | null;
+            /** Legs */
+            legs: components["schemas"]["QuotedLegResource"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "pt_bike" | "pt_only" | "car";
+            /**
+             * Most Taken
+             * @description The option with the largest flow within its mode.
+             */
+            most_taken: boolean;
+            /** @description The total, from the one price function. */
+            price: components["schemas"]["NumberResource"];
+            pt_fare: components["schemas"]["NumberResource"] | null;
+            transfers: components["schemas"]["NumberResource"];
+        };
+        /** QuotedPointResource */
+        QuotedPointResource: {
+            /** @description Set on `no_hub_here`. */
+            distance_from_outline_m: components["schemas"]["NumberResource"] | null;
+            distance_to_hub_centre_m: components["schemas"]["NumberResource"] | null;
+            /**
+             * Hub Id
+             * @description The hub with the nearest centre; set when matched.
+             */
+            hub_id: string | null;
+            /** Hub Name */
+            hub_name: string | null;
+            /**
+             * Nearest Hub Id
+             * @description The hub with the nearest outline; set on `no_hub_here`.
+             */
+            nearest_hub_id: string | null;
+            /**
+             * Nearest Stop Name
+             * @description The stop nearest to the point.
+             */
+            nearest_stop_name: string | null;
+            /**
+             * Status
+             * @description `matched` to a hub, `outside_zone` of the study circle, or `no_hub_here`: farther than 300 m from every hub outline.
+             * @enum {string}
+             */
+            status: "matched" | "outside_zone" | "no_hub_here";
+        };
+        /** RouteFailureList */
+        RouteFailureList: {
+            /** Items */
+            items: components["schemas"]["RouteFailureResource"][];
+        };
+        /** RouteFailureResource */
+        RouteFailureResource: {
+            /** Attempts */
+            attempts: number;
+            /** Destination Hub */
+            destination_hub: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "technical" | "no_route";
+            /** Message */
+            message: string;
+            /** Origin Hub */
+            origin_hub: string;
+            /**
+             * Period
+             * @description The id of the period the query was made for.
+             */
+            period: string | null;
+            /**
+             * Query
+             * @enum {string}
+             */
+            query: "pt_bike" | "car";
+        };
+        /** RouteLegResource */
+        RouteLegResource: {
+            /** Distance M */
+            distance_m: number;
+            /** Duration S */
+            duration_s: number;
+            /**
+             * From Place
+             * @description Where the leg starts; null when the trip planner gave no name and for a leg stored before the names were kept.
+             */
+            from_place: string | null;
+            /**
+             * Line
+             * @description The line's public code; null for a leg without one (a street leg) and for a leg stored before the names were kept.
+             */
+            line: string | null;
+            /**
+             * Line Kind
+             * @enum {string}
+             */
+            line_kind: "street" | "shape" | "straight";
+            /** Mode */
+            mode: string;
+            /**
+             * To Place
+             * @description Where the leg ends; null when the trip planner gave no name and for a leg stored before the names were kept.
+             */
+            to_place: string | null;
+        };
+        /** RouteOptionItem */
+        RouteOptionItem: {
+            /** Arc Id */
+            arc_id: string;
+            bike_legs: components["schemas"]["NumberResource"];
+            duration_s: components["schemas"]["NumberResource"];
+            /** Legs */
+            legs: components["schemas"]["RouteOptionLegResource"][];
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "pt_bike" | "pt_only" | "car";
+            transfers: components["schemas"]["NumberResource"];
+        };
+        /** RouteOptionLegResource */
+        RouteOptionLegResource: {
+            duration_s: components["schemas"]["NumberResource"];
+            /** From Name */
+            from_name: string | null;
+            /** @description Null when the leg has none stored. */
+            geometry: components["schemas"]["LineStringResource"] | null;
+            /** Line */
+            line: string | null;
+            /**
+             * Line Kind
+             * @enum {string}
+             */
+            line_kind: "street_path" | "timetable_shape" | "straight_line";
+            /** Mode */
+            mode: string;
+            /** To Name */
+            to_name: string | null;
+        };
+        /** RouteOptionList */
+        RouteOptionList: {
+            /**
+             * Bus Shapes
+             * @description False when the city data set recorded `bus_shapes = none`.
+             */
+            bus_shapes: boolean;
+            /**
+             * Items
+             * @description Ordered by arc id.
+             */
+            items: components["schemas"]["RouteOptionItem"][];
+        };
+        /** RoutePairList */
+        RoutePairList: {
+            /** Items */
+            items: components["schemas"]["RoutePairResource"][];
+        };
+        /** RoutePairResource */
+        RoutePairResource: {
+            /** Destination Hub */
+            destination_hub: string;
+            /** Origin Hub */
+            origin_hub: string;
+        };
+        /**
+         * RoutesSummaryResource
+         * @description What the trip planner answered for the routes of the build.
+         */
+        RoutesSummaryResource: {
+            /** Failure Pct */
+            failure_pct: number;
+            /** Pairs Without Car */
+            pairs_without_car: number;
+            /** Pairs Without Public Transport */
+            pairs_without_public_transport: number;
+            /** Queries */
+            queries: number;
+            /** Queries Failed */
+            queries_failed: number;
+            /** Retries */
+            retries: number;
+            /**
+             * Run Id
+             * @description The run whose routes step produced the routes the version links; `GET /runs/{run_id}/route-failures` lists the failed queries.
+             */
+            run_id: string | null;
+        };
+        /** RoutingMomentResource */
+        RoutingMomentResource: {
+            /** Arrive By */
+            arrive_by: boolean;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Provisional */
+            provisional: boolean;
+            /**
+             * Time
+             * Format: time
+             */
+            time: string;
+        };
+        /** RuleResultResource */
+        RuleResultResource: {
+            /** Passed */
+            passed: boolean;
+            /** Rule */
+            rule: string;
+            /**
+             * Values
+             * @description The two values the rule compares.
+             */
+            values: components["schemas"]["RuleValueResource"][];
+        };
+        /** RuleValueResource */
+        RuleValueResource: {
+            /** Name */
+            name: string;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string;
+        };
+        /** RunFailureResource */
+        RunFailureResource: {
+            /** Code */
+            code: string;
+            /** Reason */
+            reason: string;
+            /** Step */
+            step: string | null;
+        };
+        /**
+         * RunKind
+         * @enum {string}
+         */
+        RunKind: "build" | "pricing" | "simulation";
+        /** RunList */
+        RunList: {
+            /** Items */
+            items: components["schemas"]["RunResource"][];
+        };
+        /** RunResource */
+        RunResource: {
+            /** Attempt */
+            attempt: number;
+            failure: components["schemas"]["RunFailureResource"] | null;
+            /**
+             * Failure Pct
+             * @description Share of failed trip-planner queries; null on every run that is not a build.
+             */
+            failure_pct: number | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: string;
+            kind: components["schemas"]["RunKind"];
+            /** Queue Position */
+            queue_position: number | null;
+            /**
+             * Queued At
+             * Format: date-time
+             */
+            queued_at: string;
+            runner: components["schemas"]["RunnerResource"];
+            /**
+             * Server Time
+             * Format: date-time
+             */
+            server_time: string;
+            /** Started At */
+            started_at: string | null;
+            state: components["schemas"]["RunState"];
+            /** Steps */
+            steps: components["schemas"]["RunStepResource"][];
+            subject: components["schemas"]["RunSubject"];
+        };
+        /**
+         * RunState
+         * @enum {string}
+         */
+        RunState: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /** RunStepResource */
+        RunStepResource: {
+            /** Counts */
+            counts: {
+                [key: string]: unknown;
+            };
+            /** Finished At */
+            finished_at: string | null;
+            /** Last Duration S */
+            last_duration_s: number | null;
+            /** Number */
+            number: number;
+            /** Period */
+            period: string | null;
+            progress: components["schemas"]["StepProgress"] | null;
+            /** Reason */
+            reason: string | null;
+            /** Started At */
+            started_at: string | null;
+            state: components["schemas"]["StepState"];
+            step: components["schemas"]["StepName"];
+        };
+        /** RunSubject */
+        RunSubject: {
+            /** Id */
+            id: string;
+            type: components["schemas"]["SubjectType"];
+        };
+        /**
+         * RunnerResource
+         * @description Whether the process that should work on the run reported within the last 30 s.
+         */
+        RunnerResource: {
+            /** Alive */
+            alive: boolean;
+            /** Last Heartbeat At */
+            last_heartbeat_at: string | null;
+        };
+        /** ShowcaseHubPairResource */
+        ShowcaseHubPairResource: {
+            /** @description Σ k·q over the pair's offered options, computed from the model's flows. */
+            bike_rides: components["schemas"]["NumberResource"];
+            /** @description The centre of the destination hub. */
+            destination: components["schemas"]["ShowcasePointResource"];
+            /** Destination Hub */
+            destination_hub: string;
+            /** @description Σ p·k·q / Σ k·q over the pair's offered options, computed from the model's flows. */
+            mean_bike_price: components["schemas"]["NumberResource"];
+            /** @description The centre of the origin hub. */
+            origin: components["schemas"]["ShowcasePointResource"];
+            /** Origin Hub */
+            origin_hub: string;
+        };
+        /** ShowcaseHubResource */
+        ShowcaseHubResource: {
+            centre: components["schemas"]["ShowcasePointResource"];
+            /** Id */
+            id: string;
+            /**
+             * Outline
+             * @description The hub's outline as GeoJSON, when it has one.
+             */
+            outline: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ShowcasePointResource */
+        ShowcasePointResource: {
+            lat: components["schemas"]["NumberResource"];
+            lon: components["schemas"]["NumberResource"];
+        };
+        /** ShowcaseRequest */
+        ShowcaseRequest: {
+            /**
+             * Period Id
+             * @description The period to show; the version's first when absent.
+             */
+            period_id?: string | null;
+            /** Pricing Version Id */
+            pricing_version_id: string;
+        };
+        /** ShowcaseResponse */
+        ShowcaseResponse: {
+            /** @description `car_share_flat` minus `car_share_version`, in points; above 0: fewer car trips. */
+            car_share_difference: components["schemas"]["NumberResource"];
+            /** @description Car trips per 100 simulated travellers with the flat price, in points. */
+            car_share_flat: components["schemas"]["NumberResource"];
+            /** @description Car trips per 100 simulated travellers with the version's prices, in points. */
+            car_share_version: components["schemas"]["NumberResource"];
+            /** @description The version's flat price per ride, in CHF. */
+            flat_price: components["schemas"]["NumberResource"];
+            /** Headline */
+            headline: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            /**
+             * Hub Pairs
+             * @description The hub pairs with bike rides, ordered by origin and destination hub.
+             */
+            hub_pairs: components["schemas"]["ShowcaseHubPairResource"][];
+            /** Hubs */
+            hubs: components["schemas"]["ShowcaseHubResource"][];
+            /** Instance Version Id */
+            instance_version_id: string;
+            /** Instance Version Name */
+            instance_version_name: string;
+            /** Letter */
+            letter: string;
+            /**
+             * Marked At
+             * Format: date-time
+             */
+            marked_at: string;
+            /** Period Id */
+            period_id: string;
+            /** Pricing Version Id */
+            pricing_version_id: string;
+            rule: components["schemas"]["ShowcaseRule"];
+            scope: components["schemas"]["ShowcaseScope"];
+            study_circle: components["schemas"]["ShowcaseStudyCircle"];
+        };
+        /** ShowcaseRule */
+        ShowcaseRule: {
+            /**
+             * Id
+             * @description The simulation rule's id.
+             */
+            id: string;
+            /**
+             * Rule Current
+             * @description Whether the live worker runs this rule version; false marks the older rule.
+             */
+            rule_current: boolean;
+            /**
+             * Version
+             * @description The simulation rule's version.
+             */
+            version: number;
+        };
+        /** ShowcaseScope */
+        ShowcaseScope: {
+            /**
+             * City
+             * @description The city of the data set, e.g. "Geneva".
+             */
+            city: string;
+            /**
+             * Dataset Id
+             * @description The city data set of the instance version.
+             */
+            dataset_id: string;
+            /**
+             * Period Label
+             * @description The label of the period priced.
+             */
+            period_label: string;
+            /** @description The radius of the instance version, in km. */
+            radius_km: components["schemas"]["NumberResource"];
+        };
+        /** ShowcaseStudyCircle */
+        ShowcaseStudyCircle: {
+            centre: components["schemas"]["ShowcasePointResource"];
+            radius_m: components["schemas"]["NumberResource"];
+        };
+        /** SimulationProvenanceResource */
+        SimulationProvenanceResource: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Version */
+            rule_version: number;
+        };
+        /**
+         * SimulationResultResource
+         * @description The latest simulation of one price scheme.
+         */
+        SimulationResultResource: {
+            bike_rides: components["schemas"]["NumberResource"];
+            cost: components["schemas"]["NumberResource"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            displaced: components["schemas"]["NumberResource"];
+            /** Period Id */
+            period_id: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            revenue: components["schemas"]["NumberResource"];
+            /** Rule Current */
+            rule_current: boolean;
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Parameters */
+            rule_parameters: {
+                [key: string]: number;
+            };
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+            /**
+             * Travellers
+             * @description Travellers per mode: `pt_bike`, `pt_only`, `car`.
+             */
+            travellers: {
+                [key: string]: components["schemas"]["NumberResource"];
+            };
+            unserved: components["schemas"]["NumberResource"];
+        };
+        /**
+         * SimulationRuleResource
+         * @description A traveller simulation rule: its id, its version and its parameters.
+         */
+        SimulationRuleResource: {
+            /** Id */
+            id: string;
+            /** Parameters */
+            parameters: {
+                [key: string]: number;
+            };
+            /** Version */
+            version: number;
+        };
+        /** StationList */
+        StationList: {
+            /** Items */
+            items: components["schemas"]["StationResource"][];
+        };
+        /** StationResource */
+        StationResource: {
+            /**
+             * Kind
+             * @description `pt` a public transport stop, `bs` a bike station.
+             * @enum {string}
+             */
+            kind: "pt" | "bs";
+            /** Lat */
+            lat: number;
+            /** Lon */
+            lon: number;
+            /** Name */
+            name: string;
+            /** Station Id */
+            station_id: string;
+        };
+        /**
+         * StepName
+         * @enum {string}
+         */
+        StepName: "area" | "hubs" | "routes" | "travellers_and_bikes" | "pricing_model" | "traveller_simulation";
+        /** StepProgress */
+        StepProgress: {
+            /** Done */
+            done: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * StepState
+         * @enum {string}
+         */
+        StepState: "pending" | "running" | "done" | "kept" | "failed" | "cancelled";
+        /**
+         * StoredSimulationResource
+         * @description One stored simulation of the version (older rules included), as stories 3-9 to 3-12
+         *     read it.
+         */
+        StoredSimulationResource: {
+            bike_rides: components["schemas"]["NumberResource"];
+            cost: components["schemas"]["NumberResource"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Period Id */
+            period_id: string;
+            /**
+             * Price Scheme
+             * @enum {string}
+             */
+            price_scheme: "model_prices" | "flat";
+            revenue: components["schemas"]["NumberResource"];
+            /** Rule Id */
+            rule_id: string;
+            /** Rule Version */
+            rule_version: number;
+            /** Simulation Key */
+            simulation_key: string;
+        };
+        /**
+         * SubjectType
+         * @enum {string}
+         */
+        SubjectType: "instance_version" | "pricing_version";
         /** SystemStatusResponse */
         SystemStatusResponse: {
-            /** Api Version */
-            api_version: string;
-            /** Can Read Stored Results */
-            can_read_stored_results: boolean;
-            /** Can Start Runs */
-            can_start_runs: boolean;
+            can_build_instances: components["schemas"]["VerdictResponse"];
+            can_run_pricing: components["schemas"]["VerdictResponse"];
+            can_simulate: components["schemas"]["VerdictResponse"];
             /** Components */
             components: components["schemas"]["ComponentStatusResponse"][];
+            /** @description The traveller simulation rule of the worker with the latest live heartbeat; null when no worker is live. */
+            simulation_rule: components["schemas"]["SimulationRuleResource"] | null;
+        };
+        /** TripQuoteResponse */
+        TripQuoteResponse: {
+            destination_hub: components["schemas"]["QuotedHubResource"] | null;
+            /** @description Point A; null when not given. */
+            from_point: components["schemas"]["QuotedPointResource"] | null;
+            /** @description Set on `under_minimum_distance`. */
+            min_trip_distance_m: components["schemas"]["NumberResource"] | null;
+            /**
+             * No Car Option
+             * @description True when the pair has no car option; set on `priced` and `no_bike_option`.
+             */
+            no_car_option: boolean | null;
+            /**
+             * Options
+             * @description On `priced` and `no_bike_option`: by mode (PT + bike, PT alone, car), then arc id.
+             */
+            options: components["schemas"]["QuotedOptionResource"][];
+            origin_hub: components["schemas"]["QuotedHubResource"] | null;
+            /**
+             * Status
+             * @description The first that applies, in this order.
+             * @enum {string}
+             */
+            status: "one_point" | "outside_zone" | "no_hub_here" | "same_hub" | "under_minimum_distance" | "no_route" | "removed_by_quality_check" | "no_bike_option" | "priced";
+            /** @description Point B; null when not given. */
+            to_point: components["schemas"]["QuotedPointResource"] | null;
+        };
+        /** VerdictResponse */
+        VerdictResponse: {
+            /** Allowed */
+            allowed: boolean;
+            /** Reasons */
+            reasons: components["schemas"]["BlockingReasonResponse"][];
         };
     };
     responses: never;
@@ -84,6 +2343,1823 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listCityDatasets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CityDatasetList"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listCityInstances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CityInstanceMenu"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createCityInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCityInstanceRequest"];
+            };
+        };
+        responses: {
+            /** @description The instance exists; the body is its first draft */
+            201: {
+                headers: {
+                    /** @description The draft version */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description `name_taken` (the name or its identifier is used) or `package_defaults_missing` (no worker reported the package yet) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid, or the data set or version is unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deleteCityInstance: {
+        parameters: {
+            query?: {
+                including_pricing_versions?: boolean;
+            };
+            header?: never;
+            path: {
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No city instance has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `is_showcase` (the instance holds the home page's showcase), `run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instance_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInstanceVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft */
+            201: {
+                headers: {
+                    /** @description The draft version */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description No city instance has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The instance has a draft: `draft_exists` carries its `draft_id` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid, or the version to base on is unknown */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    comparePricingVersions: {
+        parameters: {
+            query: {
+                /** @description Two to four pricing version ids, separated by commas. */
+                pricing_versions: string;
+                /** @description The period's id; the versions' first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComparisonResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `different_instances`: the versions belong to different instance versions, or `no_result`: a version has no result */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `version_count_out_of_range`: fewer than two or more than four versions, or the request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deleteInstanceVersion: {
+        parameters: {
+            query?: {
+                including_pricing_versions?: boolean;
+            };
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `is_showcase` (the version holds the home page's showcase), `run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    updateInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InstanceVersionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceVersionResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The version is saved: `version_sealed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A value is not a JSON number, or a name is not a parameter */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    buildInstanceVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The build run is queued; the body is the run */
+            202: {
+                headers: {
+                    /** @description The run */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `rule_broken` (the draft breaks a rule: `failures` lists each with both values), `run_active` (`run_id` is the run) or `already_built` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `component_unavailable`: `reasons` names each component the build needs and lacks */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubPairs: {
+        parameters: {
+            query?: {
+                /** @description The id of a period of the version; the only period by default. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubPairList"];
+                };
+            };
+            /** @description `instance_version_not_found`, or `period_not_found` (the period is not one of the version's) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listPricingVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createPricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePricingVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description The draft */
+            201: {
+                headers: {
+                    /** @description The draft */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionResource"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The instance version is not built: `instance_not_built` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid, or `based_on` is not a version of this one */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listRoutePairs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoutePairList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listStations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StationList"];
+                };
+            };
+            /** @description No instance version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listPlaceNames: {
+        parameters: {
+            query: {
+                /** @description The instance version's id. */
+                instance_version: string;
+                /** @description The text typed. */
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceNameList"];
+                };
+            };
+            /** @description `instance_version_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getPricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    deletePricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `run_active` (a run of the version is queued or running) or `is_showcase` (the version is the showcase) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    updatePricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PricingVersionPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The version is saved: `version_sealed` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A value is not a JSON number, a field is not a goal or the name, or the name is blank */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubPairResults: {
+        parameters: {
+            query?: {
+                /** @description The period's id; the version's first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubPairResultList"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listHubResults: {
+        parameters: {
+            query?: {
+                /** @description The period's id; the version's first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HubResultList"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getPricingResult: {
+        parameters: {
+            query?: {
+                /** @description The period's id; the version's first period when absent. */
+                period?: string | null;
+            };
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingResultResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version's latest pricing run has not succeeded, or its solve, its summary or one of its two simulations is missing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    runPricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pricing run is queued; the body is the run */
+            202: {
+                headers: {
+                    /** @description The run */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `rule_broken` (the draft breaks a rule: `pricing_failures` lists each with its goal and value), `run_active` (`run_id` is the run) or `already_run` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `component_unavailable`: `reasons` names each component the run needs and lacks */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listPricingVersionSimulations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PricingVersionSimulationList"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    simulatePricingVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pricing_version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The simulation run is queued; the body is the run */
+            202: {
+                headers: {
+                    /** @description The run */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No pricing version has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `run_active` (`run_id` is the run), `no_result` (no succeeded pricing run) or `simulation_current` (both schemes already have a simulation with the current rule) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `component_unavailable`: no worker runs, or storage is down; `reasons` names each */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listRouteOptions: {
+        parameters: {
+            query: {
+                /** @description The instance version's id. */
+                instance_version: string;
+                /** @description The origin hub's id. */
+                origin_hub: string;
+                /** @description The destination hub's id. */
+                destination_hub: string;
+                /** @description The period's key; checked against the version. */
+                period?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteOptionList"];
+                };
+            };
+            /** @description `instance_version_not_found`, or `hub_pair_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `unknown_period`, or the request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listRuns: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated run states to keep, such as queued,running. */
+                state?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunList"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    cancelRun: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description A running run was asked to stop */
+            202: {
+                headers: {
+                    /** @description The run, which reports when it stops */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunResource"];
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The run has already finished */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getRunLog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    listRouteFailures: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RouteFailureList"];
+                };
+            };
+            /** @description No run has this id */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    getShowcase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShowcaseResponse"];
+                };
+            };
+            /** @description `no_showcase` (none is marked) or `no_result` (the marked version has lost part of its result) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    markShowcase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShowcaseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShowcaseResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found` */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `no_result`: the version has no result, or does not price the period */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     getSystemStatus: {
         parameters: {
             query?: never;
@@ -100,6 +4176,62 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SystemStatusResponse"];
+                };
+            };
+            /** @description Unexpected error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    quoteTrip: {
+        parameters: {
+            query: {
+                /** @description The pricing version's id. */
+                pricing_version: string;
+                /** @description The period's key; the version's only period when absent. */
+                period?: string | null;
+                /** @description Point A as `lat,lon`. */
+                from?: string | null;
+                /** @description Point B as `lat,lon`. */
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripQuoteResponse"];
+                };
+            };
+            /** @description `pricing_version_not_found`, or `no_result`: the version has no finished result */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description `no_point`, `malformed_point`, `period_not_priced`, or the request is not valid */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
             /** @description Unexpected error */

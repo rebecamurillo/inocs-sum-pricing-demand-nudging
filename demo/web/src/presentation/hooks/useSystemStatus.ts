@@ -1,55 +1,29 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ApiProblemError } from '../../application/errors';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import type { SimulationRuleRef } from '../../domain/system-status';
 import { loadSystemStatus } from '../../application/use-cases/load-system-status';
-import type { SystemStatus } from '../../domain/system-status';
 import { useGateways } from './gateways';
 
-export interface FailureReason {
-  readonly code: string;
-  readonly title: string;
-  readonly detail: string;
-}
+export const SYSTEM_STATUS_POLL_MS = 10_000;
 
-export type SystemStatusState =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'loaded'; readonly status: SystemStatus }
-  | { readonly kind: 'failed'; readonly reason: FailureReason };
-
-const loading: SystemStatusState = { kind: 'loading' };
-
-function toFailureReason(error: unknown): FailureReason {
-  if (error instanceof ApiProblemError) return error;
-  return {
-    code: 'unexpected_error',
-    title: 'The system status could not be read',
-    detail: error instanceof Error ? error.message : String(error),
-  };
-}
-
-export function useSystemStatus(): { state: SystemStatusState; retry: () => void } {
+/** The system status, read through the use case and refreshed every 10 s. */
+export function useSystemStatus() {
   const { systemStatus } = useGateways();
-  const [state, setState] = useState<SystemStatusState>(loading);
-  const [attempt, setAttempt] = useState(0);
+  return useQuery({
+    queryKey: ['system-status'],
+    queryFn: () => loadSystemStatus(systemStatus),
+    refetchInterval: SYSTEM_STATUS_POLL_MS,
+  });
+}
 
-  useEffect(() => {
-    let cancelled = false;
-    loadSystemStatus(systemStatus).then(
-      (status) => {
-        if (!cancelled) setState({ kind: 'loaded', status });
-      },
-      (error: unknown) => {
-        if (!cancelled) setState({ kind: 'failed', reason: toFailureReason(error) });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [systemStatus, attempt]);
-
-  const retry = useCallback(() => {
-    setState(loading);
-    setAttempt((current) => current + 1);
-  }, []);
-
-  return { state, retry };
+/**
+ * The rule the Lab simulates with now: the last one `/system-status` named during the session.
+ * The API names none while no runner is alive, which is exactly when the runner is off, so the
+ * last one read stays the answer; null until one was read.
+ */
+export function useCurrentSimulationRule(): SimulationRuleRef | null {
+  const named = useSystemStatus().data?.simulationRule ?? null;
+  const [last, setLast] = useState<SimulationRuleRef | null>(null);
+  if (named !== null && (named.id !== last?.id || named.version !== last.version)) setLast(named);
+  return named ?? last;
 }

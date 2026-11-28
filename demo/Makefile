@@ -11,6 +11,7 @@ API_PORT ?= 8100
 WEB_PORT ?= 4400
 OTP_PORT ?= 8080
 E2E_WEB_PORT ?= 14400
+PLANETILER_IMAGE ?= ghcr.io/onthegomap/planetiler:0.9.2
 INTEGRATION_DB_PORT ?= 5441
 ADAPTERS ?= real
 PLAYWRIGHT_ARGS ?= chromium
@@ -20,12 +21,22 @@ INTEGRATION_DB_URL = postgresql+psycopg://pricing_demo:pricing_demo@localhost:$(
 E2E = docker compose -f compose.e2e.yaml
 E2E_LOG = e2e/test-results/stack.log
 
+# The worker's optional settings, passed only when .env sets them (the worker has defaults).
+WORKER_ENV = $(if $(PRICING_DEMO_DATA_DIR),PRICING_DEMO_DATA_DIR=$(PRICING_DEMO_DATA_DIR)) \
+	$(if $(PRICING_DEMO_WORKER_ID),PRICING_DEMO_WORKER_ID=$(PRICING_DEMO_WORKER_ID)) \
+	$(if $(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S),PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S=$(PRICING_DEMO_COMPONENT_REPORT_INTERVAL_S)) \
+	$(if $(PRICING_DEMO_SHAPE_TOOL_IMAGE),PRICING_DEMO_SHAPE_TOOL_IMAGE=$(PRICING_DEMO_SHAPE_TOOL_IMAGE)) \
+	$(if $(PRICING_DEMO_OTP_GRAPH_DIR),PRICING_DEMO_OTP_GRAPH_DIR=$(PRICING_DEMO_OTP_GRAPH_DIR)) \
+	$(if $(PRICING_DEMO_OTP_RETRIES),PRICING_DEMO_OTP_RETRIES=$(PRICING_DEMO_OTP_RETRIES)) \
+	$(if $(PRICING_DEMO_OTP_RETRY_WAIT_S),PRICING_DEMO_OTP_RETRY_WAIT_S=$(PRICING_DEMO_OTP_RETRY_WAIT_S)) \
+	$(if $(PRICING_DEMO_OTP_WORKERS),PRICING_DEMO_OTP_WORKERS=$(PRICING_DEMO_OTP_WORKERS))
+
 # A shell ended by Ctrl-C or a termination signal runs its EXIT trap only if the signal makes
 # it exit (dash does not otherwise), so every recipe that cleans up in an EXIT trap starts
 # with this.
 ON_SIGNAL = trap 'exit 130' INT; trap 'exit 143' TERM
 
-.PHONY: help install check test test-integration e2e contract format dev up down live-smoke
+.PHONY: help install check test test-model test-integration e2e contract format dev worker city-data otp-graph basemap up down live-smoke
 
 help: ## Show this list
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-18s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -68,6 +79,9 @@ test: ## Unit and contract tests of the API and the web app
 	uv --directory api run pytest
 	npm --prefix web run test
 
+test-model: ## The characterisation tests of the pricing package (no licence, trip planner or internet)
+	uv --directory api run pytest -m characterisation --no-cov
+
 test-integration: ## API tests against a throwaway PostgreSQL in Docker (port INTEGRATION_DB_PORT)
 	@set -e; \
 	$(ON_SIGNAL); \
@@ -88,7 +102,7 @@ e2e: ## Build the e2e stack, run the Playwright scenarios, remove the stack (its
 	$(ON_SIGNAL); \
 	trap 'mkdir -p e2e/test-results; $(E2E) logs --no-color --timestamps > $(E2E_LOG) 2>&1 || true; $(E2E) down --volumes --remove-orphans' EXIT; \
 	$(E2E) up --build --detach --wait --wait-timeout 300; \
-	E2E_BASE_URL=http://localhost:$(E2E_WEB_PORT) npm --prefix e2e test
+	E2E_BASE_URL=http://localhost:$(E2E_WEB_PORT) E2E_COMPOSE="docker compose -f $(CURDIR)/compose.e2e.yaml" npm --prefix e2e test
 
 contract: ## Regenerate contracts/openapi.json and the web API types
 	uv --directory api run python -m pricing_demo.export_openapi ../contracts/openapi.json
@@ -100,22 +114,68 @@ format: ## Rewrite files to the formatters' output (ruff format, prettier)
 	npm --prefix e2e run format
 
 # --ignore-lock: Astro detaches itself when an AI agent runs it, which would end this recipe.
-dev: ## PostgreSQL in Docker; API and web dev server on the host; Ctrl-C stops those two, PostgreSQL runs until make down
+dev: ## PostgreSQL (and OpenTripPlanner if its graph exists) in Docker; API, worker and web dev server on the host; Ctrl-C stops those three
 	@set -e; \
 	$(ON_SIGNAL); \
 	docker compose up --detach --wait db; \
+	if [ -f otp/data/graph.obj ]; then \
+		docker compose --profile otp up --detach otp; \
+	else \
+		echo "Trip planner not started: otp/data/graph.obj does not exist (see otp/README.md)."; \
+	fi; \
 	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS) \
 		PRICING_DEMO_OTP_URL=http://localhost:$(OTP_PORT)/otp/gtfs/v1 \
 		API_PROXY_TARGET=http://localhost:$(API_PORT); \
 	uv --directory api run alembic upgrade head; \
 	uv --directory api run uvicorn pricing_demo.asgi:app --reload --reload-dir src --port $(API_PORT) & \
 	api=$$!; \
-	trap 'kill $$api 2> /dev/null || true' EXIT; \
+	env $(WORKER_ENV) uv --directory api run pricing-demo-worker & \
+	worker=$$!; \
+	trap 'kill $$api $$worker 2> /dev/null || true' EXIT; \
 	npm --prefix web run dev -- --port $(WEB_PORT) --ignore-lock
+
+worker: ## The worker on the host (real adapters unless ADAPTERS says otherwise), for live runs; Ctrl-C stops it
+	@set -e; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS) \
+		PRICING_DEMO_OTP_URL=http://localhost:$(OTP_PORT)/otp/gtfs/v1; \
+	uv --directory api run alembic upgrade head; \
+	exec env $(WORKER_ENV) uv --directory api run pricing-demo-worker
+
+city-data: ## Import the Geneva timetable, the bus legs drawn on the streets and the first bike-station snapshot as a city data set (Docker, internet)
+	@set -e; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
+	uv --directory api run alembic upgrade head; \
+	env $(WORKER_ENV) uv --directory api run pricing-demo-worker import-city-data
+
+otp-graph: ## Build OpenTripPlanner's graph from the latest city data set (DATASET=<id> for another; Docker, the .osm.pbf in otp/data/)
+	@set -e; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
+	uv --directory api run alembic upgrade head; \
+	env $(WORKER_ENV) uv --directory api run pricing-demo-worker otp-graph $(if $(DATASET),--dataset $(DATASET))
+
+basemap: ## Build the map's background web/public/basemap/<dataset>.pmtiles from the .osm.pbf, clipped to the data set's area (DATASET=<id>; Docker, internet, make city-data)
+	@set -e; \
+	files=$$(ls otp/data/*.osm.pbf 2>/dev/null || true); \
+	if [ -z "$$files" ] || [ $$(echo "$$files" | wc -l) -ne 1 ]; then \
+		echo "otp/data/ must hold exactly one .osm.pbf street extract (see otp/README.md)." >&2; exit 1; \
+	fi; \
+	docker compose up --detach --wait db; \
+	export PRICING_DEMO_DATABASE_URL=$(DB_URL) PRICING_DEMO_ADAPTERS=$(ADAPTERS); \
+	uv --directory api run alembic upgrade head; \
+	shown=$$(env $(WORKER_ENV) uv --directory api run pricing-demo-worker basemap-bounds $(if $(DATASET),--dataset $(DATASET))); \
+	set -- $$shown; \
+	dataset=$$1; bounds=$$2; \
+	mkdir -p web/public/basemap var/planetiler; \
+	docker run --rm -v "$(CURDIR)/otp/data:/osm:ro" -v "$(CURDIR)/var/planetiler:/data" -v "$(CURDIR)/web/public/basemap:/out" $(PLANETILER_IMAGE) \
+		--download --force --osm-path=/osm/$$(basename $$files) --bounds=$$bounds --output=/out/$$dataset.pmtiles; \
+	echo "Wrote web/public/basemap/$$dataset.pmtiles"
 
 up: ## The whole stack in Docker; OpenTripPlanner too when otp/data/graph.obj exists
 	@set -e; \
-	services="db api web"; \
+	services="db api worker web"; \
 	if [ -f otp/data/graph.obj ]; then \
 		services="$$services otp"; \
 	else \

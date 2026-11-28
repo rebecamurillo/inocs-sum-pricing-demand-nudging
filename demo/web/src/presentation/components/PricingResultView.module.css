@@ -1,0 +1,271 @@
+.view {
+  max-width: 64rem;
+  container-type: inline-size;
+}
+
+.brief {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  margin: 0 0 0.375rem;
+}
+
+.rhythm {
+  font-size: 0.75em;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--green-ink);
+  font-weight: 700;
+}
+
+.scope {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.625rem;
+}
+
+.source {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.insight {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.25em;
+  line-height: 1.25;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.125em;
+}
+
+.caption {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.link {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+.why {
+  margin: 0;
+}
+
+.goals {
+  margin: 0 0 0.75rem;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin: 0.375rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@container (max-width: 720px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.tileHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 0.5rem;
+  margin: 0;
+  font-size: 0.875em;
+}
+
+.weight {
+  color: var(--ink-2);
+}
+
+.figure {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.5em;
+  font-weight: 700;
+}
+
+.unit {
+  font-size: 0.6em;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.small {
+  margin: 0;
+  font-size: 0.8125em;
+  color: var(--ink-2);
+}
+
+.model {
+  margin: 0.25rem 0 0;
+  padding-top: 0.375rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125em;
+}
+
+.error {
+  color: var(--red-ink);
+}
+
+.pairs {
+  margin: 0 0 0.75rem;
+}
+
+.pairsTitle {
+  margin: 0 0 0.375rem;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.disclosure {
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--blue);
+  text-align: left;
+  text-decoration: underline;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+/* A result simulated with an older rule: the simulated bars and tiles are dimmed, nothing else. */
+[data-older-rule] {
+  opacity: 0.6;
+}
+
+.older {
+  margin: 0 0 0.75rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--tint-2);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.olderText {
+  margin: 0;
+}
+
+.simulating {
+  margin: 0.5rem 0 0;
+}
+
+.mark {
+  display: inline-block;
+  color: var(--blue);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Under reduced motion only the mark stops: the clock keeps updating. */
+@media (prefers-reduced-motion: reduce) {
+  .mark {
+    animation: none;
+  }
+}
+
+.banner {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  background: #ffe9e4;
+  border-radius: 10px;
+  color: var(--ink);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.older .actions {
+  margin-bottom: 0;
+}
+
+.primary {
+  font: inherit;
+  padding: 0.25rem 0.875rem;
+  color: #ffffff;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--blue-d);
+}
+
+.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.secondary {
+  font: inherit;
+  padding: 0.25rem 0.875rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--tint-2);
+}
+
+.secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.note {
+  color: var(--red-ink);
+}

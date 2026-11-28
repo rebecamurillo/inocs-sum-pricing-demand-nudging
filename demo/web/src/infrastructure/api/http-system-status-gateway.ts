@@ -1,10 +1,16 @@
 import { ApiProblemError } from '../../application/errors';
 import type { SystemStatusGateway } from '../../application/ports/system-status-gateway';
-import type { ComponentName, ComponentStatus, SystemStatus } from '../../domain/system-status';
+import type {
+  ComponentName,
+  ComponentStatus,
+  SystemStatus,
+  Verdict,
+} from '../../domain/system-status';
 import type { components } from './generated/schema';
 
 type SystemStatusResponse = components['schemas']['SystemStatusResponse'];
 type ComponentStatusResponse = components['schemas']['ComponentStatusResponse'];
+type VerdictResponse = components['schemas']['VerdictResponse'];
 type ProblemDetails = components['schemas']['ProblemDetails'];
 
 const systemStatusPath = '/api/v1/system-status';
@@ -12,25 +18,41 @@ const systemStatusPath = '/api/v1/system-status';
 // Typed over the wire enum: a component added to the contract fails the build here.
 const componentNames: Readonly<Record<ComponentStatusResponse['name'], ComponentName>> = {
   storage: 'storage',
-  pricing_model: 'pricingModel',
+  runner: 'runner',
   solver: 'solver',
+  package: 'package',
   trip_planner: 'tripPlanner',
+  city_data: 'cityData',
 };
 
 function toComponentStatus(component: ComponentStatusResponse): ComponentStatus {
   return {
     name: componentNames[component.name],
-    available: component.available,
+    state: component.state,
     reason: component.reason,
+  };
+}
+
+function toVerdict(verdict: VerdictResponse): Verdict {
+  return {
+    allowed: verdict.allowed,
+    reasons: verdict.reasons.map((blocking) => ({
+      component: componentNames[blocking.component],
+      reason: blocking.reason,
+    })),
   };
 }
 
 function toSystemStatus(response: SystemStatusResponse): SystemStatus {
   return {
-    apiVersion: response.api_version,
     components: response.components.map(toComponentStatus),
-    canReadStoredResults: response.can_read_stored_results,
-    canStartRuns: response.can_start_runs,
+    canBuildInstances: toVerdict(response.can_build_instances),
+    canRunPricing: toVerdict(response.can_run_pricing),
+    canSimulate: toVerdict(response.can_simulate),
+    simulationRule:
+      response.simulation_rule === null
+        ? null
+        : { id: response.simulation_rule.id, version: response.simulation_rule.version },
   };
 }
 

@@ -1,0 +1,108 @@
+import type { GeoBounds, GeoPoint } from '../../domain/map';
+
+/**
+ * The narrow view of a map the components use. The real map (MapLibre GL JS) is built by a
+ * factory that `composition/` injects; unit tests inject a fake that records these calls.
+ */
+
+export interface GeoJsonFeature {
+  readonly type: 'Feature';
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly geometry:
+    | { readonly type: 'Point'; readonly coordinates: readonly number[] }
+    | { readonly type: 'LineString'; readonly coordinates: readonly (readonly number[])[] }
+    | {
+        readonly type: 'Polygon';
+        readonly coordinates: readonly (readonly (readonly number[])[])[];
+      };
+}
+
+export interface GeoJsonCollection {
+  readonly type: 'FeatureCollection';
+  readonly features: readonly GeoJsonFeature[];
+}
+
+export type MapSourceSpec =
+  | { readonly type: 'vector'; readonly url: string }
+  | { readonly type: 'geojson'; readonly data: GeoJsonCollection };
+
+export interface MapLayerSpec {
+  readonly id: string;
+  readonly type: 'background' | 'fill' | 'line' | 'circle';
+  readonly source?: string;
+  readonly 'source-layer'?: string;
+  readonly paint: Readonly<Record<string, unknown>>;
+  readonly layout?: Readonly<Record<string, unknown>>;
+}
+
+export interface MapStyleSpec {
+  readonly version: 8;
+  readonly sources: Readonly<Record<string, MapSourceSpec>>;
+  readonly layers: readonly MapLayerSpec[];
+}
+
+/** What a view puts on the map: its sources and the layers that read them. */
+export interface MapDeclaration {
+  readonly sources: Readonly<Record<string, MapSourceSpec>>;
+  readonly layers: readonly MapLayerSpec[];
+}
+
+export interface CameraOptions {
+  /** False makes the camera jump. */
+  readonly animate: boolean;
+  /** Pixels kept free around the bounds; the map's default when absent. */
+  readonly padding?: number;
+}
+
+export interface MarkerOptions {
+  readonly draggable: boolean;
+  /** The marker's accessible name. */
+  readonly label: string;
+  /** A letter drawn in the marker (a pin's "A" or "B"). */
+  readonly text?: string;
+  /** The disc's colour; the ink colour when absent. */
+  readonly colour?: string;
+  /** Called with the marker's position at every step of a drag. */
+  readonly onDrag?: (position: GeoPoint) => void;
+  /** Called with the marker's position when a drag ends. */
+  readonly onDragEnd?: (position: GeoPoint) => void;
+}
+
+export interface MarkerHandle {
+  setPosition(position: GeoPoint): void;
+  remove(): void;
+}
+
+export interface MapHandle {
+  addSource(id: string, source: MapSourceSpec): void;
+  removeSource(id: string): void;
+  hasSource(id: string): boolean;
+  addLayer(layer: MapLayerSpec): void;
+  removeLayer(id: string): void;
+  hasLayer(id: string): boolean;
+  /** Replaces the whole style: the sources and layers views declared are gone afterwards. */
+  setStyle(style: MapStyleSpec): void;
+  /** A marker over the map, outside the style: `setStyle` does not remove it. */
+  addMarker(position: GeoPoint, options: MarkerOptions): MarkerHandle;
+  resize(): void;
+  fitBounds(bounds: GeoBounds, options: CameraOptions): void;
+  jumpTo(center: readonly [number, number], zoom: number): void;
+  /**
+   * Calls back each time a style has finished loading (the first one, and after `setStyle`),
+   * at once when one already has. Returns the way to stop listening.
+   */
+  onStyleReady(callback: () => void): () => void;
+  /** Calls back with the point of each click on the map; returns the way to stop listening. */
+  onClick(callback: (point: GeoPoint) => void): () => void;
+  remove(): void;
+}
+
+export interface MapOptions {
+  readonly style: MapStyleSpec;
+  /** 0 under prefers-reduced-motion. */
+  readonly fadeDuration: number;
+  /** False makes the map a picture: no pan, zoom, rotation or keyboard. Absent means true. */
+  readonly interactive?: boolean;
+}
+
+export type MapFactory = (container: HTMLElement, options: MapOptions) => MapHandle;

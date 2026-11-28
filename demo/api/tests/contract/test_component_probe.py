@@ -15,9 +15,10 @@ from collections.abc import Callable
 import pytest
 
 from pricing_demo.application.ports.component_probe import ComponentProbe
-from pricing_demo.domain.system_status import ComponentName, ComponentStatus
+from pricing_demo.domain.system_status import ComponentName, ComponentState, ComponentStatus
 from pricing_demo.infrastructure.config.settings import Settings
 from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.infrastructure.fakes.fake_settings import InMemoryFakeSettings
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
@@ -38,13 +39,19 @@ def closed_local_port() -> int:
 
 
 def fake_working(_: pytest.FixtureRequest) -> ComponentProbe:
-    return FakeProbe(ComponentName.TRIP_PLANNER)
+    return FakeProbe(ComponentName.TRIP_PLANNER, InMemoryFakeSettings())
 
 
 def fake_unavailable(_: pytest.FixtureRequest) -> ComponentProbe:
-    probe = FakeProbe(ComponentName.SOLVER)
-    probe.set_answer(available=False, reason="No Gurobi licence was found.")
-    return probe
+    settings = InMemoryFakeSettings()
+    settings.set_component("solver", "unavailable", "No Gurobi licence was found.")
+    return FakeProbe(ComponentName.SOLVER, settings)
+
+
+def fake_limited(_: pytest.FixtureRequest) -> ComponentProbe:
+    settings = InMemoryFakeSettings()
+    settings.set_component("solver", "limited", "Size-limited Gurobi licence.")
+    return FakeProbe(ComponentName.SOLVER, settings)
 
 
 def storage_working(request: pytest.FixtureRequest) -> ComponentProbe:
@@ -99,6 +106,9 @@ UNAVAILABLE = [
 ]
 
 
+LIMITED = [case("fake", fake_limited)]
+
+
 @pytest.fixture(params=WORKING)
 def working_probe(request: pytest.FixtureRequest) -> ComponentProbe:
     set_up: SetUp = request.param
@@ -111,7 +121,13 @@ def unavailable_probe(request: pytest.FixtureRequest) -> ComponentProbe:
     return set_up(request)
 
 
-@pytest.fixture(params=[*WORKING, *UNAVAILABLE])
+@pytest.fixture(params=LIMITED)
+def limited_probe(request: pytest.FixtureRequest) -> ComponentProbe:
+    set_up: SetUp = request.param
+    return set_up(request)
+
+
+@pytest.fixture(params=[*WORKING, *UNAVAILABLE, *LIMITED])
 def probe(request: pytest.FixtureRequest) -> ComponentProbe:
     set_up: SetUp = request.param
     return set_up(request)
@@ -127,13 +143,21 @@ def test_checking_reports_the_probes_own_component_and_never_raises(probe: Compo
 def test_a_working_component_is_available_without_a_reason(working_probe: ComponentProbe) -> None:
     status = working_probe.check()
 
-    assert (status.available, status.reason) == (True, None)
+    assert (status.state, status.reason) == (ComponentState.AVAILABLE, None)
 
 
 def test_an_unavailable_component_says_why(unavailable_probe: ComponentProbe) -> None:
     status = unavailable_probe.check()
 
-    assert not status.available
+    assert status.state is ComponentState.UNAVAILABLE
+    assert status.reason
+
+
+def test_a_limited_solver_says_why(limited_probe: ComponentProbe) -> None:
+    status = limited_probe.check()
+
+    assert limited_probe.component is ComponentName.SOLVER
+    assert status.state is ComponentState.LIMITED
     assert status.reason
 
 
@@ -149,4 +173,4 @@ def test_a_probe_can_be_checked_again(probe: ComponentProbe) -> None:
     first = probe.check()
     second = probe.check()
 
-    assert (second.name, second.available) == (first.name, first.available)
+    assert (second.name, second.state) == (first.name, first.state)

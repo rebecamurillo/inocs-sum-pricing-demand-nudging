@@ -1,0 +1,12 @@
+{
+  "last_updated": 1763000000,
+  "ttl": 60,
+  "version": "2.3",
+  "data": {
+    "stations": [
+      {"station_id": "ge-001", "name": "Cornavin", "lat": 46.2102, "lon": 6.1424, "capacity": 12},
+      {"station_id": "ge-002", "name": "Plainpalais", "lat": 46.1979, "lon": 6.1403, "capacity": 10},
+      {"station_id": "ge-003", "name": "Eaux-Vives", "lat": 46.2047, "lon": 6.1620, "capacity": 8}
+    ]
+  }
+}

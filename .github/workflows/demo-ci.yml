@@ -40,6 +40,23 @@ jobs:
       - run: make install PLAYWRIGHT_ARGS=
       - run: make check
 
+  # The unmodified pricing package on committed fixtures: no licence, trip planner or internet.
+  model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          lfs: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          version: '0.12.9'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+      - run: make install PLAYWRIGHT_ARGS=
+      - run: make test-model
+
   # The repositories and the migrations run against a throwaway PostgreSQL that the target
   # starts in Docker and removes.
   integration:

@@ -1,0 +1,75 @@
+.block {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.heading {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 700;
+}
+
+.same {
+  margin: 0;
+}
+
+.caption {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.wrapper {
+  position: relative;
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375em;
+}
+
+.table th,
+.table td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.showOnMap {
+  padding: 0.125rem 0.5rem;
+  font: inherit;
+  color: var(--blue);
+  background: none;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.showOnMap[aria-pressed='true'] {
+  color: #ffffff;
+  background: var(--blue);
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

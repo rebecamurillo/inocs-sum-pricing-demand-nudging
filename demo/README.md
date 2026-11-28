@@ -7,22 +7,112 @@ front end (`web/`) calls the API, PostgreSQL stores the data and OpenTripPlanner
 The rules for working in this folder are in [`AGENTS.md`](AGENTS.md); the design, the test strategy
 and the API conventions are in [`docs/`](docs/).
 
-## Prerequisites
+## Test-only set-up
 
-- Docker with Compose v2
-- [uv](https://docs.astral.sh/uv/) (the API's Python 3.13 is installed by uv)
-- Node 22 and npm
-- GNU Make
-- For live runs only: a Gurobi licence and OpenTripPlanner data ([`otp/README.md`](otp/README.md)).
-  Tests, `make check` and `make e2e` need neither.
-
-## First-time set-up
+`make check`, `make e2e` and every test use the fake model and the fake trip planner. They need
+Docker with Compose v2, [uv](https://docs.astral.sh/uv/), Node 22, npm and GNU Make, and
+neither a Gurobi licence nor OpenTripPlanner nor the internet:
 
 ```sh
 make install     # API (uv sync), web and e2e (npm ci), the Playwright Chromium browser
 make check       # the quality gate
 make e2e         # the end-to-end scenarios, in Docker
 ```
+
+## Live set-up
+
+The steps that take an empty machine to a built Geneva instance, in order. `verify-build` and
+the live set-up are maintainer commands: neither `make check` nor `make e2e` runs them.
+
+1. **The Gurobi licence and Python.** The model's solver needs a Gurobi licence on the host
+   (see `docs/architecture.md`, the worker set-up). Python 3.13 comes through uv: nothing to
+   install by hand. The OpenTripPlanner data is described in [`otp/README.md`](otp/README.md):
+   put the one `.osm.pbf` extract of the area in `otp/data/`.
+2. **`make install`**: the API (`uv sync`), the web app and the e2e suite (`npm ci`), the
+   Playwright Chromium browser.
+3. **`make city-data`**: imports the Geneva timetable and the first bike-station snapshot as a
+   data set `geneva-{date}` in the database and `var/data/datasets/` (needs the internet for
+   the bike stations). The import runs pfaedle in Docker to draw the bus legs on the streets of
+   that extract; without Docker, or when pfaedle produces no bus shape, the import still
+   succeeds, the data set records `bus_shapes = none` with the reason, and bus legs stay
+   straight lines between stops.
+4. **The bike-feed refresh**, whenever a newer station snapshot is wanted (it makes a new data
+   set with the latest timetable and the new stations):
+
+   ```sh
+   uv --directory api run pricing-demo-worker refresh-bike-stations
+   ```
+
+5. **`make otp-graph`**: OpenTripPlanner's graph from the latest data set, in `otp/data/`
+   (`DATASET=<id>` for another; see [`otp/README.md`](otp/README.md)).
+6. **`make basemap`**: the map's background `web/public/basemap/{dataset}.pmtiles` from the same
+   `.osm.pbf`.
+7. **`make dev`**, or `make up` then `make worker`: the stack with the real adapters
+   (`ADAPTERS=real`, the default; see `.env.example`). Open the web app and build an instance
+   version in the Lab.
+8. **`make live-smoke`**: checks the real package, solver and trip planner: the licence is
+   `available` (`test_the_solver_probe_answers`) and a 500 m instance solves end to end under a
+   full licence (`api/tests/live/test_real_pricing_model.py`). Both are the maintainer's, with a
+   full Gurobi licence and a running trip planner; so is a real pricing model run on a city
+   instance, which is never an unattended test. `make test-model` solves a tiny committed
+   instance with the size-limited licence of the PyPI `gurobipy`, without a licence file.
+
+## Measurements
+
+The measurement procedure is M-1 to M-5 of `ARCHITECTURE.md` § 12 (in the project folder,
+`initiatives/dynamic-pricing-demonstrator/`). M-1 to M-6 are a maintainer follow-up after
+delivery (`ARCHITECTURE.md` § 12, Q-10 closed for this version).
+
+- **M-1**: `make live-smoke`, then read `/api/v1/system-status`: the licence is `available` on
+  the host.
+- **M-2**: import the Geneva data set with the bus shapes, run `make otp-graph`; record the
+  build time, the peak memory (`docker stats`) and the graph size.
+- **M-3**: in the Lab build Geneva instances of radius 1, 2 and 3 km with the defaults, then
+  rebuild 3 km with `PRICING_DEMO_OTP_WORKERS` 1, 4 and 8 with reuse off. Read each step's
+  duration, its pair counts and `failure_pct` from `/api/v1/runs/{id}`, and the failed queries
+  from `/api/v1/runs/{id}/route-failures`.
+- **M-4**: run the default pricing goals on each instance; read the solution time, the gap, the
+  status, `time_limit_reached` and `peak_rss_bytes` of step 5 and the duration of step 5b (the
+  two simulations); look for a `C:\b_b_gurobi` folder in a working directory. It shows whether
+  the package's 7 200 s limit is reached at 3 km, whether node files work on macOS and how long
+  the traveller simulation takes on each instance size.
+- **M-5**: `verify {solve}` twice on the 3 km result (below), and `verify-build` on 3 km. It
+  shows the reproducibility claims of `ARCHITECTURE.md` § 9. It needs a full Gurobi licence and
+  the running trip planner: it is the maintainer's, never part of `make check` or `make e2e`.
+
+To show that a build is reproducible, rebuild an instance version from scratch and compare it
+with the stored one:
+
+```sh
+uv --directory api run pricing-demo-worker verify-build geneva-3km.v1
+```
+
+It runs steps 1 to 4 with reuse off in `var/data/verify/{uuid}/` (deleted at the end), writes
+nothing to the database, prints one line per step (`match` or `differ`, with the stored and the
+rebuilt sha256 of each file) and a last line `verify-build {version}: match` or `: differ`.
+When a trip-planner query failed in either build, the routes and travellers steps compare the
+hub pairs both builds have and list the others. Exit status: 0 when everything compared
+matches, 1 when something differs, 2 when the version is unknown or not built, or a rebuild
+step fails (the reason is on stderr).
+
+To show that a stored solve is reproducible, solve it again and compare it with the stored one:
+
+```sh
+uv --directory api run pricing-demo-worker verify geneva-3km.v1.B.mon-08
+```
+
+The argument is the `solves.id`, `{pricing version}.{period key}`. The command solves the period
+again with the version's goals, the period's stored instance and the package fingerprint the
+stored solve recorded, in `var/data/runs/verify-{uuid}/` (deleted at the end), and simulates
+again every simulation stored for the version and period (each scheme, each rule) with the
+stored simulation's own rule, prices, fare and parking fee, so a simulation difference is the
+rule's, not the solve's. It writes nothing to the database. It prints one line per difference
+(the table, the scheme for a simulation table, the key, the field and both values), one line per
+compared table with its row count and verdict, the duration of the new solve and of each new
+simulation (M-4), and a last line `verify {solve id}: match` or `: differ`. Exit status: 0 when
+everything matches, 1 when something differs, 2 when the solve cannot be verified (unknown id,
+no stored rows or simulation, a rule the worker cannot build) or the new solve fails or is
+stopped (the reason is on stderr). On a real solve it needs a full Gurobi licence (M-5).
 
 To change a port or another per-machine value, copy `.env.example` to `.env` and edit it. Every
 variable has a default; the stack starts without a `.env` file.
@@ -40,9 +130,15 @@ Run from this folder; `make help` lists them.
 | `make e2e` | builds the e2e stack, runs the Playwright scenarios, removes the stack |
 | `make contract` | regenerates `contracts/openapi.json` and the web API types |
 | `make format` | applies ruff format and prettier |
-| `make dev` | PostgreSQL in Docker; API and web dev server on the host, with reload. Ctrl-C stops the API and the web server; PostgreSQL keeps running until `make down` |
+| `make dev` | PostgreSQL in Docker (and OpenTripPlanner when `otp/data/graph.obj` exists); API (with reload), worker and web dev server on the host. Ctrl-C stops those three; the containers keep running until `make down` |
+| `make worker` | the worker alone on the host, for live runs; Ctrl-C stops it |
+| `make city-data` | imports the Geneva timetable, the bus legs drawn on the streets and the first bike-station snapshot as a city data set |
+| `make otp-graph` | builds OpenTripPlanner's graph from the latest city data set (`DATASET=<id>` for another): copies its timetable to `otp/data/gtfs.zip`, sets the service window, runs the build in Docker and writes `otp/data/graph-manifest.json` |
+| `make basemap` | builds the map's background `web/public/basemap/{dataset}.pmtiles` (git-ignored) from the `.osm.pbf` in `otp/data/` with Planetiler in Docker, clipped to the latest data set's available area (`DATASET=<id>` for another); without it the map is the ground colour |
 | `make up` / `make down` | the whole stack in Docker / stops it and keeps the database volume |
-| `make live-smoke` | checks the real package, solver and trip planner |
+| `make live-smoke` | checks the real package, solver and trip planner: the licence is `available` and a 500 m instance solves end to end (the maintainer's, with a full licence) |
+| `uv --directory api run pricing-demo-worker verify-build {instance version}` | rebuilds steps 1-4 of a built version with reuse off in a scratch folder and compares the file hashes with the stored build; exit 0 only when they match |
+| `uv --directory api run pricing-demo-worker verify {solve id}` | solves a stored solve again in a scratch folder, simulates its stored simulations again and compares the rows with the stored ones; exit 0 only when they match |
 
 `make dev` and `make up` use the same database container and the same host ports; run one at a
 time. `make e2e` uses its own project, ports and in-memory database, so it runs beside either.
@@ -57,6 +153,50 @@ time. `make e2e` uses its own project, ports and in-memory database, so it runs 
 | PostgreSQL | `localhost:5440`, database, user and password `pricing_demo` |
 | OpenTripPlanner | <http://localhost:8080> (only when started, see `otp/README.md`) |
 | e2e stack (during `make e2e`) | <http://localhost:14400> |
+
+## The Lab
+
+The web app is one page with one React island (`web/src/composition/LabIsland.tsx`). Opening
+it lands on Home at `#/`, the page that says why the bike price is set per trip and leads to the
+Lab ("Open the Lab →"; the Lab's brand block has "← Home"). Home reads `GET /api/v1/showcase`
+once per visit and, with a showcase, draws the stat tile and a non-interactive map of the priced
+trips. The Lab's routes are the hashes `#/lab`, `#/lab/{instance version}`,
+`#/lab/{instance version}/pricing/{letter}`, `#/lab/{instance version}/result/{letter}`,
+`#/lab/{instance version}/compare/{letters}` and `#/lab/traveller/{instance version}/{letter}`,
+each with an optional `?period=`. A malformed `#/lab…` link is replaced by `#/lab`; every other
+hash (`#/play`, `#/labx`, no hash) renders Home and is kept as typed. Home's line under the
+cards reads `MODEL_AUTHOR` and `RUN_UNMODIFIED_CONFIRMED` of `web/src/domain/footer.ts`.
+
+The footer's wording is set in `web/src/domain/footer.ts`:
+
+- `FUNDING_STATEMENT` is the funding statement. Its source is the sentence that accompanies
+  the EU co-funding mark in the team folder (`knowledge/visual-identity.md` § Sources).
+- `MODEL_AUTHOR` is the model author's name in "Pricing model: {model author}, Inria INOCS.".
+  It reads `placeholder` until the maintainer supplies the name; then set
+  `MODEL_AUTHOR_IS_PLACEHOLDER` to `false`.
+- `RUN_UNMODIFIED_CONFIRMED` is `false`: "Run unmodified." is not shown until the author
+  accepts it (question Q-40).
+
+The EU co-funding mark is `web/src/presentation/assets/eu-co-funding-mark-placeholder.svg`.
+The maintainer replaces it by `EN-Co-Funded-by-the-EU_POS-1.png` and updates the import in
+`web/src/presentation/components/Footer.tsx`.
+
+## The showcase
+
+`PUT /api/v1/showcase` with `{"pricing_version_id": "...", "period_id": "..."}` (the period is
+optional) marks one finished pricing version and period as the showcase, replacing an earlier
+mark; `409 no_result` when the version has no result or does not price the period. `GET
+/api/v1/showcase` answers what Home draws: the marked version's id and period, its instance
+version's name, its letter, the headline numbers of its result, the scope (data set, city,
+radius, period label), the car share simulated with the flat price and with the version's prices
+and their difference in points, the flat price, the simulation rule with `rule_current`, the study
+circle, the hubs and, per hub pair with bike rides, its two hub centres, mean bike price and bike
+rides (each number `{value, unit, source, group}`), or `404 no_showcase`. The Lab's
+"Use on the home page", on L-3 of a finished version, sets it. While a version is marked,
+`DELETE /api/v1/pricing-versions/{id}` answers `409 is_showcase`, and so do the `DELETE` of its
+instance version (`/instance-versions/{id}`) and of its city instance (`/city-instances/{id}`),
+with or without `including_pricing_versions=true`; the Lab's "Delete…" then shows a note instead
+of asking.
 
 ## Where things are
 

@@ -11,6 +11,7 @@ dependencies = [
   "alembic",
   "fastapi",
   "httpx",
+  "osmium",
   "psycopg[binary]>=3",
   "pydantic>=2",
   "pydantic-settings",
@@ -18,6 +19,9 @@ dependencies = [
   "sum_nsm_dynamic_pricing",
   "uvicorn",
 ]
+
+[project.scripts]
+pricing-demo-worker = "pricing_demo.worker.main:main"
 
 [dependency-groups]
 dev = [
@@ -61,7 +65,7 @@ files = ["src", "tests"]
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["sum_nsm_dynamic_pricing.*", "gurobipy.*"]
+module = ["sum_nsm_dynamic_pricing.*", "gurobipy.*", "pandas.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -69,7 +73,7 @@ testpaths = ["tests"]
 addopts = [
   "--strict-markers",
   "-m",
-  "not integration and not live",
+  "not integration and not live and not characterisation",
   "--cov=pricing_demo.domain",
   "--cov=pricing_demo.application",
   "--cov-fail-under=90",
@@ -77,6 +81,7 @@ addopts = [
 filterwarnings = ["error"]
 markers = [
   "integration: needs a throwaway PostgreSQL given by PRICING_DEMO_TEST_DATABASE_URL",
+  "characterisation: runs the unmodified pricing package on committed fixtures (make test-model); needs no licence, trip planner or internet",
   "live: needs the real package, a Gurobi licence and a running OpenTripPlanner",
 ]
 
@@ -88,7 +93,7 @@ include_external_packages = true
 name = "Source dependencies point inwards"
 type = "layers"
 layers = [
-  "pricing_demo.asgi | pricing_demo.export_openapi",
+  "pricing_demo.asgi | pricing_demo.export_openapi | pricing_demo.worker",
   "pricing_demo.bootstrap",
   "pricing_demo.infrastructure | pricing_demo.interface",
   "pricing_demo.application",
@@ -104,6 +109,7 @@ forbidden_modules = [
   "fastapi",
   "gurobipy",
   "httpx",
+  "osmium",
   "psycopg",
   "pydantic",
   "pydantic_settings",
@@ -122,6 +128,7 @@ forbidden_modules = [
   "fastapi",
   "gurobipy",
   "httpx",
+  "osmium",
   "psycopg",
   "pydantic",
   "pydantic_settings",
@@ -139,6 +146,7 @@ forbidden_modules = [
   "alembic",
   "gurobipy",
   "httpx",
+  "osmium",
   "psycopg",
   "pydantic_settings",
   "sqlalchemy",

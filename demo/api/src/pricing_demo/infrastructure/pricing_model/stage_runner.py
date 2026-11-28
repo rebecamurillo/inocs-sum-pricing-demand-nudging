@@ -1,0 +1,262 @@
+"""The stage child: runs one step of the package in its own process.
+
+Usage: `python -m pricing_demo.infrastructure.pricing_model.stage_runner {spec.json}`. The worker
+(`stage_child.py`) starts it in its own session and process group, with the step's working
+directory as current directory. It leaves `outcome.json` (`status` and `counts`, or the
+exception's type, message and traceback), `progress.jsonl` (the package's log records) and, as
+its output, `stdout.log` and `stderr.log`. The package is imported only here, inside `run`.
+"""
+
+import json
+import logging
+import math
+import os
+import sys
+import threading
+import time
+import traceback
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from pricing_demo.infrastructure.pricing_model.retry_policy import mounted_on_otp_clients
+from pricing_demo.infrastructure.pricing_model.routes_file import sorted_routes
+from pricing_demo.infrastructure.pricing_model.stage_spec import (
+    OUTCOME_FILE,
+    PACKAGE_SUMMARY_FILE,
+    PROGRESS_FILE,
+    SOLVE_FACTS_FILE,
+    StageSpec,
+)
+
+PACKAGE_LOGGER = "sum_nsm_dynamic_pricing"
+PARENT_GONE = 3
+WATCH_EVERY_S = 2.0
+# The name the store expects for the file the package names after its pair count.
+INSTANCE_FILE = "Instance_1.json"
+BIKE_LEGS_FILE = "option_bike_legs.json"
+ROUTES_FILE = "od_routes.json"
+CACHE_FILE = "od_cache.json"
+# The routes step logs each query at DEBUG in the route builder and its totals at INFO in the
+# client (model-notes entry 11).
+ROUTE_BUILDER_LOGGER = "sum_nsm_dynamic_pricing.routing.route_builder"
+OTP_CLIENT_LOGGER = "sum_nsm_dynamic_pricing.routing.otp_client"
+
+
+class ProgressHandler(logging.Handler):
+    """Appends one JSON line per log record: its time, logger, level, template and arguments."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__()
+        self._path = path
+        # The file exists even when the step logs nothing.
+        path.touch()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        args = record.args if isinstance(record.args, tuple) else (record.args,)
+        line = {
+            "created": record.created,
+            "logger": record.name,
+            "level": record.levelname,
+            "template": str(record.msg),
+            "args": [_plain(item) for item in args],
+        }
+        with self._path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(line) + "\n")
+
+
+def _plain(value: Any) -> Any:
+    if value is None or isinstance(value, bool | int | float | str):
+        return value
+    return str(value)
+
+
+def watch_parent(
+    parent_pid: int,
+    getppid: Callable[[], int],
+    exit_now: Callable[[], None],
+    wait: Callable[[float], None],
+    every: float = WATCH_EVERY_S,
+) -> None:
+    """Ends the child once its parent is gone (it is then adopted: `getppid` changes). Loops
+    until `exit_now` returns, so a real `os._exit` never comes back."""
+    while True:
+        wait(every)
+        if getppid() != parent_pid:
+            exit_now()
+            return
+
+
+def write_outcome(path: Path, outcome: dict[str, Any]) -> None:
+    """Writes under a temporary name, then renames: the worker never reads half a file."""
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(outcome), encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def failure_outcome(error: BaseException) -> dict[str, Any]:
+    return {
+        "status": "error",
+        "exception_type": type(error).__name__,
+        "message": str(error),
+        "traceback": "".join(traceback.format_exception(error)),
+    }
+
+
+def keep_object_strings() -> None:
+    """Workaround for model-notes entry 24: with pandas 3 the package's `hub_builder.py:33`
+    meets a string array that is not a numpy array. Strings stay `object`, as the package was
+    written for; the package is not edited."""
+    import warnings
+
+    import pandas as pd
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pd.set_option("future.infer_string", False)
+
+
+def run(spec: StageSpec) -> dict[str, Any]:
+    """Runs the step with the package and returns what `outcome.json` holds."""
+    from sum_nsm_dynamic_pricing.config import InstanceParams, PipelineConfig
+    from sum_nsm_dynamic_pricing.optimizer.parser import parse_json_instance
+    from sum_nsm_dynamic_pricing.pipeline import InstancePipeline
+
+    keep_object_strings()
+    folder = Path(spec.working_dir)
+    os.chdir(folder)
+    logger = logging.getLogger(PACKAGE_LOGGER)
+    logger.setLevel(logging.INFO)
+    logger.addHandler(ProgressHandler(folder / PROGRESS_FILE))
+    fields = dict(spec.pipeline)
+    for name in ("gtfs_path", "gbfs_path"):
+        if fields.get(name) is not None:
+            fields[name] = Path(fields[name])
+    pipeline = InstancePipeline(PipelineConfig(output_dir=folder, **fields))
+    if spec.step == "area":
+        pipeline.prepare_stations()
+    elif spec.step == "hubs":
+        pipeline.build_hubs()
+    elif spec.step == "routes":
+        return run_routes(pipeline, spec, folder)
+    elif spec.step == "pricing_model":
+        return run_pricing_model(pipeline, spec, folder)
+    else:
+        written = pipeline.generate_instance(InstanceParams(**spec.instance))
+        target = folder / INSTANCE_FILE
+        if written != target:
+            os.replace(written, target)
+        parsed = parse_json_instance(target)
+        bike_legs = {str(arc_id): legs for (_, _, arc_id), legs in parsed["k_bike_legs"].items()}
+        (folder / BIKE_LEGS_FILE).write_text(json.dumps(bike_legs, sort_keys=True), "utf-8")
+    return {"status": "done", "counts": {}}
+
+
+def plain_record(record: dict[Any, Any]) -> dict[str, Any]:
+    """The package's summary record with Python values: numpy scalars become Python numbers
+    and NaN becomes null, so the file is valid JSON."""
+    plain: dict[str, Any] = {}
+    for name, value in record.items():
+        if hasattr(value, "item"):
+            value = value.item()
+        if isinstance(value, float) and math.isnan(value):
+            value = None
+        plain[str(name)] = value
+    return plain
+
+
+def write_package_summary(results: Path, folder: Path) -> None:
+    """Writes the first record of the package's `summarize` of the solution. The summary is
+    the author's own reading of the solution, never a reason to fail the step: when it cannot
+    be made, no file is written (model-notes entry 29)."""
+    from sum_nsm_dynamic_pricing.optimizer import summarize
+
+    try:
+        records = summarize(results).to_dict("records")
+        if records:
+            (folder / PACKAGE_SUMMARY_FILE).write_text(
+                json.dumps(plain_record(records[0]), allow_nan=False, sort_keys=True),
+                encoding="utf-8",
+            )
+    except Exception:
+        logging.getLogger(PACKAGE_LOGGER).warning("The package could not summarise the solution")
+
+
+def run_pricing_model(pipeline: Any, spec: StageSpec, folder: Path) -> dict[str, Any]:
+    """Step 5: the package's solve of the period's instance. The solver's status and solution
+    count exist only in its printed log (model-notes entry 27); what it does not print, the
+    Gurobi version and the platform, is written beside the outcome."""
+    import platform
+
+    import gurobipy
+    from sum_nsm_dynamic_pricing.config import OptimizerParams
+
+    results = pipeline.optimize(OptimizerParams(**spec.optimizer), folder / INSTANCE_FILE)
+    facts = {
+        "results_file": os.path.relpath(results, folder),
+        "gurobi_version": ".".join(str(part) for part in gurobipy.gurobi.version()),
+        "platform": platform.platform(),
+    }
+    (folder / SOLVE_FACTS_FILE).write_text(json.dumps(facts, sort_keys=True), encoding="utf-8")
+    write_package_summary(results, folder)
+    return {"status": "done", "counts": {}}
+
+
+def run_routes(pipeline: Any, spec: StageSpec, folder: Path) -> dict[str, Any]:
+    """Step 3: the package's route building with the demonstrator's retry policy on its client,
+    no cache of an earlier run (model-notes entries 6, 10, 11, 12, 20), and the pairs sorted."""
+    from sum_nsm_dynamic_pricing.routing.otp_client import OTPClient, OTPUnavailableError
+
+    logging.getLogger(ROUTE_BUILDER_LOGGER).setLevel(logging.DEBUG)
+    logging.getLogger(OTP_CLIENT_LOGGER).setLevel(logging.INFO)
+    cache = folder / CACHE_FILE
+    routes = folder / ROUTES_FILE
+    # A cache would repeat the answers (and the option ids) of an earlier, other build.
+    cache.unlink(missing_ok=True)
+    retries = int(spec.routes["retries"])
+    wait_s = float(spec.routes["retry_wait_s"])
+    try:
+        with mounted_on_otp_clients(OTPClient, retries, wait_s):
+            routes = pipeline.compute_routes()
+            pipeline.quality_routes(routes)
+    except OTPUnavailableError:
+        return {
+            "status": "failed",
+            "failure_code": "trip_planner_unreachable",
+            "values": {"url": pipeline.config.otp_url},
+        }
+    finally:
+        cache.unlink(missing_ok=True)
+    payload = sorted_routes(json.loads(routes.read_text(encoding="utf-8")))
+    routes.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    if not payload["od_results"]:
+        return {
+            "status": "failed",
+            "failure_code": "no_public_transport",
+            "values": {"d": spec.routes["routing_date"]},
+        }
+    return {"status": "done", "counts": {}}
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 1:
+        print("usage: stage_runner <spec.json>", file=sys.stderr)
+        return 2
+    spec = StageSpec.from_json(Path(argv[0]).read_text(encoding="utf-8"))
+    threading.Thread(
+        target=watch_parent,
+        args=(spec.parent_pid, os.getppid, lambda: os._exit(PARENT_GONE), time.sleep),
+        daemon=True,
+    ).start()
+    try:
+        outcome = run(spec)
+        code = 0
+    except Exception as error:
+        traceback.print_exc()
+        outcome, code = failure_outcome(error), 1
+    write_outcome(Path(spec.working_dir) / OUTCOME_FILE, outcome)
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

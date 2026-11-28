@@ -5,10 +5,18 @@ from fastapi.testclient import TestClient
 from pricing_demo.application.errors import ComponentNotControllable
 from pricing_demo.application.use_cases.get_system_status import GetSystemStatus
 from pricing_demo.domain.errors import DomainError
-from pricing_demo.domain.system_status import ComponentName, IncompleteSystemStatus, SystemStatus
-from pricing_demo.infrastructure.fakes.component_probe import FakeProbe
+from pricing_demo.domain.system_status import (
+    ComponentName,
+    ComponentStatus,
+    IncompleteSystemStatus,
+    SystemStatus,
+)
+from pricing_demo.infrastructure.fakes.city_datasets import InMemoryCityDatasets
+from pricing_demo.infrastructure.fakes.clock import FixedClock
+from pricing_demo.infrastructure.fakes.component_probe import fixed_probe
+from pricing_demo.infrastructure.fakes.component_reports import InMemoryComponentReports
 from pricing_demo.interface.http.app import create_app
-from tests.unit.interface.http.conftest import API_VERSION, AppFactory, Faked
+from tests.unit.interface.http.conftest import API_VERSION, SERVER_TIME, AppFactory, Faked
 
 PROBLEM_JSON = "application/problem+json"
 
@@ -19,7 +27,12 @@ class RuleBroken(DomainError):
 
 class FailingUseCase(GetSystemStatus):
     def __init__(self, error: Exception) -> None:
-        super().__init__([FakeProbe(name) for name in ComponentName])
+        super().__init__(
+            fixed_probe(ComponentStatus.ready(ComponentName.STORAGE)),
+            InMemoryComponentReports(),
+            InMemoryCityDatasets(),
+            FixedClock(SERVER_TIME),
+        )
         self._error = error
 
     def execute(self) -> SystemStatus:
@@ -88,7 +101,7 @@ def test_an_unexpected_error_is_a_problem_without_its_message(client_for: AppFac
 
 
 def test_an_invalid_body_lists_the_fields_that_failed(faked: Faked) -> None:
-    response = faked.client.put("/api/test-control/components/solver", json={"available": "maybe"})
+    response = faked.client.put("/api/test-control/components/solver", json={"state": "maybe"})
 
     assert response.status_code == 422
     assert response.headers["content-type"] == PROBLEM_JSON
@@ -96,8 +109,8 @@ def test_an_invalid_body_lists_the_fields_that_failed(faked: Faked) -> None:
     assert body["code"] == "validation_failed"
     assert body["errors"] == [
         {
-            "field": "available",
-            "message": "Input should be a valid boolean, unable to interpret input",
+            "field": "state",
+            "message": "Input should be 'available', 'limited' or 'unavailable'",
         }
     ]
 

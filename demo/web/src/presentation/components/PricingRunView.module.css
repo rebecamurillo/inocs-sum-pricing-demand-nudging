@@ -1,0 +1,25 @@
+/* The look of the running card is BuildingView's; this file holds what only a pricing run has. */
+.struck {
+  color: var(--ink-2);
+  text-decoration: line-through;
+}
+
+.changes {
+  width: 100%;
+  margin: 0.75rem 0;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.changes th,
+.changes td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+  border-top: 1px solid var(--line-2);
+}
+
+.changes th {
+  color: var(--ink-2);
+  font-weight: 600;
+}

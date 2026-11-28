@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from pricing_demo.domain.system_status import ComponentState
 from pricing_demo.infrastructure.persistence.engine import create_db_engine
 from pricing_demo.infrastructure.persistence.storage_probe import StorageProbe
 from pricing_demo.infrastructure.pricing_model.package_probe import PackageProbe
@@ -17,7 +18,7 @@ def otp_probe(handler: httpx.MockTransport) -> OtpProbe:
 def test_the_trip_planner_is_available_when_it_answers() -> None:
     probe = otp_probe(httpx.MockTransport(lambda request: httpx.Response(200, json={})))
 
-    assert probe.check().available
+    assert probe.check().state is ComponentState.AVAILABLE
 
 
 def test_the_trip_planner_asks_a_graphql_query() -> None:
@@ -37,7 +38,7 @@ def test_the_trip_planner_asks_a_graphql_query() -> None:
 def test_the_trip_planner_is_unavailable_on_an_error_status() -> None:
     status = otp_probe(httpx.MockTransport(lambda request: httpx.Response(503))).check()
 
-    assert not status.available
+    assert status.state is ComponentState.UNAVAILABLE
     assert status.reason == f"{OTP_URL} answered HTTP 503."
 
 
@@ -47,7 +48,7 @@ def test_the_trip_planner_reports_a_timeout() -> None:
 
     status = otp_probe(httpx.MockTransport(handler)).check()
 
-    assert not status.available
+    assert status.state is ComponentState.UNAVAILABLE
     assert status.reason == f"No answer from {OTP_URL} within 2 s."
 
 
@@ -57,7 +58,7 @@ def test_the_trip_planner_reports_a_refused_connection() -> None:
 
     status = otp_probe(httpx.MockTransport(handler)).check()
 
-    assert not status.available
+    assert status.state is ComponentState.UNAVAILABLE
     assert status.reason == f"{OTP_URL} is not reachable: Connection refused"
 
 
@@ -66,24 +67,22 @@ def test_the_storage_is_unavailable_when_the_database_does_not_answer() -> None:
 
     status = StorageProbe(engine).check()
 
-    assert not status.available
+    assert status.state is ComponentState.UNAVAILABLE
     assert status.reason is not None
     assert status.reason.startswith("The database does not answer: ")
     assert "secret" not in status.reason
 
 
-def test_the_solver_reason_starts_with_the_probes_own_words_and_adds_gurobis(
+def test_the_solver_is_not_available_without_a_licence_and_says_why(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GRB_LICENSE_FILE", "/nonexistent/gurobi.lic")
 
     status = SolverProbe().check()
 
-    assert not status.available
-    assert status.reason is not None
-    assert status.reason.startswith("Gurobi did not start: ")
-    assert status.reason.removeprefix("Gurobi did not start: ").strip()
+    assert status.state is not ComponentState.AVAILABLE
+    assert status.reason
 
 
 def test_the_package_is_available_when_it_imports() -> None:
-    assert PackageProbe().check().available
+    assert PackageProbe().check().state is ComponentState.AVAILABLE

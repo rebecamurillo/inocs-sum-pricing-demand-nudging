@@ -1,49 +1,72 @@
-from pricing_demo.application.errors import ComponentNotControllable
-from pricing_demo.domain.system_status import ComponentName, ComponentStatus
+from collections.abc import Mapping
+from typing import Protocol
 
-FAKED_COMPONENTS = (
-    ComponentName.PRICING_MODEL,
-    ComponentName.SOLVER,
-    ComponentName.TRIP_PLANNER,
+from pricing_demo.domain.errors import DomainError
+from pricing_demo.domain.system_status import (
+    PROBED_COMPONENTS,
+    ComponentName,
+    ComponentState,
+    ComponentStatus,
 )
+
+FAKED_COMPONENTS = PROBED_COMPONENTS
+
+
+class FakeSettingsSource(Protocol):
+    def read(self) -> Mapping[str, object]: ...
 
 
 class FakeProbe:
-    """A probe whose answer is set by the caller; available until told otherwise."""
+    """A probe whose answer is read from the fake settings at each check; available until
+    the settings say otherwise."""
 
-    def __init__(self, component: ComponentName) -> None:
+    def __init__(self, component: ComponentName, settings: FakeSettingsSource) -> None:
         self._component = component
-        self._answer = ComponentStatus.ready(component)
+        self._settings = settings
 
     @property
     def component(self) -> ComponentName:
         return self._component
 
-    def set_answer(self, available: bool, reason: str | None) -> None:
-        self._answer = ComponentStatus(self._component, available, reason)
+    def check(self) -> ComponentStatus:
+        try:
+            return self._read()
+        except Exception as error:
+            return ComponentStatus.unavailable(
+                self._component, f"The fake settings are not readable: {error}"
+            )
 
-    def reset(self) -> None:
-        self._answer = ComponentStatus.ready(self._component)
+    def _read(self) -> ComponentStatus:
+        components = self._settings.read().get("components")
+        if components is None:
+            return ComponentStatus.ready(self._component)
+        if not isinstance(components, Mapping):
+            raise ValueError("'components' is not an object")
+        entry = components.get(self._component.value)
+        if entry is None:
+            return ComponentStatus.ready(self._component)
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"the entry of {self._component} is not an object")
+        try:
+            return ComponentStatus(
+                self._component, ComponentState(str(entry.get("state"))), entry.get("reason")
+            )
+        except (ValueError, DomainError) as error:
+            raise ValueError(f"the entry of {self._component} is invalid ({error})") from error
+
+
+class _FixedProbe:
+    def __init__(self, status: ComponentStatus) -> None:
+        self._status = status
+
+    @property
+    def component(self) -> ComponentName:
+        return self._status.name
 
     def check(self) -> ComponentStatus:
-        return self._answer
+        return self._status
 
 
-class FakeControl:
-    """Holds the fake probes of the faked components and changes what they answer."""
-
-    def __init__(self) -> None:
-        self._probes = {name: FakeProbe(name) for name in FAKED_COMPONENTS}
-
-    def probe(self, name: ComponentName) -> FakeProbe:
-        return self._probes[name]
-
-    def set_component(self, name: ComponentName, available: bool, reason: str | None) -> None:
-        probe = self._probes.get(name)
-        if probe is None:
-            raise ComponentNotControllable(f"The {name} component is not faked.")
-        probe.set_answer(available, reason)
-
-    def reset(self) -> None:
-        for probe in self._probes.values():
-            probe.reset()
+def fixed_probe(status: ComponentStatus) -> _FixedProbe:
+    """A probe that always answers `status`."""
+    return _FixedProbe(status)

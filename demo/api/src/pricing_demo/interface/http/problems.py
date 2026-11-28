@@ -9,10 +9,81 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from pricing_demo.application.errors import ComponentNotControllable, InvalidProbeSet
+from pricing_demo.application.errors import (
+    BikeStationFetchFailed,
+    BusShapeMatchingFailed,
+    ComponentNotControllable,
+    GraphBuildFailed,
+    GtfsCopyChanged,
+    InvalidProbeSet,
+    InvalidStreetExtract,
+    InvalidTimetable,
+    NoCityDataYet,
+    OtherTimetableInGraphFolder,
+    PackageDefaultsMissing,
+    SolveNotFound,
+    SolveNotVerifiable,
+    StreetExtractNotFound,
+    UnknownCityDataset,
+    UnknownStartVersion,
+    VersionNotBuilt,
+)
+from pricing_demo.domain.builds import (
+    AlreadyBuilt,
+    ComponentUnavailable,
+    DraftChanged,
+    RuleBroken,
+    RunActive,
+)
+from pricing_demo.domain.city_datasets import DisjointAreas
+from pricing_demo.domain.city_instances import (
+    CityInstanceNameTaken,
+    CityInstanceNotFound,
+    DraftExists,
+    InstanceVersionNotFound,
+    InvalidInstanceName,
+    PeriodNotFound,
+    VersionSealed,
+)
+from pricing_demo.domain.comparison import DifferentInstances, VersionCountOutOfRange
 from pricing_demo.domain.errors import DomainError
+from pricing_demo.domain.failure_codes import UnknownFailureCode
+from pricing_demo.domain.pricing_rules import PricingRuleBroken
+from pricing_demo.domain.pricing_versions import (
+    AlreadyRun,
+    HasPricingVersions,
+    InstanceNotBuilt,
+    IsShowcase,
+    NoResult,
+    NoShowcase,
+    PricingVersionNotFound,
+    ResultNotFound,
+    SealedWithoutRun,
+    SimulationCurrent,
+    UnknownBasedOn,
+)
+from pricing_demo.domain.runs import (
+    InvalidRunTransition,
+    InvalidStepTransition,
+    RunAlreadyFinished,
+    RunNotFound,
+)
 from pricing_demo.domain.system_status import IncompleteSystemStatus, InvalidComponentStatus
-from pricing_demo.interface.http.schemas import FieldError, ProblemDetails
+from pricing_demo.domain.traveller_simulation import SimulationCheckFailed
+from pricing_demo.domain.trip_quotes import (
+    HubPairNotFound,
+    MalformedPoint,
+    NoPoint,
+    PeriodNotPriced,
+    UnknownPeriodKey,
+)
+from pricing_demo.interface.http.schemas import (
+    BlockingReasonResponse,
+    FieldError,
+    PricingRuleResultResource,
+    ProblemDetails,
+    RuleResultResource,
+)
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
 PROBLEM_TYPE_BASE = "https://sum-project.eu/problems/"
@@ -43,8 +114,98 @@ DOMAIN_PROBLEMS: Mapping[type[DomainError], Problem] = {
     ComponentNotControllable: Problem(
         409, "component_not_controllable", "The component cannot be controlled"
     ),
+    RunNotFound: Problem(404, "run_not_found", "The run does not exist"),
+    RunAlreadyFinished: Problem(409, "run_finished", "The run has already finished"),
+    # No route runs the simulation: the worker records the code as the step's failure.
+    SimulationCheckFailed: Problem(
+        500, "simulation_check_failed", "The traveller simulation broke its check"
+    ),
+    # No route lets a client ask for a transition the machine refuses: reaching one is a bug.
+    InvalidRunTransition: INTERNAL_ERROR,
+    InvalidStepTransition: INTERNAL_ERROR,
     IncompleteSystemStatus: INTERNAL_ERROR,
     InvalidProbeSet: INTERNAL_ERROR,
+    # Raised by the worker's city data commands only; no route reaches them.
+    BikeStationFetchFailed: INTERNAL_ERROR,
+    StreetExtractNotFound: INTERNAL_ERROR,
+    NoCityDataYet: INTERNAL_ERROR,
+    SolveNotFound: INTERNAL_ERROR,
+    SolveNotVerifiable: INTERNAL_ERROR,
+    InvalidTimetable: INTERNAL_ERROR,
+    InvalidStreetExtract: INTERNAL_ERROR,
+    GtfsCopyChanged: INTERNAL_ERROR,
+    DisjointAreas: INTERNAL_ERROR,
+    BusShapeMatchingFailed: INTERNAL_ERROR,
+    UnknownCityDataset: Problem(422, "unknown_city_dataset", "The city data set does not exist"),
+    UnknownStartVersion: Problem(
+        422, "unknown_start_version", "The version to start from does not exist"
+    ),
+    InvalidInstanceName: Problem(
+        422, "invalid_instance_name", "The name cannot make an identifier"
+    ),
+    CityInstanceNameTaken: Problem(409, "name_taken", "The name is already used"),
+    DraftExists: Problem(409, "draft_exists", "The instance already has a draft"),
+    VersionSealed: Problem(409, "version_sealed", "The version is saved and cannot change"),
+    PackageDefaultsMissing: Problem(
+        409, "package_defaults_missing", "The package defaults are not known yet"
+    ),
+    InstanceVersionNotFound: Problem(
+        404, "instance_version_not_found", "The instance version does not exist"
+    ),
+    VersionNotBuilt: Problem(409, "version_not_built", "The version has no stored build"),
+    PeriodNotFound: Problem(404, "period_not_found", "The version has no such period"),
+    CityInstanceNotFound: Problem(
+        404, "city_instance_not_found", "The city instance does not exist"
+    ),
+    OtherTimetableInGraphFolder: INTERNAL_ERROR,
+    GraphBuildFailed: INTERNAL_ERROR,
+    RuleBroken: Problem(409, "rule_broken", "The draft breaks a rule"),
+    RunActive: Problem(409, "run_active", "The version has a queued or running run"),
+    AlreadyBuilt: Problem(409, "already_built", "The version is already built"),
+    PricingRuleBroken: Problem(409, "rule_broken", "The pricing draft breaks a rule"),
+    AlreadyRun: Problem(409, "already_run", "The pricing version already has its result"),
+    NoResult: Problem(409, "no_result", "The pricing version has no result yet"),
+    ResultNotFound: Problem(404, "no_result", "The pricing version has no result yet"),
+    DifferentInstances: Problem(
+        409, "different_instances", "The pricing versions belong to different instance versions"
+    ),
+    VersionCountOutOfRange: Problem(
+        422, "version_count_out_of_range", "A comparison takes two to four pricing versions"
+    ),
+    NoPoint: Problem(422, "no_point", "A trip quote needs at least one point"),
+    MalformedPoint: Problem(422, "malformed_point", "The point is not a latitude and longitude"),
+    PeriodNotPriced: Problem(
+        422, "period_not_priced", "The pricing version did not price the period"
+    ),
+    UnknownPeriodKey: Problem(422, "unknown_period", "The instance version has no such period"),
+    HubPairNotFound: Problem(404, "hub_pair_not_found", "The instance has no such hub pair"),
+    IsShowcase: Problem(409, "is_showcase", "The pricing version is the showcase"),
+    NoShowcase: Problem(404, "no_showcase", "No pricing version is the showcase"),
+    SimulationCurrent: Problem(
+        409, "simulation_current", "The version is already simulated with the current rule"
+    ),
+    PricingVersionNotFound: Problem(
+        404, "pricing_version_not_found", "The pricing version does not exist"
+    ),
+    InstanceNotBuilt: Problem(
+        409, "instance_not_built", "The instance version has no successful build"
+    ),
+    UnknownBasedOn: Problem(
+        422, "unknown_based_on", "The pricing version to copy does not exist on this version"
+    ),
+    HasPricingVersions: Problem(
+        409, "has_pricing_versions", "The version has pricing versions that go with it"
+    ),
+    # Sealing and queueing the run are one transaction: a sealed version without a run is a bug.
+    SealedWithoutRun: INTERNAL_ERROR,
+    ComponentUnavailable: Problem(
+        503, "component_unavailable", "A component the action needs is not available"
+    ),
+    # Only after every retry of the use case found the draft edited again meanwhile.
+    DraftChanged: INTERNAL_ERROR,
+    # Raised by the fake pricing model when a test names a code the domain does not have; the
+    # test-control request refuses such a code before it gets there.
+    UnknownFailureCode: INTERNAL_ERROR,
 }
 
 
@@ -53,6 +214,12 @@ def problem_response(
     detail: str,
     errors: list[FieldError] | None = None,
     headers: Mapping[str, str] | None = None,
+    draft_id: str | None = None,
+    failures: list[RuleResultResource] | None = None,
+    reasons: list[BlockingReasonResponse] | None = None,
+    run_id: str | None = None,
+    pricing_version_ids: list[str] | None = None,
+    pricing_failures: list[PricingRuleResultResource] | None = None,
 ) -> JSONResponse:
     body = ProblemDetails(
         type=PROBLEM_TYPE_BASE + problem.code.replace("_", "-"),
@@ -61,6 +228,12 @@ def problem_response(
         detail=detail,
         code=problem.code,
         errors=errors,
+        draft_id=draft_id,
+        failures=failures,
+        reasons=reasons,
+        pricing_failures=pricing_failures,
+        run_id=run_id,
+        pricing_version_ids=pricing_version_ids,
     )
     return JSONResponse(
         status_code=problem.status,
@@ -73,9 +246,28 @@ def problem_response(
 def _domain_error(request: Request, error: Exception) -> JSONResponse:
     assert isinstance(error, DomainError)
     problem = DOMAIN_PROBLEMS.get(type(error))
-    if problem is None or problem.status >= 500:
+    # A mapped 503 is an answer to the client, not a fault: only the unmapped and the
+    # explicitly internal errors are logged and hidden.
+    if problem is None or problem is INTERNAL_ERROR:
         return _unexpected_error(request, error)
-    return problem_response(problem, str(error))
+    return problem_response(
+        problem,
+        str(error),
+        draft_id=error.draft_id if isinstance(error, DraftExists) else None,
+        failures=[RuleResultResource.from_domain(item) for item in error.failures]
+        if isinstance(error, RuleBroken)
+        else None,
+        reasons=[BlockingReasonResponse.from_domain(item) for item in error.reasons]
+        if isinstance(error, ComponentUnavailable)
+        else None,
+        pricing_failures=[PricingRuleResultResource.from_domain(item) for item in error.failures]
+        if isinstance(error, PricingRuleBroken)
+        else None,
+        run_id=error.run_id if isinstance(error, RunActive) else None,
+        pricing_version_ids=list(error.pricing_version_ids)
+        if isinstance(error, HasPricingVersions)
+        else None,
+    )
 
 
 def _validation_error(_: Request, error: Exception) -> JSONResponse:

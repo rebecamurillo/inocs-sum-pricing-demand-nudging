@@ -8,7 +8,7 @@ PACKAGE = "sum_nsm_dynamic_pricing"
 class PackageProbe:
     """The research package is installed and imports."""
 
-    component = ComponentName.PRICING_MODEL
+    component = ComponentName.PACKAGE
 
     def check(self) -> ComponentStatus:
         try:
