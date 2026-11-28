@@ -59,8 +59,10 @@ async function holdsAtEverySize(
   }
 }
 
+// One scenario per group of states, each with its own data: a scenario that held every view
+// grew with each story past the 30 s test timeout on CI.
 test.describe('Lab', () => {
-  test('Lab · every built view holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+  test('Lab · the empty Lab and the L-1 forms hold at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
     control,
@@ -99,7 +101,13 @@ test.describe('Lab', () => {
     await page.getByRole('textbox', { name: 'Grouping distance', exact: true }).fill('1000');
     await expect(page.getByText('One rule is not met.')).toBeVisible();
     await holdsAtEverySize(page, page.getByRole('main'));
+  });
 
+  test('Lab · the L-1 run states and delete confirmations hold at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
     // The building, queued, failed and cancelled states: one run held at its routes step, a
     // second instance queued behind it.
     await control.setPricingModel({ hold_at: 'routes' });
@@ -162,8 +170,16 @@ test.describe('Lab', () => {
     ).toBeVisible();
     await holdsAtEverySize(page, page.getByRole('main'));
     await page.getByRole('button', { name: 'Keep' }).click();
+  });
 
-    // The same confirmation on a version used by pricing versions.
+  test('Lab · the delete confirmation of a used version and L-2 hold at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control);
+
+    // The delete confirmation on a version used by pricing versions.
     await createPricingVersion(request, version);
     await createPricingVersion(request, version);
     await page.goto(`/#/lab/${version}`);
@@ -195,6 +211,14 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
     await page.getByRole('tab', { name: '3 Weights' }).click();
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
+  });
+
+  test('Lab · L-3, its loading state and the home page notes hold at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control);
 
     // L-3: the result of a finished version, and its loading state (the answer held until the
     // skeleton has been checked).
@@ -244,8 +268,6 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'));
   });
 
-  // A third scenario for L-3's hub pairs: the first holds every other built view and already
-  // fills its time budget.
   test('Lab · L-3 hub pairs and the hidden map hold at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
@@ -278,9 +300,7 @@ test.describe('Lab', () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Advanced view' })).toHaveCount(0);
   });
 
-  // A sibling scenario for L-4: the first holds every other built view and already fills its
-  // time budget (the states are added to the same family, one scenario per screen).
-  test('Lab · every L-4 state holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+  test('Lab · L-4 off and with two versions holds at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
     control,
@@ -305,29 +325,26 @@ test.describe('Lab', () => {
     await expect(main.getByTestId('compare-table')).toBeVisible();
     await expect(main.getByRole('heading', { level: 2 })).toHaveText(/^In the simulation, /);
     await holdsAtEverySize(page, main);
+  });
+
+  test('Lab · L-4 with three versions, the difference table and Advanced view holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control, 920);
+    const main = page.getByRole('main');
+    await finishVersion(request, version, 'Baseline');
+    await finishVersion(request, version, 'Heavier ridership', { ridership_weight: 20 });
+    await finishVersion(request, version, 'Higher floor', { lowest_price_chf: 0.9 });
 
     // Three versions.
-    await finishVersion(request, version, 'Higher floor', { lowest_price_chf: 0.9 });
     await page.goto(`/#/lab/${version}/compare/A,B,C`);
     await page.reload();
     await expect(main.getByTestId('compare-table').getByRole('columnheader')).toHaveCount(5);
     await holdsAtEverySize(page, main);
 
-    // Two versions with the same pricing model result: the sentence takes the table's place.
-    await finishVersion(request, version, 'Dearer flat price', {
-      ridership_weight: 20,
-      flat_price_per_ride_chf: 1.5,
-    });
-    await page.goto(`/#/lab/${version}/compare/B,D`);
-    await page.reload();
-    await expect(
-      main.getByText(
-        'Versions B and D have the same pricing model result: no hub pair price differs.',
-      ),
-    ).toBeVisible();
-    await holdsAtEverySize(page, main);
-
-    // Three versions again, with the difference table and the map's panel.
+    // Three versions, with the difference table and the map's panel.
     await page.goto(`/#/lab/${version}/compare/A,B,C`);
     await page.reload();
     await expect(
@@ -346,6 +363,32 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, main);
     await advanced.click();
     await expect(main.getByText('= Objective value')).toHaveCount(0);
+  });
+
+  test('Lab · L-4 with one solve shared and with four versions holds at 1440, 1280 and 1280 × 720 with Aa', async ({
+    page,
+    request,
+    control,
+  }) => {
+    const { version } = await buildFakeInstance(request, control, 920);
+    const main = page.getByRole('main');
+    await finishVersion(request, version, 'Baseline');
+    await finishVersion(request, version, 'Heavier ridership', { ridership_weight: 20 });
+    await finishVersion(request, version, 'Higher floor', { lowest_price_chf: 0.9 });
+    await finishVersion(request, version, 'Dearer flat price', {
+      ridership_weight: 20,
+      flat_price_per_ride_chf: 1.5,
+    });
+
+    // Two versions with the same pricing model result: the sentence takes the table's place.
+    await page.goto(`/#/lab/${version}/compare/B,D`);
+    await page.reload();
+    await expect(
+      main.getByText(
+        'Versions B and D have the same pricing model result: no hub pair price differs.',
+      ),
+    ).toBeVisible();
+    await holdsAtEverySize(page, main);
 
     // Four versions with two flat columns: the table scrolls sideways inside the card, the bars
     // wrap, the page does not scroll.
@@ -382,10 +425,6 @@ test.describe('Lab', () => {
     expect(tops).toBeGreaterThan(1);
   });
 
-  // A second scenario for the run states of L-2: the first holds every other built view and
-  // already fills its time budget.
-  // A sibling scenario for L-5: the first holds every other built view and already fills its
-  // time budget (the states pick and switched are added to the same family).
   test('Lab · every L-5 state holds at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,
@@ -505,7 +544,6 @@ test.describe('Lab', () => {
     await holdsAtEverySize(page, page.getByRole('main'), 'No run in progress', false);
   });
 
-  // A sibling scenario for L-3 with the older rule: the first scenario's time budget is spent.
   test('Lab · L-3 older rule, simulating and delete hold at 1440, 1280 and 1280 × 720 with Aa', async ({
     page,
     request,

@@ -76,7 +76,11 @@ def test_the_solve_of_the_tiny_instance_is_pinned(instance_folder: Path, tmp_pat
         GOLDEN_BUSY_ROWS
     )
     assert solve.quality.objective_value == pytest.approx(GOLDEN_BUSY_OBJECTIVE, abs=1e-6)
-    assert (solve.quality.solver_status_name, solve.quality.sol_count) == ("OPTIMAL", 2)
+    # Gurobi's SolCount is how many feasible solutions its heuristics happened to find, which
+    # depends on the host (2 on macOS, 1 on ubuntu-24.04): the pinned facts are the rows and
+    # the objective above, and that the solve is optimal with a solution.
+    assert solve.quality.solver_status_name == "OPTIMAL"
+    assert solve.quality.sol_count >= 1
     assert len(solve.ods) == 2
 
 
