@@ -37,7 +37,7 @@ def build_showcase_router(mark: MarkShowcase, get: GetShowcase) -> APIRouter:
     @router.get(
         "/showcase",
         operation_id="getShowcase",
-        summary="The showcased pricing version with its headline numbers",
+        summary="The showcased pricing version with what Home draws",
         response_model=ShowcaseResponse,
         responses={
             404: _problem(

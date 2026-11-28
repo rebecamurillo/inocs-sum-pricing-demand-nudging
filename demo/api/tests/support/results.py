@@ -62,7 +62,17 @@ class ResultRig(PricingRig):
         self.place_names = ListPlaceNames(base.instances, self.trips)
         self.route_options = ListRouteOptions(base.instances, self.trips)
         self.mark = MarkShowcase(self.lookup, base.showcase, base.clock)
-        self.get_showcase = GetShowcase(base.showcase, self.lookup, base.instances)
+        self.get_showcase = GetShowcase(
+            base.showcase,
+            self.lookup,
+            base.instances,
+            base.simulations,
+            base.datasets,
+            base.artifacts,
+            base.read_model,
+            base.solves,
+            base.status,
+        )
 
     def finished(self, **changes: float) -> str:
         """A pricing version whose run succeeded (both steps)."""

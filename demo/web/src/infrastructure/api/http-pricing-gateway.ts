@@ -35,6 +35,7 @@ import {
   type PricingGoals,
   type PricingVersion,
 } from '../../domain/pricing-version';
+import type { GeoPoint, MapHub } from '../../domain/map';
 import type { Showcase } from '../../domain/showcase';
 import type { components } from './generated/schema';
 
@@ -76,6 +77,61 @@ function toVersion(wire: Schemas['PricingVersionResource']): PricingVersion {
 
 function toNumber(wire: Schemas['NumberResource']): ResultNumber {
   return { value: wire.value, unit: wire.unit, source: wire.source, group: wire.group };
+}
+
+const toPoint = (wire: Schemas['ShowcasePointResource']): GeoPoint => ({
+  lat: wire.lat.value,
+  lon: wire.lon.value,
+});
+
+function toOutline(outline: Schemas['ShowcaseHubResource']['outline']): MapHub['outline'] {
+  const ring = Array.isArray(outline?.coordinates)
+    ? (outline.coordinates as unknown[])[0]
+    : undefined;
+  if (!Array.isArray(ring)) return null;
+  return (ring as number[][]).map((position) => [position[0] ?? 0, position[1] ?? 0] as const);
+}
+
+function toShowcase(wire: Schemas['ShowcaseResponse']): Showcase {
+  return {
+    pricingVersionId: wire.pricing_version_id,
+    periodId: wire.period_id,
+    instanceVersionId: wire.instance_version_id,
+    instanceVersionName: wire.instance_version_name,
+    letter: wire.letter,
+    markedAt: wire.marked_at,
+    datasetId: wire.scope.dataset_id,
+    city: wire.scope.city,
+    radiusKm: toNumber(wire.scope.radius_km),
+    periodLabel: wire.scope.period_label,
+    carShareFlat: toNumber(wire.car_share_flat),
+    carShareVersion: toNumber(wire.car_share_version),
+    carShareDifference: toNumber(wire.car_share_difference),
+    flatPrice: toNumber(wire.flat_price),
+    rule: {
+      id: wire.rule.id,
+      version: wire.rule.version,
+      current: wire.rule.rule_current,
+    },
+    studyCircle: {
+      centre: toPoint(wire.study_circle.centre),
+      radiusM: wire.study_circle.radius_m.value,
+    },
+    hubs: wire.hubs.map((hub) => ({
+      id: hub.id,
+      lat: hub.centre.lat.value,
+      lon: hub.centre.lon.value,
+      outline: toOutline(hub.outline),
+    })),
+    hubPairs: wire.hub_pairs.map((pair) => ({
+      originHub: pair.origin_hub,
+      destinationHub: pair.destination_hub,
+      origin: toPoint(pair.origin),
+      destination: toPoint(pair.destination),
+      meanBikePrice: toNumber(pair.mean_bike_price),
+      bikeRides: toNumber(pair.bike_rides),
+    })),
+  };
 }
 
 const optional = (wire: Schemas['NumberResource'] | null | undefined): ResultNumber | null =>
@@ -380,15 +436,7 @@ export class HttpPricingGateway implements PricingGateway {
     const answer = await this.call('GET', path, undefined);
     if (answer.status === 404) return null;
     if (answer.status !== 200) throw unexpected(answer.status, answer.body, path);
-    const wire = answer.body as Schemas['ShowcaseResponse'];
-    return {
-      pricingVersionId: wire.pricing_version_id,
-      periodId: wire.period_id,
-      instanceVersionId: wire.instance_version_id,
-      instanceVersionName: wire.instance_version_name,
-      letter: wire.letter,
-      markedAt: wire.marked_at,
-    };
+    return toShowcase(answer.body as Schemas['ShowcaseResponse']);
   }
 
   async result(id: string): Promise<PricingResult | null> {

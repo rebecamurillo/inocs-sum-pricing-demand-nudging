@@ -13,6 +13,12 @@ GENEVA_NAME = "Geneva · tpg + Donkey Republic"
 NO_BUS_SHAPE_REASON = "no bus shape was produced"
 
 
+def city_name(dataset_name: str) -> str:
+    """The city of a data set's name: the part before the first " · " (the whole name when
+    there is none)."""
+    return dataset_name.split(" · ", 1)[0]
+
+
 def is_bus_route_type(route_type: int) -> bool:
     """GTFS basic type 3 and the extended types 700-799; trams (0, 900-999) and rail are not."""
     return route_type == 3 or 700 <= route_type <= 799

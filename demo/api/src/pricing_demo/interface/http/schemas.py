@@ -18,7 +18,7 @@ from pricing_demo.application.use_cases.get_pricing_result import (
     SimulationResult,
     StoredSimulationFigures,
 )
-from pricing_demo.application.use_cases.get_showcase import ShowcaseView
+from pricing_demo.application.use_cases.get_showcase import ShowcasePoint, ShowcaseView
 from pricing_demo.application.use_cases.list_city_instances import InstanceMenuEntry
 from pricing_demo.application.use_cases.list_hub_pair_results import HubPairResult, OptionResult
 from pricing_demo.application.use_cases.list_hub_results import HubResult
@@ -1451,6 +1451,60 @@ class ShowcaseRequest(BaseModel):
     )
 
 
+class ShowcasePointResource(BaseModel):
+    lat: NumberResource
+    lon: NumberResource
+
+    @classmethod
+    def from_view(cls, point: ShowcasePoint) -> "ShowcasePointResource":
+        return cls(
+            lat=NumberResource.from_domain(point.lat), lon=NumberResource.from_domain(point.lon)
+        )
+
+
+class ShowcaseScope(BaseModel):
+    dataset_id: str = Field(description="The city data set of the instance version.")
+    city: str = Field(description='The city of the data set, e.g. "Geneva".')
+    radius_km: NumberResource = Field(description="The radius of the instance version, in km.")
+    period_label: str = Field(description="The label of the period priced.")
+
+
+class ShowcaseRule(BaseModel):
+    id: str = Field(description="The simulation rule's id.")
+    version: int = Field(description="The simulation rule's version.")
+    rule_current: bool = Field(
+        description="Whether the live worker runs this rule version; false marks the older rule."
+    )
+
+
+class ShowcaseStudyCircle(BaseModel):
+    centre: ShowcasePointResource
+    radius_m: NumberResource
+
+
+class ShowcaseHubResource(BaseModel):
+    id: str
+    centre: ShowcasePointResource
+    outline: dict[str, Any] | None = Field(
+        description="The hub's outline as GeoJSON, when it has one."
+    )
+
+
+class ShowcaseHubPairResource(BaseModel):
+    origin_hub: str
+    destination_hub: str
+    origin: ShowcasePointResource = Field(description="The centre of the origin hub.")
+    destination: ShowcasePointResource = Field(description="The centre of the destination hub.")
+    mean_bike_price: NumberResource = Field(
+        description=(
+            "Σ p·k·q / Σ k·q over the pair's offered options, computed from the model's flows."
+        )
+    )
+    bike_rides: NumberResource = Field(
+        description="Σ k·q over the pair's offered options, computed from the model's flows."
+    )
+
+
 class ShowcaseResponse(BaseModel):
     pricing_version_id: str
     period_id: str
@@ -1459,6 +1513,25 @@ class ShowcaseResponse(BaseModel):
     instance_version_id: str
     instance_version_name: str
     headline: dict[str, NumberResource]
+    scope: ShowcaseScope
+    car_share_flat: NumberResource = Field(
+        description="Car trips per 100 simulated travellers with the flat price, in points."
+    )
+    car_share_version: NumberResource = Field(
+        description="Car trips per 100 simulated travellers with the version's prices, in points."
+    )
+    car_share_difference: NumberResource = Field(
+        description=(
+            "`car_share_flat` minus `car_share_version`, in points; above 0: fewer car trips."
+        )
+    )
+    flat_price: NumberResource = Field(description="The version's flat price per ride, in CHF.")
+    rule: ShowcaseRule
+    study_circle: ShowcaseStudyCircle
+    hubs: list[ShowcaseHubResource]
+    hub_pairs: list[ShowcaseHubPairResource] = Field(
+        description="The hub pairs with bike rides, ordered by origin and destination hub."
+    )
 
     @classmethod
     def from_view(cls, view: ShowcaseView) -> "ShowcaseResponse":
@@ -1470,6 +1543,42 @@ class ShowcaseResponse(BaseModel):
             instance_version_id=view.instance_version_id,
             instance_version_name=view.instance_version_name,
             headline=_numbers(view.headline),
+            scope=ShowcaseScope(
+                dataset_id=view.dataset_id,
+                city=view.city,
+                radius_km=NumberResource.from_domain(view.radius_km),
+                period_label=view.period_label,
+            ),
+            car_share_flat=NumberResource.from_domain(view.car_share_flat),
+            car_share_version=NumberResource.from_domain(view.car_share_version),
+            car_share_difference=NumberResource.from_domain(view.car_share_difference),
+            flat_price=NumberResource.from_domain(view.flat_price),
+            rule=ShowcaseRule(
+                id=view.rule_id, version=view.rule_version, rule_current=view.rule_current
+            ),
+            study_circle=ShowcaseStudyCircle(
+                centre=ShowcasePointResource.from_view(view.circle_centre),
+                radius_m=NumberResource.from_domain(view.circle_radius_m),
+            ),
+            hubs=[
+                ShowcaseHubResource(
+                    id=hub.hub_id,
+                    centre=ShowcasePointResource.from_view(hub.centre),
+                    outline=hub.outline,
+                )
+                for hub in view.hubs
+            ],
+            hub_pairs=[
+                ShowcaseHubPairResource(
+                    origin_hub=pair.origin_hub,
+                    destination_hub=pair.destination_hub,
+                    origin=ShowcasePointResource.from_view(pair.origin),
+                    destination=ShowcasePointResource.from_view(pair.destination),
+                    mean_bike_price=NumberResource.from_domain(pair.mean_bike_price),
+                    bike_rides=NumberResource.from_domain(pair.bike_rides),
+                )
+                for pair in view.hub_pairs
+            ],
         )
 
 

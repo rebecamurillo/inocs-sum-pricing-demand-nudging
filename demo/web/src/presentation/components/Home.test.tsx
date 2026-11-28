@@ -3,24 +3,20 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyCityInstances } from '../../application/ports/fake-city-instance-gateway';
-import { fakePricing } from '../../application/ports/fake-pricing-gateway';
+import { fakePricing, sampleShowcase } from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import { emptyTrips } from '../../application/ports/fake-trip-gateway';
 import type { Gateways } from '../../application/ports/gateways';
 import type { Showcase } from '../../domain/showcase';
 import { GatewaysProvider } from '../hooks/gateways';
+import { MapFactoryProvider } from '../map/MapContext';
+import { fakeMapFactory, installBrowserStubs } from '../map/fake-map';
 import { Home } from './Home';
 
-const showcase: Showcase = {
-  pricingVersionId: 'geneva-3km.v1.B',
-  periodId: 'monday-08',
-  instanceVersionId: 'geneva-3km.v1',
-  instanceVersionName: 'Geneva 3 km',
-  letter: 'B',
-  markedAt: '2026-11-27T10:00:00Z',
-};
+const showcase: Showcase = sampleShowcase;
 
-function renderHome(answer: Showcase | null | Error | 'pending' = null) {
+function renderHome(answer: Showcase | null | Error | 'pending' = null, basemapExists = false) {
+  const { factory, maps } = fakeMapFactory();
   const base = fakePricing([], {}, { showcase: answer === 'pending' ? null : answer }).gateway;
   const pricing =
     answer === 'pending'
@@ -31,7 +27,10 @@ function renderHome(answer: Showcase | null | Error | 'pending' = null) {
     systemStatus: { load: () => Promise.reject(new Error('Home does not read the status.')) },
     layoutPreferences: { load: () => ({}) as never, save: () => undefined },
     cityDatasets: { list: () => Promise.reject(new Error('no')) },
-    basemap: { exists: () => Promise.resolve(false), url: () => '' },
+    basemap: {
+      exists: () => Promise.resolve(basemapExists),
+      url: (id: string) => `basemap/${id}.pmtiles`,
+    },
     cityInstances: emptyCityInstances,
     runs: fakeRunGateway(),
     pricing,
@@ -41,11 +40,13 @@ function renderHome(answer: Showcase | null | Error | 'pending' = null) {
   render(
     <QueryClientProvider client={client}>
       <GatewaysProvider gateways={gateways}>
-        <Home />
+        <MapFactoryProvider factory={factory}>
+          <Home />
+        </MapFactoryProvider>
       </GatewaysProvider>
     </QueryClientProvider>,
   );
-  return { requests };
+  return { requests, maps };
 }
 
 function stubMotion(reduced: boolean) {
@@ -215,13 +216,125 @@ describe('Home · the visual', () => {
     });
   });
 
-  it('keeps the empty visual, with no text, when a showcase is marked', async () => {
+  it('shows the stat tile with the figure, the tag, the source line, the scope and the provisional line', async () => {
     stubMotion(false);
     const { requests } = renderHome(showcase);
-    await waitFor(() => {
-      expect(screen.queryByTestId('home-skeleton')).not.toBeInTheDocument();
-    });
-    expect(screen.getByTestId('home-visual')).toHaveTextContent('');
+    const tile = await screen.findByTestId('home-tile');
+
+    expect(within(tile).getByTestId('home-figure')).toHaveTextContent(/^4$/);
+    expect(tile).toHaveTextContent(
+      '4 fewer car trips for every 100 simulated travellers, against a flat bike price of 1.00 CHF',
+    );
+    expect(within(tile).getByText('SIMULATION')).toBeInTheDocument();
+    expect(tile).toHaveTextContent(
+      'Simulated travellers \u00b7 placeholder rule: half price, half travel time',
+    );
+    expect(tile).not.toHaveTextContent('(v1)');
+    expect(tile).toHaveTextContent(
+      'Geneva, 3 km zone, Monday 08:00\u201309:00 \u00b7 Version B of Geneva 3 km v1',
+    );
+    expect(tile).toHaveTextContent(
+      "Provisional: the model's author has not yet validated the simulation's rule or the claims of this page.",
+    );
+    expect(screen.queryByText("PRICING MODEL'S RESULT")).not.toBeInTheDocument();
     expect(requests).toHaveBeenCalledTimes(1);
+  });
+
+  it('writes the older rule on the source line when the rule is stale', async () => {
+    stubMotion(false);
+    renderHome({ ...showcase, rule: { id: 'balanced_score', version: 1, current: false } });
+    const tile = await screen.findByTestId('home-tile');
+    expect(tile).toHaveTextContent(
+      'Simulated travellers \u00b7 placeholder rule: half price, half travel time \u00b7 older rule (v1)',
+    );
+  });
+
+  it.each([
+    [
+      -3,
+      '3 more car trips for every 100 simulated travellers, against a flat bike price of 1.00 CHF',
+    ],
+    [
+      1,
+      '1 fewer car trip for every 100 simulated travellers, against a flat bike price of 1.00 CHF',
+    ],
+    [
+      0.2,
+      '0: as many car trips as with a flat bike price of 1.00 CHF, for every 100 simulated travellers',
+    ],
+  ])('writes the line for a difference of %s points', async (points, line) => {
+    stubMotion(false);
+    renderHome({
+      ...showcase,
+      carShareDifference: { ...showcase.carShareDifference, value: points },
+    });
+    expect(await screen.findByTestId('home-tile')).toHaveTextContent(line);
+  });
+
+  it('writes the legend under the map box', async () => {
+    stubMotion(false);
+    renderHome(showcase);
+    const legend = await screen.findByTestId('home-legend');
+    expect(legend).toHaveTextContent(
+      "Each line: a trip between two hubs by public transport + shared bike, the only trips the pricing model prices. Colour: mean bike price, low to high \u00b7 width: bike rides. Computed from the model's flows.",
+    );
+    expect(screen.getByTestId('home-visual')).not.toContainElement(legend);
+  });
+
+  it('creates its own non-interactive map, fitted without animation, and draws the layers', async () => {
+    stubMotion(false);
+    const { maps } = renderHome(showcase);
+    await screen.findByTestId('home-tile');
+    const map = maps[0];
+    if (map === undefined) throw new Error('Home made no map');
+
+    expect(maps).toHaveLength(1);
+    expect(map.options.interactive).toBe(false);
+    expect(map.options.fadeDuration).toBe(300);
+    expect(map.container).toBe(screen.getByTestId('home-map'));
+
+    map.emitStyleReady();
+    expect(map.fits).toHaveLength(1);
+    expect(map.fits[0]?.animate).toBe(false);
+    expect(map.layers.map((layer) => layer.id)).toEqual([
+      'home-study-circle',
+      'home-hub-outlines',
+      'home-pair-lines',
+    ]);
+  });
+
+  it('turns the fade off under reduced motion', async () => {
+    const stubs = installBrowserStubs(true);
+    try {
+      const { maps } = renderHome(showcase);
+      await screen.findByTestId('home-tile');
+      expect(maps[0]?.options.fadeDuration).toBe(0);
+    } finally {
+      stubs.restore();
+    }
+  });
+
+  it('adds the basemap file to the style when the data set has one, and none otherwise', async () => {
+    stubMotion(false);
+    const { maps } = renderHome(showcase, true);
+    await screen.findByTestId('home-tile');
+    const map = maps[0];
+    await waitFor(() => {
+      expect(map?.styles).toHaveLength(1);
+    });
+    expect(JSON.stringify(map?.styles[0])).toContain('pmtiles://basemap/geneva-1.pmtiles');
+    cleanup();
+
+    const none = renderHome(showcase, false);
+    await screen.findByTestId('home-tile');
+    expect(none.maps[0]?.styles).toHaveLength(0);
+  });
+
+  it('removes the map when Home goes away', async () => {
+    stubMotion(false);
+    const { maps } = renderHome(showcase);
+    await screen.findByTestId('home-tile');
+    cleanup();
+    expect(maps[0]?.removed).toBe(true);
   });
 });

@@ -10,6 +10,7 @@ import {
   sampleHubPairResults,
   sampleHubResults,
   sampleSealedPricing,
+  sampleShowcase,
   sampleStoredSimulations,
 } from './fake-pricing-gateway';
 
@@ -271,14 +272,7 @@ describe('the in-memory comparison', () => {
 });
 
 describe('fakePricing showcase', () => {
-  const showcase = {
-    pricingVersionId: 'geneva-3km.v1.B',
-    periodId: 'monday-08',
-    instanceVersionId: 'geneva-3km.v1',
-    instanceVersionName: 'Geneva 3 km',
-    letter: 'B',
-    markedAt: '2026-11-27T10:00:00Z',
-  };
+  const showcase = sampleShowcase;
 
   it('has no showcase by default', async () => {
     await expect(fakePricing().gateway.getShowcase()).resolves.toBeNull();

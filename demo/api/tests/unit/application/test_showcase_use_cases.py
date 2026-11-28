@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from pricing_demo.domain.derived_result import derived_pair_bike_rides, offered_rides
 from pricing_demo.domain.pricing_versions import (
     IsShowcase,
     NoResult,
@@ -9,6 +10,8 @@ from pricing_demo.domain.pricing_versions import (
     PricingVersionNotFound,
     ResultNotFound,
 )
+from pricing_demo.domain.runs import StepName
+from pricing_demo.domain.traveller_simulation import BalancedScore
 from tests.support.results import PERIOD, ResultRig
 
 
@@ -91,3 +94,99 @@ def test_a_marked_version_that_lost_a_part_of_its_result_is_not_returned_as_show
 
     with pytest.raises(ResultNotFound):
         rig.get_showcase.execute()
+
+
+def test_the_showcase_carries_the_scope_the_flat_price_and_the_study_circle(
+    rig: ResultRig,
+) -> None:
+    version = rig.finished(flat_price_per_ride_chf=1.25)
+    rig.mark.execute(version)
+
+    view = rig.get_showcase.execute()
+
+    assert view.dataset_id
+    assert (view.city, view.period_label) == ("Geneva", "Monday 08:00\u201309:00")
+    assert view.radius_km.value == 3
+    assert (view.radius_km.unit, view.radius_km.source) == ("km", "input")
+    assert view.flat_price.value == 1.25
+    assert view.flat_price.source == "input"
+    instance_version = rig.rig.instances.get_version("geneva-3km.v1")
+    assert instance_version is not None
+    assert view.circle_centre.lat.value == instance_version.parameters.center_lat
+    assert view.circle_radius_m.value == instance_version.parameters.radius_m
+    assert view.hubs
+    assert all(hub.centre.lat.source == "input" for hub in view.hubs)
+    numbers = [
+        view.radius_km,
+        view.car_share_flat,
+        view.car_share_version,
+        view.car_share_difference,
+        view.flat_price,
+        view.circle_radius_m,
+    ]
+    assert {item.group for item in numbers} == {"headline"}
+
+
+def test_the_car_shares_are_in_points_and_the_difference_is_flat_minus_version(
+    rig: ResultRig,
+) -> None:
+    version = rig.finished()
+    rig.mark.execute(version)
+    links = rig.rig.simulations.links_of(version)
+    shares = {}
+    for link in links:
+        summary = rig.rig.simulations.summary_of(link.simulation_key)
+        assert summary is not None
+        shares[link.price_scheme] = (
+            100 * summary.travellers_per_mode.get("car", 0) / summary.travellers
+        )
+
+    view = rig.get_showcase.execute()
+
+    assert view.car_share_flat.value == pytest.approx(shares["flat"])
+    assert view.car_share_version.value == pytest.approx(shares["model_prices"])
+    assert view.car_share_difference.value == pytest.approx(shares["flat"] - shares["model_prices"])
+    assert {view.car_share_flat.source, view.car_share_difference.source} == {"simulation"}
+    assert view.car_share_flat.unit == "points"
+
+
+def test_the_rule_is_current_only_while_the_live_worker_runs_it(rig: ResultRig) -> None:
+    version = rig.finished()
+    rig.mark.execute(version)
+
+    stale = rig.get_showcase.execute()
+    rig.current_rule(BalancedScore())
+    current = rig.get_showcase.execute()
+
+    assert (stale.rule_id, stale.rule_version) == (current.rule_id, current.rule_version)
+    assert stale.rule_version >= 1
+    assert (stale.rule_current, current.rule_current) == (False, True)
+    rig.current_rule(BalancedScore(0.6, 0.4, rule_version=2))
+    assert rig.get_showcase.execute().rule_current is False
+
+
+def test_the_hub_pairs_are_the_pairs_with_bike_rides_with_their_hub_centres(
+    rig: ResultRig,
+) -> None:
+    version = rig.finished()
+    rig.mark.execute(version)
+    found = rig.lookup.find(version)
+    instance_key = rig.rig.artifacts.links_of("geneva-3km.v1")[StepName.TRAVELLERS_AND_BIKES]
+    expected = derived_pair_bike_rides(
+        offered_rides(
+            rig.rig.solves.rows(found.solve.key), rig.rig.read_model.route_options(instance_key)
+        )
+    )
+
+    view = rig.get_showcase.execute()
+
+    assert expected
+    assert {(item.origin_hub, item.destination_hub) for item in view.hub_pairs} == set(expected)
+    centres = {hub.hub_id: hub.centre for hub in view.hubs}
+    for pair in view.hub_pairs:
+        rides, mean = expected[(pair.origin_hub, pair.destination_hub)]
+        assert pair.bike_rides.value == pytest.approx(rides)
+        assert pair.mean_bike_price.value == pytest.approx(mean)
+        assert (pair.mean_bike_price.source, pair.bike_rides.source) == ("derived", "derived")
+        assert pair.origin == centres[pair.origin_hub]
+        assert pair.destination == centres[pair.destination_hub]

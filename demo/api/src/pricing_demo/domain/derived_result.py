@@ -117,6 +117,22 @@ def derived_mean_bike_price(
     return mean, min(prices), max(prices)
 
 
+def derived_pair_bike_rides(
+    rides: Sequence[Ride],
+) -> dict[tuple[str, str], tuple[float, float | None]]:
+    """Per (origin hub, destination hub) pair the bike rides Σ k·q and the ride-weighted mean
+    bike price Σ p·k·q / Σ k·q, for the pairs with at least one ride."""
+    by_pair: dict[tuple[str, str], list[Ride]] = {}
+    for item in rides:
+        by_pair.setdefault((item.origin_hub, item.destination_hub), []).append(item)
+    found: dict[tuple[str, str], tuple[float, float | None]] = {}
+    for pair, items in by_pair.items():
+        total = sum(item.rides for item in items)
+        if total > 0:
+            found[pair] = (total, derived_mean_bike_price(items)[0])
+    return found
+
+
 def derived_revenue(rides: Sequence[Ride]) -> float:
     return sum(item.bike_price * item.rides for item in rides)
 

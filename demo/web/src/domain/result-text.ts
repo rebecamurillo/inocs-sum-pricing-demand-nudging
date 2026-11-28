@@ -62,7 +62,7 @@ export const flatBarLabel = (amount: number): string =>
 export const modelBarLabel = (letter: string): string => `Version ${letter}, pricing model`;
 
 /** Rounds half away from zero; the noise of binary fractions (10.005) is dropped first. */
-function roundHalfAway(value: number): number {
+export function roundHalfAway(value: number): number {
   const rounded = Math.round(Number(Math.abs(value).toPrecision(12)));
   return value < 0 && rounded !== 0 ? -rounded : rounded;
 }

@@ -157,13 +157,18 @@ class MapLibreHandle implements MapHandle {
 /** The real map: MapLibre GL JS with the PMTiles protocol; no remote style, glyph or sprite. */
 export const createMapLibreMap: MapFactory = (container, options) => {
   registerPmtilesProtocol();
+  const interactive = options.interactive ?? true;
   const map = new MapLibreMap({
     container,
     style: asStyle(options.style),
     fadeDuration: options.fadeDuration,
+    interactive,
     attributionControl: false,
     // The pane is the region named "Map"; the focusable canvas inside it has its own name.
-    locale: { 'Map.Title': 'City view, pan with the arrow keys' },
+    // A picture (Home's map) cannot be panned, so its canvas does not promise the arrow keys.
+    locale: {
+      'Map.Title': interactive ? 'City view, pan with the arrow keys' : 'Map of the priced trips',
+    },
     center: [6.14, 46.2],
     zoom: 11,
   });

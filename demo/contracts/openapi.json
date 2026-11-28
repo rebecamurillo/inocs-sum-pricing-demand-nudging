@@ -4251,6 +4251,91 @@
         "title": "RunnerResource",
         "type": "object"
       },
+      "ShowcaseHubPairResource": {
+        "properties": {
+          "bike_rides": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "\u03a3 k\u00b7q over the pair's offered options, computed from the model's flows."
+          },
+          "destination": {
+            "$ref": "#/components/schemas/ShowcasePointResource",
+            "description": "The centre of the destination hub."
+          },
+          "destination_hub": {
+            "title": "Destination Hub",
+            "type": "string"
+          },
+          "mean_bike_price": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "\u03a3 p\u00b7k\u00b7q / \u03a3 k\u00b7q over the pair's offered options, computed from the model's flows."
+          },
+          "origin": {
+            "$ref": "#/components/schemas/ShowcasePointResource",
+            "description": "The centre of the origin hub."
+          },
+          "origin_hub": {
+            "title": "Origin Hub",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origin_hub",
+          "destination_hub",
+          "origin",
+          "destination",
+          "mean_bike_price",
+          "bike_rides"
+        ],
+        "title": "ShowcaseHubPairResource",
+        "type": "object"
+      },
+      "ShowcaseHubResource": {
+        "properties": {
+          "centre": {
+            "$ref": "#/components/schemas/ShowcasePointResource"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "outline": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The hub's outline as GeoJSON, when it has one.",
+            "title": "Outline"
+          }
+        },
+        "required": [
+          "id",
+          "centre",
+          "outline"
+        ],
+        "title": "ShowcaseHubResource",
+        "type": "object"
+      },
+      "ShowcasePointResource": {
+        "properties": {
+          "lat": {
+            "$ref": "#/components/schemas/NumberResource"
+          },
+          "lon": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "ShowcasePointResource",
+        "type": "object"
+      },
       "ShowcaseRequest": {
         "properties": {
           "period_id": {
@@ -4278,12 +4363,43 @@
       },
       "ShowcaseResponse": {
         "properties": {
+          "car_share_difference": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "`car_share_flat` minus `car_share_version`, in points; above 0: fewer car trips."
+          },
+          "car_share_flat": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "Car trips per 100 simulated travellers with the flat price, in points."
+          },
+          "car_share_version": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "Car trips per 100 simulated travellers with the version's prices, in points."
+          },
+          "flat_price": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "The version's flat price per ride, in CHF."
+          },
           "headline": {
             "additionalProperties": {
               "$ref": "#/components/schemas/NumberResource"
             },
             "title": "Headline",
             "type": "object"
+          },
+          "hub_pairs": {
+            "description": "The hub pairs with bike rides, ordered by origin and destination hub.",
+            "items": {
+              "$ref": "#/components/schemas/ShowcaseHubPairResource"
+            },
+            "title": "Hub Pairs",
+            "type": "array"
+          },
+          "hubs": {
+            "items": {
+              "$ref": "#/components/schemas/ShowcaseHubResource"
+            },
+            "title": "Hubs",
+            "type": "array"
           },
           "instance_version_id": {
             "title": "Instance Version Id",
@@ -4309,6 +4425,15 @@
           "pricing_version_id": {
             "title": "Pricing Version Id",
             "type": "string"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/ShowcaseRule"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ShowcaseScope"
+          },
+          "study_circle": {
+            "$ref": "#/components/schemas/ShowcaseStudyCircle"
           }
         },
         "required": [
@@ -4318,9 +4443,91 @@
           "letter",
           "instance_version_id",
           "instance_version_name",
-          "headline"
+          "headline",
+          "scope",
+          "car_share_flat",
+          "car_share_version",
+          "car_share_difference",
+          "flat_price",
+          "rule",
+          "study_circle",
+          "hubs",
+          "hub_pairs"
         ],
         "title": "ShowcaseResponse",
+        "type": "object"
+      },
+      "ShowcaseRule": {
+        "properties": {
+          "id": {
+            "description": "The simulation rule's id.",
+            "title": "Id",
+            "type": "string"
+          },
+          "rule_current": {
+            "description": "Whether the live worker runs this rule version; false marks the older rule.",
+            "title": "Rule Current",
+            "type": "boolean"
+          },
+          "version": {
+            "description": "The simulation rule's version.",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "rule_current"
+        ],
+        "title": "ShowcaseRule",
+        "type": "object"
+      },
+      "ShowcaseScope": {
+        "properties": {
+          "city": {
+            "description": "The city of the data set, e.g. \"Geneva\".",
+            "title": "City",
+            "type": "string"
+          },
+          "dataset_id": {
+            "description": "The city data set of the instance version.",
+            "title": "Dataset Id",
+            "type": "string"
+          },
+          "period_label": {
+            "description": "The label of the period priced.",
+            "title": "Period Label",
+            "type": "string"
+          },
+          "radius_km": {
+            "$ref": "#/components/schemas/NumberResource",
+            "description": "The radius of the instance version, in km."
+          }
+        },
+        "required": [
+          "dataset_id",
+          "city",
+          "radius_km",
+          "period_label"
+        ],
+        "title": "ShowcaseScope",
+        "type": "object"
+      },
+      "ShowcaseStudyCircle": {
+        "properties": {
+          "centre": {
+            "$ref": "#/components/schemas/ShowcasePointResource"
+          },
+          "radius_m": {
+            "$ref": "#/components/schemas/NumberResource"
+          }
+        },
+        "required": [
+          "centre",
+          "radius_m"
+        ],
+        "title": "ShowcaseStudyCircle",
         "type": "object"
       },
       "SimulationProvenanceResource": {
@@ -7153,7 +7360,7 @@
             "description": "Unexpected error"
           }
         },
-        "summary": "The showcased pricing version with its headline numbers",
+        "summary": "The showcased pricing version with what Home draws",
         "tags": [
           "showcase"
         ]

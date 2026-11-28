@@ -1,3 +1,5 @@
+import pytest
+
 from tests.unit.interface.http.conftest import ResultsApp
 
 SHOWCASE = "/api/v1/showcase"
@@ -89,3 +91,43 @@ def test_deleting_the_showcased_version_answers_409_is_showcase_and_another_204(
     assert refused.json()["code"] == "is_showcase"
     assert allowed.status_code == 204
     assert results_app.client.get(f"/api/v1/pricing-versions/{first}").status_code == 200
+
+
+def test_the_showcase_answers_what_home_draws_with_every_number_sourced_and_grouped(
+    results_app: ResultsApp,
+) -> None:
+    version = results_app.results.finished(flat_price_per_ride_chf=1.0)
+    results_app.client.put(SHOWCASE, json={"pricing_version_id": version})
+
+    body = results_app.client.get(SHOWCASE).json()
+
+    assert body["scope"]["city"] == "Geneva"
+    assert body["scope"]["period_label"] == "Monday 08:00\u201309:00"
+    assert body["scope"]["radius_km"]["value"] == 3
+    assert body["scope"]["radius_km"]["source"] == "input"
+    assert body["flat_price"] == {
+        "value": 1.0,
+        "unit": "chf_per_ride",
+        "source": "input",
+        "group": "headline",
+    }
+    for name in ("car_share_flat", "car_share_version", "car_share_difference"):
+        assert set(body[name]) == {"value", "unit", "source", "group"}
+        assert (body[name]["source"], body[name]["group"]) == ("simulation", "headline")
+    assert body["car_share_difference"]["value"] == pytest.approx(
+        body["car_share_flat"]["value"] - body["car_share_version"]["value"]
+    )
+    assert set(body["rule"]) == {"id", "version", "rule_current"}
+    assert body["rule"]["rule_current"] is False
+    assert body["study_circle"]["radius_m"]["value"] == 3000
+    assert body["study_circle"]["centre"]["lat"]["source"] == "input"
+    assert body["hubs"]
+    assert {"id", "centre", "outline"} == set(body["hubs"][0])
+    assert body["hub_pairs"]
+    for pair in body["hub_pairs"]:
+        assert (pair["mean_bike_price"]["source"], pair["bike_rides"]["source"]) == (
+            "derived",
+            "derived",
+        )
+        assert pair["bike_rides"]["value"] > 0
+        assert pair["origin"]["lat"]["group"] == "headline"

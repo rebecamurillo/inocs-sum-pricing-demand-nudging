@@ -22,6 +22,7 @@ from pricing_demo.domain.derived_result import (
     derived_hub_rides,
     derived_mean_bike_price,
     derived_objective_terms,
+    derived_pair_bike_rides,
     derived_revenue,
     derived_rides_under_cost,
     derived_station_balance,
@@ -361,3 +362,18 @@ def test_the_simulated_mean_price_is_absent_without_a_ride() -> None:
 
     assert "mean_bike_price" not in goals
     assert goals["cost"].value == 0.0
+
+
+def test_pair_bike_rides_are_the_rides_and_the_weighted_mean_price_per_pair() -> None:
+    found = derived_pair_bike_rides(rides())
+
+    assert found[("H1", "H2")][0] == pytest.approx(8.0)
+    assert found[("H1", "H2")][1] == pytest.approx(6.0 / 8)
+    assert found[("H2", "H1")][0] == pytest.approx(3.0)
+    assert found[("H2", "H1")][1] == pytest.approx(0.8)
+
+
+def test_a_pair_without_a_bike_ride_is_left_out_of_the_pair_bike_rides() -> None:
+    nobody = [Ride("a1", "H1", "H2", 4.0, 0.7, 0.0, 0), *rides()[-1:]]
+
+    assert list(derived_pair_bike_rides(nobody)) == [("H2", "H1")]

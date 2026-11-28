@@ -12,6 +12,7 @@ from pricing_demo.domain.city_datasets import (
     BusShapes,
     DisjointAreas,
     city_data_status,
+    city_name,
     dataset_id_for,
     is_bus_route_type,
 )
@@ -150,3 +151,8 @@ def test_bus_shapes_none_require_a_reason() -> None:
 
 def test_the_reason_for_no_shape_is_the_quoted_sentence() -> None:
     assert NO_BUS_SHAPE_REASON == "no bus shape was produced"
+
+
+def test_the_city_name_is_the_part_of_the_data_set_name_before_the_first_separator() -> None:
+    assert city_name(GENEVA_NAME) == "Geneva"
+    assert city_name("Zurich") == "Zurich"

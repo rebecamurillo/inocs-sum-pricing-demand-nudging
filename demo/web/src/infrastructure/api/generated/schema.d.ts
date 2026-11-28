@@ -464,7 +464,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The showcased pricing version with its headline numbers */
+        /** The showcased pricing version with what Home draws */
         get: operations["getShowcase"];
         /** Make a finished pricing version and period the showcase */
         put: operations["markShowcase"];
@@ -2019,6 +2019,39 @@ export interface components {
             /** Last Heartbeat At */
             last_heartbeat_at: string | null;
         };
+        /** ShowcaseHubPairResource */
+        ShowcaseHubPairResource: {
+            /** @description Σ k·q over the pair's offered options, computed from the model's flows. */
+            bike_rides: components["schemas"]["NumberResource"];
+            /** @description The centre of the destination hub. */
+            destination: components["schemas"]["ShowcasePointResource"];
+            /** Destination Hub */
+            destination_hub: string;
+            /** @description Σ p·k·q / Σ k·q over the pair's offered options, computed from the model's flows. */
+            mean_bike_price: components["schemas"]["NumberResource"];
+            /** @description The centre of the origin hub. */
+            origin: components["schemas"]["ShowcasePointResource"];
+            /** Origin Hub */
+            origin_hub: string;
+        };
+        /** ShowcaseHubResource */
+        ShowcaseHubResource: {
+            centre: components["schemas"]["ShowcasePointResource"];
+            /** Id */
+            id: string;
+            /**
+             * Outline
+             * @description The hub's outline as GeoJSON, when it has one.
+             */
+            outline: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** ShowcasePointResource */
+        ShowcasePointResource: {
+            lat: components["schemas"]["NumberResource"];
+            lon: components["schemas"]["NumberResource"];
+        };
         /** ShowcaseRequest */
         ShowcaseRequest: {
             /**
@@ -2031,10 +2064,25 @@ export interface components {
         };
         /** ShowcaseResponse */
         ShowcaseResponse: {
+            /** @description `car_share_flat` minus `car_share_version`, in points; above 0: fewer car trips. */
+            car_share_difference: components["schemas"]["NumberResource"];
+            /** @description Car trips per 100 simulated travellers with the flat price, in points. */
+            car_share_flat: components["schemas"]["NumberResource"];
+            /** @description Car trips per 100 simulated travellers with the version's prices, in points. */
+            car_share_version: components["schemas"]["NumberResource"];
+            /** @description The version's flat price per ride, in CHF. */
+            flat_price: components["schemas"]["NumberResource"];
             /** Headline */
             headline: {
                 [key: string]: components["schemas"]["NumberResource"];
             };
+            /**
+             * Hub Pairs
+             * @description The hub pairs with bike rides, ordered by origin and destination hub.
+             */
+            hub_pairs: components["schemas"]["ShowcaseHubPairResource"][];
+            /** Hubs */
+            hubs: components["schemas"]["ShowcaseHubResource"][];
             /** Instance Version Id */
             instance_version_id: string;
             /** Instance Version Name */
@@ -2050,6 +2098,52 @@ export interface components {
             period_id: string;
             /** Pricing Version Id */
             pricing_version_id: string;
+            rule: components["schemas"]["ShowcaseRule"];
+            scope: components["schemas"]["ShowcaseScope"];
+            study_circle: components["schemas"]["ShowcaseStudyCircle"];
+        };
+        /** ShowcaseRule */
+        ShowcaseRule: {
+            /**
+             * Id
+             * @description The simulation rule's id.
+             */
+            id: string;
+            /**
+             * Rule Current
+             * @description Whether the live worker runs this rule version; false marks the older rule.
+             */
+            rule_current: boolean;
+            /**
+             * Version
+             * @description The simulation rule's version.
+             */
+            version: number;
+        };
+        /** ShowcaseScope */
+        ShowcaseScope: {
+            /**
+             * City
+             * @description The city of the data set, e.g. "Geneva".
+             */
+            city: string;
+            /**
+             * Dataset Id
+             * @description The city data set of the instance version.
+             */
+            dataset_id: string;
+            /**
+             * Period Label
+             * @description The label of the period priced.
+             */
+            period_label: string;
+            /** @description The radius of the instance version, in km. */
+            radius_km: components["schemas"]["NumberResource"];
+        };
+        /** ShowcaseStudyCircle */
+        ShowcaseStudyCircle: {
+            centre: components["schemas"]["ShowcasePointResource"];
+            radius_m: components["schemas"]["NumberResource"];
         };
         /** SimulationProvenanceResource */
         SimulationProvenanceResource: {

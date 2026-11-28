@@ -159,7 +159,8 @@ time. `make e2e` uses its own project, ports and in-memory database, so it runs 
 The web app is one page with one React island (`web/src/composition/LabIsland.tsx`). Opening
 it lands on Home at `#/`, the page that says why the bike price is set per trip and leads to the
 Lab ("Open the Lab →"; the Lab's brand block has "← Home"). Home reads `GET /api/v1/showcase`
-once per visit. The Lab's routes are the hashes `#/lab`, `#/lab/{instance version}`,
+once per visit and, with a showcase, draws the stat tile and a non-interactive map of the priced
+trips. The Lab's routes are the hashes `#/lab`, `#/lab/{instance version}`,
 `#/lab/{instance version}/pricing/{letter}`, `#/lab/{instance version}/result/{letter}`,
 `#/lab/{instance version}/compare/{letters}` and `#/lab/traveller/{instance version}/{letter}`,
 each with an optional `?period=`. A malformed `#/lab…` link is replaced by `#/lab`; every other
@@ -185,10 +186,14 @@ The maintainer replaces it by `EN-Co-Funded-by-the-EU_POS-1.png` and updates the
 `PUT /api/v1/showcase` with `{"pricing_version_id": "...", "period_id": "..."}` (the period is
 optional) marks one finished pricing version and period as the showcase, replacing an earlier
 mark; `409 no_result` when the version has no result or does not price the period. `GET
-/api/v1/showcase` answers the marked version's id and period, its instance version's name, its
-letter and the headline numbers of its result, or `404 no_showcase`. While a version is marked,
+/api/v1/showcase` answers what Home draws: the marked version's id and period, its instance
+version's name, its letter, the headline numbers of its result, the scope (data set, city,
+radius, period label), the car share simulated with the flat price and with the version's prices
+and their difference in points, the flat price, the simulation rule with `rule_current`, the study
+circle, the hubs and, per hub pair with bike rides, its two hub centres, mean bike price and bike
+rides (each number `{value, unit, source, group}`), or `404 no_showcase`. While a version is marked,
 `DELETE /api/v1/pricing-versions/{id}` answers `409 is_showcase`. The Lab has no control for it
-yet: story 6.3 adds one, and story 6.2 completes the answer for Home.
+yet: story 6.3 adds one.
 
 ## Where things are
 

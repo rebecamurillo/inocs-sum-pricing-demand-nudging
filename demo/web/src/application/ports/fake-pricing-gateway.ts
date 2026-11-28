@@ -28,6 +28,69 @@ import {
 import type { Showcase } from '../../domain/showcase';
 import type { PricingGateway } from './pricing-gateway';
 
+const headlineNumber = (
+  value: number,
+  unit: string,
+  source: ResultNumber['source'],
+): ResultNumber => ({
+  value,
+  unit,
+  source,
+  group: 'headline',
+});
+
+/** A showcase of the fakes' city: two hubs, one pair with bike rides, flat 4 points above. */
+export const sampleShowcase: Showcase = {
+  pricingVersionId: 'geneva-3km.v1.B',
+  periodId: 'monday-08',
+  instanceVersionId: 'geneva-3km.v1',
+  instanceVersionName: 'Geneva 3 km v1',
+  letter: 'B',
+  markedAt: '2026-11-27T10:00:00Z',
+  datasetId: 'geneva-1',
+  city: 'Geneva',
+  radiusKm: headlineNumber(3, 'km', 'input'),
+  periodLabel: 'Monday 08:00\u201309:00',
+  carShareFlat: headlineNumber(30, 'points', 'simulation'),
+  carShareVersion: headlineNumber(26, 'points', 'simulation'),
+  carShareDifference: headlineNumber(4, 'points', 'simulation'),
+  flatPrice: headlineNumber(1, 'chf_per_ride', 'input'),
+  rule: { id: 'balanced_score', version: 1, current: true },
+  studyCircle: { centre: { lat: 46.2, lon: 6.14 }, radiusM: 3000 },
+  hubs: [
+    {
+      id: 'H1',
+      lat: 46.2,
+      lon: 6.13,
+      outline: [
+        [6.129, 46.199],
+        [6.131, 46.199],
+        [6.131, 46.201],
+        [6.129, 46.199],
+      ],
+    },
+    { id: 'H2', lat: 46.21, lon: 6.15, outline: null },
+  ],
+  hubPairs: [
+    {
+      originHub: 'H1',
+      destinationHub: 'H2',
+      origin: { lat: 46.2, lon: 6.13 },
+      destination: { lat: 46.21, lon: 6.15 },
+      meanBikePrice: headlineNumber(0.75, 'chf_per_bike_leg', 'derived'),
+      bikeRides: headlineNumber(8, 'bike_rides', 'derived'),
+    },
+    {
+      originHub: 'H2',
+      destinationHub: 'H1',
+      origin: { lat: 46.21, lon: 6.15 },
+      destination: { lat: 46.2, lon: 6.13 },
+      meanBikePrice: headlineNumber(1.1, 'chf_per_bike_leg', 'derived'),
+      bikeRides: headlineNumber(3, 'bike_rides', 'derived'),
+    },
+  ],
+};
+
 export const samplePricingGoals: PricingGoals = {
   cost_bike_chf: 0.6,
   lowest_price_chf: 0.6,

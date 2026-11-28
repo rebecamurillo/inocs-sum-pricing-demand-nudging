@@ -703,6 +703,16 @@ describe('HttpPricingGateway', () => {
 
   describe('getShowcase', () => {
     it('reads /showcase and maps the marked version', async () => {
+      const number = (value: number, unit: string, source: string) => ({
+        value,
+        unit,
+        source,
+        group: 'headline',
+      });
+      const point = (lat: number, lon: number) => ({
+        lat: number(lat, 'degrees', 'input'),
+        lon: number(lon, 'degrees', 'input'),
+      });
       const fetchImpl = answering(200, {
         pricing_version_id: 'x.v1.B',
         period_id: 'monday-08',
@@ -711,6 +721,45 @@ describe('HttpPricingGateway', () => {
         letter: 'B',
         marked_at: '2026-11-27T10:00:00Z',
         headline: {},
+        scope: {
+          dataset_id: 'd-1',
+          city: 'Geneva',
+          radius_km: number(3, 'km', 'input'),
+          period_label: 'Monday 08:00\u201309:00',
+        },
+        car_share_flat: number(30, 'points', 'simulation'),
+        car_share_version: number(26, 'points', 'simulation'),
+        car_share_difference: number(4, 'points', 'simulation'),
+        flat_price: number(1, 'chf_per_ride', 'input'),
+        rule: { id: 'balanced_score', version: 2, rule_current: false },
+        study_circle: { centre: point(46.2, 6.14), radius_m: number(3000, 'm', 'input') },
+        hubs: [
+          {
+            id: 'H1',
+            centre: point(46.2, 6.13),
+            outline: {
+              type: 'Polygon',
+              coordinates: [
+                [
+                  [6.1, 46.1],
+                  [6.2, 46.1],
+                  [6.1, 46.1],
+                ],
+              ],
+            },
+          },
+          { id: 'H2', centre: point(46.21, 6.15), outline: null },
+        ],
+        hub_pairs: [
+          {
+            origin_hub: 'H1',
+            destination_hub: 'H2',
+            origin: point(46.2, 6.13),
+            destination: point(46.21, 6.15),
+            mean_bike_price: number(0.75, 'chf_per_bike_leg', 'derived'),
+            bike_rides: number(8, 'bike_rides', 'derived'),
+          },
+        ],
       });
 
       const found = await new HttpPricingGateway(fetchImpl).getShowcase();
@@ -723,6 +772,39 @@ describe('HttpPricingGateway', () => {
         instanceVersionName: 'X',
         letter: 'B',
         markedAt: '2026-11-27T10:00:00Z',
+        datasetId: 'd-1',
+        city: 'Geneva',
+        radiusKm: number(3, 'km', 'input'),
+        periodLabel: 'Monday 08:00\u201309:00',
+        carShareFlat: number(30, 'points', 'simulation'),
+        carShareVersion: number(26, 'points', 'simulation'),
+        carShareDifference: number(4, 'points', 'simulation'),
+        flatPrice: number(1, 'chf_per_ride', 'input'),
+        rule: { id: 'balanced_score', version: 2, current: false },
+        studyCircle: { centre: { lat: 46.2, lon: 6.14 }, radiusM: 3000 },
+        hubs: [
+          {
+            id: 'H1',
+            lat: 46.2,
+            lon: 6.13,
+            outline: [
+              [6.1, 46.1],
+              [6.2, 46.1],
+              [6.1, 46.1],
+            ],
+          },
+          { id: 'H2', lat: 46.21, lon: 6.15, outline: null },
+        ],
+        hubPairs: [
+          {
+            originHub: 'H1',
+            destinationHub: 'H2',
+            origin: { lat: 46.2, lon: 6.13 },
+            destination: { lat: 46.21, lon: 6.15 },
+            meanBikePrice: number(0.75, 'chf_per_bike_leg', 'derived'),
+            bikeRides: number(8, 'bike_rides', 'derived'),
+          },
+        ],
       });
     });
 

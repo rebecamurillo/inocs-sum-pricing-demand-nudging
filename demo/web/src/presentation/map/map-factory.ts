@@ -101,6 +101,8 @@ export interface MapOptions {
   readonly style: MapStyleSpec;
   /** 0 under prefers-reduced-motion. */
   readonly fadeDuration: number;
+  /** False makes the map a picture: no pan, zoom, rotation or keyboard. Absent means true. */
+  readonly interactive?: boolean;
 }
 
 export type MapFactory = (container: HTMLElement, options: MapOptions) => MapHandle;

@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
+import { buildFakeInstance } from '../support/build';
 import { expect, test } from '../support/fixtures';
+import { finishVersion, putShowcase, readShowcase, type ShowcaseAnswer } from '../support/pricing';
 
 const noShowcase =
   'No result on this page yet. In the Lab, open the result of a pricing version and choose "Use on the home page".';
@@ -23,6 +25,46 @@ const texts = [
   'Lab: run the model yourself',
   'Prepare a city instance, set the pricing goals, run the model live for one morning hour, then compare versions and the price of any trip.',
 ];
+
+const SOURCE_LINE = 'Simulated travellers \u00b7 placeholder rule: half price, half travel time';
+const PROVISIONAL =
+  "Provisional: the model's author has not yet validated the simulation's rule or the claims of this page.";
+const LEGEND =
+  "Each line: a trip between two hubs by public transport + shared bike, the only trips the pricing model prices. Colour: mean bike price, low to high \u00b7 width: bike rides. Computed from the model's flows.";
+
+/** Half away from zero, as the figure of the tile is rounded. */
+const roundHalfAway = (value: number) =>
+  value < 0 ? -Math.round(Math.abs(value)) || 0 : Math.round(value);
+
+/** The tile's line for a figure and the flat price, as the page words it. */
+function tileLine(figure: number, flat: number): string {
+  const price = `${flat.toFixed(2)} CHF`;
+  if (figure === 0) {
+    return `0: as many car trips as with a flat bike price of ${price}, for every 100 simulated travellers`;
+  }
+  const count = Math.abs(figure);
+  const trips = count === 1 ? 'car trip' : 'car trips';
+  const what = `${String(count)} ${figure > 0 ? 'fewer' : 'more'} ${trips}`;
+  return `${what} for every 100 simulated travellers, against a flat bike price of ${price}`;
+}
+
+async function expectShowcase(page: Page, showcase: ShowcaseAnswer) {
+  const figure = roundHalfAway(showcase.car_share_difference.value);
+  const tile = page.getByTestId('home-tile');
+  await expect(page.getByTestId('home-figure')).toHaveText(String(figure));
+  await expect(tile).toContainText(tileLine(figure, showcase.flat_price.value));
+  await expect(tile.getByText('SIMULATION', { exact: true })).toBeVisible();
+  await expect(tile).not.toContainText("PRICING MODEL'S RESULT");
+  await expect(tile).toContainText(
+    SOURCE_LINE +
+      (showcase.rule.rule_current ? '' : ` \u00b7 older rule (v${String(showcase.rule.version)})`),
+  );
+  await expect(tile).toContainText(
+    `${showcase.scope.city}, ${String(showcase.scope.radius_km.value)} km zone, ${showcase.scope.period_label} \u00b7 Version ${showcase.letter} of ${showcase.instance_version_name}`,
+  );
+  await expect(tile).toContainText(PROVISIONAL);
+  await expect(page.getByTestId('home-legend')).toHaveText(LEGEND);
+}
 
 const sizes = [
   { width: 1440, height: 900 },
@@ -96,7 +138,19 @@ test.describe('Home', () => {
     page,
     browser,
     baseURL,
+    request,
+    control,
   }) => {
+    const { version } = await buildFakeInstance(request, control);
+    const { id } = await finishVersion(request, version, 'Showcased');
+    const result = (await (await request.get(`/api/v1/pricing-versions/${id}/result`)).json()) as {
+      period_id: string;
+    };
+    await putShowcase(request, id, result.period_id);
+    const showcase = await readShowcase(request);
+    expect(showcase.hubs.length).toBeGreaterThan(0);
+    expect(showcase.hub_pairs.length).toBeGreaterThan(0);
+
     await page.goto('/');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
@@ -106,6 +160,7 @@ test.describe('Home', () => {
 
     await page.goto('/#/');
     await expectHomeTexts(page);
+    await expectShowcase(page, showcase);
 
     await page.getByRole('button', { name: 'Try it' }).click();
     await expect(page.getByRole('region', { name: 'Try it' })).toBeInViewport();
@@ -129,6 +184,15 @@ test.describe('Home', () => {
         inner: window.innerWidth,
       }));
       expect(widths.scroll).toBeLessThanOrEqual(widths.inner);
+      await expectShowcase(page, showcase);
+      for (const testId of ['home-tile', 'home-legend']) {
+        const box = await page.getByTestId(testId).boundingBox();
+        expect((box?.x ?? -1) >= 0 && (box?.x ?? 0) + (box?.width ?? 0) <= widths.inner).toBe(true);
+        const clipped = await page
+          .getByTestId(testId)
+          .evaluate((element) => element.scrollWidth > element.clientWidth);
+        expect(clipped).toBe(false);
+      }
       await page.getByRole('button', { name: 'Try it' }).click();
       await expect(page.getByRole('button', { name: 'Open the Lab →' })).toBeInViewport();
     }

@@ -102,6 +102,25 @@ export async function putShowcase(
   expect(marked.status()).toBe(200);
 }
 
+/** The numbers and texts of `GET /showcase` that Home writes on its tile. */
+export interface ShowcaseAnswer {
+  letter: string;
+  instance_version_name: string;
+  scope: { city: string; radius_km: { value: number }; period_label: string };
+  car_share_difference: { value: number; unit: string; source: string; group: string };
+  flat_price: { value: number };
+  rule: { id: string; version: number; rule_current: boolean };
+  hubs: { id: string }[];
+  hub_pairs: { bike_rides: { value: number } }[];
+}
+
+/** Reads the showcase Home draws. */
+export async function readShowcase(request: APIRequestContext): Promise<ShowcaseAnswer> {
+  const answer = await request.get('/api/v1/showcase');
+  expect(answer.status()).toBe(200);
+  return (await answer.json()) as ShowcaseAnswer;
+}
+
 /** One number of the result route: `{value, unit, source, group}`. */
 export interface ResultNumberAnswer {
   value: number;

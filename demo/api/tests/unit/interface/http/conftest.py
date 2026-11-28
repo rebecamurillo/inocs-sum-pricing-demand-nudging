@@ -299,7 +299,17 @@ class CityInstancesApp:
                     ),
                     build_showcase_router(
                         MarkShowcase(lookup, self.rig.showcase, self.clock),
-                        GetShowcase(self.rig.showcase, lookup, self.instances),
+                        GetShowcase(
+                            self.rig.showcase,
+                            lookup,
+                            self.instances,
+                            self.rig.simulations,
+                            self.datasets,
+                            self.rig.artifacts,
+                            self.rig.read_model,
+                            self.rig.solves,
+                            self.rig.status,
+                        ),
                     ),
                 ],
             ),

@@ -266,7 +266,18 @@ def create_application(settings: Settings) -> FastAPI:
             build_place_names_router(ListPlaceNames(instances, trips)),
             build_route_options_router(ListRouteOptions(instances, trips)),
             build_showcase_router(
-                MarkShowcase(lookup, showcase, clock), GetShowcase(showcase, lookup, instances)
+                MarkShowcase(lookup, showcase, clock),
+                GetShowcase(
+                    showcase,
+                    lookup,
+                    instances,
+                    simulations,
+                    datasets,
+                    artifacts,
+                    read_model,
+                    solves,
+                    get_system_status.execute,
+                ),
             ),
             build_runs_router(
                 ListRuns(run_repository, clock, durations),
