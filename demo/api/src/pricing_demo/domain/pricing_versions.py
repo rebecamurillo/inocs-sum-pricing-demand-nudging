@@ -183,6 +183,16 @@ def pricing_version_id(instance_version_id: str, letter: str) -> str:
     return f"{instance_version_id}.{letter}"
 
 
+def instance_version_of(pricing_version_id: str) -> str:
+    """`geneva-3km.v1.B` -> `geneva-3km.v1` (ids are dotted slugs, ARCHITECTURE.md 5.1)."""
+    return pricing_version_id.rsplit(".", 1)[0]
+
+
+def city_instance_of(instance_version_id: str) -> str:
+    """`geneva-3km.v1` -> `geneva-3km`."""
+    return instance_version_id.rsplit(".", 1)[0]
+
+
 def new_draft_goals(previous_sealed: PricingGoals | None) -> PricingGoals:
     """The four goals start from the defaults; the fare, parking fee, options shown and flat
     price are kept from the last sealed pricing version of the instance version."""

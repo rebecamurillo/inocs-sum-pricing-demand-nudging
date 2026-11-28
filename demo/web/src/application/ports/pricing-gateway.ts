@@ -32,6 +32,8 @@ export interface PricingGateway {
   result(id: string): Promise<PricingResult | null>;
   /** The result marked for the home page; null when none is marked (the API's 404, either code). */
   getShowcase(): Promise<Showcase | null>;
+  /** Makes the version's result for the period the home page's showcase; rejects on no answer or any error status. */
+  setShowcase(pricingVersionId: string, periodId: string): Promise<void>;
   /** The model's price and flow per hub pair; null when the version has no result. */
   hubPairResults(id: string): Promise<HubPairResult[] | null>;
   /** The model's bike rides and mean price per hub; null when the version has no result. */

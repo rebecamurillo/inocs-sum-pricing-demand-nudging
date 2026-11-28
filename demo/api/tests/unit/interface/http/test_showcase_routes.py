@@ -1,6 +1,6 @@
 import pytest
 
-from tests.unit.interface.http.conftest import ResultsApp
+from tests.unit.interface.http.conftest import SERVER_TIME, CityInstancesApp, ResultsApp
 
 SHOWCASE = "/api/v1/showcase"
 
@@ -91,6 +91,33 @@ def test_deleting_the_showcased_version_answers_409_is_showcase_and_another_204(
     assert refused.json()["code"] == "is_showcase"
     assert allowed.status_code == 204
     assert results_app.client.get(f"/api/v1/pricing-versions/{first}").status_code == 200
+
+
+@pytest.mark.parametrize("flag", ["", "?including_pricing_versions=true"])
+def test_deleting_what_holds_the_showcase_answers_409_is_showcase(
+    instances_app: CityInstancesApp, flag: str
+) -> None:
+    created = instances_app.client.post(
+        "/api/v1/city-instances",
+        json={
+            "name": "Geneva 3 km",
+            "dataset_id": "geneva-2026-11-26",
+            "start_from": {"kind": "package_defaults"},
+        },
+    )
+    assert created.status_code == 201
+    instances_app.rig.showcase.mark("geneva-3km.v1.A", "geneva-3km.v1.mon-08", SERVER_TIME)
+
+    for path in (
+        f"/api/v1/instance-versions/geneva-3km.v1{flag}",
+        f"/api/v1/city-instances/geneva-3km{flag}",
+    ):
+        response = instances_app.client.delete(path)
+        assert response.status_code == 409, path
+        assert response.json()["code"] == "is_showcase"
+
+    assert instances_app.instances.get_version("geneva-3km.v1") is not None
+    assert instances_app.rig.showcase.current() is not None
 
 
 def test_the_showcase_answers_what_home_draws_with_every_number_sourced_and_grouped(

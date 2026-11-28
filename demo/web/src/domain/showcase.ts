@@ -36,3 +36,18 @@ export interface Showcase {
   readonly hubs: readonly MapHub[];
   readonly hubPairs: readonly ShowcasePair[];
 }
+
+/**
+ * The instance version and the city instance that hold a showcased pricing version: its id minus
+ * the last `.` segment, then minus the last again (ARCHITECTURE.md § 5.1).
+ */
+export function showcaseHolders(pricingVersionId: string): {
+  readonly instanceVersionId: string;
+  readonly instanceId: string;
+} {
+  const instanceVersionId = pricingVersionId.slice(0, pricingVersionId.lastIndexOf('.'));
+  return {
+    instanceVersionId,
+    instanceId: instanceVersionId.slice(0, instanceVersionId.lastIndexOf('.')),
+  };
+}

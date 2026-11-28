@@ -12,6 +12,8 @@ interface DeleteConfirmProps {
   readonly remove: () => Promise<Deleted | { readonly kind: string }>;
   /** The note of a refusal, by the kind the DELETE answered; the default is the run-active note. */
   readonly refusalNote?: (kind: string) => string;
+  /** Set while the target is, or holds, the home page's showcase: "Delete…" shows it and asks nothing. */
+  readonly blockedNote?: string | null;
   /** Called once the DELETE went through: the caller leaves the deleted view. */
   readonly onDeleted: () => void;
   /** Set for a menu row: the arrow keys move between the menu's items. */
@@ -28,6 +30,7 @@ export function DeleteConfirm({
   action,
   remove,
   refusalNote = () => RUN_ACTIVE_NOTE,
+  blockedNote = null,
   onDeleted,
   onMenuKeyDown,
 }: DeleteConfirmProps) {
@@ -80,8 +83,12 @@ export function DeleteConfirm({
           data-menu-item={onMenuKeyDown === undefined ? undefined : ''}
           onKeyDown={onMenuKeyDown}
           onClick={() => {
-            setNote(null);
             setFailure(null);
+            if (blockedNote !== null) {
+              setNote(blockedNote);
+              return;
+            }
+            setNote(null);
             setOpen(true);
           }}
         >

@@ -390,8 +390,10 @@ runs only (`latest_run`, `_last_run_states`): a simulation run never changes it.
 Deleting a pricing version also removes its `solves` rows and its links to simulations
 (`pricing_version_simulations`) in the same transaction. The version marked in `showcase` (one row
 at most, port `Showcase`) is refused with `IsShowcase` (`409 is_showcase`) under the version's row
-lock; the foreign key cascades, so deleting an instance version with
-`?including_pricing_versions=true` still works until story 6.3 refuses it.
+lock; the foreign key cascades, so `DeleteInstanceVersion` and `DeleteCityInstance` read the
+port first and refuse with `IsShowcase` when the showcased version is below the target, before
+`run_active` and `has_pricing_versions`. That read is outside the deletion's transaction: a
+`PUT /showcase` committed between the two would still be cascaded away.
 
 The result routes (`GET /pricing-versions/{id}/result`, `/hub-pair-results`, `/hub-results`) read
 the stored summary, never recompute it: `ResultLookup` says a version has a result when its latest
@@ -782,8 +784,11 @@ outside `infrastructure`, and `window`, `document` or browser storage in `domain
   `PricingGateway.simulate` (a simulation run, no solve); while that run is queued or running the
   box shows its line from `useActiveRuns`, the menu row `● simulating` (`pricingMenuState`), and
   the end is seen by `usePricingList`, which reads the result again. L-3's action bar holds
-  "Compare versions →" (primary), "Duplicate" (secondary) and `PricingVersionDelete`, which wraps `DeleteConfirm` (its `refusalNote` maps
-  `run_active` and `is_showcase`) over `PricingGateway.remove`; the failed and cancelled cards of
+  "Compare versions →" (primary), "Duplicate", "Use on the home page" (`PricingGateway.setShowcase`
+  through `useSetShowcase`, shown while the version is not the showcase) and `PricingVersionDelete`, which wraps `DeleteConfirm` (its
+  `blockedNote` shows the showcase note without a confirmation; its `refusalNote` maps `run_active` and
+  `is_showcase`) over `PricingGateway.remove`; `VersionDelete` and the menu row do the same with
+  `useShowcaseHold` for the instance version and the instance; the failed and cancelled cards of
   `PricingRunView` carry the same "Delete…".
 - Comparing versions (L-4). The route `#/lab/{instance version}/compare/{letters}` is a view,
   `CompareView`, built from one `GET /comparisons` answer: `PricingGateway.compare` (the HTTP

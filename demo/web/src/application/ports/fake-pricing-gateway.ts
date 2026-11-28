@@ -706,6 +706,8 @@ export interface FakePricing {
   readonly versions: () => readonly PricingVersion[];
   /** The ids of the versions a simulation run was queued for, in order. */
   readonly simulated: () => readonly string[];
+  /** The `setShowcase` calls, in order. */
+  readonly showcaseSet: () => readonly { pricingVersionId: string; periodId: string }[];
 }
 
 /**
@@ -727,10 +729,14 @@ export function fakePricing(
     readonly comparison?: FakeComparisonDetails;
     /** The home page's showcase: none (default), one, or a failure it rejects with. */
     readonly showcase?: Showcase | null | Error;
+    /** `setShowcase` rejects, as when the API does not answer. */
+    readonly setShowcaseFails?: boolean;
   } = {},
 ): FakePricing {
   let stored = [...initial];
   const simulated: string[] = [];
+  const showcaseSet: { pricingVersionId: string; periodId: string }[] = [];
+  let showcaseNow = details.showcase ?? null;
   const replace = (next: PricingVersion) => {
     stored = stored.map((version) => (version.id === next.id ? next : version));
     return next;
@@ -739,9 +745,21 @@ export function fakePricing(
     list: (instanceVersionId) =>
       Promise.resolve(stored.filter((version) => version.instanceVersionId === instanceVersionId)),
     get: (id) => Promise.resolve(stored.find((version) => version.id === id) ?? null),
-    getShowcase: () => {
-      const showcase = details.showcase ?? null;
-      return showcase instanceof Error ? Promise.reject(showcase) : Promise.resolve(showcase);
+    getShowcase: () =>
+      showcaseNow instanceof Error ? Promise.reject(showcaseNow) : Promise.resolve(showcaseNow),
+    setShowcase: (pricingVersionId, periodId) => {
+      if (details.setShowcaseFails === true) {
+        return Promise.reject(new Error("The demonstrator's API did not answer."));
+      }
+      showcaseSet.push({ pricingVersionId, periodId });
+      const found = stored.find((version) => version.id === pricingVersionId);
+      showcaseNow = {
+        ...sampleShowcase,
+        pricingVersionId,
+        periodId,
+        letter: found?.letter ?? pricingVersionId.slice(pricingVersionId.lastIndexOf('.') + 1),
+      };
+      return Promise.resolve();
     },
     result: (id) => {
       if (id in results) return Promise.resolve(results[id] ?? null);
@@ -850,7 +868,12 @@ export function fakePricing(
       return Promise.resolve({ kind: 'deleted' });
     },
   };
-  return { gateway, versions: () => stored, simulated: () => simulated };
+  return {
+    gateway,
+    versions: () => stored,
+    simulated: () => simulated,
+    showcaseSet: () => showcaseSet,
+  };
 }
 
 /** The gateway with no pricing version at all. */

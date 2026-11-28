@@ -113,7 +113,11 @@ async function expectHomeTexts(page: Page) {
 }
 
 test.describe('Home', () => {
-  test('Home · with no showcase set, Home shows its no-showcase state', async ({ page }) => {
+  test('Home · with no showcase set, Home shows its no-showcase state; "Use on the home page" on L-3 sets it', async ({
+    page,
+    request,
+    control,
+  }) => {
     const apiRequests: string[] = [];
     page.on('request', (request) => {
       if (new URL(request.url()).pathname.startsWith('/api/')) apiRequests.push(request.url());
@@ -132,6 +136,28 @@ test.describe('Home', () => {
       .getByTestId('home-visual')
       .evaluate((element) => getComputedStyle(element).backgroundColor);
     expect(ground).toBe('rgb(228, 229, 226)');
+
+    // L-3 of a finished version: the action sets the showcase with one click.
+    const { version } = await buildFakeInstance(request, control);
+    const { id, letter } = await finishVersion(request, version, 'Chosen');
+    await page.goto(`/#/lab/${version}/result/${letter}`);
+    await page.reload();
+    const main = page.getByRole('main');
+    const action = main.getByRole('button', { name: 'Use on the home page' });
+    await expect(action).toHaveAttribute('title', "Shows this version's result on the home page.");
+    await action.click();
+
+    const link = main.getByRole('link', { name: 'On the home page' });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', '#/');
+    await expect(action).toHaveCount(0);
+    expect((await readShowcase(request)).letter).toBe(letter);
+    expect((await request.get(`/api/v1/pricing-versions/${id}`)).status()).toBe(200);
+
+    // Home now shows the stat tile.
+    await page.goto('/#/');
+    await page.reload();
+    await expectShowcase(page, await readShowcase(request));
   });
 
   test('Home · `#/` shows the two sections, the Play card "Coming after the proof of concept", the headline from the showcase, and "Open the Lab →" opens the Lab, whose "← Home" returns', async ({

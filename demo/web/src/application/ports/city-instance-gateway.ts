@@ -28,8 +28,12 @@ export type BuildQueued =
   | { readonly kind: 'queued'; readonly runId: string }
   | { readonly kind: 'refused'; readonly detail: string };
 
-/** `run_active`: a run of the version (or of one of the instance's versions) is queued or running. */
-export type Deleted = { readonly kind: 'deleted' } | { readonly kind: 'run_active' };
+/**
+ * `run_active`: a run of the version (or of one of the instance's versions) is queued or running.
+ * `is_showcase`: a pricing version below it is the home page's showcase.
+ */
+export type Deleted =
+  { readonly kind: 'deleted' } | { readonly kind: 'run_active' } | { readonly kind: 'is_showcase' };
 
 export type ParameterChanges = Partial<Record<ParameterName, number>>;
 

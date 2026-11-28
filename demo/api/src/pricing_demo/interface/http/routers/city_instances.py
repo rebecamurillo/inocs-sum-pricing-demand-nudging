@@ -261,7 +261,10 @@ def build_city_instances_router(
         response_class=Response,
         responses={
             **VERSION_NOT_FOUND,
-            409: _problem(f"`run_active`, or {HAS_PRICING_VERSIONS}"),
+            409: _problem(
+                "`is_showcase` (the version holds the home page's showcase), "
+                f"`run_active`, or {HAS_PRICING_VERSIONS}"
+            ),
             **UNEXPECTED,
         },
     )
@@ -279,7 +282,10 @@ def build_city_instances_router(
         response_class=Response,
         responses={
             **INSTANCE_NOT_FOUND,
-            409: _problem(f"`run_active`, or {HAS_PRICING_VERSIONS}"),
+            409: _problem(
+                "`is_showcase` (the instance holds the home page's showcase), "
+                f"`run_active`, or {HAS_PRICING_VERSIONS}"
+            ),
             **UNEXPECTED,
         },
     )

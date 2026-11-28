@@ -5,7 +5,9 @@ from pricing_demo.domain.pricing_versions import (
     FALLBACK_KEPT,
     PricingGoals,
     SealedWithoutRun,
+    city_instance_of,
     duplicated_goals,
+    instance_version_of,
     new_draft_goals,
     pricing_letter,
     pricing_version_id,
@@ -28,6 +30,12 @@ def test_letters_follow_the_spreadsheet_order(index: int, letter: str) -> None:
 
 def test_the_id_of_a_pricing_version() -> None:
     assert pricing_version_id("geneva-3km.v1", "C") == "geneva-3km.v1.C"
+
+
+def test_the_instance_version_and_the_city_instance_are_read_off_a_pricing_version_id() -> None:
+    assert instance_version_of("geneva-3km.v1.B") == "geneva-3km.v1"
+    assert city_instance_of("geneva-3km.v1") == "geneva-3km"
+    assert city_instance_of(instance_version_of("geneva-3km.v12.AB")) == "geneva-3km"
 
 
 def test_a_first_draft_takes_the_provisional_goals_and_the_fallback_kept_values() -> None:

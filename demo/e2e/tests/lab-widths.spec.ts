@@ -5,6 +5,7 @@ import { pairWithOtherBikeOptions, pricedPair, sameHubPair } from '../support/tr
 import {
   createPricingVersion,
   finishVersion,
+  putShowcase,
   runPricingVersion,
   runToResult,
   waitForRun,
@@ -198,7 +199,7 @@ test.describe('Lab', () => {
     // L-3: the result of a finished version, and its loading state (the answer held until the
     // skeleton has been checked).
     const finished = await createPricingVersion(request, version);
-    await runToResult(request, finished.id);
+    const finishedResult = await runToResult(request, finished.id);
     let release: (() => void) | undefined;
     const held = new Promise<void>((resolve) => {
       release = resolve;
@@ -214,6 +215,10 @@ test.describe('Lab', () => {
     release?.();
     await expect(page.getByText('Result · pipeline step 6')).toBeVisible();
     await expect(page.getByRole('status', { name: 'Loading' })).toHaveCount(0);
+    // The action bar with "Use on the home page" between "Duplicate" and "Delete…".
+    await expect(
+      page.getByRole('main').getByRole('button', { name: 'Use on the home page' }),
+    ).toBeVisible();
     await holdsAtEverySize(page, page.getByRole('main'));
     // The five-second test at 1280 × 720 without Aa: the insight title and both simulated bars
     // are in view without scrolling the card.
@@ -223,6 +228,20 @@ test.describe('Lab', () => {
     for (const bar of await simulation.getByRole('img').all()) {
       await expect(bar).toBeInViewport({ ratio: 1 });
     }
+
+    // With the showcase set, "Delete…" on L-1 and on the menu row shows its note.
+    await page.unroute('**/api/v1/pricing-versions/*/result');
+    await putShowcase(request, finished.id, finishedResult.period_id);
+    const homeNote = `Version ${finished.letter} of Geneva 3 km v1 is the home page's result: choose another one first.`;
+    await page.goto(`/#/lab/${version}`);
+    await page.reload();
+    await page.getByRole('main').getByRole('button', { name: 'Delete…' }).click();
+    await expect(page.getByRole('main').getByText(homeNote)).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
+    const menuAside = page.getByRole('complementary', { name: 'Menu' });
+    await menuAside.getByRole('button', { name: 'Delete…' }).click();
+    await expect(menuAside.getByText(homeNote)).toBeVisible();
+    await holdsAtEverySize(page, page.getByRole('main'));
   });
 
   // A third scenario for L-3's hub pairs: the first holds every other built view and already

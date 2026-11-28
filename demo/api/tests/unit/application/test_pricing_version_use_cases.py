@@ -12,6 +12,7 @@ from pricing_demo.domain.city_instances import InstanceVersionNotFound, VersionS
 from pricing_demo.domain.pricing_versions import (
     HasPricingVersions,
     InstanceNotBuilt,
+    IsShowcase,
     PricingVersionNotFound,
     UnknownBasedOn,
 )
@@ -193,7 +194,7 @@ def test_an_instance_version_with_pricing_versions_is_deleted_only_when_they_go_
     rig = Rig()
     rig.create.execute(VERSION, None, None)
     rig.create.execute(VERSION, None, None)
-    delete_version = DeleteInstanceVersion(rig.rig.builds)
+    delete_version = DeleteInstanceVersion(rig.rig.builds, rig.rig.showcase)
 
     with pytest.raises(HasPricingVersions) as refused:
         delete_version.execute(VERSION)
@@ -207,7 +208,7 @@ def test_an_instance_version_with_pricing_versions_is_deleted_only_when_they_go_
 def test_a_city_instance_with_pricing_versions_is_deleted_only_when_they_go_too() -> None:
     rig = Rig()
     rig.create.execute(VERSION, None, None)
-    delete_instance = DeleteCityInstance(rig.rig.builds)
+    delete_instance = DeleteCityInstance(rig.rig.builds, rig.rig.showcase)
 
     with pytest.raises(HasPricingVersions):
         delete_instance.execute("geneva-3km")
@@ -222,4 +223,62 @@ def test_an_active_pricing_run_refuses_a_deletion_even_with_the_flag() -> None:
     sealed_pricing_version(rig.rig, draft.version.id, RunState.QUEUED)
 
     with pytest.raises(RunActive):
-        DeleteInstanceVersion(rig.rig.builds).execute(VERSION, True)
+        DeleteInstanceVersion(rig.rig.builds, rig.rig.showcase).execute(VERSION, True)
+
+
+def _showcased(rig: Rig, pricing_version_id: str = "geneva-3km.v1.A") -> None:
+    rig.rig.showcase.mark(pricing_version_id, "geneva-3km.v1.mon-08", rig.rig.clock.now())
+
+
+@pytest.mark.parametrize("including", [False, True])
+def test_the_instance_version_holding_the_showcase_is_not_deleted(including: bool) -> None:
+    rig = Rig()
+    rig.create.execute(VERSION, None, None)
+    _showcased(rig)
+
+    with pytest.raises(IsShowcase) as refused:
+        DeleteInstanceVersion(rig.rig.builds, rig.rig.showcase).execute(VERSION, including)
+
+    assert refused.value.version_id == "geneva-3km.v1.A"
+    assert rig.rig.instances.get_version(VERSION) is not None
+    assert rig.rig.pricing.get("geneva-3km.v1.A") is not None
+
+
+@pytest.mark.parametrize("including", [False, True])
+def test_the_city_instance_holding_the_showcase_is_not_deleted(including: bool) -> None:
+    rig = Rig()
+    rig.create.execute(VERSION, None, None)
+    _showcased(rig)
+
+    with pytest.raises(IsShowcase):
+        DeleteCityInstance(rig.rig.builds, rig.rig.showcase).execute("geneva-3km", including)
+
+    assert rig.rig.instances.get_instance("geneva-3km") is not None
+    assert rig.rig.pricing.get("geneva-3km.v1.A") is not None
+
+
+def test_the_showcase_refusal_comes_before_the_active_run_refusal() -> None:
+    rig = Rig()
+    draft = rig.create.execute(VERSION, None, None)
+    sealed_pricing_version(rig.rig, draft.version.id, RunState.RUNNING)
+    _showcased(rig, draft.version.id)
+
+    with pytest.raises(IsShowcase):
+        DeleteInstanceVersion(rig.rig.builds, rig.rig.showcase).execute(VERSION, True)
+    with pytest.raises(IsShowcase):
+        DeleteCityInstance(rig.rig.builds, rig.rig.showcase).execute("geneva-3km")
+
+
+def test_another_instance_version_or_instance_is_not_refused_for_the_showcase() -> None:
+    rig = Rig()
+    rig.create.execute(VERSION, None, None)
+    _showcased(rig, "other-city.v1.A")
+
+    DeleteInstanceVersion(rig.rig.builds, rig.rig.showcase).execute(VERSION, True)
+    assert rig.rig.instances.get_version(VERSION) is None
+
+    other = Rig()
+    other.create.execute(VERSION, None, None)
+    _showcased(other, "other-city.v1.A")
+    DeleteCityInstance(other.rig.builds, other.rig.showcase).execute("geneva-3km", True)
+    assert other.rig.instances.get_instance("geneva-3km") is None

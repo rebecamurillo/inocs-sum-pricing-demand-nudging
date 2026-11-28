@@ -84,7 +84,7 @@ Every error body is a problem document (RFC 9457, `application/problem+json`):
   simulation under the current rule) have none either. `no_result` is also a 404, on the three
   result routes (`/result`, `/hub-pair-results`, `/hub-results`): the version's latest pricing run
   has not succeeded, or its solve, its summary or one of its two simulations is missing.
-  `is_showcase` (409) refuses the deletion of the showcased pricing version; `no_showcase` (404)
+  `is_showcase` (409) refuses the deletion of the showcased pricing version, of its instance version and of its city instance (before `run_active` and `has_pricing_versions`); `no_showcase` (404)
   answers `GET /showcase` when none is marked. Neither has an extension member.
   `GET /comparisons` answers `409 different_instances` (the versions belong to different instance
   versions), `409 no_result` (a version has no result; the three result routes answer `404`

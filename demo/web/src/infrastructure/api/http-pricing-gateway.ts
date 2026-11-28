@@ -439,6 +439,17 @@ export class HttpPricingGateway implements PricingGateway {
     return toShowcase(answer.body as Schemas['ShowcaseResponse']);
   }
 
+  async setShowcase(pricingVersionId: string, periodId: string): Promise<void> {
+    const path = `${apiRoot}/showcase`;
+    const answer = await this.call('PUT', path, {
+      pricing_version_id: pricingVersionId,
+      period_id: periodId,
+    });
+    if (answer.status < 200 || answer.status > 299) {
+      throw unexpected(answer.status, answer.body, path);
+    }
+  }
+
   async result(id: string): Promise<PricingResult | null> {
     const path = `${apiRoot}/pricing-versions/${encodeURIComponent(id)}/result`;
     const answer = await this.call('GET', path, undefined);

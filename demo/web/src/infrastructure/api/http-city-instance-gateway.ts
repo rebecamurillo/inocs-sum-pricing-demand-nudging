@@ -357,9 +357,8 @@ export class HttpCityInstanceGateway implements CityInstanceGateway {
   private async delete(path: string): Promise<Deleted> {
     const answer = await this.send('DELETE', path, undefined);
     if (answer.status === 204) return { kind: 'deleted' };
-    if (answer.status === 409 && problemOf(answer.body)?.code === 'run_active') {
-      return { kind: 'run_active' };
-    }
+    const code = answer.status === 409 ? problemOf(answer.body)?.code : undefined;
+    if (code === 'run_active' || code === 'is_showcase') return { kind: code };
     throw unexpected(answer, path);
   }
 

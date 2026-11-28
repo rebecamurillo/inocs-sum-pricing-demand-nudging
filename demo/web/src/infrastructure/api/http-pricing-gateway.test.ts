@@ -701,6 +701,39 @@ describe('HttpPricingGateway', () => {
     });
   });
 
+  describe('setShowcase', () => {
+    it('PUTs the version and the period to /showcase', async () => {
+      const fetchImpl = answering(200, {});
+
+      await new HttpPricingGateway(fetchImpl).setShowcase('x.v1.B', 'monday-08');
+
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe('/api/v1/showcase');
+      const init = fetchImpl.mock.calls[0]?.[1];
+      expect(init?.method).toBe('PUT');
+      expect(JSON.parse(init?.body as string)).toEqual({
+        pricing_version_id: 'x.v1.B',
+        period_id: 'monday-08',
+      });
+    });
+
+    it('accepts a 204', async () => {
+      await expect(
+        new HttpPricingGateway(answering(204, undefined)).setShowcase('x.v1.B', 'p'),
+      ).resolves.toBeUndefined();
+    });
+
+    it('rejects on any error status and on an unreachable API', async () => {
+      for (const status of [404, 409, 422, 500]) {
+        const failing = answering(status, { code: 'no_result', title: 'No', detail: 'No.' });
+        await expect(new HttpPricingGateway(failing).setShowcase('x.v1.B', 'p')).rejects.toThrow();
+      }
+      const down = vi.fn<typeof fetch>(() => Promise.reject(new Error('offline')));
+      await expect(new HttpPricingGateway(down).setShowcase('x.v1.B', 'p')).rejects.toMatchObject({
+        code: 'api_unreachable',
+      });
+    });
+  });
+
   describe('getShowcase', () => {
     it('reads /showcase and maps the marked version', async () => {
       const number = (value: number, unit: string, source: string) => ({

@@ -8,6 +8,7 @@ import {
   fakePricing,
   samplePricingResult,
   sampleSealedPricing,
+  sampleShowcase,
 } from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway, sampleStep } from '../../application/ports/fake-run-gateway';
 import type { Gateways } from '../../application/ports/gateways';
@@ -702,5 +703,96 @@ describe('PricingResultView', () => {
       expect(onNavigate).not.toHaveBeenCalled();
       expect(fake.versions()).toHaveLength(1);
     });
+  });
+});
+
+describe('PricingResultView · the home page', () => {
+  const action = { name: 'Use on the home page' };
+  const heldByB = { ...sampleShowcase, pricingVersionId: 'geneva-3km.v1.B', letter: 'B' };
+
+  it('puts "Use on the home page" between Duplicate and Delete…, with its first hover text', async () => {
+    mount();
+
+    const button = await screen.findByRole('button', action);
+
+    const names = screen
+      .getAllByRole('button')
+      .map((item) => item.textContent)
+      .filter((text) => /^(Compare|Open in|Duplicate|Use on|Delete…)/.test(text));
+    expect(names).toEqual([
+      'Compare versions →',
+      'Open in the traveller view',
+      'Duplicate',
+      'Use on the home page',
+      'Delete…',
+    ]);
+    expect(button).toHaveAttribute('title', "Shows this version's result on the home page.");
+  });
+
+  it('names the version it would replace in its hover text', async () => {
+    mount({ details: { showcase: heldByB } });
+
+    expect(await screen.findByRole('button', action)).toHaveAttribute(
+      'title',
+      "Shows this version's result on the home page, in place of Version B's.",
+    );
+  });
+
+  it('shows the first hover text when the showcase cannot be read', async () => {
+    mount({ details: { showcase: new Error('down') } });
+
+    expect(await screen.findByRole('button', action)).toHaveAttribute(
+      'title',
+      "Shows this version's result on the home page.",
+    );
+  });
+
+  it('sets the showcase on one click, then shows the link and drops the action', async () => {
+    const { fake } = mount();
+
+    await userEvent.click(await screen.findByRole('button', action));
+
+    await vi.waitFor(() => {
+      expect(fake.showcaseSet()).toEqual([
+        { pricingVersionId: 'geneva-3km.v1.A', periodId: samplePricingResult().periodId },
+      ]);
+    });
+    const link = await screen.findByRole('link', { name: 'On the home page' });
+    expect(link).toHaveAttribute('href', '#/');
+    expect(screen.queryByRole('button', action)).toBeNull();
+    expect(screen.queryByRole('button', { name: /remove|clear/i })).toBeNull();
+  });
+
+  it('shows the link and no action when this version is the showcase', async () => {
+    mount({ details: { showcase: { ...sampleShowcase, pricingVersionId: 'geneva-3km.v1.A' } } });
+
+    expect(await screen.findByRole('link', { name: 'On the home page' })).toBeVisible();
+    expect(screen.queryByRole('button', action)).toBeNull();
+  });
+
+  it('keeps the action and says so when the API did not answer', async () => {
+    mount({ details: { setShowcaseFails: true } });
+
+    await userEvent.click(await screen.findByRole('button', action));
+
+    expect(
+      await screen.findByText("Not set: the demonstrator's API did not answer."),
+    ).toBeVisible();
+    expect(screen.getByRole('button', action)).toBeVisible();
+    expect(screen.queryByRole('link', { name: 'On the home page' })).toBeNull();
+  });
+
+  it('shows the note instead of a confirmation when this version is the showcase', async () => {
+    mount({ details: { showcase: { ...sampleShowcase, pricingVersionId: 'geneva-3km.v1.A' } } });
+
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('button', action)).toBeNull();
+    });
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+    expect(
+      screen.getByText("Version A is the home page's result: choose another one first."),
+    ).toBeVisible();
+    expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
   });
 });

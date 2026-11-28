@@ -14,6 +14,8 @@ from pricing_demo.application.ports.worker_registry import WorkerIdentity
 from pricing_demo.application.step_registry import StepRegistry
 from pricing_demo.application.use_cases.build_instance_version import BuildInstanceVersion
 from pricing_demo.application.use_cases.collect_unreferenced import CollectUnreferenced
+from pricing_demo.application.use_cases.delete_city_instance import DeleteCityInstance
+from pricing_demo.application.use_cases.delete_instance_version import DeleteInstanceVersion
 from pricing_demo.application.use_cases.process_next_run import ProcessNextRun
 from pricing_demo.application.use_cases.run_build_step import BuildStepExecutor
 from pricing_demo.application.use_cases.run_pricing_step import PricingModelStepExecutor
@@ -316,6 +318,29 @@ def test_the_showcased_version_is_not_deleted_and_another_is(rig: Rig) -> None:
     rig.pricing.delete(second)
 
     assert rig.count("solves") == 1
+    assert rig.count("showcase") == 1
+    assert rig.links(first) != {}
+
+
+@pytest.mark.parametrize("including", [False, True])
+def test_what_holds_the_showcase_is_not_deleted_and_the_mark_stays(
+    rig: Rig, including: bool
+) -> None:
+    first = rig.version()
+    rig.run(first)
+    showcase = PostgresShowcase(rig.engine)
+    showcase.mark(first, PERIOD, T0)
+    builds = PostgresBuilds(rig.engine)
+    instance_version = first.rsplit(".", 1)[0]
+    instance = instance_version.rsplit(".", 1)[0]
+
+    with pytest.raises(IsShowcase):
+        DeleteInstanceVersion(builds, showcase).execute(instance_version, including)
+    with pytest.raises(IsShowcase):
+        DeleteCityInstance(builds, showcase).execute(instance, including)
+    with pytest.raises(IsShowcase):
+        rig.pricing.delete(first)
+
     assert rig.count("showcase") == 1
     assert rig.links(first) != {}
 

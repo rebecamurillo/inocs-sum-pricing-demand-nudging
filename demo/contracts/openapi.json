@@ -5185,7 +5185,7 @@
                 }
               }
             },
-            "description": "`run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too"
+            "description": "`is_showcase` (the instance holds the home page's showcase), `run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too"
           },
           "422": {
             "content": {
@@ -5442,7 +5442,7 @@
                 }
               }
             },
-            "description": "`run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too"
+            "description": "`is_showcase` (the version holds the home page's showcase), `run_active`, or `has_pricing_versions` lists the pricing versions in `pricing_version_ids`; send `including_pricing_versions=true` to delete them too"
           },
           "422": {
             "content": {

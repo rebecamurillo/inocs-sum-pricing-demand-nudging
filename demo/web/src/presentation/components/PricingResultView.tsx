@@ -38,6 +38,13 @@ import {
   simulationOffReason,
 } from '../../domain/older-rule-text';
 import { DUPLICATE } from '../../domain/pricing-run-text';
+import {
+  ON_THE_HOME_PAGE,
+  SHOWCASE_NOT_SET,
+  showcaseActionShown,
+  USE_ON_HOME_PAGE,
+  homeTitle,
+} from '../../domain/showcase-text';
 import { elapsedSeconds, queuedSentence, subjectName } from '../../domain/run-text';
 import { missingPricingVersionLabel, nothingAtThisLink } from '../../domain/unknown-link';
 import { useInstanceMenu, useInstanceView } from '../hooks/useCityInstances';
@@ -52,6 +59,7 @@ import {
   useSimulationEnd,
 } from '../hooks/usePricingVersions';
 import { useActiveRuns, useNow } from '../hooks/useRuns';
+import { useSetShowcase, useShowcase } from '../hooks/useShowcase';
 import { useCurrentSimulationRule, useSystemStatus } from '../hooks/useSystemStatus';
 import { HubPairTable } from './HubPairTable';
 import { LoadingCard } from './LoadingCard';
@@ -195,6 +203,9 @@ function ResultCard({
   const id = pricingVersionId(version.instanceVersionId, version.letter);
   const pricing = usePricingActions();
   const list = usePricingList(version.instanceVersionId);
+  const showcaseQuery = useShowcase();
+  const showcase = showcaseQuery.data ?? null;
+  const setShowcase = useSetShowcase();
   const hubPairs = useHubPairResults(id).data ?? null;
   const hubs = useHubResults(id).data ?? null;
   const stored = usePricingSimulations(advancedView ? id : null).data ?? null;
@@ -233,6 +244,11 @@ function ResultCard({
       <p className={styles.scope}>
         {scopeLine(version.letter, pricingVersionName(version), instanceLabel, periodLabel)}
       </p>
+      {showcase?.pricingVersionId === id && (
+        <p className={styles.small}>
+          <a href="#/">{ON_THE_HOME_PAGE}</a>
+        </p>
+      )}
 
       {older !== null && <OlderRuleBox version={version} old={older.old} current={older.new} />}
 
@@ -407,6 +423,19 @@ function ResultCard({
         >
           {DUPLICATE}
         </button>
+        {!showcaseQuery.isPending && showcaseActionShown(version.state, id, showcase) && (
+          <button
+            type="button"
+            className={styles.secondary}
+            title={homeTitle(showcase?.letter ?? null)}
+            disabled={setShowcase.isPending}
+            onClick={() => {
+              setShowcase.mutate({ pricingVersionId: id, periodId: result.periodId });
+            }}
+          >
+            {USE_ON_HOME_PAGE}
+          </button>
+        )}
         <PricingVersionDelete
           version={version}
           instanceName={instanceName}
@@ -417,6 +446,7 @@ function ResultCard({
         {pricing.duplicate.isError && (
           <p className={styles.error}>{pricing.duplicate.error.message}</p>
         )}
+        {setShowcase.isError && <p className={styles.error}>{SHOWCASE_NOT_SET}</p>}
       </div>
 
       {hubPairs !== null && (

@@ -102,10 +102,10 @@ test.describe('Lab · deleting a version', () => {
 
     // The showcase version stays, with the reason as the note.
     await main.getByRole('button', { name: 'Delete…' }).click();
-    await main.getByRole('button', { name: 'Delete Version B' }).click();
     await expect(
       main.getByText("Version B is the home page's result: choose another one first."),
     ).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Delete' })).toHaveCount(0);
     await expect(page).toHaveURL(new RegExp(`#/lab/${version}/result/B$`));
     expect((await request.get(`/api/v1/pricing-versions/${second.id}`)).status()).toBe(200);
 
@@ -123,5 +123,16 @@ test.describe('Lab · deleting a version', () => {
     await expect(menu.getByRole('button', { name: /^Version A ✓ result$/ })).toHaveCount(0);
     await expect(menu.getByRole('button', { name: /^Cheaper B ✓ result$/ })).toBeVisible();
     expect((await request.get(`/api/v1/pricing-versions/${first.id}`)).status()).toBe(404);
+
+    // What holds the showcase says so on L-1 and on the instance's menu row, with no confirmation.
+    const held = "Version B of Geneva 3 km v1 is the home page's result: choose another one first.";
+    await main.getByRole('button', { name: 'Delete…' }).click();
+    await expect(main.getByText(held)).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Delete' })).toHaveCount(0);
+    await menu.getByRole('button', { name: 'Delete…' }).click();
+    await expect(menu.getByText(held)).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Delete' })).toHaveCount(0);
+    expect((await request.delete(`/api/v1/instance-versions/${version}`)).status()).toBe(409);
+    expect((await request.get(`/api/v1/pricing-versions/${second.id}`)).status()).toBe(200);
   });
 });

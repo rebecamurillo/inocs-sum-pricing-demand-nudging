@@ -549,6 +549,16 @@ describe('HttpCityInstanceGateway writes', () => {
     expect(offline.code).toBe('api_unreachable');
   });
 
+  it('reports is_showcase for a version and for an instance', async () => {
+    const refusal = () => problem(409, { code: 'is_showcase', title: 'Home', detail: 'Held.' });
+    expect(await gatewayAnswering(refusal()).gateway.deleteVersion('a.v1', true)).toEqual({
+      kind: 'is_showcase',
+    });
+    expect(await gatewayAnswering(refusal()).gateway.deleteInstance('a', false)).toEqual({
+      kind: 'is_showcase',
+    });
+  });
+
   it('asks for the pricing versions to go too, and throws on an out-of-date menu', async () => {
     const version = gatewayAnswering(new Response(null, { status: 204 }));
     expect(await version.gateway.deleteVersion('geneva-3km.v1', true)).toEqual({ kind: 'deleted' });

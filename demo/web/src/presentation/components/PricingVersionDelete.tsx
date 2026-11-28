@@ -6,9 +6,10 @@ import {
   pricingDeleteQuestion,
 } from '../../domain/older-rule-text';
 import { pricingVersionName } from '../../domain/pricing-goals-text';
-import type { PricingVersion } from '../../domain/pricing-version';
+import { pricingVersionId, type PricingVersion } from '../../domain/pricing-version';
 import type { LabRoute } from '../../domain/route';
 import { usePricingActions } from '../hooks/usePricingVersions';
+import { useShowcase } from '../hooks/useShowcase';
 import { DeleteConfirm } from './DeleteConfirm';
 
 /**
@@ -29,6 +30,9 @@ export function PricingVersionDelete({
   onNavigate: (route: LabRoute) => void;
 }) {
   const pricing = usePricingActions();
+  const showcase = useShowcase().data ?? null;
+  const held =
+    showcase?.pricingVersionId === pricingVersionId(version.instanceVersionId, version.letter);
   return (
     <DeleteConfirm
       question={pricingDeleteQuestion(
@@ -37,6 +41,7 @@ export function PricingVersionDelete({
         `${instanceName} ${versionTag(number)}`,
       )}
       action={pricingDeleteAction(version.letter)}
+      blockedNote={held ? isShowcaseNote(version.letter) : null}
       remove={() => pricing.remove.mutateAsync(version)}
       refusalNote={(kind) =>
         kind === 'is_showcase' ? isShowcaseNote(version.letter) : RUN_ACTIVE_NOTE

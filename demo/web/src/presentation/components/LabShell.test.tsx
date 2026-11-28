@@ -17,6 +17,7 @@ import {
   samplePricingDraft,
   samplePricingResult,
   sampleSealedPricing,
+  sampleShowcase,
 } from '../../application/ports/fake-pricing-gateway';
 import type { PricingGateway } from '../../application/ports/pricing-gateway';
 import type { Gateways } from '../../application/ports/gateways';
@@ -964,6 +965,54 @@ describe('LabShell · deleting an instance from its menu row', () => {
       await within(await menuNav()).findByText('A run of this version is queued or running.'),
     ).toBeVisible();
     expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+  });
+
+  it('shows the home page note on the menu row\'s "Delete…" without a confirmation', async () => {
+    const deleteInstance = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({ deleteInstance }),
+      [],
+      fakeRunGateway(),
+      fakePricing([], {}, { showcase: sampleShowcase }).gateway,
+    );
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+
+    expect(
+      await within(await menuNav()).findByText(
+        "Version B of Geneva 3 km v1 is the home page's result: choose another one first.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
+    expect(deleteInstance).not.toHaveBeenCalled();
+  });
+
+  it('shows the same note when the DELETE answers is_showcase', async () => {
+    const getShowcase = vi
+      .fn<PricingGateway['getShowcase']>()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(sampleShowcase);
+    const pricing = { ...fakePricingGateway(), getShowcase };
+    renderShell(
+      DEFAULT_LAYOUT,
+      fakeCityInstances({ deleteInstance: () => Promise.resolve({ kind: 'is_showcase' }) }),
+      [],
+      fakeRunGateway(),
+      pricing,
+    );
+    const user = userEvent.setup();
+
+    await user.click(await within(await menuNav()).findByRole('button', { name: 'Delete…' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Geneva 3 km and its versions' }));
+
+    expect(
+      await within(await menuNav()).findByText(
+        "Version B of Geneva 3 km v1 is the home page's result: choose another one first.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
   });
 });
 

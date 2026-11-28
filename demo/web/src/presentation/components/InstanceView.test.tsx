@@ -13,8 +13,10 @@ import {
 } from '../../application/ports/fake-city-instance-gateway';
 import type { Gateways } from '../../application/ports/gateways';
 import {
+  fakePricing,
   fakePricingGateway,
   samplePricingDraft,
+  sampleShowcase,
 } from '../../application/ports/fake-pricing-gateway';
 import { fakeRunGateway } from '../../application/ports/fake-run-gateway';
 import type { PricingGateway } from '../../application/ports/pricing-gateway';
@@ -303,6 +305,46 @@ describe('InstanceView · the saved card', () => {
       expect(screen.queryByText(SENTENCE)).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Delete…' })).toBeInTheDocument();
       expect(window.location.hash).toBe('#/lab/geneva-3km.v1');
+    });
+
+    it('shows the home page note instead of a confirmation when the version holds the showcase', async () => {
+      const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'deleted' as const }));
+      const pricing = fakePricing([], {}, { showcase: sampleShowcase }).gateway;
+      mount(fakeCityInstances({ deleteVersion, menu }), false, undefined, vi.fn(), pricing);
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+
+      expect(
+        await screen.findByText(
+          "Version B of Geneva 3 km v1 is the home page's result: choose another one first.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
+      expect(deleteVersion).not.toHaveBeenCalled();
+    });
+
+    it('shows the same note when the DELETE answers is_showcase', async () => {
+      const getShowcase = vi
+        .fn<PricingGateway['getShowcase']>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValue(sampleShowcase);
+      const deleteVersion = vi.fn(() => Promise.resolve({ kind: 'is_showcase' as const }));
+      mount(fakeCityInstances({ deleteVersion, menu }), false, undefined, vi.fn(), {
+        ...fakePricingGateway(),
+        getShowcase,
+      });
+      const user = userEvent.setup();
+
+      await user.click(await screen.findByRole('button', { name: 'Delete…' }));
+      await user.click(screen.getByRole('button', { name: 'Delete v1' }));
+
+      expect(
+        await screen.findByText(
+          "Version B of Geneva 3 km v1 is the home page's result: choose another one first.",
+        ),
+      ).toBeVisible();
+      expect(screen.queryByRole('group', { name: 'Delete' })).toBeNull();
     });
 
     it('names the pricing versions that go with the version and sends the flag', async () => {

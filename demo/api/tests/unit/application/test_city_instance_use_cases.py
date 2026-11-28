@@ -46,6 +46,7 @@ from pricing_demo.infrastructure.fakes.pricing_versions import FakePricingVersio
 from pricing_demo.infrastructure.fakes.read_model import InMemoryReadModel
 from pricing_demo.infrastructure.fakes.route_failures import InMemoryRouteFailures
 from pricing_demo.infrastructure.fakes.run_repository import InMemoryRunRepository
+from pricing_demo.infrastructure.fakes.showcase import InMemoryShowcase
 from tests.support.builds import all_available
 from tests.support.runs import T0, make_run
 
@@ -85,8 +86,9 @@ class Rig:
         self.get = GetInstanceVersion(
             self.instances, self.datasets, planning, built, self.fingerprints
         )
-        self.delete = DeleteInstanceVersion(builds)
-        self.delete_instance = DeleteCityInstance(builds)
+        self.showcase = InMemoryShowcase()
+        self.delete = DeleteInstanceVersion(builds, self.showcase)
+        self.delete_instance = DeleteCityInstance(builds, self.showcase)
         self.menu = ListCityInstances(self.instances, builds, FakePricingVersions(self.runs))
 
     def geneva(self) -> InstanceVersionView:

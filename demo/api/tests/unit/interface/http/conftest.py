@@ -262,8 +262,8 @@ class CityInstancesApp:
                         UpdateInstanceVersion(
                             self.instances, self.datasets, planning, built, self.fingerprints
                         ),
-                        DeleteInstanceVersion(self.rig.builds),
-                        DeleteCityInstance(self.rig.builds),
+                        DeleteInstanceVersion(self.rig.builds, self.rig.showcase),
+                        DeleteCityInstance(self.rig.builds, self.rig.showcase),
                         self.rig.build,
                         GetRun(self.runs, self.clock),
                         ListStations(self.instances, self.rig.artifacts, self.rig.read_model),

@@ -191,9 +191,12 @@ version's name, its letter, the headline numbers of its result, the scope (data 
 radius, period label), the car share simulated with the flat price and with the version's prices
 and their difference in points, the flat price, the simulation rule with `rule_current`, the study
 circle, the hubs and, per hub pair with bike rides, its two hub centres, mean bike price and bike
-rides (each number `{value, unit, source, group}`), or `404 no_showcase`. While a version is marked,
-`DELETE /api/v1/pricing-versions/{id}` answers `409 is_showcase`. The Lab has no control for it
-yet: story 6.3 adds one.
+rides (each number `{value, unit, source, group}`), or `404 no_showcase`. The Lab's
+"Use on the home page", on L-3 of a finished version, sets it. While a version is marked,
+`DELETE /api/v1/pricing-versions/{id}` answers `409 is_showcase`, and so do the `DELETE` of its
+instance version (`/instance-versions/{id}`) and of its city instance (`/city-instances/{id}`),
+with or without `including_pricing_versions=true`; the Lab's "Delete…" then shows a note instead
+of asking.
 
 ## Where things are
 

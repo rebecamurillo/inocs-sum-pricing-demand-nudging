@@ -289,3 +289,29 @@ describe('fakePricing showcase', () => {
     await expect(gateway.getShowcase()).rejects.toBe(failure);
   });
 });
+
+describe('fakePricing setShowcase', () => {
+  it('records the call and replaces the showcase with that version and period', async () => {
+    const fake = fakePricing([], {}, { showcase: sampleShowcase });
+
+    await fake.gateway.setShowcase('geneva-3km.v1.C', 'tuesday-09');
+
+    expect(fake.showcaseSet()).toEqual([
+      { pricingVersionId: 'geneva-3km.v1.C', periodId: 'tuesday-09' },
+    ]);
+    const now = await fake.gateway.getShowcase();
+    expect(now).toMatchObject({
+      pricingVersionId: 'geneva-3km.v1.C',
+      periodId: 'tuesday-09',
+      letter: 'C',
+    });
+  });
+
+  it('rejects when told to, recording nothing', async () => {
+    const fake = fakePricing([], {}, { setShowcaseFails: true });
+
+    await expect(fake.gateway.setShowcase('x.v1.A', 'p')).rejects.toBeInstanceOf(Error);
+    expect(fake.showcaseSet()).toEqual([]);
+    await expect(fake.gateway.getShowcase()).resolves.toBeNull();
+  });
+});

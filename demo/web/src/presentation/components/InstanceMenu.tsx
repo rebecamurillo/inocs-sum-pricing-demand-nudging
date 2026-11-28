@@ -8,9 +8,11 @@ import {
   pricingRowLetter,
   pricingVersionName,
 } from '../../domain/pricing-goals-text';
+import { showcaseHolders } from '../../domain/showcase';
 import type { LabRoute } from '../../domain/route';
 import { PRICING_VERSIONS_OFF } from '../../domain/run-text';
 import { useDeleteActions } from '../hooks/useCityInstances';
+import { useShowcaseHold } from '../hooks/useShowcase';
 import { useNewPricingVersion } from '../hooks/useNewPricingVersion';
 import { usePricingList } from '../hooks/usePricingVersions';
 import { DeleteConfirm } from './DeleteConfirm';
@@ -108,6 +110,45 @@ function PricingRows({
   );
 }
 
+/** "Delete…" of an instance row: asks, or says the instance holds the home page's result. */
+function InstanceRowDelete({
+  entry,
+  onInstanceDeleted,
+  onKeyDown,
+}: {
+  entry: InstanceMenuEntry;
+  onInstanceDeleted: InstanceMenuProps['onInstanceDeleted'];
+  onKeyDown: InstanceMenuProps['onKeyDown'];
+}) {
+  const deletions = useDeleteActions();
+  const hold = useShowcaseHold(
+    (showcase) => showcaseHolders(showcase.pricingVersionId).instanceId === entry.id,
+  );
+  return (
+    <DeleteConfirm
+      question={instanceDeleteQuestion(
+        entry.name,
+        entry.versions.map((item) => item.number),
+        pricingTotal(entry),
+      )}
+      action={instanceDeleteAction(entry.name)}
+      blockedNote={hold.blockedNote}
+      refusalNote={hold.refusalNote}
+      remove={() =>
+        deletions
+          .deleteInstance({ id: entry.id, includingPricingVersions: pricingTotal(entry) > 0 })
+          .then(hold.afterAnswer)
+      }
+      onDeleted={() => {
+        const ids = entry.versions.map((item) => item.id);
+        onInstanceDeleted?.(entry.id, ids);
+        deletions.forget(ids);
+      }}
+      onMenuKeyDown={onKeyDown}
+    />
+  );
+}
+
 /** The instances under "City instances": the open one expanded, the others with a version count. */
 export function InstanceMenu({
   entries,
@@ -121,7 +162,6 @@ export function InstanceMenu({
   onInstanceDeleted,
   onKeyDown,
 }: InstanceMenuProps) {
-  const deletions = useDeleteActions();
   if (entries.length === 0) return <p className={styles.hint}>No instance yet</p>;
 
   return (
@@ -169,25 +209,10 @@ export function InstanceMenu({
                     </span>
                   </button>
                   {at === 0 && (
-                    <DeleteConfirm
-                      question={instanceDeleteQuestion(
-                        entry.name,
-                        entry.versions.map((item) => item.number),
-                        pricingTotal(entry),
-                      )}
-                      action={instanceDeleteAction(entry.name)}
-                      remove={() =>
-                        deletions.deleteInstance({
-                          id: entry.id,
-                          includingPricingVersions: pricingTotal(entry) > 0,
-                        })
-                      }
-                      onDeleted={() => {
-                        const ids = entry.versions.map((item) => item.id);
-                        onInstanceDeleted?.(entry.id, ids);
-                        deletions.forget(ids);
-                      }}
-                      onMenuKeyDown={onKeyDown}
+                    <InstanceRowDelete
+                      entry={entry}
+                      onInstanceDeleted={onInstanceDeleted}
+                      onKeyDown={onKeyDown}
                     />
                   )}
                 </div>
