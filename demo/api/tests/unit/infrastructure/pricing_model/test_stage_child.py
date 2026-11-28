@@ -7,7 +7,7 @@ import pytest
 
 from pricing_demo.application.ports.step_executor import StepOutcome
 from pricing_demo.infrastructure.pricing_model.stage_child import StageChild, end_group
-from pricing_demo.infrastructure.pricing_model.stage_outcome import ExitStatus
+from pricing_demo.infrastructure.pricing_model.stage_outcome import ExitStatus, peak_rss_bytes
 from pricing_demo.infrastructure.pricing_model.stage_spec import (
     OUTCOME_FILE,
     SPEC_FILE,
@@ -118,7 +118,8 @@ def test_a_group_that_ends_by_itself_gets_no_signal_and_its_files_are_read(
     assert (tmp_path / SPEC_FILE).is_file()
     assert dict(outcome.counts) == {"n": 2}
     assert outcome.log_excerpt == "out\nerr\n"
-    assert outcome.peak_rss_bytes == 2048 * 1024
+    # `ru_maxrss` is kibibytes on Linux and bytes on macOS: the expected value follows the host.
+    assert outcome.peak_rss_bytes == peak_rss_bytes(2048)
 
 
 def test_a_stop_sends_sigterm_and_the_outcome_is_stopped(tmp_path: Path) -> None:

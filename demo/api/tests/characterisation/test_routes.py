@@ -124,7 +124,12 @@ def test_a_run_logs_the_total_each_pair_and_the_cleanup_with_the_adapters_templa
     assert [(f.origin_hub, f.destination_hub, f.query, f.kind, f.attempts) for f in failures] == [
         ("1", "0", "car", "technical", 1 + RETRIES)
     ]
-    assert steps[0] == (0, 2)
+    # Progress is read every 0.5 s and only changes are reported, so whether (0, 2) is seen
+    # depends on the host's speed: every report has the total, done never goes down, and the
+    # last report is the end.
+    assert steps
+    assert all(total == 2 for _, total in steps)
+    assert [done for done, _ in steps] == sorted(done for done, _ in steps)
     assert steps[-1] == (2, 2)
 
 
